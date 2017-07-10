@@ -17,7 +17,6 @@ limitations under the License.
 package stackdriver
 
 import (
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -40,14 +39,8 @@ func (w *fakeSdWriter) Write(entries []*sd.LogEntry, logName string, resource *s
 }
 
 func TestMaxConcurrency(t *testing.T) {
-	var writeCalledTimes int32
-	w := &fakeSdWriter{
-		writeFunc: func([]*sd.LogEntry, string, *sd.MonitoredResource) int {
-			atomic.AddInt32(&writeCalledTimes, 1)
-			time.Sleep(2 * time.Second)
-			return 0
-		},
-	}
+	done := make(chan struct{})
+	defer close(done)
 	config := &sdSinkConfig{
 		Resource:       nil,
 		FlushDelay:     100 * time.Millisecond,
@@ -55,26 +48,29 @@ func TestMaxConcurrency(t *testing.T) {
 		MaxConcurrency: 10,
 		MaxBufferSize:  10,
 	}
+	q := make(chan struct{}, config.MaxConcurrency+1)
+	w := &fakeSdWriter{
+		writeFunc: func([]*sd.LogEntry, string, *sd.MonitoredResource) int {
+			q <- struct{}{}
+			<-done
+			return 0
+		},
+	}
 	s := newSdSink(w, clock.NewFakeClock(time.Time{}), config)
-	go s.Run(wait.NeverStop)
+	go s.Run(done)
 
-	for i := 0; i < 110; i++ {
+	for i := 0; i < config.MaxConcurrency*(config.MaxBufferSize+2); i++ {
 		s.OnAdd(&api_v1.Event{})
 	}
 
-	if writeCalledTimes != int32(config.MaxConcurrency) {
-		t.Fatalf("writeCalledTimes = %d, expected %d", writeCalledTimes, config.MaxConcurrency)
+	if len(q) != config.MaxConcurrency {
+		t.Fatalf("Write called %d times, expected %d", len(q), config.MaxConcurrency)
 	}
 }
 
 func TestBatchTimeout(t *testing.T) {
-	var writeCalledTimes int32
-	w := &fakeSdWriter{
-		writeFunc: func([]*sd.LogEntry, string, *sd.MonitoredResource) int {
-			atomic.AddInt32(&writeCalledTimes, 1)
-			return 0
-		},
-	}
+	done := make(chan struct{})
+	defer close(done)
 	config := &sdSinkConfig{
 		Resource:       nil,
 		FlushDelay:     100 * time.Millisecond,
@@ -82,42 +78,55 @@ func TestBatchTimeout(t *testing.T) {
 		MaxConcurrency: 10,
 		MaxBufferSize:  10,
 	}
+	q := make(chan struct{}, config.MaxConcurrency+1)
+	w := &fakeSdWriter{
+		writeFunc: func([]*sd.LogEntry, string, *sd.MonitoredResource) int {
+			q <- struct{}{}
+			return 0
+		},
+	}
 	s := newSdSink(w, clock.NewFakeClock(time.Time{}), config)
-	go s.Run(wait.NeverStop)
+	go s.Run(done)
 
 	s.OnAdd(&api_v1.Event{})
-	time.Sleep(200 * time.Millisecond)
+	wait.Poll(100*time.Millisecond, 1*time.Second, func() (bool, error) {
+		return len(q) == 1, nil
+	})
 
-	if writeCalledTimes != 1 {
-		t.Fatalf("writeCalledTimes = %d, expected 1", writeCalledTimes)
+	if len(q) != 1 {
+		t.Fatalf("Write called %d times, expected 1", len(q))
 	}
 }
 
 func TestBatchSizeLimit(t *testing.T) {
-	var writeCalledTimes int32
-	w := &fakeSdWriter{
-		writeFunc: func([]*sd.LogEntry, string, *sd.MonitoredResource) int {
-			atomic.AddInt32(&writeCalledTimes, 1)
-			return 0
-		},
-	}
+	done := make(chan struct{})
+	defer close(done)
 	config := &sdSinkConfig{
 		Resource:       nil,
-		FlushDelay:     1 * time.Second,
+		FlushDelay:     1 * time.Minute,
 		LogName:        "logname",
 		MaxConcurrency: 10,
 		MaxBufferSize:  10,
 	}
+	q := make(chan struct{}, config.MaxConcurrency+1)
+	w := &fakeSdWriter{
+		writeFunc: func([]*sd.LogEntry, string, *sd.MonitoredResource) int {
+			q <- struct{}{}
+			return 0
+		},
+	}
 	s := newSdSink(w, clock.NewFakeClock(time.Time{}), config)
-	go s.Run(wait.NeverStop)
+	go s.Run(done)
 
 	for i := 0; i < 15; i++ {
 		s.OnAdd(&api_v1.Event{})
 	}
 
-	time.Sleep(100 * time.Millisecond)
+	wait.Poll(100*time.Millisecond, 1*time.Second, func() (bool, error) {
+		return len(q) == 1, nil
+	})
 
-	if writeCalledTimes != 1 {
-		t.Fatalf("writeCalledTimes = %d, expected 1", writeCalledTimes)
+	if len(q) != 1 {
+		t.Fatalf("Write called %d times, expected 1", len(q))
 	}
 }
