@@ -10,8 +10,6 @@ matrix:
     - go: 1.8
 
 install:
-  - mkdir -p $HOME/gopath/src/github.com/stackdriver
-  - mv $TRAVIS_BUILD_DIR $HOME/gopath/src/github.com/stackdriver/kubernetes
   - hack/install-verify-tools.sh
   - export PATH=$GOPATH/bin:$PATH
   - hack/for-go-proj.sh install
