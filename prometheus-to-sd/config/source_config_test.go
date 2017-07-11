@@ -106,7 +106,7 @@ func TestParseSourceConfig(t *testing.T) {
 	}
 
 	for _, c := range incorrect {
-		res, err = ParseSourceConfig(c)
+		_, err = ParseSourceConfig(c)
 		assert.Error(t, err)
 	}
 }
