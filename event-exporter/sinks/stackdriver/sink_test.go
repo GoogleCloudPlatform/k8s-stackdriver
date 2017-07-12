@@ -130,3 +130,40 @@ func TestBatchSizeLimit(t *testing.T) {
 		t.Fatalf("Write called %d times, expected 1", len(q))
 	}
 }
+
+func TestInitialList(t *testing.T) {
+	done := make(chan struct{})
+	defer close(done)
+	config := &sdSinkConfig{
+		Resource:       nil,
+		FlushDelay:     100 * time.Millisecond,
+		LogName:        "logname",
+		MaxConcurrency: 10,
+		MaxBufferSize:  1,
+	}
+	q := make(chan struct{}, config.MaxConcurrency+1)
+	w := &fakeSdWriter{
+		writeFunc: func([]*sd.LogEntry, string, *sd.MonitoredResource) int {
+			q <- struct{}{}
+			return 0
+		},
+	}
+	s := newSdSink(w, clock.NewFakeClock(time.Time{}), config)
+	go s.Run(done)
+
+	s.OnList(&api_v1.EventList{})
+
+	wait.Poll(100*time.Millisecond, 1*time.Second, func() (bool, error) {
+		return len(q) == 1, nil
+	})
+	if len(q) != 1 {
+		t.Fatalf("Write called %d times, expected 1", len(q))
+	}
+
+	s.OnList(&api_v1.EventList{})
+
+	time.Sleep(2 * config.FlushDelay)
+	if len(q) != 1 {
+		t.Fatalf("Write called %d times, expected 1", len(q))
+	}
+}
