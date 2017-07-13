@@ -19,6 +19,7 @@ package translator
 import (
 	"math"
 	"sort"
+	"strings"
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
@@ -239,6 +240,33 @@ func TestMetricFamilyToMetricDescriptor(t *testing.T) {
 		metricDescriptor := MetricFamilyToMetricDescriptor(commonConfig, metric, nil)
 		expectedMetricDescriptor := metricDescriptors[metricName]
 		assert.Equal(t, metricDescriptor, expectedMetricDescriptor)
+	}
+}
+
+func TestOmitComponentName(t *testing.T) {
+	var normalMetric1 = "metric1"
+	var metricWithSomePrefix = "some_prefix_metric2"
+	var metricWithComponentPrefix = "testcomponent_metric"
+	var metricWithIncorrectComponentPrefix = "testcomponentmetric"
+
+	var metricFamiliesForWhitelistTest = map[string]*dto.MetricFamily{
+		normalMetric1: {
+			Name: stringPtr(normalMetric1),
+		},
+		metricWithSomePrefix: {
+			Name: stringPtr(metricWithSomePrefix),
+		},
+		metricWithComponentPrefix: {
+			Name: stringPtr(metricWithComponentPrefix),
+		},
+		metricWithIncorrectComponentPrefix: {
+			Name: stringPtr(metricWithIncorrectComponentPrefix),
+		},
+	}
+	processedMetrics := OmitComponentName(metricFamiliesForWhitelistTest, "testcomponent")
+	for k, v := range processedMetrics {
+		assert.False(t, strings.HasPrefix(k, "testcomponent_"))
+		assert.False(t, strings.HasPrefix(*v.Name, "testcomponent_"))
 	}
 }
 
