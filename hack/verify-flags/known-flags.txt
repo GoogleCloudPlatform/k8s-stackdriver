@@ -97,6 +97,7 @@ nginx-configmap
 nonblocking-jenkins-jobs
 number-of-old-test-results
 ok-total-unready-count
+omit-component-name
 on-change
 one-time
 on-start

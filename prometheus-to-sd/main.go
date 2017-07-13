@@ -53,6 +53,8 @@ var (
 		"Name of the pod in which monitored component is running.")
 	namespaceId = flag.String("namespace-id", "",
 		"Namespace name of the pod in which monitored component is running.")
+	omitComponentName = flag.Bool("omit-component-name", true,
+		"If metric name starts with the component name then this substring is removed to keep metric name shorter.")
 
 	customMetricsPrefix = "custom.googleapis.com"
 )
@@ -135,6 +137,9 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 		if err != nil {
 			glog.Warningf("Error while getting Prometheus metrics %v", err)
 			continue
+		}
+		if *omitComponentName {
+			metrics = translator.OmitComponentName(metrics, sourceConfig.Component)
 		}
 		if strings.HasPrefix(commonConfig.GceConfig.MetricsPrefix, customMetricsPrefix) {
 			metricDescriptorCache.UpdateMetricDescriptors(metrics, sourceConfig.Whitelisted)

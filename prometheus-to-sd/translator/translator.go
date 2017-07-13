@@ -19,6 +19,7 @@ package translator
 import (
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/golang/glog"
@@ -61,6 +62,17 @@ func TranslatePrometheusToStackdriver(config *config.CommonConfig,
 		}
 	}
 	return ts
+}
+
+// OmitComponentName removes from the metric names prefix that is equal to component name.
+func OmitComponentName(metricFamilies map[string]*dto.MetricFamily, componentName string) map[string]*dto.MetricFamily {
+	result := make(map[string]*dto.MetricFamily)
+	for metricName, metricFamily := range metricFamilies {
+		newMetricName := strings.TrimPrefix(metricName, fmt.Sprintf("%s_", componentName))
+		metricFamily.Name = &newMetricName
+		result[newMetricName] = metricFamily
+	}
+	return result
 }
 
 func getStartTime(metrics map[string]*dto.MetricFamily) time.Time {
