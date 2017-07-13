@@ -53,7 +53,7 @@ func TestNewSourceConfig(t *testing.T) {
 	}
 
 	for _, c := range correct {
-		res, err := NewSourceConfig(c.component, c.host, c.port, c.whitelisted)
+		res, err := newSourceConfig(c.component, c.host, c.port, c.whitelisted)
 		if assert.NoError(t, err) {
 			assert.Equal(t, c.output, *res)
 		}
@@ -81,7 +81,7 @@ func TestParseSourceConfig(t *testing.T) {
 		},
 	}
 
-	res, err := ParseSourceConfig(correct.in)
+	res, err := parseSourceConfig(correct.in)
 	if assert.NoError(t, err) {
 		assert.Equal(t, correct.output, *res)
 	}
@@ -106,7 +106,7 @@ func TestParseSourceConfig(t *testing.T) {
 	}
 
 	for _, c := range incorrect {
-		_, err = ParseSourceConfig(c)
+		_, err = parseSourceConfig(c)
 		assert.Error(t, err)
 	}
 }
