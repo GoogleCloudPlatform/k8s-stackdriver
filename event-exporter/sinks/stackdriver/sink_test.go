@@ -63,6 +63,9 @@ func TestMaxConcurrency(t *testing.T) {
 		s.OnAdd(&api_v1.Event{})
 	}
 
+	wait.Poll(100*time.Millisecond, 1*time.Second, func() (bool, error) {
+		return len(q) == config.MaxConcurrency, nil
+	})
 	if len(q) != config.MaxConcurrency {
 		t.Fatalf("Write called %d times, expected %d", len(q), config.MaxConcurrency)
 	}
