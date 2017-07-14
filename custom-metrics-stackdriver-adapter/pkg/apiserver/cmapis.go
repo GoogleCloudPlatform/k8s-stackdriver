@@ -22,8 +22,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	genericapi "k8s.io/apiserver/pkg/endpoints"
-	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/endpoints/discovery"
+	genericapiserver "k8s.io/apiserver/pkg/server"
 
 	specificapi "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/apiserver/installer"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/provider"
@@ -31,6 +31,7 @@ import (
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 )
 
+// InstallCustomMetricsAPI registers the api server in Kube Aggregator
 func (s *CustomMetricsAdapterServer) InstallCustomMetricsAPI() error {
 
 	groupMeta := registry.GroupOrDie(custom_metrics.GroupName)
@@ -71,11 +72,11 @@ func (s *CustomMetricsAdapterServer) cmAPI(groupMeta *apimachinery.GroupMeta, gr
 
 			ParameterCodec:  metav1.ParameterCodec,
 			Serializer:      Codecs,
-			Creater:         Scheme,
-			Convertor:       Scheme,
-			UnsafeConvertor: runtime.UnsafeObjectConvertor(Scheme),
-			Copier:          Scheme,
-			Typer:           Scheme,
+			Creater:         scheme,
+			Convertor:       scheme,
+			UnsafeConvertor: runtime.UnsafeObjectConvertor(scheme),
+			Copier:          scheme,
+			Typer:           scheme,
 			Linker:          groupMeta.SelfLinker,
 			Mapper:          groupMeta.RESTMapper,
 

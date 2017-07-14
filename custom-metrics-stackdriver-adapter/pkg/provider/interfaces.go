@@ -35,9 +35,8 @@ type MetricInfo struct {
 func (i MetricInfo) String() string {
 	if i.Namespaced {
 		return fmt.Sprintf("%s/%s(namespaced)", i.GroupResource.String(), i.Metric)
-	} else {
-		return fmt.Sprintf("%s/%s", i.GroupResource.String(), i.Metric)
 	}
+	return fmt.Sprintf("%s/%s", i.GroupResource.String(), i.Metric)
 }
 
 // CustomMetricsProvider is a soruce of custom metrics

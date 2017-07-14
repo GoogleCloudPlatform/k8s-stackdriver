@@ -25,18 +25,18 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
-	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apiserver/pkg/endpoints"
+	"k8s.io/apiserver/pkg/endpoints/discovery"
 	"k8s.io/apiserver/pkg/endpoints/handlers"
 	"k8s.io/apiserver/pkg/endpoints/handlers/negotiation"
 	"k8s.io/apiserver/pkg/endpoints/metrics"
-	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/apiserver/pkg/endpoints/request"
-	"k8s.io/apiserver/pkg/endpoints/discovery"
+	"k8s.io/apiserver/pkg/registry/rest"
 
 	"github.com/emicklei/go-restful"
 )
@@ -58,7 +58,7 @@ type MetricsAPIGroupVersion struct {
 	*endpoints.APIGroupVersion
 }
 
-// InstallDynamicREST registers the dynamic REST handlers into a restful Container.
+// InstallREST registers the dynamic REST handlers into a restful Container.
 // It is expected that the provided path root prefix will serve all operations.  Root MUST
 // NOT end in a slash.  It should mirror InstallREST in the plain APIGroupVersion.
 func (g *MetricsAPIGroupVersion) InstallREST(container *restful.Container) error {
@@ -236,9 +236,9 @@ func (a *MetricsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws 
 	doc := "list custom metrics describing an object or objects"
 	reqScope.Namer = MetricsNaming{
 		handlers.ContextBasedNaming{
-			GetContext: ctxFn,
-			SelfLinker: a.group.Linker,
-			ClusterScoped: true,
+			GetContext:         ctxFn,
+			SelfLinker:         a.group.Linker,
+			ClusterScoped:      true,
 			SelfLinkPathPrefix: a.prefix + "/",
 		},
 	}
@@ -262,9 +262,9 @@ func (a *MetricsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws 
 	// install the namespace-scoped route
 	reqScope.Namer = MetricsNaming{
 		handlers.ContextBasedNaming{
-			GetContext: ctxFn,
-			SelfLinker: a.group.Linker,
-			ClusterScoped: false,
+			GetContext:         ctxFn,
+			SelfLinker:         a.group.Linker,
+			ClusterScoped:      false,
 			SelfLinkPathPrefix: gpath.Join(a.prefix, scope.ParamName()) + "/",
 		},
 	}
@@ -286,9 +286,9 @@ func (a *MetricsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws 
 	reqScope.ContextFunc = ctxFn
 	reqScope.Namer = MetricsNaming{
 		handlers.ContextBasedNaming{
-			GetContext: ctxFn,
-			SelfLinker: a.group.Linker,
-			ClusterScoped: false,
+			GetContext:         ctxFn,
+			SelfLinker:         a.group.Linker,
+			ClusterScoped:      false,
 			SelfLinkPathPrefix: gpath.Join(a.prefix, scope.ParamName()) + "/",
 		},
 	}
@@ -449,6 +449,7 @@ type MetricsNaming struct {
 	handlers.ContextBasedNaming
 }
 
+// GenerateLink returns the appropriate path and query to locate an object by its canonical path.
 func (n MetricsNaming) GenerateLink(req *http.Request, obj runtime.Object) (uri string, err error) {
 	requestInfo, ok := request.RequestInfoFrom(n.GetContext(req))
 	if !ok {

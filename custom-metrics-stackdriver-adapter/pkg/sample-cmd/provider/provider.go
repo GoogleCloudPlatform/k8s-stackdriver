@@ -17,20 +17,22 @@ limitations under the License.
 package provider
 
 import (
-	"time"
 	"fmt"
+	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/metrics/pkg/apis/custom_metrics"
-	"k8s.io/client-go/pkg/api"
-	_ "k8s.io/client-go/pkg/api/install"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/scheme"
+	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/pkg/api"
+
+	// Install registers the API group and adds types to a scheme.
+	_ "k8s.io/client-go/pkg/api/install"
+	"k8s.io/metrics/pkg/apis/custom_metrics"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/provider"
 )
@@ -41,6 +43,7 @@ type incrementalTestingProvider struct {
 	values map[provider.MetricInfo]int64
 }
 
+// NewFakeProvider returns sample CustomMetricsProvider for provided client.
 func NewFakeProvider(client coreclient.CoreV1Interface) provider.CustomMetricsProvider {
 	return &incrementalTestingProvider{
 		client: client,
@@ -51,12 +54,12 @@ func NewFakeProvider(client coreclient.CoreV1Interface) provider.CustomMetricsPr
 func (p *incrementalTestingProvider) valueFor(groupResource schema.GroupResource, metricName string, namespaced bool) int64 {
 	info := provider.MetricInfo{
 		GroupResource: groupResource,
-		Metric: metricName,
-		Namespaced: namespaced,
+		Metric:        metricName,
+		Namespaced:    namespaced,
 	}
 
 	value := p.values[info]
-	value += 1
+	value++
 	p.values[info] = value
 
 	return value
@@ -74,14 +77,14 @@ func (p *incrementalTestingProvider) metricFor(value int64, groupResource schema
 
 	return &custom_metrics.MetricValue{
 		DescribedObject: api.ObjectReference{
-			APIVersion: groupResource.Group+"/"+runtime.APIVersionInternal,
-			Kind: kind.Kind,
-			Name: name,
-			Namespace: namespace,
+			APIVersion: groupResource.Group + "/" + runtime.APIVersionInternal,
+			Kind:       kind.Kind,
+			Name:       name,
+			Namespace:  namespace,
 		},
 		MetricName: metricName,
-		Timestamp: metav1.Time{time.Now()},
-		Value: *resource.NewMilliQuantity(value * 100, resource.DecimalSI),
+		Timestamp:  metav1.Time{time.Now()},
+		Value:      *resource.NewMilliQuantity(value*100, resource.DecimalSI),
 	}, nil
 }
 
@@ -107,7 +110,7 @@ func (p *incrementalTestingProvider) metricsFor(totalValue int64, groupResource 
 	}
 
 	for i := range res {
-		res[i].Value = *resource.NewMilliQuantity(100 * totalValue / int64(len(res)), resource.DecimalSI)
+		res[i].Value = *resource.NewMilliQuantity(100*totalValue/int64(len(res)), resource.DecimalSI)
 	}
 
 	//return p.metricFor(value, groupResource, "", name, metricName)
@@ -120,7 +123,6 @@ func (p *incrementalTestingProvider) GetRootScopedMetricByName(groupResource sch
 	value := p.valueFor(groupResource, metricName, false)
 	return p.metricFor(value, groupResource, "", name, metricName)
 }
-
 
 func (p *incrementalTestingProvider) GetRootScopedMetricBySelector(groupResource schema.GroupResource, selector labels.Selector, metricName string) (*custom_metrics.MetricValueList, error) {
 	totalValue := p.valueFor(groupResource, metricName, false)
@@ -163,18 +165,18 @@ func (p *incrementalTestingProvider) ListAllMetrics() []provider.MetricInfo {
 	return []provider.MetricInfo{
 		{
 			GroupResource: schema.GroupResource{Group: "", Resource: "pods"},
-			Metric: "packets-per-second",
-			Namespaced: true,
+			Metric:        "packets-per-second",
+			Namespaced:    true,
 		},
 		{
 			GroupResource: schema.GroupResource{Group: "", Resource: "services"},
-			Metric: "connections-per-second",
-			Namespaced: true,
+			Metric:        "connections-per-second",
+			Namespaced:    true,
 		},
 		{
 			GroupResource: schema.GroupResource{Group: "", Resource: "namespaces"},
-			Metric: "queue-length",
-			Namespaced: false,
+			Metric:        "queue-length",
+			Namespaced:    false,
 		},
 	}
 }

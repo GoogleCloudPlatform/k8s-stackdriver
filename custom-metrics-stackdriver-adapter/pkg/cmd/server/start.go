@@ -21,11 +21,12 @@ import (
 	"io"
 	"net"
 
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/apiserver"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/apiserver"
 )
 
+// CustomMetricsAdapterServerOptions stores a configuration for custom metrics adapter.
 type CustomMetricsAdapterServerOptions struct {
 	// genericoptions.ReccomendedOptions - EtcdOptions
 	SecureServing  *genericoptions.SecureServingOptions
@@ -37,6 +38,8 @@ type CustomMetricsAdapterServerOptions struct {
 	StdErr io.Writer
 }
 
+// NewCustomMetricsAdapterServerOptions creates CustomMetricsAdapterServerOptions for provided
+// output interface.
 func NewCustomMetricsAdapterServerOptions(out, errOut io.Writer) *CustomMetricsAdapterServerOptions {
 	o := &CustomMetricsAdapterServerOptions{
 		SecureServing:  genericoptions.NewSecureServingOptions(),
@@ -51,14 +54,19 @@ func NewCustomMetricsAdapterServerOptions(out, errOut io.Writer) *CustomMetricsA
 	return o
 }
 
+// Validate validates CustomMetricsAdapterServerOptions. Currently all fields are correctly set in
+// NewCustomMetricsAdapterServerOptions, so this is a no-op.
 func (o CustomMetricsAdapterServerOptions) Validate(args []string) error {
 	return nil
 }
 
+// Complete fills in any fields not set that are required to have valid data. Currently all fields
+// are set by NewCustomMetricsAdapterServerOptions, so this is a no-op.
 func (o *CustomMetricsAdapterServerOptions) Complete() error {
 	return nil
 }
 
+// Config returns apiserver.Config object from CustomMetricsAdapterServerOptions.
 func (o CustomMetricsAdapterServerOptions) Config() (*apiserver.Config, error) {
 	// TODO have a "real" external address (have an AdvertiseAddress?)
 	if err := o.SecureServing.MaybeDefaultWithSelfSignedCerts("localhost", nil, []net.IP{net.ParseIP("127.0.0.1")}); err != nil {

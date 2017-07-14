@@ -17,30 +17,32 @@ limitations under the License.
 package provider
 
 import (
-	"k8s.io/apiserver/pkg/endpoints/discovery"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apiserver/pkg/endpoints/discovery"
 )
 
 type customMetricsResourceLister struct {
 	provider CustomMetricsProvider
 }
 
+// NewResourceLister creates APIResourceLister for provided CustomMetricsProvider.
 func NewResourceLister(provider CustomMetricsProvider) discovery.APIResourceLister {
 	return &customMetricsResourceLister{
 		provider: provider,
 	}
 }
 
+// ListAPIResources lists all supported custom metrics.
 func (l *customMetricsResourceLister) ListAPIResources() []metav1.APIResource {
 	metrics := l.provider.ListAllMetrics()
 	resources := make([]metav1.APIResource, len(metrics))
 
 	for i, metric := range metrics {
 		resources[i] = metav1.APIResource{
-			Name: metric.GroupResource.String()+"/"+metric.Metric,
+			Name:       metric.GroupResource.String() + "/" + metric.Metric,
 			Namespaced: metric.Namespaced,
-			Kind: "MetricValueList",
-			Verbs: metav1.Verbs{"get"}, // TODO: support "watch"
+			Kind:       "MetricValueList",
+			Verbs:      metav1.Verbs{"get"}, // TODO: support "watch"
 		}
 	}
 

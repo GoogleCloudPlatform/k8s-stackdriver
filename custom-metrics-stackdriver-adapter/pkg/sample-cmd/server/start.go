@@ -17,22 +17,22 @@ limitations under the License.
 package server
 
 import (
-	"io"
 	"fmt"
+	"io"
 
 	"github.com/spf13/cobra"
+	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/cmd/server"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/sample-cmd/provider"
 )
 
-// NewCommandStartMaster provides a CLI handler for 'start master' command
+// NewCommandStartSampleAdapterServer provides a CLI handler for 'start master' command
 func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan struct{}) *cobra.Command {
 	baseOpts := server.NewCustomMetricsAdapterServerOptions(out, errOut)
-	o := SampleAdapterServerOptions{
+	o := sampleAdapterServerOptions{
 		CustomMetricsAdapterServerOptions: baseOpts,
 	}
 
@@ -63,11 +63,11 @@ func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan str
 		"kubeconfig file pointing at the 'core' kubernetes server with enough rights to list "+
 		"any described objets")
 
-
 	return cmd
 }
 
-func (o SampleAdapterServerOptions) RunCustomMetricsAdapterServer(stopCh <-chan struct{}) error {
+// RunCustomMetricsAdapterServer runs Custom Metrics Adapter API server.
+func (o sampleAdapterServerOptions) RunCustomMetricsAdapterServer(stopCh <-chan struct{}) error {
 	config, err := o.Config()
 	if err != nil {
 		return err
@@ -100,7 +100,7 @@ func (o SampleAdapterServerOptions) RunCustomMetricsAdapterServer(stopCh <-chan 
 	return server.GenericAPIServer.PrepareRun().Run(stopCh)
 }
 
-type SampleAdapterServerOptions struct {
+type sampleAdapterServerOptions struct {
 	*server.CustomMetricsAdapterServerOptions
 
 	// RemoteKubeConfigFile is the config used to list pods from the master API server
