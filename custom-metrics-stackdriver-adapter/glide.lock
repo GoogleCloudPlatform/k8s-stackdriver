@@ -1,8 +1,13 @@
-hash: 807f261d8170be02e0c3802e4d005c334a04419a8b2e5f75d68498385202f5ff
-updated: 2017-06-07T14:38:39.211756323-04:00
+hash: b35d8aebcb892b3ee739f6df6f13e7861d8e92f5dd886383b9591a87291c2b88
+updated: 2017-07-27T16:16:44.000695225+02:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
+- name: cloud.google.com/go
+  version: 3b1ae45394a234c385be014e9a488f2bb6eef821
+  subpackages:
+  - compute/metadata
+  - internal
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
   subpackages:
@@ -206,6 +211,7 @@ imports:
   version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
   subpackages:
   - context
+  - context/ctxhttp
   - html
   - html/atom
   - http2
@@ -215,6 +221,13 @@ imports:
   - lex/httplex
   - trace
   - websocket
+- name: golang.org/x/oauth2
+  version: a6bd8cefa1811bd24b86f8902872e4e8225f74c4
+  subpackages:
+  - google
+  - internal
+  - jws
+  - jwt
 - name: golang.org/x/sys
   version: 8f0908ab3b2457e2e15403d3697c9ef5cb4b57a9
   subpackages:
@@ -232,6 +245,25 @@ imports:
   - unicode/bidi
   - unicode/norm
   - width
+- name: google.golang.org/api
+  version: 295e4bb0ade057ae2cfb9876ab0b54635dbfcea4
+  subpackages:
+  - gensupport
+  - googleapi
+  - googleapi/internal/uritemplates
+  - monitoring/v3
+- name: google.golang.org/appengine
+  version: ad2570cd3913654e00c5f0183b39d2f998e54046
+  subpackages:
+  - internal
+  - internal/app_identity
+  - internal/base
+  - internal/datastore
+  - internal/log
+  - internal/modules
+  - internal/remote_api
+  - internal/urlfetch
+  - urlfetch
 - name: google.golang.org/grpc
   version: 777daa17ff9b5daef1cfdf915088a2ada3332bf0
   subpackages:

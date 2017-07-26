@@ -1,10 +1,19 @@
 package: github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter
 import:
+- package: cloud.google.com/go
+  subpackages:
+  - compute/metadata
 - package: github.com/emicklei/go-restful
+- package: github.com/golang/glog
 - package: github.com/spf13/cobra
+- package: golang.org/x/oauth2
+  subpackages:
+  - google
+- package: google.golang.org/api
+  subpackages:
+  - monitoring/v3
 - package: k8s.io/apimachinery
   subpackages:
-  - pkg/api/errors
   - pkg/api/meta
   - pkg/api/resource
   - pkg/apimachinery
@@ -23,6 +32,7 @@ import:
 - package: k8s.io/apiserver
   subpackages:
   - pkg/endpoints
+  - pkg/endpoints/discovery
   - pkg/endpoints/handlers
   - pkg/endpoints/handlers/negotiation
   - pkg/endpoints/metrics
@@ -33,7 +43,6 @@ import:
   - pkg/util/logs
 - package: k8s.io/client-go
   subpackages:
-  - kubernetes/scheme
   - kubernetes/typed/core/v1
   - pkg/api
   - pkg/api/install

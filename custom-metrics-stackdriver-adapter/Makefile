@@ -10,8 +10,8 @@ deps:
 
 build: build/adapter
 
-build/adapter: sample-main.go $(PKG)
-	go build -a -o $(OUT_DIR)/adapter sample-main.go
+build/adapter: adapter.go $(PKG)
+	go build -a -o $(OUT_DIR)/adapter adapter.go
 
 docker: build/adapter
 	docker build --pull -t ${PREFIX}/custom-metrics-stackdriver-adapter:$(TAG) .
@@ -19,5 +19,8 @@ docker: build/adapter
 push: docker
 	gcloud docker -- push ${PREFIX}/custom-metrics-stackdriver-adapter:$(TAG)
 
+test: $(PKG)
+	go test pkg/adapter/provider/*.go
+
 clean:
-	rm -rf build apiserver.local.config
+	rm -rf build
