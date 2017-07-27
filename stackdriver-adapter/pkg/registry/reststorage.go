@@ -19,9 +19,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
-	specificinstaller "k8s.io/stackdriver-adapter/pkg/apiserver/installer/context"
-	"k8s.io/stackdriver-adapter/pkg/provider"
-	"k8s.io/stackdriver-adapter/pkg/types"
+	specificinstaller "github.com/GoogleCloudPlatform/k8s-stackdriver/stackdriver-adapter/pkg/apiserver/installer/context"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/stackdriver-adapter/pkg/provider"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/stackdriver-adapter/pkg/types"
 )
 
 type REST struct {

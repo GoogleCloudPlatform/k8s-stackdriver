@@ -20,9 +20,9 @@ import (
 	"k8s.io/client-go/rest"
 	_ "k8s.io/client-go/pkg/api/install"
 	stackdriver "google.golang.org/api/monitoring/v3"
-	"k8s.io/stackdriver-adapter/pkg/provider"
-	"k8s.io/stackdriver-adapter/pkg/config"
-	"k8s.io/stackdriver-adapter/pkg/types"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/stackdriver-adapter/pkg/provider"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/stackdriver-adapter/pkg/config"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/stackdriver-adapter/pkg/types"
 )
 
 type sdService stackdriver.Service

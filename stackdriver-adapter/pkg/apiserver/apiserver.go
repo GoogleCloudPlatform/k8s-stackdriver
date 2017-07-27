@@ -22,8 +22,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/version"
 	genericapiserver "k8s.io/apiserver/pkg/server"
-	"k8s.io/stackdriver-adapter/pkg/provider"
-	"k8s.io/stackdriver-adapter/pkg/types"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/stackdriver-adapter/pkg/provider"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/stackdriver-adapter/pkg/types"
 )
 
 var (

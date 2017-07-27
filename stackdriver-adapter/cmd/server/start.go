@@ -23,8 +23,8 @@ import (
 	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
 	stackdriver "google.golang.org/api/monitoring/v3"
 
-	"k8s.io/stackdriver-adapter/pkg/cmd/server"
-	"k8s.io/stackdriver-adapter/cmd/provider"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/stackdriver-adapter/pkg/cmd/server"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/stackdriver-adapter/cmd/provider"
 	"time"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -110,3 +110,4 @@ type SampleAdapterServerOptions struct {
 	// RemoteKubeConfigFile is the config used to list pods from the master API server
 	RemoteKubeConfigFile string
 }
+

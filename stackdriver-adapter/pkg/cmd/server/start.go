@@ -19,7 +19,7 @@ import (
 	"net"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
-	"k8s.io/stackdriver-adapter/pkg/apiserver"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/stackdriver-adapter/pkg/apiserver"
 )
 
 type EventsAdapterServerOptions struct {

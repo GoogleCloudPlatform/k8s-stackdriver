@@ -33,13 +33,12 @@ import (
 	"k8s.io/apiserver/pkg/endpoints"
 	"k8s.io/apiserver/pkg/endpoints/handlers"
 	"k8s.io/apiserver/pkg/endpoints/handlers/negotiation"
-	//"k8s.io/apiserver/pkg/endpoints/metrics"
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/apiserver/pkg/endpoints/request"
 
 	"github.com/emicklei/go-restful"
 
-	specificcontext "k8s.io/stackdriver-adapter/pkg/apiserver/installer/context"
+	specificcontext "github.com/GoogleCloudPlatform/k8s-stackdriver/stackdriver-adapter/pkg/apiserver/installer/context"
 )
 
 // NB: the contents of this file should mostly be a subset of the functionality

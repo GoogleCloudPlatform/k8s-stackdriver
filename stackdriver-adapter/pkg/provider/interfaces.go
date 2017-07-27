@@ -15,7 +15,7 @@ package provider
 
 import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/stackdriver-adapter/pkg/types"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/stackdriver-adapter/pkg/types"
 )
 
 type EventInfo struct {

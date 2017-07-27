@@ -20,9 +20,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	genericapi "k8s.io/apiserver/pkg/endpoints"
 	genericapiserver "k8s.io/apiserver/pkg/server"
-	specificapi "k8s.io/stackdriver-adapter/pkg/apiserver/installer"
-	"k8s.io/stackdriver-adapter/pkg/provider"
-	storage "k8s.io/stackdriver-adapter/pkg/registry"
+	specificapi "github.com/GoogleCloudPlatform/k8s-stackdriver/stackdriver-adapter/pkg/apiserver/installer"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/stackdriver-adapter/pkg/provider"
+	storage "github.com/GoogleCloudPlatform/k8s-stackdriver/stackdriver-adapter/pkg/registry"
 )
 
 func (s *EventsAdapterServer) InstallEventsAPI() error {

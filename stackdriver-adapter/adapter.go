@@ -20,7 +20,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/util/logs"
-	"k8s.io/stackdriver-adapter/cmd/server"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/stackdriver-adapter/cmd/server"
 )
 
 func main() {
