@@ -5,9 +5,6 @@ TAG = v1.0
 
 PKG := $(shell find pkg/* -type f)
 
-deps:
-	glide install --strip-vendor
-
 build: build/adapter
 
 build/adapter: adapter.go $(PKG)
