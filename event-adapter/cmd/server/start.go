@@ -14,32 +14,32 @@ limitations under the License.
 package server
 
 import (
-	"io"
 	"fmt"
+	"io"
 
 	"github.com/spf13/cobra"
+	stackdriver "google.golang.org/api/monitoring/v3"
+	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
-	stackdriver "google.golang.org/api/monitoring/v3"
 
-	"k8s.io/k8s-stackdriver-adapter/pkg/cmd/server"
-	"k8s.io/k8s-stackdriver-adapter/cmd/provider"
-	"time"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/cmd/provider"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/cmd/server"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"time"
 )
 
-// NewCommandStartMaster provides a CLI handler for 'start master' command
+// NewCommandStartSampleAdapterServer provides a CLI handler for 'start master' command
 func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan struct{}) *cobra.Command {
-	baseOpts := server.NewCustomMetricsAdapterServerOptions(out, errOut)
+	baseOpts := server.NewEventsAdapterServerOptions(out, errOut)
 	o := SampleAdapterServerOptions{
-		CustomMetricsAdapterServerOptions: baseOpts,
+		EventsAdapterServerOptions: baseOpts,
 	}
 
 	cmd := &cobra.Command{
-		Short: "Launch the custom metrics API adapter server",
-		Long:  "Launch the custom metrics API adapter server",
+		Short: "Launch the events API adapter server",
+		Long:  "Launch the events API adapter server",
 		RunE: func(c *cobra.Command, args []string) error {
 			if err := o.Complete(); err != nil {
 				return err
@@ -47,7 +47,7 @@ func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan str
 			if err := o.Validate(args); err != nil {
 				return err
 			}
-			if err := o.RunCustomMetricsAdapterServer(stopCh); err != nil {
+			if err := o.RunEventsAdapterServer(stopCh); err != nil {
 				return err
 			}
 			return nil
@@ -59,15 +59,16 @@ func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan str
 	o.Authentication.AddFlags(flags)
 	o.Authorization.AddFlags(flags)
 	o.Features.AddFlags(flags)
-
+	fmt.Println(o.RemoteKubeConfigFile)
 	flags.StringVar(&o.RemoteKubeConfigFile, "lister-kubeconfig", o.RemoteKubeConfigFile, ""+
-			"kubeconfig file pointing at the 'core' kubernetes server with enough rights to list "+
-			"any described objets")
+		"kubeconfig file pointing at the 'core' kubernetes server with enough rights to list "+
+		"any described objets")
 
 	return cmd
 }
 
-func (o SampleAdapterServerOptions) RunCustomMetricsAdapterServer(stopCh <-chan struct{}) error {
+// RunEventsAdapterServer runs Events adapter API server
+func (o SampleAdapterServerOptions) RunEventsAdapterServer(stopCh <-chan struct{}) error {
 	config, err := o.Config()
 	if err != nil {
 		return err
@@ -95,17 +96,18 @@ func (o SampleAdapterServerOptions) RunCustomMetricsAdapterServer(stopCh <-chan 
 	if err != nil {
 		return fmt.Errorf("Failed to create Stackdriver client: %v", err)
 	}
-	cmProvider := provider.NewStackdriverProvider(client.RESTClient(), stackdriverService, 5 * time.Minute)
+	evProvider := provider.NewStackdriverProvider(client.RESTClient(), stackdriverService, 5*time.Minute)
 
-	server, err := config.Complete().New(cmProvider)
+	server, err := config.Complete().New(evProvider)
 	if err != nil {
 		return err
 	}
 	return server.GenericAPIServer.PrepareRun().Run(stopCh)
 }
 
+// SampleAdapterServerOptions contains sample EventsAdapterServerOptions
 type SampleAdapterServerOptions struct {
-	*server.CustomMetricsAdapterServerOptions
+	*server.EventsAdapterServerOptions
 
 	// RemoteKubeConfigFile is the config used to list pods from the master API server
 	RemoteKubeConfigFile string

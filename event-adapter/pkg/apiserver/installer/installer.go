@@ -1,12 +1,9 @@
 /*
 Copyright 2017 The Kubernetes Authors.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -36,13 +33,13 @@ import (
 	"k8s.io/apiserver/pkg/endpoints"
 	"k8s.io/apiserver/pkg/endpoints/handlers"
 	"k8s.io/apiserver/pkg/endpoints/handlers/negotiation"
-	"k8s.io/apiserver/pkg/endpoints/metrics"
-	"k8s.io/apiserver/pkg/registry/rest"
+	//"k8s.io/apiserver/pkg/endpoints/metrics"
 	"k8s.io/apiserver/pkg/endpoints/request"
+	"k8s.io/apiserver/pkg/registry/rest"
 
 	"github.com/emicklei/go-restful"
 
-	specificcontext "k8s.io/k8s-stackdriver-adapter/pkg/apiserver/installer/context"
+	specificcontext "github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/apiserver/installer/context"
 )
 
 // NB: the contents of this file should mostly be a subset of the functionality
@@ -50,22 +47,22 @@ import (
 // a way to not have to recreate/copy a bunch of the structure from the normal API
 // installer, so that this trivially tracks changes to the main installer.
 
-// MetricsAPIGroupVersion is similar to "k8s.io/apiserver/pkg/endpoints".APIGroupVersion,
+// EventsAPIGroupVersion is similar to "k8s.io/apiserver/pkg/endpoints".APIGroupVersion,
 // except that it installs the metrics REST handlers, which use wildcard resources
 // and subresources.
 //
 // This basically only serves the limitted use case required by the metrics API server --
 // the only verb accepted is GET (and perhaps WATCH in the future).
-type MetricsAPIGroupVersion struct {
+type EventsAPIGroupVersion struct {
 	DynamicStorage rest.Storage
 
 	*endpoints.APIGroupVersion
 }
 
-// InstallDynamicREST registers the dynamic REST handlers into a restful Container.
+// InstallREST registers the dynamic REST handlers into a restful Container.
 // It is expected that the provided path root prefix will serve all operations.  Root MUST
 // NOT end in a slash.  It should mirror InstallREST in the plain APIGroupVersion.
-func (g *MetricsAPIGroupVersion) InstallREST(container *restful.Container) error {
+func (g *EventsAPIGroupVersion) InstallREST(container *restful.Container) error {
 	installer := g.newDynamicInstaller()
 	ws := installer.NewWebService()
 
@@ -81,9 +78,9 @@ func (g *MetricsAPIGroupVersion) InstallREST(container *restful.Container) error
 
 // newDynamicInstaller is a helper to create the installer.  It mirrors
 // newInstaller in APIGroupVersion.
-func (g *MetricsAPIGroupVersion) newDynamicInstaller() *MetricsAPIInstaller {
+func (g *EventsAPIGroupVersion) newDynamicInstaller() *EventsAPIInstaller {
 	prefix := gpath.Join(g.Root, g.GroupVersion.Group, g.GroupVersion.Version)
-	installer := &MetricsAPIInstaller{
+	installer := &EventsAPIInstaller{
 		group:             g,
 		prefix:            prefix,
 		minRequestTimeout: g.MinRequestTimeout,
@@ -92,12 +89,12 @@ func (g *MetricsAPIGroupVersion) newDynamicInstaller() *MetricsAPIInstaller {
 	return installer
 }
 
-// MetricsAPIInstaller is a specialized API installer for the metrics API.
+// EventsAPIInstaller is a specialized API installer for the metrics API.
 // It is intended to be fully compliant with the Kubernetes API server conventions,
 // but serves wildcard resource/subresource routes instead of hard-coded resources
 // and subresources.
-type MetricsAPIInstaller struct {
-	group             *MetricsAPIGroupVersion
+type EventsAPIInstaller struct {
+	group             *EventsAPIGroupVersion
 	prefix            string // Path prefix where API resources are to be registered.
 	minRequestTimeout time.Duration
 
@@ -106,19 +103,19 @@ type MetricsAPIInstaller struct {
 }
 
 // Install installs handlers for API resources.
-func (a *MetricsAPIInstaller) Install(ws *restful.WebService) (errors []error) {
+func (a *EventsAPIInstaller) Install(ws *restful.WebService) (errors []error) {
 	errors = make([]error, 0)
 
 	err := a.registerResourceHandlers(a.group.DynamicStorage, ws)
 	if err != nil {
-		errors = append(errors, fmt.Errorf("error in registering custom metrics resource: %v", err))
+		errors = append(errors, fmt.Errorf("error in registering the resource: %v", err))
 	}
 
 	return errors
 }
 
 // NewWebService creates a new restful webservice with the api installer's prefix and version.
-func (a *MetricsAPIInstaller) NewWebService() *restful.WebService {
+func (a *EventsAPIInstaller) NewWebService() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(a.prefix)
 	// a.prefix contains "prefix/group/version"
@@ -134,10 +131,10 @@ func (a *MetricsAPIInstaller) NewWebService() *restful.WebService {
 	return ws
 }
 
-// registerResourceHandlers registers the resource handlers for custom metrics.
+// registerResourceHandlers registers the resource handlers for events.
 // Compared to the normal installer, this plays fast and loose a bit, but should still
 // follow the API conventions.
-func (a *MetricsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *restful.WebService) error {
+func (a *EventsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *restful.WebService) error {
 	context := a.group.Context
 
 	optionsExternalVersion := a.group.GroupVersion
@@ -186,41 +183,29 @@ func (a *MetricsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws 
 		}
 
 		ctx = request.WithUserAgent(ctx, req.HeaderParameter("User-Agent"))
-
-		// inject the resource, subresource, and name here so that
-		// we don't have to write custom handler logic
+		name := req.PathParameter("name")
 		resource := req.PathParameter("resource")
-		subresource := req.PathParameter("subresource")
-		ctx = specificcontext.WithResourceInformation(ctx, resource, subresource)
+		ctx = specificcontext.WithResourceInformation(ctx, resource, name)
 
 		return ctx
 	}
 
 	scope := mapping.Scope
-	nameParam := ws.PathParameter("name", "name of the described resource").DataType("string")
+	nameParam := ws.PathParameter("name", "name of the described event").DataType("string")
 	resourceParam := ws.PathParameter("resource", "the name of the resource").DataType("string")
-	subresourceParam := ws.PathParameter("subresource", "the name of the subresource").DataType("string")
-
-	// metrics describing non-namespaced objects (e.g. nodes)
-	rootScopedParams := []*restful.Parameter{
-		resourceParam,
-		nameParam,
-		subresourceParam,
-	}
-	rootScopedPath := "{resource}/{name}/{subresource:*}"
-
-	// metrics describing namespaced objects (e.g. pods)
 	namespaceParam := ws.PathParameter(scope.ArgumentName(), scope.ParamDescription()).DataType("string")
+
 	namespacedParams := []*restful.Parameter{
-		namespaceParam,
-		resourceParam,
 		nameParam,
-		subresourceParam,
+		resourceParam,
+		namespaceParam,
 	}
-	// METRIC REGEXP:
-	namespacedPath := scope.ParamName() + "/{" + scope.ArgumentName() + "}/{resource}/{name}/{subresource:*}"
-	namespacedPathPrefix := gpath.Join(a.prefix, scope.ParamName()) + "/"
-	itemPathFn := func(name, namespace, resource, subresource string) bytes.Buffer {
+
+	//EVENT REGEXP:
+	namespacedPath := scope.ParamName() + "/{" + scope.ArgumentName() + "}/{resource}/{name}"
+	//namespacedPathPrefix := gpath.Join(a.prefix, scope.ParamName()) + "/"
+
+	/*itemPathFn := func(name, namespace string) bytes.Buffer {
 		var buf bytes.Buffer
 		buf.WriteString(namespacedPathPrefix)
 		buf.WriteString(url.QueryEscape(namespace))
@@ -228,43 +213,8 @@ func (a *MetricsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws 
 		buf.WriteString(url.QueryEscape(resource))
 		buf.WriteString("/")
 		buf.WriteString(url.QueryEscape(name))
-		buf.WriteString("/")
-		buf.WriteString(url.QueryEscape(subresource))
 		return buf
-	}
-
-	namespaceSpecificPath := scope.ParamName() + "/{" + scope.ArgumentName() + "}/metrics/{name:*}"
-	namespaceSpecificParams := []*restful.Parameter{
-		namespaceParam,
-		nameParam,
-	}
-	namespaceSpecificItemPathFn := func(name, namespace, resource, subresource string) bytes.Buffer {
-		var buf bytes.Buffer
-		buf.WriteString(namespacedPathPrefix)
-		buf.WriteString(url.QueryEscape(namespace))
-		buf.WriteString("/metrics/")
-		buf.WriteString(url.QueryEscape(name))
-		return buf
-	}
-	namespaceSpecificCtxFn := func(req *restful.Request) request.Context {
-		var ctx request.Context
-		if ctx != nil {
-			if existingCtx, ok := context.Get(req.Request); ok {
-				ctx = existingCtx
-			}
-		}
-		if ctx == nil {
-			ctx = request.NewContext()
-		}
-
-		ctx = request.WithUserAgent(ctx, req.HeaderParameter("User-Agent"))
-
-		// inject the resource, subresource, and name here so that
-		// we don't have to write custom handler logic
-		ctx = specificcontext.WithResourceInformation(ctx, "metrics", "")
-
-		return ctx
-	}
+	}*/
 
 	mediaTypes, streamMediaTypes := negotiation.MediaTypesForSerializer(a.group.Serializer)
 	allMediaTypes := append(mediaTypes, streamMediaTypes...)
@@ -292,27 +242,10 @@ func (a *MetricsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws 
 	}
 
 	// we need one path for namespaced resources, one for non-namespaced resources
-	doc := "list custom metrics describing an object or objects"
-	reqScope.Namer = rootScopeNaming{scope, a.group.Linker, gpath.Join(a.prefix, rootScopedPath, "/"), "/{subresource}"}
-	rootScopedHandler := metrics.InstrumentRouteFunc("LIST", "custom-metrics", handlers.ListResource(lister, nil, reqScope, false, a.minRequestTimeout))
-
-	// install the root-scoped route
-	rootScopedRoute := ws.GET(rootScopedPath).To(rootScopedHandler).
-		Doc(doc).
-		Param(ws.QueryParameter("pretty", "If 'true', then the output is pretty printed.")).
-		Operation("list"+kind).
-		Produces(allMediaTypes...).
-		Returns(http.StatusOK, "OK", versionedList).
-		Writes(versionedList)
-	if err := addObjectParams(ws, rootScopedRoute, versionedListOptions); err != nil {
-		return err
-	}
-	addParams(rootScopedRoute, rootScopedParams)
-	ws.Route(rootScopedRoute)
-
+	doc := "list events"
 	// install the namespace-scoped route
-	reqScope.Namer = scopeNaming{scope, a.group.Linker, itemPathFn, false}
-	namespacedHandler := metrics.InstrumentRouteFunc("LIST", "custom-metrics-namespaced", handlers.ListResource(lister, nil, reqScope, false, a.minRequestTimeout))
+	reqScope.Namer = scopeNaming{scope, a.group.Linker, nil, false}
+	namespacedHandler := handlers.ListResource(lister, nil, reqScope, false, a.minRequestTimeout)
 	namespacedRoute := ws.GET(namespacedPath).To(namespacedHandler).
 		Doc(doc).
 		Param(ws.QueryParameter("pretty", "If 'true', then the output is pretty printed.")).
@@ -325,34 +258,16 @@ func (a *MetricsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws 
 	}
 	addParams(namespacedRoute, namespacedParams)
 	ws.Route(namespacedRoute)
-
-	// install the special route for metrics describing namespaces (last b/c we modify the context func)
-	reqScope.ContextFunc = namespaceSpecificCtxFn
-	reqScope.Namer = scopeNaming{scope, a.group.Linker, namespaceSpecificItemPathFn, false}
-	namespaceSpecificHandler := metrics.InstrumentRouteFunc("LIST", "custom-metrics-for-namespace", handlers.ListResource(lister, nil, reqScope, false, a.minRequestTimeout))
-	namespaceSpecificRoute := ws.GET(namespaceSpecificPath).To(namespaceSpecificHandler).
-		Doc(doc).
-		Param(ws.QueryParameter("pretty", "If 'true', then the output is pretty printed.")).
-		Operation("read"+kind+"ForNamespace").
-		Produces(allMediaTypes...).
-		Returns(http.StatusOK, "OK", versionedList).
-		Writes(versionedList)
-	if err := addObjectParams(ws, namespaceSpecificRoute, versionedListOptions); err != nil {
-		return err
-	}
-	addParams(namespaceSpecificRoute, namespaceSpecificParams)
-	ws.Route(namespaceSpecificRoute)
-
 	return nil
 }
 
 // This magic incantation returns *ptrToObject for an arbitrary pointer
-func indirectArbitraryPointer(ptrToObject interface{}) interface{} {
+func indirectArbitraryPointer(ptrToObject interface{}) interface{} { //usato
 	return reflect.Indirect(reflect.ValueOf(ptrToObject)).Interface()
 }
 
 // getResourceKind returns the external group version kind registered for the given storage object.
-func (a *MetricsAPIInstaller) getResourceKind(storage rest.Storage) (schema.GroupVersionKind, error) {
+func (a *EventsAPIInstaller) getResourceKind(storage rest.Storage) (schema.GroupVersionKind, error) { //usato
 	object := storage.New()
 	fqKinds, _, err := a.group.Typer.ObjectKinds(object)
 	if err != nil {
@@ -381,7 +296,7 @@ func (a *MetricsAPIInstaller) getResourceKind(storage rest.Storage) (schema.Grou
 }
 
 // restMapping returns rest mapper for the resource provided by DynamicStorage.
-func (a *MetricsAPIInstaller) restMapping() (*meta.RESTMapping, error) {
+func (a *EventsAPIInstaller) restMapping() (*meta.RESTMapping, error) { //usato
 	// subresources must have parent resources, and follow the namespacing rules of their parent.
 	// So get the storage of the resource (which is the parent resource in case of subresources)
 	fqKindToRegister, err := a.getResourceKind(a.group.DynamicStorage)

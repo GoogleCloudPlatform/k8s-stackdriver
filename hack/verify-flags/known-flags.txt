@@ -76,6 +76,7 @@ label-file
 last-release-pr
 left-build-number
 listen-address
+lister-kubeconfig
 local-data-dir
 max-buffer-size
 max-concurrency

@@ -1,12 +1,11 @@
 /*
 Copyright 2017 The Kubernetes Authors.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-
+    
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -50,7 +49,7 @@ func (s *setTestSelfLinker) SetSelfLink(obj runtime.Object, selfLink string) err
 func TestScopeNamingGenerateLink(t *testing.T) {
 	selfLinker := &setTestSelfLinker{
 		t:           t,
-		expectedSet: "/api/v1/namespaces/other/services/foo",
+		expectedSet: "/apis/v1events/v1alpha/namespaces/other/events/foo",
 		name:        "foo",
 		namespace:   "other",
 	}
@@ -58,7 +57,7 @@ func TestScopeNamingGenerateLink(t *testing.T) {
 		meta.RESTScopeNamespace,
 		selfLinker,
 		func(name, namespace, resource, subresource string) bytes.Buffer {
-			return *bytes.NewBufferString("/api/v1/namespaces/" + namespace + "/services/" + name)
+			return *bytes.NewBufferString("/api/v1events/v1alpha/namespaces/" + namespace + "/events/" + name)
 		},
 		true,
 	}
@@ -76,4 +75,3 @@ func TestScopeNamingGenerateLink(t *testing.T) {
 		t.Errorf("Unexpected error %v", err)
 	}
 }
-
