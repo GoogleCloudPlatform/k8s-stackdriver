@@ -1,12 +1,9 @@
 /*
 Copyright 2017 The Kubernetes Authors.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,22 +14,21 @@ limitations under the License.
 package apiserver
 
 import (
+	specificapi "github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/apiserver/installer"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/provider"
+	storage "github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/registry"
 	"k8s.io/apimachinery/pkg/apimachinery"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	genericapi "k8s.io/apiserver/pkg/endpoints"
 	genericapiserver "k8s.io/apiserver/pkg/server"
-
-	specificapi "k8s.io/k8s-stackdriver-adapter/pkg/apiserver/installer"
-	"k8s.io/k8s-stackdriver-adapter/pkg/provider"
-	metricstorage "k8s.io/k8s-stackdriver-adapter/pkg/registry/custom_metrics"
-	"k8s.io/metrics/pkg/apis/custom_metrics"
 )
 
-func (s *CustomMetricsAdapterServer) InstallCustomMetricsAPI() error {
+// InstallEventsAPI registers the api server in Kube Aggregator
+func (s *EventsAdapterServer) InstallEventsAPI() error {
 
-	groupMeta := registry.GroupOrDie(custom_metrics.GroupName)
+	groupMeta := registry.GroupOrDie("v1events") //TODO chgNmGroup
 
 	preferredVersionForDiscovery := metav1.GroupVersionForDiscovery{
 		GroupVersion: groupMeta.GroupVersion.String(),
@@ -48,9 +44,9 @@ func (s *CustomMetricsAdapterServer) InstallCustomMetricsAPI() error {
 		PreferredVersion: preferredVersionForDiscovery,
 	}
 
-	cmAPI := s.cmAPI(groupMeta, &groupMeta.GroupVersion)
+	evAPI := s.evAPI(groupMeta, &groupMeta.GroupVersion)
 
-	if err := cmAPI.InstallREST(s.GenericAPIServer.HandlerContainer.Container); err != nil {
+	if err := evAPI.InstallREST(s.GenericAPIServer.HandlerContainer.Container); err != nil {
 		return err
 	}
 
@@ -59,10 +55,11 @@ func (s *CustomMetricsAdapterServer) InstallCustomMetricsAPI() error {
 
 	return nil
 }
-func (s *CustomMetricsAdapterServer) cmAPI(groupMeta *apimachinery.GroupMeta, groupVersion *schema.GroupVersion) *specificapi.MetricsAPIGroupVersion {
-	resourceStorage := metricstorage.NewREST(s.Provider)
 
-	return &specificapi.MetricsAPIGroupVersion{
+func (s *EventsAdapterServer) evAPI(groupMeta *apimachinery.GroupMeta, groupVersion *schema.GroupVersion) *specificapi.EventsAPIGroupVersion {
+	resourceStorage := storage.NewREST(s.Provider)
+
+	return &specificapi.EventsAPIGroupVersion{
 		DynamicStorage: resourceStorage,
 		APIGroupVersion: &genericapi.APIGroupVersion{
 			Root:         genericapiserver.APIGroupPrefix,

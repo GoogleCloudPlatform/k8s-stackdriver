@@ -21,15 +21,15 @@ import (
 
 // GceConfig aggregates all GCE related configuration parameters.
 type GceConfig struct {
-	Project			 string
-	Zone					string
-	Cluster			 string
-	Instance			string
-	MetricsPrefix string
+	Project      string
+	Zone         string
+	Cluster      string
+	Instance     string
+	EventsPrefix string
 }
 
 // GetGceConfig builds GceConfig based on the provided prefix and metadata server available on GCE.
-func GetGceConfig(metricsPrefix string) (*GceConfig, error) {
+func GetGceConfig(eventsPrefix string) (*GceConfig, error) {
 	if !gce.OnGCE() {
 		return nil, fmt.Errorf("Not running on GCE.")
 	}
@@ -55,10 +55,10 @@ func GetGceConfig(metricsPrefix string) (*GceConfig, error) {
 	}
 
 	return &GceConfig{
-		Project:			 project,
-		Zone:					zone,
-		Cluster:			 cluster,
-		Instance:			instance,
-		MetricsPrefix: metricsPrefix,
+		Project:      project,
+		Zone:         zone,
+		Cluster:      cluster,
+		Instance:     instance,
+		EventsPrefix: eventsPrefix,
 	}, nil
 }

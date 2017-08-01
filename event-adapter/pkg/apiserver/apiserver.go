@@ -1,12 +1,9 @@
 /*
 Copyright 2017 The Kubernetes Authors.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,6 +14,8 @@ limitations under the License.
 package apiserver
 
 import (
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/provider"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/types"
 	"k8s.io/apimachinery/pkg/apimachinery/announced"
 	"k8s.io/apimachinery/pkg/apimachinery/registered"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,20 +24,19 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/version"
 	genericapiserver "k8s.io/apiserver/pkg/server"
-
-	"k8s.io/k8s-stackdriver-adapter/pkg/provider"
-	"k8s.io/metrics/pkg/apis/custom_metrics/install"
 )
 
 var (
 	groupFactoryRegistry = make(announced.APIGroupFactoryRegistry)
 	registry             = registered.NewOrDie("")
-	Scheme               = runtime.NewScheme()
-	Codecs               = serializer.NewCodecFactory(Scheme)
+	// Scheme is a new scheme
+	Scheme = runtime.NewScheme()
+	// Codecs is a new CodecFactory
+	Codecs = serializer.NewCodecFactory(Scheme)
 )
 
 func init() {
-	install.Install(groupFactoryRegistry, registry, Scheme)
+	types.Install(groupFactoryRegistry, registry, Scheme)
 
 	// we need to add the options to empty v1
 	// TODO fix the server code to avoid this
@@ -55,14 +53,15 @@ func init() {
 	)
 }
 
+// Config contains a configuration for the api server
 type Config struct {
 	GenericConfig *genericapiserver.Config
 }
 
-// CustomMetricsAdapterServer contains state for a Kubernetes cluster master/api server.
-type CustomMetricsAdapterServer struct {
+// EventsAdapterServer contains state for a Kubernetes cluster master/api server.
+type EventsAdapterServer struct {
 	GenericAPIServer *genericapiserver.GenericAPIServer
-	Provider         provider.CustomMetricsProvider
+	Provider         provider.EventsProvider
 }
 
 type completedConfig struct {
@@ -86,19 +85,19 @@ func (c *Config) SkipComplete() completedConfig {
 	return completedConfig{c}
 }
 
-// New returns a new instance of CustomMetricsAdapterServer from the given config.
-func (c completedConfig) New(cmProvider provider.CustomMetricsProvider) (*CustomMetricsAdapterServer, error) {
+// New returns a new instance of EventsAdapterServer from the given config.
+func (c completedConfig) New(evProvider provider.EventsProvider) (*EventsAdapterServer, error) {
 	genericServer, err := c.Config.GenericConfig.SkipComplete().New() // completion is done in Complete, no need for a second time
 	if err != nil {
 		return nil, err
 	}
 
-	s := &CustomMetricsAdapterServer{
+	s := &EventsAdapterServer{
 		GenericAPIServer: genericServer,
-		Provider: cmProvider,
+		Provider:         evProvider,
 	}
 
-	if err := s.InstallCustomMetricsAPI(); err != nil {
+	if err := s.InstallEventsAPI(); err != nil {
 		return nil, err
 	}
 

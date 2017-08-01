@@ -1,5 +1,5 @@
-hash: 7c819e7a40c4700d3376359cb6f59cb372a79754ddae2c01b6a729bf1a844063
-updated: 2017-06-23T15:11:42.981908196+02:00
+hash: 461b2d9ded9437396136b648e8372d5abc1b0e2da8d20c7334328678f1de8cf2
+updated: 2017-07-19T18:10:45.268557659+02:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
@@ -263,6 +263,10 @@ imports:
   version: 20b71e5b60d756d3d2f80def009790325acc2b23
 - name: gopkg.in/yaml.v2
   version: 53feefa2559fb8dfa8d81baad31be332c97d6c77
+- name: k8s.io/api
+  version: 4d5cc6efc5e84aa19fb1bd3f911c16a6723c1bb7
+  subpackages:
+  - core/v1
 - name: k8s.io/apimachinery
   version: 20e10d54608f05c3059443a6c0afb9979641e88d
   subpackages:
@@ -439,12 +443,6 @@ imports:
   - util/flowcontrol
   - util/homedir
   - util/integer
-- name: k8s.io/metrics
-  version: fd2415bb9381a6731027b48a8c6b78f28e13f876
-  subpackages:
-  - pkg/apis/custom_metrics
-  - pkg/apis/custom_metrics/install
-  - pkg/apis/custom_metrics/v1alpha1
 testImports:
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
