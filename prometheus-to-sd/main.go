@@ -18,6 +18,10 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"net/http"
+	_ "net/http/pprof"
+	"strings"
 	"time"
 
 	"github.com/golang/glog"
@@ -29,7 +33,6 @@ import (
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/config"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/flags"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/translator"
-	"strings"
 )
 
 var (
@@ -55,6 +58,7 @@ var (
 		"Namespace name of the pod in which monitored component is running.")
 	omitComponentName = flag.Bool("omit-component-name", true,
 		"If metric name starts with the component name then this substring is removed to keep metric name shorter.")
+	debugPort = flag.Uint("port", 6060, "Port on which debug information is exposed.")
 
 	customMetricsPrefix = "custom.googleapis.com"
 )
@@ -77,6 +81,10 @@ func main() {
 		glog.Fatalf("Failed to get GCE config: %v", err)
 	}
 	glog.Infof("GCE config: %+v", gceConf)
+
+	go func() {
+		glog.Error(http.ListenAndServe(fmt.Sprintf(":%d", *debugPort), nil))
+	}()
 
 	client := oauth2.NewClient(context.Background(), google.ComputeTokenSource(""))
 	stackdriverService, err := v3.New(client)
