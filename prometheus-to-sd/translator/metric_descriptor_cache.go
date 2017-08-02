@@ -107,6 +107,14 @@ func (cache *MetricDescriptorCache) updateMetricDescriptorIfStale(metricFamily *
 	}
 }
 
+func (cache *MetricDescriptorCache) getMetricDescriptor(metric string) *v3.MetricDescriptor {
+	value, ok := cache.descriptors[metric]
+	if !ok {
+		glog.Warningf("Metric %s was not found in the cache.", metric)
+	}
+	return value
+}
+
 func descriptorChanged(original *v3.MetricDescriptor, checked *v3.MetricDescriptor) bool {
 	if original.Description != checked.Description {
 		glog.V(4).Infof("Description is different, %v != %v", original.Description, checked.Description)

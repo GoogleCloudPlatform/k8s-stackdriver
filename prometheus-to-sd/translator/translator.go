@@ -40,6 +40,8 @@ var supportedMetricTypes = map[dto.MetricType]bool{
 	dto.MetricType_HISTOGRAM: true,
 }
 
+const falseValueEpsilon = 0.001
+
 // TranslatePrometheusToStackdriver translates metrics in Prometheus format to Stackdriver format.
 func TranslatePrometheusToStackdriver(config *config.CommonConfig,
 	whitelisted []string,
@@ -54,7 +56,7 @@ func TranslatePrometheusToStackdriver(config *config.CommonConfig,
 		if cache.IsMetricBroken(name) {
 			continue
 		}
-		t, err := translateFamily(config, metric, startTime)
+		t, err := translateFamily(config, metric, startTime, cache)
 		if err != nil {
 			glog.Warningf("Error while processing metric %s: %v", name, err)
 		} else {
@@ -107,14 +109,18 @@ func filterWhitelisted(allMetrics map[string]*dto.MetricFamily, whitelisted []st
 	return res
 }
 
-func translateFamily(config *config.CommonConfig, family *dto.MetricFamily, startTime time.Time) ([]*v3.TimeSeries, error) {
+func translateFamily(config *config.CommonConfig,
+	family *dto.MetricFamily,
+	startTime time.Time,
+	cache *MetricDescriptorCache) ([]*v3.TimeSeries, error) {
+
 	glog.V(4).Infof("Translating metric family %v", family.GetName())
 	var ts []*v3.TimeSeries
 	if _, found := supportedMetricTypes[family.GetType()]; !found {
 		return ts, fmt.Errorf("Metric type %v of family %s not supported", family.GetType(), family.GetName())
 	}
 	for _, metric := range family.GetMetric() {
-		t := translateOne(config, family.GetName(), family.GetType(), metric, startTime)
+		t := translateOne(config, family.GetName(), family.GetType(), metric, startTime, cache)
 		ts = append(ts, t)
 		glog.V(4).Infof("%+v\nMetric: %+v, Interval: %+v", *t, *(t.Metric), t.Points[0].Interval)
 	}
@@ -127,7 +133,12 @@ func getMetricType(config *config.CommonConfig, name string) string {
 }
 
 // assumes that mType is Counter, Gauge or Histogram
-func translateOne(config *config.CommonConfig, name string, mType dto.MetricType, metric *dto.Metric, start time.Time) *v3.TimeSeries {
+func translateOne(config *config.CommonConfig,
+	name string,
+	mType dto.MetricType,
+	metric *dto.Metric,
+	start time.Time,
+	cache *MetricDescriptorCache) *v3.TimeSeries {
 	interval := &v3.TimeInterval{
 		EndTime: time.Now().UTC().Format(time.RFC3339),
 	}
@@ -135,14 +146,14 @@ func translateOne(config *config.CommonConfig, name string, mType dto.MetricType
 	if metricKind == "CUMULATIVE" {
 		interval.StartTime = start.UTC().Format(time.RFC3339)
 	}
-	valueType := extractValueType(mType)
+	valueType := extractValueType(mType, cache.getMetricDescriptor(name))
 	point := &v3.Point{
 		Interval: interval,
 		Value: &v3.TypedValue{
 			ForceSendFields: []string{},
 		},
 	}
-	setValue(mType, metric, point)
+	setValue(mType, valueType, metric, point)
 
 	return &v3.TimeSeries{
 		Metric: &v3.Metric{
@@ -159,18 +170,31 @@ func translateOne(config *config.CommonConfig, name string, mType dto.MetricType
 	}
 }
 
-func setValue(mType dto.MetricType, metric *dto.Metric, point *v3.Point) {
+func setValue(mType dto.MetricType, valueType string, metric *dto.Metric, point *v3.Point) {
 	if mType == dto.MetricType_GAUGE {
-		val := int64(metric.GetGauge().GetValue())
-		point.Value.Int64Value = &val
-		point.ForceSendFields = append(point.ForceSendFields, "Int64Value")
+		setValueBaseOnSimpleType(metric.GetGauge().GetValue(), valueType, point)
 	} else if mType == dto.MetricType_HISTOGRAM {
 		point.Value.DistributionValue = convertToDistributionValue(metric.GetHistogram())
 		point.ForceSendFields = append(point.ForceSendFields, "DistributionValue")
 	} else {
-		val := int64(metric.GetCounter().GetValue())
+		setValueBaseOnSimpleType(metric.GetCounter().GetValue(), valueType, point)
+	}
+}
+
+func setValueBaseOnSimpleType(value float64, valueType string, point *v3.Point) {
+	if valueType == "INT64" {
+		val := int64(value)
 		point.Value.Int64Value = &val
 		point.ForceSendFields = append(point.ForceSendFields, "Int64Value")
+	} else if valueType == "DOUBLE" {
+		point.Value.DoubleValue = &value
+		point.ForceSendFields = append(point.ForceSendFields, "DoubleValue")
+	} else if valueType == "BOOL" {
+		var val = math.Abs(value) > falseValueEpsilon
+		point.Value.BoolValue = &val
+		point.ForceSendFields = append(point.ForceSendFields, "BoolValue")
+	} else {
+		glog.Errorf("Value type '%s' is not supported yet.", valueType)
 	}
 }
 
@@ -233,7 +257,7 @@ func MetricFamilyToMetricDescriptor(config *config.CommonConfig,
 		Description: family.GetHelp(),
 		Type:        getMetricType(config, family.GetName()),
 		MetricKind:  extractMetricKind(family.GetType()),
-		ValueType:   extractValueType(family.GetType()),
+		ValueType:   extractValueType(family.GetType(), originalDescriptor),
 		Labels:      extractAllLabels(family, originalDescriptor),
 	}
 }
@@ -245,7 +269,13 @@ func extractMetricKind(mType dto.MetricType) string {
 	return "GAUGE"
 }
 
-func extractValueType(mType dto.MetricType) string {
+func extractValueType(mType dto.MetricType, originalDescriptor *v3.MetricDescriptor) string {
+	// If MetricDescriptor is created already in the Stackdriver use stored value type.
+	// This is going to work perfectly for "container.googleapis.com" metrics.
+	if originalDescriptor != nil {
+		// TODO(loburm): for custom metrics add logic that can figure value type base on the actual values.
+		return originalDescriptor.ValueType
+	}
 	if mType == dto.MetricType_HISTOGRAM {
 		return "DISTRIBUTION"
 	}

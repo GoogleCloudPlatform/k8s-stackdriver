@@ -61,7 +61,10 @@ var commonConfig = &config.CommonConfig{
 var metricTypeGauge = dto.MetricType_GAUGE
 var metricTypeCounter = dto.MetricType_COUNTER
 var metricTypeHistogram = dto.MetricType_HISTOGRAM
+
 var testMetricName = "test_name"
+var booleanMetricName = "boolean_metric"
+var floatMetricName = "float_metric"
 var testMetricHistogram = "test_histogram"
 var unrelatedMetric = "unrelated_metric"
 var testMetricDescription = "Description 1"
@@ -90,6 +93,39 @@ var metrics = map[string]*dto.MetricFamily{
 					},
 				},
 				Counter: &dto.Counter{Value: floatPtr(106.0)},
+			},
+		},
+	},
+	booleanMetricName: {
+		Name: stringPtr(booleanMetricName),
+		Type: &metricTypeGauge,
+		Metric: []*dto.Metric{
+			{
+				Label: []*dto.LabelPair{
+					{
+						Name:  stringPtr("labelName"),
+						Value: stringPtr("falseValue"),
+					},
+				},
+				Gauge: &dto.Gauge{Value: floatPtr(0.00001)},
+			},
+			{
+				Label: []*dto.LabelPair{
+					{
+						Name:  stringPtr("labelName"),
+						Value: stringPtr("trueValue"),
+					},
+				},
+				Gauge: &dto.Gauge{Value: floatPtr(1.2)},
+			},
+		},
+	},
+	floatMetricName: {
+		Name: stringPtr(floatMetricName),
+		Type: &metricTypeCounter,
+		Metric: []*dto.Metric{
+			{
+				Counter: &dto.Counter{Value: floatPtr(123.17)},
 			},
 		},
 	},
@@ -156,6 +192,21 @@ var metricDescriptors = map[string]*v3.MetricDescriptor{
 			},
 		},
 	},
+	booleanMetricName: {
+		Type:       "container.googleapis.com/master/testcomponent/boolean_metric",
+		MetricKind: "GAUGE",
+		ValueType:  "BOOL",
+		Labels: []*v3.LabelDescriptor{
+			{
+				Key: "labelName",
+			},
+		},
+	},
+	floatMetricName: {
+		Type:       "container.googleapis.com/master/testcomponent/float_metric",
+		MetricKind: "CUMULATIVE",
+		ValueType:  "DOUBLE",
+	},
 	processStartTimeMetric: {
 		Type:       "container.googleapis.com/master/testcomponent/process_start_time_seconds",
 		MetricKind: "GAUGE",
@@ -176,14 +227,16 @@ var metricDescriptors = map[string]*v3.MetricDescriptor{
 
 func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	epsilon := float64(0.001)
-	cache := NewMetricDescriptorCache(nil, nil, commonConfig.ComponentName)
+	cache := buildCacheForTesting()
+	whitelistedMetrics := []string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName}
 
-	ts := TranslatePrometheusToStackdriver(commonConfig, []string{testMetricName, testMetricHistogram}, metrics, cache)
+	ts := TranslatePrometheusToStackdriver(commonConfig, whitelistedMetrics, metrics, cache)
 
-	assert.Equal(t, 3, len(ts))
+	assert.Equal(t, 6, len(ts))
 	// TranslatePrometheusToStackdriver uses maps to represent data, so order of output is randomized.
 	sort.Sort(ByMetricTypeReversed(ts))
 
+	// First two int values.
 	for i := 0; i <= 1; i++ {
 		metric := ts[i]
 		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", metric.Metric.Type)
@@ -213,7 +266,6 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	assert.Equal(t, 1, len(metric.Points))
 
 	p := metric.Points[0]
-	assert.Equal(t, "2009-02-13T23:31:30Z", p.Interval.StartTime)
 
 	dist := p.Value.DistributionValue
 	assert.NotNil(t, dist)
@@ -233,11 +285,38 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	assert.Equal(t, int64(3), counts[1])
 	assert.Equal(t, int64(0), counts[2])
 	assert.Equal(t, int64(1), counts[3])
+
+	// Then float value.
+	metric = ts[3]
+	assert.Equal(t, "container.googleapis.com/master/testcomponent/float_metric", metric.Metric.Type)
+	assert.Equal(t, "DOUBLE", metric.ValueType)
+	assert.Equal(t, "CUMULATIVE", metric.MetricKind)
+	assert.InEpsilon(t, 123.17, *(metric.Points[0].Value.DoubleValue), epsilon)
+	assert.Equal(t, 1, len(metric.Points))
+	assert.Equal(t, "2009-02-13T23:31:30Z", metric.Points[0].Interval.StartTime)
+
+	// Then two boolean values.
+	for i := 4; i <= 5; i++ {
+		metric := ts[i]
+		assert.Equal(t, "container.googleapis.com/master/testcomponent/boolean_metric", metric.Metric.Type)
+		assert.Equal(t, "BOOL", metric.ValueType)
+		assert.Equal(t, "GAUGE", metric.MetricKind)
+
+		labels := metric.Metric.Labels
+		assert.Equal(t, 1, len(labels))
+		if labels["labelName"] == "falseValue" {
+			assert.Equal(t, false, *(metric.Points[0].Value.BoolValue))
+		} else if labels["labelName"] == "trueValue" {
+			assert.Equal(t, true, *(metric.Points[0].Value.BoolValue))
+		} else {
+			t.Errorf("Wrong label labelName value %s", labels["labelName"])
+		}
+	}
 }
 
 func TestMetricFamilyToMetricDescriptor(t *testing.T) {
 	for metricName, metric := range metrics {
-		metricDescriptor := MetricFamilyToMetricDescriptor(commonConfig, metric, nil)
+		metricDescriptor := MetricFamilyToMetricDescriptor(commonConfig, metric, getOriginalDescriptor(metricName))
 		expectedMetricDescriptor := metricDescriptors[metricName]
 		assert.Equal(t, metricDescriptor, expectedMetricDescriptor)
 	}
@@ -268,6 +347,21 @@ func TestOmitComponentName(t *testing.T) {
 		assert.False(t, strings.HasPrefix(k, "testcomponent_"))
 		assert.False(t, strings.HasPrefix(*v.Name, "testcomponent_"))
 	}
+}
+
+func buildCacheForTesting() *MetricDescriptorCache {
+	cache := NewMetricDescriptorCache(nil, nil, commonConfig.ComponentName)
+	cache.descriptors[booleanMetricName] = metricDescriptors[booleanMetricName]
+	cache.descriptors[floatMetricName] = metricDescriptors[floatMetricName]
+	return cache
+}
+
+func getOriginalDescriptor(metric string) *v3.MetricDescriptor {
+	// For testing reason we provide metric descriptor only for boolean_metric and float_metric.
+	if metric == booleanMetricName || metric == floatMetricName {
+		return metricDescriptors[metric]
+	}
+	return nil
 }
 
 func floatPtr(val float64) *float64 {
