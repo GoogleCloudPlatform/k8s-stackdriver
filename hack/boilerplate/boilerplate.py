@@ -132,6 +132,8 @@ def file_extension(filename):
 
 skipped_dirs = ['Godeps', 'third_party', '_gopath', '_output', '.git', 'cluster/env.sh',
                 "vendor", "test/e2e/generated/bindata.go", "hack/boilerplate/test"]
+# Skip custom-metrics-stackdriver-adapter, which is not authored by Google Inc.
+skipped_dirs += "custom-metrics-stackdriver-adapter"
 
 def normalize_files(files):
     newfiles = []
