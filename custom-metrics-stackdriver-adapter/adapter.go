@@ -24,6 +24,10 @@ import (
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/server"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/util/logs"
+
+	// Following deps are not saved in vendor/ by godep save, so import it explicitly
+	_ "cloud.google.com/go"
+	_ "github.com/prometheus/procfs/xfs"
 )
 
 func main() {

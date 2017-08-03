@@ -26,6 +26,7 @@ default-return-code
 default-ssl-certificate
 delete-all-on-quit
 dest-file
+discovery-interval
 dnsmasq-addr
 dnsmasq-poll-interval-ms
 dnsmasq-port

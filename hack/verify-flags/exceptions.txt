@@ -1,6 +1,7 @@
+.idea/workspace.xml:      <find>pod_id</find>
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:		name := series.Resource.Labels["pod_id"]
-custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:		nameFilter = fmt.Sprintf("resource.label.pod_id = %s", objectIDs[0])
-custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:		nameFilter = fmt.Sprintf("resource.label.pod_id = one_of(%s)", strings.Join(objectIDs, ","))
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:		nameFilter = fmt.Sprintf("resource.label.pod_id = %s", podIDs[0])
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:		nameFilter = fmt.Sprintf("resource.label.pod_id = one_of(%s)", strings.Join(podIDs, ","))
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	// project_id, cluster_name and pod_id together identify a pod unambiguously
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND (resource.label.zone = \"my-zone\") AND (resource.label.pod_id = \"my-pod-id\") " +
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},

@@ -2,11 +2,19 @@
 	"ImportPath": "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter",
 	"GoVersion": "go1.9",
 	"GodepVersion": "v79",
+	"Packages": [
+		"./..."
+	],
 	"Deps": [
 		{
 			"ImportPath": "bitbucket.org/ww/goautoneg",
 			"Comment": "null-5",
 			"Rev": "75cd24fc2f2c2a2088577d12123ddee5f54e0675"
+		},
+		{
+			"ImportPath": "cloud.google.com/go",
+			"Comment": "v0.1.0-115-g3b1ae45",
+			"Rev": "3b1ae45394a234c385be014e9a488f2bb6eef821"
 		},
 		{
 			"ImportPath": "cloud.google.com/go/compute/metadata",
@@ -292,6 +300,10 @@
 			"Rev": "a22138067af1c4942683050411a841ade67fe1eb"
 		},
 		{
+			"ImportPath": "github.com/pmezard/go-difflib/difflib",
+			"Rev": "d8ed2627bdf02c080bf22230dbb337003b7aba2d"
+		},
+		{
 			"ImportPath": "github.com/prometheus/client_golang/prometheus",
 			"Comment": "0.7.0-52-ge51041b",
 			"Rev": "e51041b3fa41cece0dca035740ba6411905be473"
@@ -314,12 +326,26 @@
 			"Rev": "e645f4e5aaa8506fc71d6edbc5c4ff02c04c46f2"
 		},
 		{
+			"ImportPath": "github.com/prometheus/procfs/xfs",
+			"Rev": "e645f4e5aaa8506fc71d6edbc5c4ff02c04c46f2"
+		},
+		{
 			"ImportPath": "github.com/spf13/cobra",
 			"Rev": "f62e98d28ab7ad31d707ba837a966378465c7b57"
 		},
 		{
 			"ImportPath": "github.com/spf13/pflag",
 			"Rev": "9ff6c6923cfffbcd502984b8e0c80539a94968b7"
+		},
+		{
+			"ImportPath": "github.com/stretchr/testify/assert",
+			"Comment": "v1.1.4",
+			"Rev": "69483b4bd14f5845b5a1e55bca19e954e827f1d0"
+		},
+		{
+			"ImportPath": "github.com/stretchr/testify/require",
+			"Comment": "v1.1.4",
+			"Rev": "69483b4bd14f5845b5a1e55bca19e954e827f1d0"
 		},
 		{
 			"ImportPath": "github.com/ugorji/go/codec",
@@ -1467,6 +1493,11 @@
 		},
 		{
 			"ImportPath": "k8s.io/client-go/rest/watch",
+			"Comment": "v2.0.0-alpha.0-309-g450baa5",
+			"Rev": "450baa5d60f8d6a251c7682cb6f86e939b750b2d"
+		},
+		{
+			"ImportPath": "k8s.io/client-go/testing",
 			"Comment": "v2.0.0-alpha.0-309-g450baa5",
 			"Rev": "450baa5d60f8d6a251c7682cb6f86e939b750b2d"
 		},

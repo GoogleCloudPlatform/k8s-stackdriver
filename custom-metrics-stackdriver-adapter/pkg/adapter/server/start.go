@@ -38,6 +38,7 @@ func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan str
 	baseOpts := server.NewCustomMetricsAdapterServerOptions(out, errOut)
 	o := sampleAdapterServerOptions{
 		CustomMetricsAdapterServerOptions: baseOpts,
+		DiscoveryInterval:                 10 * time.Minute,
 	}
 
 	cmd := &cobra.Command{
@@ -66,6 +67,8 @@ func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan str
 	flags.StringVar(&o.RemoteKubeConfigFile, "lister-kubeconfig", o.RemoteKubeConfigFile, ""+
 		"kubeconfig file pointing at the 'core' kubernetes server with enough rights to list "+
 		"any described objets")
+	flags.DurationVar(&o.DiscoveryInterval, "discovery-interval", o.DiscoveryInterval, ""+
+		"interval at which to refresh API discovery information")
 
 	return cmd
 }
@@ -113,4 +116,6 @@ type sampleAdapterServerOptions struct {
 
 	// RemoteKubeConfigFile is the config used to list pods from the master API server
 	RemoteKubeConfigFile string
+	// DiscoveryInterval is the interval at which discovery information is refreshed
+	DiscoveryInterval time.Duration
 }

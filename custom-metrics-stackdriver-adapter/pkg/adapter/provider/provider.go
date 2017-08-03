@@ -36,9 +36,12 @@ import (
 
 // TODO(kawych):
 // * Support metrics for pods identified by selector - in progress.
+// * Use discovery REST mapper instead of api.Registry
 // * Implement ListAllMetrics - in progress.
 // * Support metrics for objects other than pod, e.i. root-scoped - depends on SD resource types.
 // * Support long responses from Stackdriver (pagination).
+// * Return Kubernetes API - compatible errors defined in
+// "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/provider/errors"
 
 type clock interface {
 	Now() time.Time
@@ -52,29 +55,25 @@ func (c realClock) Now() time.Time {
 
 // StackdriverProvider is a provider of custom metrics from Stackdriver.
 type StackdriverProvider struct {
-	restClient rest.Interface
-
-	service *stackdriver.Service
-
-	config *config.GceConfig
-
-	rateInterval time.Duration
-
-	translator *Translator
+	apiserverClient    rest.Interface
+	stackdriverService *stackdriver.Service
+	config             *config.GceConfig
+	rateInterval       time.Duration
+	translator         *Translator
 }
 
 // NewStackdriverProvider creates a StackdriverProvider
-func NewStackdriverProvider(restClient rest.Interface, stackdriverService *stackdriver.Service, rateInterval time.Duration) provider.CustomMetricsProvider {
+func NewStackdriverProvider(apiserverClient rest.Interface, stackdriverService *stackdriver.Service, rateInterval time.Duration) provider.CustomMetricsProvider {
 	gceConf, err := config.GetGceConfig("custom.googleapis.com")
 	if err != nil {
 		glog.Fatalf("Failed to retrieve GCE config: %v", err)
 	}
 
 	return &StackdriverProvider{
-		restClient:   restClient,
-		service:      stackdriverService,
-		config:       gceConf,
-		rateInterval: rateInterval,
+		apiserverClient:    apiserverClient,
+		stackdriverService: stackdriverService,
+		config:             gceConf,
+		rateInterval:       rateInterval,
 		translator: &Translator{
 			service:   stackdriverService,
 			config:    gceConf,
@@ -99,11 +98,11 @@ func (p *StackdriverProvider) GetRootScopedMetricBySelector(groupResource schema
 // GetNamespacedMetricByName queries Stackdriver for metrics identified by name and associated
 // with a namespace.
 func (p *StackdriverProvider) GetNamespacedMetricByName(groupResource schema.GroupResource, namespace string, name string, metricName string) (*custom_metrics.MetricValue, error) {
-	matchingObject, err := p.restClient.Get().Namespace(namespace).Resource(groupResource.Resource).Name(name).Do().Get()
+	matchingObject, err := p.apiserverClient.Get().Namespace(namespace).Resource(groupResource.Resource).Name(name).Do().Get()
 	if err != nil {
 		return nil, err
 	}
-	stackdriverRequest, err := p.translator.GetSDReqForNamespacedObject(matchingObject, metricName)
+	stackdriverRequest, err := p.translator.GetSDReqForPod(matchingObject, metricName)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +110,7 @@ func (p *StackdriverProvider) GetNamespacedMetricByName(groupResource schema.Gro
 	if err != nil {
 		return nil, err
 	}
-	return p.translator.GetRespForNamespacedObject(stackdriverResponse, groupResource, metricName, namespace, name)
+	return p.translator.GetRespForPod(stackdriverResponse, groupResource, metricName, namespace, name)
 }
 
 // GetNamespacedMetricBySelector queries Stackdriver for metrics identified by selector and associated

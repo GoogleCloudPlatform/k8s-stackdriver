@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
-	"github.com/golang/glog"
 	sd "google.golang.org/api/monitoring/v3"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -74,7 +73,7 @@ func (f fakeClock) Now() time.Time {
 	return f.time
 }
 
-func TestTranslator_GetSDReqForNamespacedObject(t *testing.T) {
+func TestTranslator_GetSDReqForPod(t *testing.T) {
 	sdService, err := sd.New(http.DefaultClient)
 	if err != nil {
 		t.Errorf("Couldn't create Stackdriver Service client")
@@ -99,7 +98,7 @@ func TestTranslator_GetSDReqForNamespacedObject(t *testing.T) {
 	metricName := "my/custom/metric"
 	podKind := schema.EmptyObjectKind
 	podKind.SetGroupVersionKind(schema.FromAPIVersionAndKind("v1", "Pod"))
-	request, err := translator.GetSDReqForNamespacedObject(fakeObject{podMeta, podKind}, metricName)
+	request, err := translator.GetSDReqForPod(fakeObject{podMeta, podKind}, metricName)
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 		return
@@ -119,7 +118,7 @@ func TestTranslator_GetSDReqForNamespacedObject(t *testing.T) {
 	}
 }
 
-func TestTranslator_GetRespForNamespacedObject(t *testing.T) {
+func TestTranslator_GetRespForPod(t *testing.T) {
 	sdService, err := sd.New(http.DefaultClient)
 	if err != nil {
 		t.Errorf("Couldn't create Stackdriver Service client")
@@ -146,8 +145,7 @@ func TestTranslator_GetRespForNamespacedObject(t *testing.T) {
 			Points:     []*sd.Point{{Interval: &sd.TimeInterval{StartTime: "2017-01-02T13:00:00Z", EndTime: "2017-01-02T13:05:00Z"}, Value: &sd.TypedValue{Int64Value: &metricValue}}},
 		}},
 	}
-	glog.Errorf("group resource %s", schema.GroupResource{Resource: "Pod", Group: ""})
-	metric, err := translator.GetRespForNamespacedObject(response, schema.GroupResource{Resource: "Pod", Group: ""}, "my/custom/metric", "my-namespace", "my-pod-name")
+	metric, err := translator.GetRespForPod(response, schema.GroupResource{Resource: "Pod", Group: ""}, "my/custom/metric", "my-namespace", "my-pod-name")
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 		return
