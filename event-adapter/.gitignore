@@ -1,0 +1,5 @@
+*.swp
+*~
+sample-main
+build/*
+apiserver.local.config/*

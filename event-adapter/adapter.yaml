@@ -1,0 +1,134 @@
+# TODO(kawych): fix namespaces
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: k8s-stackdriver-adapter
+  namespace: default
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: k8s-stackdriver-adapter
+  namespace: default
+  labels:
+    run: k8s-stackdriver-adapter
+    k8s-app: k8s-stackdriver-adapter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      run: k8s-stackdriver-adapter
+      k8s-app: k8s-stackdriver-adapter
+  template:
+    metadata:
+      labels:
+        run: k8s-stackdriver-adapter
+        k8s-app: k8s-stackdriver-adapter
+        kubernetes.io/cluster-service: "true"
+    spec:
+      containers:
+        - image: gcr.io/kawych-test/k8s-stackdriver-adapter:1.0
+          imagePullPolicy: Always
+          name: pod-k8s-stackdriver-adapter
+          command:
+            - /adapter
+            - --requestheader-client-ca-file=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          resources:
+            limits:
+              cpu: 250m
+              memory: 200Mi
+            requests:
+              cpu: 250m
+              memory: 200Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    run: k8s-stackdriver-adapter
+    k8s-app: k8s-stackdriver-adapter
+    kubernetes.io/cluster-service: 'true'
+    kubernetes.io/name: Adapter
+  name: k8s-stackdriver-adapter
+  namespace: default
+spec:
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: 443
+  selector:
+    run: k8s-stackdriver-adapter
+    k8s-app: k8s-stackdriver-adapter
+  type: ClusterIP
+---
+apiVersion: rbac.authorization.k8s.io/v1alpha1
+kind: ClusterRoleBinding
+metadata:
+  name: apiextensions:system:auth-delegator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+- apiVersion: v1
+  kind: ServiceAccount
+  name: k8s-stackdriver-adapter
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1alpha1
+kind: RoleBinding
+metadata:
+  name: apiextensions-auth-reader
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: extension-apiserver-authentication-reader
+subjects:
+- apiVersion: v1
+  kind: ServiceAccount
+  name: k8s-stackdriver-adapter
+  namespace: default
+---
+apiVersion: apiregistration.k8s.io/v1beta1
+kind: APIService
+metadata:
+  name: v1alpha1.custom-metrics.metrics.k8s.io
+spec:
+  insecureSkipTLSVerify: true
+  group: custom-metrics.metrics.k8s.io
+  groupPriorityMinimum: 100
+  versionPriority: 100
+  priority: 100
+  service:
+    name: k8s-stackdriver-adapter
+    namespace: default
+  version: v1alpha1
+---
+apiVersion: rbac.authorization.k8s.io/v1alpha1
+kind: ClusterRole
+metadata:
+  name: metrics-reader
+rules:
+- apiGroups:
+  - "custom-metrics.metrics.k8s.io"
+  resources:
+  - "*"
+  verbs: ["list", "get", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1alpha1
+kind: ClusterRoleBinding
+metadata:
+  creationTimestamp: null
+  name: all-metrics-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: metrics-reader
+subjects:
+- apiVersion: rbac.authorization.k8s.io/v1alpha1
+  kind: Group
+  name: system:anonymous
+- apiVersion: rbac.authorization.k8s.io/v1alpha1
+  kind: Group
+  name: system:unauthenticated
