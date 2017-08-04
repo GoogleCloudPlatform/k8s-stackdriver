@@ -3,8 +3,11 @@ custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:		name := 
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:		nameFilter = fmt.Sprintf("resource.label.pod_id = %s", podIDs[0])
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:		nameFilter = fmt.Sprintf("resource.label.pod_id = one_of(%s)", strings.Join(podIDs, ","))
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	// project_id, cluster_name and pod_id together identify a pod unambiguously
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND (resource.label.pod_id = \"my-pod-id\") " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND (resource.label.pod_id = one_of(\"my-pod-id\",\"my-pod-id-2\")) " +
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND (resource.label.zone = \"my-zone\") AND (resource.label.pod_id = \"my-pod-id\") " +
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource: &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
 kubelet-to-gcm/monitor/controller/translator.go:		"namespace_id":   "",
 kubelet-to-gcm/monitor/controller/translator.go:		"pod_id":         "machine",
 kubelet-to-gcm/monitor/kubelet/translate.go:				"namespace_id":   namespace,

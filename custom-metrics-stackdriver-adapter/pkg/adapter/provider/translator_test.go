@@ -26,44 +26,11 @@ import (
 	sd "google.golang.org/api/monitoring/v3"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/pkg/api"
+	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 )
-
-type fakeObject struct {
-	meta metav1.ObjectMeta
-	kind schema.ObjectKind
-}
-
-func (f fakeObject) GetObjectKind() schema.ObjectKind {
-	return f.kind
-}
-
-func (f fakeObject) GetObjectMeta() metav1.Object {
-	return &f.meta
-}
-
-type fakeList struct {
-	Items []runtime.Object
-	kind  schema.ObjectKind
-}
-
-func (f *fakeList) GetObjectKind() schema.ObjectKind {
-	return f.kind
-}
-
-func (f *fakeList) IsUnstructuredObject() {
-}
-
-func (f *fakeList) IsList() bool {
-	return true
-}
-
-func (f *fakeList) UnstructuredContent() map[string]interface{} {
-	return map[string]interface{}{}
-}
 
 type fakeClock struct {
 	time time.Time
@@ -73,10 +40,10 @@ func (f fakeClock) Now() time.Time {
 	return f.time
 }
 
-func TestTranslator_GetSDReqForPod(t *testing.T) {
+func TestTranslator_GetSDReqForPods_Single(t *testing.T) {
 	sdService, err := sd.New(http.DefaultClient)
 	if err != nil {
-		t.Errorf("Couldn't create Stackdriver Service client")
+		t.Errorf("Unexpected error creating stackdriver Service client")
 		return
 	}
 	translator := Translator{
@@ -90,31 +57,89 @@ func TestTranslator_GetSDReqForPod(t *testing.T) {
 		},
 		clock: fakeClock{time.Date(2017, 1, 2, 13, 5, 0, 0, time.UTC)},
 	}
-	podMeta := metav1.ObjectMeta{
-		// Pod name, namespace and labels are never used. UID is sufficient to identify a pod.
-		ClusterName: "my-cluster",
-		UID:         "my-pod-id",
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "my-pod-name",
+			Labels:      map[string]string{},
+			Namespace:   "my-namespace",
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+		},
 	}
 	metricName := "my/custom/metric"
-	podKind := schema.EmptyObjectKind
-	podKind.SetGroupVersionKind(schema.FromAPIVersionAndKind("v1", "Pod"))
-	request, err := translator.GetSDReqForPod(fakeObject{podMeta, podKind}, metricName)
+	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName)
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
-		return
 	}
 	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
 		Filter("(metric.type = \"custom.googleapis.com/my/custom/metric\") " +
 			"AND (resource.label.project_id = \"my-project\") " +
 			"AND (resource.label.cluster_name = \"my-cluster\") " +
-			"AND (resource.label.zone = \"my-zone\") AND (resource.label.pod_id = \"my-pod-id\") " +
+			"AND (resource.label.zone = \"my-zone\") " +
+			"AND (resource.label.pod_id = \"my-pod-id\") " +
 			"AND (resource.label.container_name = \"\")").
 		IntervalStartTime("2017-01-02T13:00:00Z").
 		IntervalEndTime("2017-01-02T13:05:00Z").
 		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
 		AggregationAlignmentPeriod("300s")
 	if !reflect.DeepEqual(*request, *expectedRequest) {
-		t.Errorf("Expected: \n%s,\n received: \n%s", expectedRequest, request)
+		t.Errorf("Unexpected result. Expected: \n%s,\n received: \n%s", expectedRequest, request)
+	}
+}
+
+func TestTranslator_GetSDReqForPods_Multiple(t *testing.T) {
+	sdService, err := sd.New(http.DefaultClient)
+	if err != nil {
+		t.Errorf("Unexpected error creating stackdriver Service client")
+		return
+	}
+	translator := Translator{
+		service:   sdService,
+		reqWindow: 5 * time.Minute,
+		config: &config.GceConfig{
+			MetricsPrefix: "custom.googleapis.com",
+			Project:       "my-project",
+			Cluster:       "my-cluster",
+			Zone:          "my-zone",
+		},
+		clock: fakeClock{time.Date(2017, 1, 2, 13, 5, 0, 0, time.UTC)},
+	}
+	pod1 := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "my-pod-name",
+			Labels:      map[string]string{},
+			Namespace:   "my-namespace",
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+		},
+	}
+	pod2 := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "my-pod-name-2",
+			Labels:      map[string]string{},
+			Namespace:   "my-namespace",
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id-2",
+		},
+	}
+	metricName := "my/custom/metric"
+	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName)
+	if err != nil {
+		t.Errorf("Translation error: %s", err)
+	}
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter("(metric.type = \"custom.googleapis.com/my/custom/metric\") " +
+			"AND (resource.label.project_id = \"my-project\") " +
+			"AND (resource.label.cluster_name = \"my-cluster\") " +
+			"AND (resource.label.zone = \"my-zone\") " +
+			"AND (resource.label.pod_id = one_of(\"my-pod-id\",\"my-pod-id-2\")) " +
+			"AND (resource.label.container_name = \"\")").
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:05:00Z").
+		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+		AggregationAlignmentPeriod("300s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected: \n%s,\n received: \n%s", *expectedRequest, *request)
 	}
 }
 
@@ -158,5 +183,60 @@ func TestTranslator_GetRespForPod(t *testing.T) {
 	}
 	if !reflect.DeepEqual(*metric, *expectedMetric) {
 		t.Errorf("Expected: \n%s,\n received: \n%s", expectedMetric, metric)
+	}
+}
+
+func TestTranslator_GetRespForPods(t *testing.T) {
+	sdService, err := sd.New(http.DefaultClient)
+	if err != nil {
+		t.Errorf("Unexpected error creating stackdriver Service client")
+		return
+	}
+	translator := Translator{
+		service:   sdService,
+		reqWindow: 5 * time.Minute,
+		config: &config.GceConfig{
+			MetricsPrefix: "custom.googleapis.com",
+			Project:       "my-project",
+			Cluster:       "my-cluster",
+			Zone:          "my-zone",
+		},
+		clock: fakeClock{time.Date(2017, 1, 2, 13, 5, 0, 0, time.UTC)},
+	}
+	var val int64 = 151
+	response := &sd.ListTimeSeriesResponse{
+		TimeSeries: []*sd.TimeSeries{{
+			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
+			MetricKind: "GAUGE",
+			ValueType:  "INT64",
+			Metric:     &sd.Metric{Type: "custom.googleapis.com/my/custom/metric"},
+			Points:     []*sd.Point{{Interval: &sd.TimeInterval{StartTime: "2017-01-02T13:00:00Z", EndTime: "2017-01-02T13:05:00Z"}, Value: &sd.TypedValue{Int64Value: &val}}},
+		}},
+	}
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "my-pod-name",
+			Labels:      map[string]string{},
+			Namespace:   "my-namespace",
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+		},
+	}
+	metrics, err := translator.GetRespForPods(response, &v1.PodList{Items: []v1.Pod{pod}}, schema.GroupResource{Resource: "Pod"}, "my/custom/metric", "my-namespace")
+	if err != nil {
+		t.Errorf("Translation error: %s", err)
+	}
+	expectedMetrics := &custom_metrics.MetricValueList{
+		Items: []custom_metrics.MetricValue{
+			{
+				Value:           *resource.NewQuantity(151, resource.DecimalSI),
+				Timestamp:       metav1.Date(2017, 1, 2, 13, 5, 0, 0, time.UTC),
+				DescribedObject: api.ObjectReference{Name: "my-pod-name", APIVersion: "/__internal", Kind: "Pod", Namespace: "my-namespace"},
+				MetricName:      "my/custom/metric",
+			},
+		},
+	}
+	if !reflect.DeepEqual(*metrics, *expectedMetrics) {
+		t.Errorf("Unexpected result. Expected: \n%s,\n received: \n%s", *expectedMetrics, *metrics)
 	}
 }
