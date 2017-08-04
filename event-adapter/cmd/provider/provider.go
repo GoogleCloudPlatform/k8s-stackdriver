@@ -1,9 +1,12 @@
 /*
 Copyright 2017 The Kubernetes Authors.
+
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-		http://www.apache.org/licenses/LICENSE-2.0
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -41,7 +44,7 @@ type StackdriverProvider struct {
 
 //TODO type Stackdriver interface {}
 
-// NewStackdriverProvider create a new Provider with standard settings
+// NewStackdriverProvider creates a new Provider with standard settings
 func NewStackdriverProvider(restClient rest.Interface, stackdriverService *stackdriver.Service, rateInterval time.Duration) provider.EventsProvider {
 	gceConf, err := config.GetGceConfig("container.googleapis.com")
 	if err != nil {
@@ -56,12 +59,12 @@ func NewStackdriverProvider(restClient rest.Interface, stackdriverService *stack
 	}
 }
 
-// GetNamespacedEventsByName get the event with the given name
+// GetNamespacedEventsByName gets the event with the given name
 func (p *StackdriverProvider) GetNamespacedEventsByName(namespace, eventName string) (*types.EventValue, error) {
 	return nil, fmt.Errorf("Failed to find the vent: (namespace: %s, eventName: %s)", namespace, eventName)
 }
 
-// ListAllEvents get all the events
+// ListAllEvents gets all the events
 func (p *StackdriverProvider) ListAllEvents() (*types.EventValueList, error) {
 	return nil, fmt.Errorf("List of events not available")
 }
