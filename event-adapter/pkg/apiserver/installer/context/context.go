@@ -26,6 +26,10 @@ type resourceInformation struct {
 	subresource string
 }
 
+type resourceListInformation struct {
+	resource string
+}
+
 // contextKey is the type of the keys for the context in this file.
 // It's private to avoid conflicts across packages.
 type contextKey int
@@ -37,12 +41,25 @@ func WithResourceInformation(parent request.Context, resource, subresource strin
 	return request.WithValue(parent, resourceKey, resourceInformation{resource, subresource})
 }
 
+// WithResourceListInformation returns a copy of parent in which the resource values is set
+func WithResourceListInformation(parent request.Context, resource string) request.Context {
+	return request.WithValue(parent, resourceKey, resourceListInformation{resource})
+}
+
 // ResourceInformationFrom returns resource and subresource on the ctx
 func ResourceInformationFrom(ctx request.Context) (resource string, subresource string, ok bool) {
 	resourceInfo, ok := ctx.Value(resourceKey).(resourceInformation)
 	if !ok {
 		return "", "", ok
 	}
-
 	return resourceInfo.resource, resourceInfo.subresource, ok
+}
+
+// ResourceListInformationFrom returns resource and subresource on the ctx
+func ResourceListInformationFrom(ctx request.Context) (resource string, ok bool) {
+	resourceInfo, ok := ctx.Value(resourceKey).(resourceListInformation)
+	if !ok {
+		return "", ok
+	}
+	return resourceInfo.resource, ok
 }

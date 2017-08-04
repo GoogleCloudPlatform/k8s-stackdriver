@@ -56,7 +56,12 @@ func NewStackdriverProvider(restClient rest.Interface, stackdriverService *stack
 	}
 }
 
-// GetNamespacedEventsByName get the information of the given event
+// GetNamespacedEventsByName get the event with the given name
 func (p *StackdriverProvider) GetNamespacedEventsByName(namespace, eventName string) (*types.EventValue, error) {
 	return nil, fmt.Errorf("Failed to find the vent: (namespace: %s, eventName: %s)", namespace, eventName)
+}
+
+// ListAllEvents get all the events
+func (p *StackdriverProvider) ListAllEvents() (*types.EventValueList, error) {
+	return nil, fmt.Errorf("List of events not available")
 }

@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/emicklei/go-restful"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,11 +34,8 @@ import (
 	"k8s.io/apiserver/pkg/endpoints"
 	"k8s.io/apiserver/pkg/endpoints/handlers"
 	"k8s.io/apiserver/pkg/endpoints/handlers/negotiation"
-	//"k8s.io/apiserver/pkg/endpoints/metrics"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
-
-	"github.com/emicklei/go-restful"
 
 	specificcontext "github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/apiserver/installer/context"
 )
@@ -203,15 +201,13 @@ func (a *EventsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *
 
 	//EVENT REGEXP:
 	namespacedPath := scope.ParamName() + "/{" + scope.ArgumentName() + "}/{resource}/{name}"
-	//namespacedPathPrefix := gpath.Join(a.prefix, scope.ParamName()) + "/"
-
-	/*itemPathFn := func(name, namespace string) bytes.Buffer {
+	//namespacedPathPrefix := gpath.Join(a.prefix, scope.ParamName()) + "/namespaces/"
+	//fmt.Println(namespacedPathPrefix)
+	/*itemPathFn := func(name, namespace, resource, subresource string) bytes.Buffer {
 		var buf bytes.Buffer
 		buf.WriteString(namespacedPathPrefix)
 		buf.WriteString(url.QueryEscape(namespace))
-		buf.WriteString("/")
-		buf.WriteString(url.QueryEscape(resource))
-		buf.WriteString("/")
+		buf.WriteString("/events/")
 		buf.WriteString(url.QueryEscape(name))
 		return buf
 	}*/
@@ -258,6 +254,47 @@ func (a *EventsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *
 	}
 	addParams(namespacedRoute, namespacedParams)
 	ws.Route(namespacedRoute)
+
+	//REGISTER LIST ALL EVENT
+	namespacedListPath := scope.ParamName() + "/{" + scope.ArgumentName() + "}/{resource}"
+	namespacedListParams := []*restful.Parameter{
+		namespaceParam,
+		resourceParam,
+	}
+
+	ctxFnList := func(req *restful.Request) request.Context {
+		var ctx request.Context
+		if ctx != nil {
+			if existingCtx, ok := context.Get(req.Request); ok {
+				ctx = existingCtx
+			}
+		}
+		if ctx == nil {
+			ctx = request.NewContext()
+		}
+
+		ctx = request.WithUserAgent(ctx, req.HeaderParameter("User-Agent"))
+		resource := req.PathParameter("resource")
+		ctx = specificcontext.WithResourceListInformation(ctx, resource)
+
+		return ctx
+	}
+
+	reqScope.ContextFunc = ctxFnList
+	namespacedHandler = handlers.ListResource(lister, nil, reqScope, false, a.minRequestTimeout)
+	namespacedRoute = ws.GET(namespacedListPath).To(namespacedHandler).
+		Doc(doc).
+		Param(ws.QueryParameter("pretty", "If 'true', then the output is pretty printed.")).
+		Operation("listNamespaced"+kind).
+		Produces(allMediaTypes...).
+		Returns(http.StatusOK, "OK", versionedList).
+		Writes(versionedList)
+	if err := addObjectParams(ws, namespacedRoute, versionedListOptions); err != nil {
+		return err
+	}
+	addParams(namespacedRoute, namespacedListParams)
+	ws.Route(namespacedRoute)
+
 	return nil
 }
 

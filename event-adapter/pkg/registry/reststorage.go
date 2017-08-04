@@ -51,14 +51,27 @@ func (r *REST) NewList() runtime.Object {
 
 // List selects the events that match to the selector
 func (r *REST) List(ctx genericapirequest.Context, options *metainternalversion.ListOptions) (runtime.Object, error) {
+
 	namespace := genericapirequest.NamespaceValue(ctx)
+
 	resourceRaw, eventName, ok := specificinstaller.ResourceInformationFrom(ctx)
-	if !ok {
-		return nil, fmt.Errorf("unable to get events name from request")
+	events, list := specificinstaller.ResourceListInformationFrom(ctx)
+
+	if !ok && !list {
+		return nil, fmt.Errorf("Unable to serve the request")
 	}
-	// handle events
-	if resourceRaw != "events" {
+
+	if ok && resourceRaw != "events" {
 		return nil, fmt.Errorf("Usage : namespaces/{namespace}/events/{eventName}")
+	}
+
+	if list && events != "events" {
+		return nil, fmt.Errorf("Usage : namespaces/{namespace}/events")
+	}
+
+	if list {
+		_, err := r.evProvider.ListAllEvents()
+		return nil, err
 	}
 
 	_, err := r.evProvider.GetNamespacedEventsByName(namespace, eventName)
