@@ -6,9 +6,6 @@ TAG = 1.0
 PKG := $(shell find pkg/* -type f)
 CMD := $(shell find cmd/* -type f)
 
-deps:
-	glide install --strip-vendor
-
 build: build/adapter
 
 build/adapter: adapter.go $(PKG) $(CMD)
@@ -20,8 +17,8 @@ docker: build/adapter
 push: docker
 	gcloud docker -- push ${PREFIX}/event-adapter:$(TAG)
 
-test: cmd/provider/provider_test.go $(PKG) $(CMD)
-	go test cmd/provider/provider_test.go
+test:
+	go test ./...
 
 clean:
 	rm -rf build apiserver.local.config

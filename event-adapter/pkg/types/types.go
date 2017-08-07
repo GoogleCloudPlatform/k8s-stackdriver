@@ -22,6 +22,9 @@ import (
 	"k8s.io/client-go/pkg/api/v1"
 )
 
+//TODO(erocchi) remove this file: use Event struct defined in k8s.io/client-go/pkg/api instead of EventValue
+// and EventList instead of EventValueList
+
 // EventValueList contains the list of events
 type EventValueList struct {
 	metav1.TypeMeta `json:",inline"`

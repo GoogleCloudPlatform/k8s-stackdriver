@@ -46,6 +46,21 @@ type defaultAPIServer struct {
 	container *restful.Container
 }
 
+type NotFoundError struct {
+	event     string
+	namespace string
+}
+
+func (e NotFoundError) Error() string {
+	return fmt.Sprintf("Event %s not found in namespace %s", e.event, e.namespace)
+}
+
+func (e NotFoundError) Status() metav1.Status {
+	return metav1.Status{
+		Code: 404,
+	}
+}
+
 var (
 	groupFactoryRegistry = make(announced.APIGroupFactoryRegistry)
 	registry             = registered.NewOrDie("")
@@ -122,10 +137,27 @@ func handle(prov provider.EventsProvider) http.Handler {
 type fakeProvider struct{}
 
 func (p *fakeProvider) GetNamespacedEventsByName(namespace, name string) (*types.EventValue, error) {
-	return &types.EventValue{}, nil
+	if namespace == "default" && name == "existing_event" {
+		return &types.EventValue{}, nil
+	}
+
+	err := NotFoundError{
+		event:     name,
+		namespace: namespace,
+	}
+
+	if namespace == "default" && name == "not_existing_event" {
+		return nil, err
+	}
+
+	if namespace == "foo" && name == "foo" {
+		return nil, err
+	}
+
+	return nil, fmt.Errorf("Namespace : %s, event name: %s", namespace, name)
 }
 
-func (p *fakeProvider) ListAllEvents() (*types.EventValueList, error) {
+func (p *fakeProvider) ListAllEventsByNamespace(namespace string) (*types.EventValueList, error) {
 	return &types.EventValueList{}, nil
 }
 
@@ -138,14 +170,21 @@ func TestEventsAPI(t *testing.T) {
 
 	group := "v1events/v1alpha1"
 	cases := map[string]T{
-		"GET list of events ":           {"GET", prefix + "/" + group + "/namespaces/default/events", http.StatusOK},
-		"GET list of events (singular)": {"GET", prefix + "/" + group + "/namespaces/default/event", http.StatusInternalServerError},
+		"GET list of events ":           {"GET", prefix + "/" + group + "/namespaces/foo/events", http.StatusOK},
+		"GET list of events wrong path": {"GET", prefix + "/" + group + "/namespaces/default/foo", http.StatusNotFound},
 
-		"GET event by name": {"GET", prefix + "/" + group + "/namespaces/default/events/foo", http.StatusOK},
-		"GET evento":        {"GET", prefix + "/" + group + "/namespaces/default/evento/foo", http.StatusInternalServerError},
+		"GET event by name":                    {"GET", prefix + "/" + group + "/namespaces/default/events/existing_event", http.StatusOK},
+		"GET not existing event by name":       {"GET", prefix + "/" + group + "/namespaces/default/events/not_existing_event", http.StatusNotFound},
+		"GET not existing event and namespace": {"GET", prefix + "/" + group + "/namespaces/foo/events/foo", http.StatusNotFound},
+		"GET event by name wrong path":         {"GET", prefix + "/" + group + "/namespaces/default/eve/foo", http.StatusNotFound},
 
-		"GET no namespace":            {"GET", prefix + "/" + group + "/namespace/default/events/foo", http.StatusNotFound},
-		"GET wrong prefix (singular)": {"GET", "//apis/v1event/v1alpha1/", http.StatusNotFound},
+		"GET event with too long path":  {"GET", prefix + "/" + group + "/namespaces/default/events/foo/foo", http.StatusNotFound},
+		"GET event only with namespace": {"GET", prefix + "/" + group + "/namespaces/default", http.StatusNotFound},
+
+		"GET event with any namespaces": {"GET", prefix + "/" + group + "/events/foo", http.StatusNotFound},
+
+		"GET no namespace": {"GET", prefix + "/" + group + "/foo/default/events/foo", http.StatusNotFound},
+		"GET wrong prefix": {"GET", "//apis/v1foo/v1alpha1/", http.StatusNotFound},
 	}
 
 	prov := &fakeProvider{}

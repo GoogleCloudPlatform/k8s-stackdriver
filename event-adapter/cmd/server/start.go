@@ -30,7 +30,6 @@ import (
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/cmd/server"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	"time"
 )
 
 // NewCommandStartSampleAdapterServer provides a CLI handler for 'start master' command
@@ -62,7 +61,7 @@ func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan str
 	o.Authentication.AddFlags(flags)
 	o.Authorization.AddFlags(flags)
 	o.Features.AddFlags(flags)
-	fmt.Println(o.RemoteKubeConfigFile)
+
 	flags.StringVar(&o.RemoteKubeConfigFile, "lister-kubeconfig", o.RemoteKubeConfigFile, ""+
 		"kubeconfig file pointing at the 'core' kubernetes server with enough rights to list "+
 		"any described objets")
@@ -90,16 +89,16 @@ func (o SampleAdapterServerOptions) RunEventsAdapterServer(stopCh <-chan struct{
 		return fmt.Errorf("unable to construct lister client config to initialize provider: %v", err)
 	}
 
-	client, err := coreclient.NewForConfig(clientConfig)
+	_, err = coreclient.NewForConfig(clientConfig)
 	if err != nil {
 		return fmt.Errorf("unable to construct lister client to initialize provider: %v", err)
 	}
 	oauthClient := oauth2.NewClient(oauth2.NoContext, google.ComputeTokenSource(""))
-	stackdriverService, err := stackdriver.New(oauthClient)
+	_, err = stackdriver.New(oauthClient)
 	if err != nil {
 		return fmt.Errorf("Failed to create Stackdriver client: %v", err)
 	}
-	evProvider := provider.NewStackdriverProvider(client.RESTClient(), stackdriverService, 5*time.Minute)
+	evProvider := provider.NewStackdriverProvider()
 
 	server, err := config.Complete().New(evProvider)
 	if err != nil {

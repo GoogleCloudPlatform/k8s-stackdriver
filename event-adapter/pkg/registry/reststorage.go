@@ -17,7 +17,6 @@ limitations under the License.
 package registry
 
 import (
-	"fmt"
 	specificinstaller "github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/apiserver/installer/context"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/provider"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/types"
@@ -57,26 +56,11 @@ func (r *REST) List(ctx genericapirequest.Context, options *metainternalversion.
 
 	namespace := genericapirequest.NamespaceValue(ctx)
 
-	resourceRaw, eventName, ok := specificinstaller.ResourceInformationFrom(ctx)
-	events, list := specificinstaller.ResourceListInformationFrom(ctx)
+	eventName, ok := specificinstaller.ResourceInformationFrom(ctx)
 
-	if !ok && !list {
-		return nil, fmt.Errorf("Unable to serve the request")
+	if !ok {
+		return r.evProvider.ListAllEventsByNamespace(namespace)
 	}
 
-	if ok && resourceRaw != "events" {
-		return nil, fmt.Errorf("Usage : namespaces/{namespace}/events/{eventName}")
-	}
-
-	if list && events != "events" {
-		return nil, fmt.Errorf("Usage : namespaces/{namespace}/events")
-	}
-
-	if list {
-		_, err := r.evProvider.ListAllEvents()
-		return nil, err
-	}
-
-	_, err := r.evProvider.GetNamespacedEventsByName(namespace, eventName)
-	return nil, err
+	return r.evProvider.GetNamespacedEventsByName(namespace, eventName)
 }

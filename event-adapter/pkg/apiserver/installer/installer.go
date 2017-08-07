@@ -183,10 +183,12 @@ func (a *EventsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *
 			ctx = request.NewContext()
 		}
 
+		// inject the name here so that
+		// we don't have to write custom handler logic
+
 		ctx = request.WithUserAgent(ctx, req.HeaderParameter("User-Agent"))
 		name := req.PathParameter("name")
-		resource := req.PathParameter("resource")
-		ctx = specificcontext.WithResourceInformation(ctx, resource, name)
+		ctx = specificcontext.WithResourceInformation(ctx, name)
 
 		return ctx
 	}
@@ -203,17 +205,7 @@ func (a *EventsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *
 	}
 
 	//EVENT REGEXP:
-	namespacedPath := scope.ParamName() + "/{" + scope.ArgumentName() + "}/{resource}/{name}"
-	//namespacedPathPrefix := gpath.Join(a.prefix, scope.ParamName()) + "/namespaces/"
-	//fmt.Println(namespacedPathPrefix)
-	/*itemPathFn := func(name, namespace, resource, subresource string) bytes.Buffer {
-		var buf bytes.Buffer
-		buf.WriteString(namespacedPathPrefix)
-		buf.WriteString(url.QueryEscape(namespace))
-		buf.WriteString("/events/")
-		buf.WriteString(url.QueryEscape(name))
-		return buf
-	}*/
+	namespacedPath := scope.ParamName() + "/{" + scope.ArgumentName() + "}/events/{name}"
 
 	mediaTypes, streamMediaTypes := negotiation.MediaTypesForSerializer(a.group.Serializer)
 	allMediaTypes := append(mediaTypes, streamMediaTypes...)
@@ -259,7 +251,7 @@ func (a *EventsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *
 	ws.Route(namespacedRoute)
 
 	//REGISTER LIST ALL EVENT
-	namespacedListPath := scope.ParamName() + "/{" + scope.ArgumentName() + "}/{resource}"
+	namespacedListPath := scope.ParamName() + "/{" + scope.ArgumentName() + "}/events"
 	namespacedListParams := []*restful.Parameter{
 		namespaceParam,
 		resourceParam,
@@ -277,8 +269,6 @@ func (a *EventsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *
 		}
 
 		ctx = request.WithUserAgent(ctx, req.HeaderParameter("User-Agent"))
-		resource := req.PathParameter("resource")
-		ctx = specificcontext.WithResourceListInformation(ctx, resource)
 
 		return ctx
 	}
@@ -302,12 +292,12 @@ func (a *EventsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *
 }
 
 // This magic incantation returns *ptrToObject for an arbitrary pointer
-func indirectArbitraryPointer(ptrToObject interface{}) interface{} { //usato
+func indirectArbitraryPointer(ptrToObject interface{}) interface{} {
 	return reflect.Indirect(reflect.ValueOf(ptrToObject)).Interface()
 }
 
 // getResourceKind returns the external group version kind registered for the given storage object.
-func (a *EventsAPIInstaller) getResourceKind(storage rest.Storage) (schema.GroupVersionKind, error) { //usato
+func (a *EventsAPIInstaller) getResourceKind(storage rest.Storage) (schema.GroupVersionKind, error) {
 	object := storage.New()
 	fqKinds, _, err := a.group.Typer.ObjectKinds(object)
 	if err != nil {
@@ -336,7 +326,7 @@ func (a *EventsAPIInstaller) getResourceKind(storage rest.Storage) (schema.Group
 }
 
 // restMapping returns rest mapper for the resource provided by DynamicStorage.
-func (a *EventsAPIInstaller) restMapping() (*meta.RESTMapping, error) { //usato
+func (a *EventsAPIInstaller) restMapping() (*meta.RESTMapping, error) {
 	// subresources must have parent resources, and follow the namespacing rules of their parent.
 	// So get the storage of the resource (which is the parent resource in case of subresources)
 	fqKindToRegister, err := a.getResourceKind(a.group.DynamicStorage)

@@ -32,13 +32,20 @@ func NewResourceLister(provider EventsProvider) handlers.APIResourceLister {
 	}
 }
 
-// ListAPIResources lists the supported API
+// ListAPIResources lists the supported API paths
 func (l *eventsResourceLister) ListAPIResources() []metav1.APIResource {
-	resources := make([]metav1.APIResource, 1)
-	resources[0] = metav1.APIResource{ //TODO chgNmGroup
+	resources := make([]metav1.APIResource, 2)
+	resources[0] = metav1.APIResource{
 		Name:       "namespace/{namespaces}/events/{eventName}",
 		Namespaced: true,
-		Kind:       "EventsList",
+		Kind:       "EventValue",
+		Verbs:      metav1.Verbs{"get"},
+	}
+
+	resources[1] = metav1.APIResource{
+		Name:       "namespace/{namespaces}/events",
+		Namespaced: true,
+		Kind:       "EventValueList",
 		Verbs:      metav1.Verbs{"get"},
 	}
 
