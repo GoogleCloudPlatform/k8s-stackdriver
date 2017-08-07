@@ -18,53 +18,31 @@ package provider
 
 import (
 	"fmt"
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/config"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/provider"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/types"
-	"github.com/golang/glog"
 	stackdriver "google.golang.org/api/monitoring/v3"
-	"k8s.io/client-go/rest"
-	"time"
 )
 
 type sdService stackdriver.Service
 
-// StackdriverProvider provide all the info for Stackdriver
+//TODO(erocchi) add integration with Stackdriver
+
+// StackdriverProvider implements EventsProvider
 type StackdriverProvider struct {
-	restClient rest.Interface
-
-	values map[provider.EventInfo]map[string]int64
-
-	//service Stackdriver
-
-	config *config.GceConfig
-
-	rateInterval time.Duration
+	//TODO(erocchi) Define fields for this struct. It should contain what will be needed to communicate with Stackdriver.
 }
 
-//TODO type Stackdriver interface {}
-
 // NewStackdriverProvider creates a new Provider with standard settings
-func NewStackdriverProvider(restClient rest.Interface, stackdriverService *stackdriver.Service, rateInterval time.Duration) provider.EventsProvider {
-	gceConf, err := config.GetGceConfig("container.googleapis.com")
-	if err != nil {
-		glog.Fatalf("Failed to get GCE config: %v", err)
-	}
-
-	return &StackdriverProvider{
-		restClient:   restClient,
-		values:       make(map[provider.EventInfo]map[string]int64),
-		config:       gceConf,
-		rateInterval: rateInterval,
-	}
+func NewStackdriverProvider() provider.EventsProvider {
+	return &StackdriverProvider{}
 }
 
 // GetNamespacedEventsByName gets the event with the given name
 func (p *StackdriverProvider) GetNamespacedEventsByName(namespace, eventName string) (*types.EventValue, error) {
-	return nil, fmt.Errorf("Failed to find the vent: (namespace: %s, eventName: %s)", namespace, eventName)
+	return nil, fmt.Errorf("GetNamespacedEventsByName is not implemented yet.")
 }
 
-// ListAllEvents gets all the events
-func (p *StackdriverProvider) ListAllEvents() (*types.EventValueList, error) {
-	return nil, fmt.Errorf("List of events not available")
+// ListAllEventsByNamespace gets all the events
+func (p *StackdriverProvider) ListAllEventsByNamespace(namespace string) (*types.EventValueList, error) {
+	return nil, fmt.Errorf("ListAllEventsByNamespace is not implemented yet.")
 }

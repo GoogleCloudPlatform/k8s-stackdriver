@@ -34,5 +34,5 @@ type EventInfo struct {
 // EventsProvider is an interface that contains the methods that will provide info for the given events
 type EventsProvider interface {
 	GetNamespacedEventsByName(namespace, eventName string) (*types.EventValue, error)
-	ListAllEvents() (*types.EventValueList, error)
+	ListAllEventsByNamespace(namespace string) (*types.EventValueList, error)
 }

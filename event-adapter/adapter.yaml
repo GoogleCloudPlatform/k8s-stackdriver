@@ -1,4 +1,3 @@
-# TODO(kawych): fix namespaces
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -61,7 +60,7 @@ spec:
     k8s-app: event-adapter
   type: ClusterIP
 ---
-apiVersion: rbac.authorization.k8s.io/v1alpha1
+apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
 metadata:
   name: apiextensions:system:auth-delegator
@@ -75,7 +74,7 @@ subjects:
   name: event-adapter
   namespace: default
 ---
-apiVersion: rbac.authorization.k8s.io/v1alpha1
+apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: RoleBinding
 metadata:
   name: apiextensions-auth-reader
@@ -105,10 +104,10 @@ spec:
     namespace: default
   version: v1alpha1
 ---
-apiVersion: rbac.authorization.k8s.io/v1alpha1
+apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
 metadata:
-  name: metrics-reader
+  name: events-reader
 rules:
 - apiGroups:
   - "v1events"
@@ -116,19 +115,19 @@ rules:
   - "*"
   verbs: ["list", "get", "watch"]
 ---
-apiVersion: rbac.authorization.k8s.io/v1alpha1
+apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
 metadata:
   creationTimestamp: null
-  name: all-metrics-reader
+  name: all-events-reader
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: metrics-reader
+  name: events-reader
 subjects:
-- apiVersion: rbac.authorization.k8s.io/v1alpha1
+- apiVersion: rbac.authorization.k8s.io/v1beta1
   kind: Group
   name: system:anonymous
-- apiVersion: rbac.authorization.k8s.io/v1alpha1
+- apiVersion: rbac.authorization.k8s.io/v1beta1
   kind: Group
   name: system:unauthenticated

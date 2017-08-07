@@ -22,11 +22,6 @@ import (
 
 // resourceInformation holds the resource and subresource for a request in the context.
 type resourceInformation struct {
-	resource    string
-	subresource string
-}
-
-type resourceListInformation struct {
 	resource string
 }
 
@@ -37,27 +32,13 @@ type contextKey int
 const resourceKey contextKey = iota
 
 // WithResourceInformation returns a copy of parent in which the resource and subresource values are set
-func WithResourceInformation(parent request.Context, resource, subresource string) request.Context {
-	return request.WithValue(parent, resourceKey, resourceInformation{resource, subresource})
-}
-
-// WithResourceListInformation returns a copy of parent in which the resource values is set
-func WithResourceListInformation(parent request.Context, resource string) request.Context {
-	return request.WithValue(parent, resourceKey, resourceListInformation{resource})
+func WithResourceInformation(parent request.Context, resource string) request.Context {
+	return request.WithValue(parent, resourceKey, resourceInformation{resource})
 }
 
 // ResourceInformationFrom returns resource and subresource on the ctx
-func ResourceInformationFrom(ctx request.Context) (resource string, subresource string, ok bool) {
+func ResourceInformationFrom(ctx request.Context) (resource string, ok bool) {
 	resourceInfo, ok := ctx.Value(resourceKey).(resourceInformation)
-	if !ok {
-		return "", "", ok
-	}
-	return resourceInfo.resource, resourceInfo.subresource, ok
-}
-
-// ResourceListInformationFrom returns resource and subresource on the ctx
-func ResourceListInformationFrom(ctx request.Context) (resource string, ok bool) {
-	resourceInfo, ok := ctx.Value(resourceKey).(resourceListInformation)
 	if !ok {
 		return "", ok
 	}

@@ -31,7 +31,7 @@ import (
 // InstallEventsAPI registers the api server in Kube Aggregator
 func (s *EventsAdapterServer) InstallEventsAPI() error {
 
-	groupMeta := registry.GroupOrDie("v1events") //TODO chgNmGroup
+	groupMeta := registry.GroupOrDie("v1events")
 
 	preferredVersionForDiscovery := metav1.GroupVersionForDiscovery{
 		GroupVersion: groupMeta.GroupVersion.String(),
