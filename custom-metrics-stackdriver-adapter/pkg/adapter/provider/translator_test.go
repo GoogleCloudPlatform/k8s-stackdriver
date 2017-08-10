@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/provider"
+	"github.com/golang/glog"
 	sd "google.golang.org/api/monitoring/v3"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +32,10 @@ import (
 	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/metrics/pkg/apis/custom_metrics"
+)
+
+var (
+	podKind schema.ObjectKind
 )
 
 type fakeClock struct {
@@ -41,27 +47,11 @@ func (f fakeClock) Now() time.Time {
 }
 
 func TestTranslator_GetSDReqForPods_Single(t *testing.T) {
-	sdService, err := sd.New(http.DefaultClient)
-	if err != nil {
-		t.Errorf("Unexpected error creating stackdriver Service client")
-		return
-	}
-	translator := Translator{
-		service:   sdService,
-		reqWindow: 5 * time.Minute,
-		config: &config.GceConfig{
-			MetricsPrefix: "custom.googleapis.com",
-			Project:       "my-project",
-			Cluster:       "my-cluster",
-			Zone:          "my-zone",
-		},
-		clock: fakeClock{time.Date(2017, 1, 2, 13, 5, 0, 0, time.UTC)},
-	}
+	translator, sdService :=
+		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC))
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        "my-pod-name",
-			Labels:      map[string]string{},
-			Namespace:   "my-namespace",
+			// Pod name, namespace and labels are never used. UID is sufficient to identify a pod.
 			ClusterName: "my-cluster",
 			UID:         "my-pod-id",
 		},
@@ -72,52 +62,31 @@ func TestTranslator_GetSDReqForPods_Single(t *testing.T) {
 		t.Errorf("Translation error: %s", err)
 	}
 	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter("(metric.type = \"custom.googleapis.com/my/custom/metric\") " +
-			"AND (resource.label.project_id = \"my-project\") " +
-			"AND (resource.label.cluster_name = \"my-cluster\") " +
-			"AND (resource.label.zone = \"my-zone\") " +
-			"AND (resource.label.pod_id = \"my-pod-id\") " +
-			"AND (resource.label.container_name = \"\")").
+		Filter("metric.type = \"custom.googleapis.com/my/custom/metric\" " +
+			"AND resource.label.project_id = \"my-project\" " +
+			"AND resource.label.cluster_name = \"my-cluster\" " +
+			"AND resource.label.zone = \"my-zone\" AND resource.label.container_name = \"\" " +
+			"AND resource.label.pod_id = \"my-pod-id\"").
 		IntervalStartTime("2017-01-02T13:00:00Z").
-		IntervalEndTime("2017-01-02T13:05:00Z").
+		IntervalEndTime("2017-01-02T13:01:00Z").
 		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
-		AggregationAlignmentPeriod("300s")
+		AggregationAlignmentPeriod("60s")
 	if !reflect.DeepEqual(*request, *expectedRequest) {
 		t.Errorf("Unexpected result. Expected: \n%s,\n received: \n%s", expectedRequest, request)
 	}
 }
 
 func TestTranslator_GetSDReqForPods_Multiple(t *testing.T) {
-	sdService, err := sd.New(http.DefaultClient)
-	if err != nil {
-		t.Errorf("Unexpected error creating stackdriver Service client")
-		return
-	}
-	translator := Translator{
-		service:   sdService,
-		reqWindow: 5 * time.Minute,
-		config: &config.GceConfig{
-			MetricsPrefix: "custom.googleapis.com",
-			Project:       "my-project",
-			Cluster:       "my-cluster",
-			Zone:          "my-zone",
-		},
-		clock: fakeClock{time.Date(2017, 1, 2, 13, 5, 0, 0, time.UTC)},
-	}
+	translator, sdService :=
+		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC))
 	pod1 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        "my-pod-name",
-			Labels:      map[string]string{},
-			Namespace:   "my-namespace",
 			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
+			UID:         "my-pod-id-1",
 		},
 	}
 	pod2 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        "my-pod-name-2",
-			Labels:      map[string]string{},
-			Namespace:   "my-namespace",
 			ClusterName: "my-cluster",
 			UID:         "my-pod-id-2",
 		},
@@ -128,38 +97,24 @@ func TestTranslator_GetSDReqForPods_Multiple(t *testing.T) {
 		t.Errorf("Translation error: %s", err)
 	}
 	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter("(metric.type = \"custom.googleapis.com/my/custom/metric\") " +
-			"AND (resource.label.project_id = \"my-project\") " +
-			"AND (resource.label.cluster_name = \"my-cluster\") " +
-			"AND (resource.label.zone = \"my-zone\") " +
-			"AND (resource.label.pod_id = one_of(\"my-pod-id\",\"my-pod-id-2\")) " +
-			"AND (resource.label.container_name = \"\")").
+		Filter("metric.type = \"custom.googleapis.com/my/custom/metric\" " +
+			"AND resource.label.project_id = \"my-project\" " +
+			"AND resource.label.cluster_name = \"my-cluster\" " +
+			"AND resource.label.zone = \"my-zone\" " +
+			"AND resource.label.container_name = \"\" " +
+			"AND resource.label.pod_id = one_of(\"my-pod-id-1\",\"my-pod-id-2\")").
 		IntervalStartTime("2017-01-02T13:00:00Z").
-		IntervalEndTime("2017-01-02T13:05:00Z").
+		IntervalEndTime("2017-01-02T13:01:00Z").
 		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
-		AggregationAlignmentPeriod("300s")
+		AggregationAlignmentPeriod("60s")
 	if !reflect.DeepEqual(*request, *expectedRequest) {
 		t.Errorf("Unexpected result. Expected: \n%s,\n received: \n%s", *expectedRequest, *request)
 	}
 }
 
 func TestTranslator_GetRespForPod(t *testing.T) {
-	sdService, err := sd.New(http.DefaultClient)
-	if err != nil {
-		t.Errorf("Couldn't create Stackdriver Service client")
-		return
-	}
-	translator := Translator{
-		service:   sdService,
-		reqWindow: 5 * time.Minute,
-		config: &config.GceConfig{
-			MetricsPrefix: "custom.googleapis.com",
-			Project:       "my-project",
-			Cluster:       "my-cluster",
-			Zone:          "my-zone",
-		},
-		clock: fakeClock{time.Date(2017, 1, 2, 13, 5, 0, 0, time.UTC)},
-	}
+	translator, _ :=
+		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC))
 	var metricValue int64 = 151
 	response := &sd.ListTimeSeriesResponse{
 		TimeSeries: []*sd.TimeSeries{{
@@ -167,7 +122,7 @@ func TestTranslator_GetRespForPod(t *testing.T) {
 			MetricKind: "GAUGE",
 			ValueType:  "INT64",
 			Metric:     &sd.Metric{Type: "custom.googleapis.com/my/custom/metric"},
-			Points:     []*sd.Point{{Interval: &sd.TimeInterval{StartTime: "2017-01-02T13:00:00Z", EndTime: "2017-01-02T13:05:00Z"}, Value: &sd.TypedValue{Int64Value: &metricValue}}},
+			Points:     []*sd.Point{{Interval: &sd.TimeInterval{StartTime: "2017-01-02T13:00:00Z", EndTime: "2017-01-02T13:01:00Z"}, Value: &sd.TypedValue{Int64Value: &metricValue}}},
 		}},
 	}
 	metric, err := translator.GetRespForPod(response, schema.GroupResource{Resource: "Pod", Group: ""}, "my/custom/metric", "my-namespace", "my-pod-name")
@@ -177,7 +132,7 @@ func TestTranslator_GetRespForPod(t *testing.T) {
 	}
 	expectedMetric := &custom_metrics.MetricValue{
 		Value:           *resource.NewQuantity(151, resource.DecimalSI),
-		Timestamp:       metav1.Date(2017, 1, 2, 13, 5, 0, 0, time.UTC),
+		Timestamp:       metav1.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC),
 		DescribedObject: api.ObjectReference{Name: "my-pod-name", APIVersion: "/__internal", Kind: "Pod", Namespace: "my-namespace"},
 		MetricName:      "my/custom/metric",
 	}
@@ -187,22 +142,8 @@ func TestTranslator_GetRespForPod(t *testing.T) {
 }
 
 func TestTranslator_GetRespForPods(t *testing.T) {
-	sdService, err := sd.New(http.DefaultClient)
-	if err != nil {
-		t.Errorf("Unexpected error creating stackdriver Service client")
-		return
-	}
-	translator := Translator{
-		service:   sdService,
-		reqWindow: 5 * time.Minute,
-		config: &config.GceConfig{
-			MetricsPrefix: "custom.googleapis.com",
-			Project:       "my-project",
-			Cluster:       "my-cluster",
-			Zone:          "my-zone",
-		},
-		clock: fakeClock{time.Date(2017, 1, 2, 13, 5, 0, 0, time.UTC)},
-	}
+	translator, _ :=
+		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC))
 	var val int64 = 151
 	response := &sd.ListTimeSeriesResponse{
 		TimeSeries: []*sd.TimeSeries{{
@@ -210,13 +151,12 @@ func TestTranslator_GetRespForPods(t *testing.T) {
 			MetricKind: "GAUGE",
 			ValueType:  "INT64",
 			Metric:     &sd.Metric{Type: "custom.googleapis.com/my/custom/metric"},
-			Points:     []*sd.Point{{Interval: &sd.TimeInterval{StartTime: "2017-01-02T13:00:00Z", EndTime: "2017-01-02T13:05:00Z"}, Value: &sd.TypedValue{Int64Value: &val}}},
+			Points:     []*sd.Point{{Interval: &sd.TimeInterval{StartTime: "2017-01-02T13:00:00Z", EndTime: "2017-01-02T13:01:00Z"}, Value: &sd.TypedValue{Int64Value: &val}}},
 		}},
 	}
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "my-pod-name",
-			Labels:      map[string]string{},
 			Namespace:   "my-namespace",
 			ClusterName: "my-cluster",
 			UID:         "my-pod-id",
@@ -230,7 +170,7 @@ func TestTranslator_GetRespForPods(t *testing.T) {
 		Items: []custom_metrics.MetricValue{
 			{
 				Value:           *resource.NewQuantity(151, resource.DecimalSI),
-				Timestamp:       metav1.Date(2017, 1, 2, 13, 5, 0, 0, time.UTC),
+				Timestamp:       metav1.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC),
 				DescribedObject: api.ObjectReference{Name: "my-pod-name", APIVersion: "/__internal", Kind: "Pod", Namespace: "my-namespace"},
 				MetricName:      "my/custom/metric",
 			},
@@ -239,4 +179,64 @@ func TestTranslator_GetRespForPods(t *testing.T) {
 	if !reflect.DeepEqual(*metrics, *expectedMetrics) {
 		t.Errorf("Unexpected result. Expected: \n%s,\n received: \n%s", *expectedMetrics, *metrics)
 	}
+}
+
+func TestTranslator_ListMetricDescriptors(t *testing.T) {
+	translator, sdService :=
+		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC))
+	request := translator.ListMetricDescriptors()
+	expectedRequest := sdService.Projects.MetricDescriptors.List("projects/my-project").
+		Filter("metric.type = starts_with(\"custom.googleapis.com/\") " +
+			"AND resource.label.project_id = \"my-project\" " +
+			"AND resource.label.cluster_name = \"my-cluster\" " +
+			"AND resource.label.zone = \"my-zone\" " +
+			"AND resource.label.container_name = \"\" AND resource.label.pod_id != \"\" " +
+			"AND resource.label.pod_id != \"machine\"")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected: \n%s,\n received: \n%s", *expectedRequest, *request)
+	}
+}
+
+func TestTranslator_GetMetricsFromSDDescriptorsResp(t *testing.T) {
+	translator, _ :=
+		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC))
+	response := &sd.ListMetricDescriptorsResponse{
+		MetricDescriptors: []*sd.MetricDescriptor{
+			{Type: "custom.googleapis.com/qps-int", MetricKind: "GAUGE", ValueType: "INT64"},
+			{Type: "custom.googleapis.com/qps-double", MetricKind: "GAUGE", ValueType: "DOUBLE"},
+			{Type: "custom.googleapis.com/qps-string", MetricKind: "GAUGE", ValueType: "STRING"},
+			{Type: "custom.googleapis.com/qps-bool", MetricKind: "GAUGE", ValueType: "BOOL"},
+			{Type: "custom.googleapis.com/qps-dist", MetricKind: "GAUGE", ValueType: "DISTRIBUTION"},
+			{Type: "custom.googleapis.com/qps-money", MetricKind: "GAUGE", ValueType: "MONEY"},
+			{Type: "custom.googleapis.com/qps-delta", MetricKind: "DELTA", ValueType: "INT64"},
+			{Type: "custom.googleapis.com/qps-cum", MetricKind: "CUMULATIVE", ValueType: "INT64"},
+			{Type: "custom.googleapis.com/q/p/s", MetricKind: "GAUGE", ValueType: "INT64"},
+		},
+	}
+	metricInfo := translator.GetMetricsFromSDDescriptorsResp(response)
+	expectedMetricInfo := []provider.MetricInfo{
+		{Metric: "qps-int", GroupResource: schema.GroupResource{Group: "", Resource: "pods"}, Namespaced: true},
+		{Metric: "qps-double", GroupResource: schema.GroupResource{Group: "", Resource: "pods"}, Namespaced: true},
+	}
+	if !reflect.DeepEqual(metricInfo, expectedMetricInfo) {
+		t.Errorf("Unexpected result. Expected: \n%s,\n received: \n%s", expectedMetricInfo, metricInfo)
+	}
+}
+
+func newFakeTranslator(reqWindow time.Duration, metricPrefix, project, cluster, zone string, currentTime time.Time) (*Translator, *sd.Service) {
+	sdService, err := sd.New(http.DefaultClient)
+	if err != nil {
+		glog.Fatal("Unexpected error creating stackdriver Service client")
+	}
+	return &Translator{
+		service:   sdService,
+		reqWindow: reqWindow,
+		config: &config.GceConfig{
+			MetricsPrefix: metricPrefix,
+			Project:       project,
+			Cluster:       cluster,
+			Zone:          zone,
+		},
+		clock: fakeClock{currentTime},
+	}, sdService
 }

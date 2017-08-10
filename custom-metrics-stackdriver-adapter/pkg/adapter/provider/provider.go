@@ -17,7 +17,6 @@ limitations under the License.
 package provider
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/golang/glog"
@@ -37,12 +36,12 @@ import (
 )
 
 // TODO(kawych):
-// * Use discovery REST mapper instead of api.Registry
-// * Implement ListAllMetrics - in progress.
+// * Honor 100-pod limit for one_of function by splitting large SD request.
+// * Handle clusters with nodes in multiple zones. Currently the Adapter always queries metrics in
+//   the same zone it runs.
+// * Use discovery REST mapper instead of api.Registry.
 // * Support metrics for objects other than pod, e.i. root-scoped - depends on SD resource types.
 // * Support long responses from Stackdriver (pagination).
-// * Return Kubernetes API - compatible errors defined in
-// "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/provider/errors"
 
 type clock interface {
 	Now() time.Time
@@ -87,13 +86,13 @@ func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, stackdriverService 
 // GetRootScopedMetricByName queries Stackdriver for metrics identified by name and not associated
 // with any namespace. Current implementation doesn't support root scoped metrics.
 func (p *StackdriverProvider) GetRootScopedMetricByName(groupResource schema.GroupResource, name string, metricName string) (*custom_metrics.MetricValue, error) {
-	return nil, fmt.Errorf("Non namespaced metrics not supported (metric name: %s)", metricName)
+	return nil, provider.NewOperationNotSupportedError("Get root scoped metric by name")
 }
 
 // GetRootScopedMetricBySelector queries Stackdriver for metrics identified by selector and not
 // associated with any namespace. Current implementation doesn't support root scoped metrics.
 func (p *StackdriverProvider) GetRootScopedMetricBySelector(groupResource schema.GroupResource, selector labels.Selector, metricName string) (*custom_metrics.MetricValueList, error) {
-	return nil, fmt.Errorf("Non namespaced metrics not supported (metric name: %s)", metricName)
+	return nil, provider.NewOperationNotSupportedError("Get root scoped metric by selector")
 }
 
 // GetNamespacedMetricByName queries Stackdriver for metrics identified by name and associated
@@ -134,7 +133,14 @@ func (p *StackdriverProvider) GetNamespacedMetricBySelector(groupResource schema
 }
 
 // ListAllMetrics returns all custom metrics available from Stackdriver.
-// TODO(kawych): implement this
+// List only pod metrics
 func (p *StackdriverProvider) ListAllMetrics() []provider.MetricInfo {
-	return []provider.MetricInfo{}
+	metrics := []provider.MetricInfo{}
+	stackdriverRequest := p.translator.ListMetricDescriptors()
+	response, err := stackdriverRequest.Do()
+	if err != nil {
+		glog.Errorf("Failed request to stackdriver api: %s", err)
+		return metrics
+	}
+	return p.translator.GetMetricsFromSDDescriptorsResp(response)
 }
