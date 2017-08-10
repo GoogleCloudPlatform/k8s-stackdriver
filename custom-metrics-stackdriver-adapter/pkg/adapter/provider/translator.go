@@ -48,11 +48,17 @@ type Translator struct {
 }
 
 // GetSDReqForPods returns Stackdriver request for query for multiple pods.
+// podList is required to be no longer than 100 items. This is enforced by limitation of "one_of()"
+// operator in Stackdriver filters, see documentation:
+// https://cloud.google.com/monitoring/api/v3/filters
 func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
-	resourceIDs := getResourceIDs(podList)
-	if len(resourceIDs) == 0 {
+	if len(podList.Items) == 0 {
 		return nil, apierr.NewBadRequest("No objects matched to provided selector")
 	}
+	if len(podList.Items) > 100 {
+		return nil, apierr.NewInternalError(fmt.Errorf("GetSDReqForPods called with %v pod list, but allowed limit is 100 pods", len(podList.Items)))
+	}
+	resourceIDs := getResourceIDs(podList)
 	filter := joinFilters(
 		t.filterForMetric(t.config.MetricsPrefix+"/"+metricName),
 		t.filterForCluster(),
@@ -84,7 +90,7 @@ func (t *Translator) GetRespForPod(response *stackdriver.ListTimeSeriesResponse,
 
 // GetRespForPods translates Stackdriver response to a Custom Metric associated
 // with multiple pods.
-func (t *Translator) GetRespForPods(response *stackdriver.ListTimeSeriesResponse, podList *v1.PodList, groupResource schema.GroupResource, metricName string, namespace string) (*custom_metrics.MetricValueList, error) {
+func (t *Translator) GetRespForPods(response *stackdriver.ListTimeSeriesResponse, podList *v1.PodList, groupResource schema.GroupResource, metricName string, namespace string) ([]custom_metrics.MetricValue, error) {
 	values, err := t.getMetricValuesFromResponse(groupResource, namespace, response, metricName)
 	if err != nil {
 		return nil, err
@@ -232,7 +238,7 @@ func (t *Translator) metricFor(value resource.Quantity, groupResource schema.Gro
 	}, nil
 }
 
-func (t *Translator) metricsFor(values map[string]resource.Quantity, groupResource schema.GroupResource, metricName string, podList *v1.PodList) (*custom_metrics.MetricValueList, error) {
+func (t *Translator) metricsFor(values map[string]resource.Quantity, groupResource schema.GroupResource, metricName string, podList *v1.PodList) ([]custom_metrics.MetricValue, error) {
 	res := make([]custom_metrics.MetricValue, 0)
 
 	for _, item := range podList.Items {
@@ -246,7 +252,5 @@ func (t *Translator) metricsFor(values map[string]resource.Quantity, groupResour
 		res = append(res, *value)
 	}
 
-	return &custom_metrics.MetricValueList{
-		Items: res,
-	}, nil
+	return res, nil
 }
