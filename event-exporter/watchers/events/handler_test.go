@@ -97,7 +97,7 @@ func TestEventWatchHandlerUpdate(t *testing.T) {
 			"oldObj=nil,newObj=event",
 			nil,
 			&api_v1.Event{},
-			false,
+			true,
 		},
 		{
 			"oldObj=non-event,newObj=event",

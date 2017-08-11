@@ -50,7 +50,7 @@ func (c *eventHandlerWrapper) OnAdd(obj interface{}) {
 func (c *eventHandlerWrapper) OnUpdate(oldObj interface{}, newObj interface{}) {
 	oldEvent, oldOk := c.convert(oldObj)
 	newEvent, newOk := c.convert(newObj)
-	if oldOk && newOk {
+	if newOk && (oldObj == nil || oldOk) {
 		c.handler.OnUpdate(oldEvent, newEvent)
 	}
 }
