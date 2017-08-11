@@ -38,135 +38,171 @@ func (w *fakeSdWriter) Write(entries []*sd.LogEntry, logName string, resource *s
 	return 0
 }
 
-func TestMaxConcurrency(t *testing.T) {
-	done := make(chan struct{})
-	defer close(done)
-	config := &sdSinkConfig{
-		Resource:       nil,
-		FlushDelay:     100 * time.Millisecond,
-		LogName:        "logname",
-		MaxConcurrency: 10,
-		MaxBufferSize:  10,
-	}
-	q := make(chan struct{}, config.MaxConcurrency+1)
-	w := &fakeSdWriter{
-		writeFunc: func([]*sd.LogEntry, string, *sd.MonitoredResource) int {
-			q <- struct{}{}
-			<-done
-			return 0
-		},
-	}
-	s := newSdSink(w, clock.NewFakeClock(time.Time{}), config)
-	go s.Run(done)
+const (
+	defaultTestFlushDelay     = 10 * time.Millisecond
+	defaultTestMaxConcurrency = 10
+	defaultTestMaxBufferSize  = 10
 
-	for i := 0; i < config.MaxConcurrency*(config.MaxBufferSize+2); i++ {
+	bufferSizeParamName = "buffersize"
+	flushDelayParamName = "flushdelay"
+	blockingParamName   = "blocking"
+)
+
+func TestMaxConcurrency(t *testing.T) {
+	c, s, q, done := createSinkWith(map[string]interface{}{
+		blockingParamName: true,
+	})
+	defer close(done)
+
+	for i := 0; i < c.MaxConcurrency*(c.MaxBufferSize+2); i++ {
 		s.OnAdd(&api_v1.Event{})
 	}
 
-	wait.Poll(100*time.Millisecond, 1*time.Second, func() (bool, error) {
-		return len(q) == config.MaxConcurrency, nil
-	})
-	if len(q) != config.MaxConcurrency {
-		t.Fatalf("Write called %d times, expected %d", len(q), config.MaxConcurrency)
+	want := c.MaxConcurrency
+	got := waitWritesCount(q, want)
+	if got != want {
+		t.Fatalf("Write called %d times, want %d", got, want)
 	}
 }
 
 func TestBatchTimeout(t *testing.T) {
-	done := make(chan struct{})
+	_, s, q, done := createSink()
 	defer close(done)
-	config := &sdSinkConfig{
-		Resource:       nil,
-		FlushDelay:     100 * time.Millisecond,
-		LogName:        "logname",
-		MaxConcurrency: 10,
-		MaxBufferSize:  10,
-	}
-	q := make(chan struct{}, config.MaxConcurrency+1)
-	w := &fakeSdWriter{
-		writeFunc: func([]*sd.LogEntry, string, *sd.MonitoredResource) int {
-			q <- struct{}{}
-			return 0
-		},
-	}
-	s := newSdSink(w, clock.NewFakeClock(time.Time{}), config)
-	go s.Run(done)
 
 	s.OnAdd(&api_v1.Event{})
-	wait.Poll(100*time.Millisecond, 1*time.Second, func() (bool, error) {
-		return len(q) == 1, nil
-	})
 
-	if len(q) != 1 {
-		t.Fatalf("Write called %d times, expected 1", len(q))
+	want := 1
+	got := waitWritesCount(q, want)
+	if got != want {
+		t.Fatalf("Write called %d times, want %d", got, want)
 	}
 }
 
 func TestBatchSizeLimit(t *testing.T) {
-	done := make(chan struct{})
+	_, s, q, done := createSinkWith(map[string]interface{}{
+		flushDelayParamName: 1 * time.Hour,
+	})
 	defer close(done)
-	config := &sdSinkConfig{
-		Resource:       nil,
-		FlushDelay:     1 * time.Minute,
-		LogName:        "logname",
-		MaxConcurrency: 10,
-		MaxBufferSize:  10,
-	}
-	q := make(chan struct{}, config.MaxConcurrency+1)
-	w := &fakeSdWriter{
-		writeFunc: func([]*sd.LogEntry, string, *sd.MonitoredResource) int {
-			q <- struct{}{}
-			return 0
-		},
-	}
-	s := newSdSink(w, clock.NewFakeClock(time.Time{}), config)
-	go s.Run(done)
 
 	for i := 0; i < 15; i++ {
 		s.OnAdd(&api_v1.Event{})
 	}
 
-	wait.Poll(100*time.Millisecond, 1*time.Second, func() (bool, error) {
-		return len(q) == 1, nil
-	})
-
-	if len(q) != 1 {
-		t.Fatalf("Write called %d times, expected 1", len(q))
+	want := 1
+	got := waitWritesCount(q, want)
+	if got != want {
+		t.Fatalf("Write called %d times, want %d", got, want)
 	}
 }
 
 func TestInitialList(t *testing.T) {
-	done := make(chan struct{})
+	_, s, q, done := createSinkWith(map[string]interface{}{
+		bufferSizeParamName: 1,
+	})
 	defer close(done)
-	config := &sdSinkConfig{
-		Resource:       nil,
-		FlushDelay:     100 * time.Millisecond,
-		LogName:        "logname",
-		MaxConcurrency: 10,
-		MaxBufferSize:  1,
+
+	s.OnList(&api_v1.EventList{})
+
+	want := 1
+	got := waitWritesCount(q, want)
+	if got != want {
+		t.Fatalf("Write called %d times, want %d", got, want)
 	}
-	q := make(chan struct{}, config.MaxConcurrency+1)
+
+	s.OnList(&api_v1.EventList{})
+
+	got = waitWritesCount(q, want)
+	if got != want {
+		t.Fatalf("Write called %d times, want %d", got, want)
+	}
+}
+
+func TestOnUpdate(t *testing.T) {
+	tcs := []struct {
+		desc      string
+		old       *api_v1.Event
+		new       *api_v1.Event
+		wantEntry bool
+	}{
+		{
+			"old=nil,new=event",
+			nil,
+			&api_v1.Event{},
+			true,
+		},
+		{
+			"old=event,new=event",
+			&api_v1.Event{},
+			&api_v1.Event{},
+			true,
+		},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.desc, func(t *testing.T) {
+			_, s, q, done := createSink()
+			defer close(done)
+
+			s.OnUpdate(tc.old, tc.new)
+
+			want := 1
+			if !tc.wantEntry {
+				want = 0
+			}
+			got := waitWritesCount(q, want)
+			if got != want {
+				t.Fatalf("Write called %d times, want %d", got, want)
+			}
+		})
+	}
+}
+
+func createSink() (*sdSinkConfig, *sdSink, chan struct{}, chan struct{}) {
+	return createSinkWith(make(map[string]interface{}))
+}
+
+func createSinkWith(params map[string]interface{}) (c *sdSinkConfig, s *sdSink, q chan struct{}, done chan struct{}) {
+	done = make(chan struct{})
+	c = createConfig(params)
+	q = make(chan struct{}, 2*c.MaxConcurrency)
 	w := &fakeSdWriter{
 		writeFunc: func([]*sd.LogEntry, string, *sd.MonitoredResource) int {
 			q <- struct{}{}
+			if v, ok := params[blockingParamName]; ok && v.(bool) {
+				<-done
+			}
 			return 0
 		},
 	}
-	s := newSdSink(w, clock.NewFakeClock(time.Time{}), config)
+	s = newSdSink(w, clock.NewFakeClock(time.Time{}), c)
 	go s.Run(done)
+	return
+}
 
-	s.OnList(&api_v1.EventList{})
+func createConfig(params map[string]interface{}) *sdSinkConfig {
+	c := &sdSinkConfig{
+		Resource:       nil,
+		FlushDelay:     defaultTestFlushDelay,
+		LogName:        "logname",
+		MaxConcurrency: defaultTestMaxConcurrency,
+		MaxBufferSize:  defaultTestMaxBufferSize,
+	}
 
-	wait.Poll(100*time.Millisecond, 1*time.Second, func() (bool, error) {
-		return len(q) == 1, nil
+	if v, ok := params[bufferSizeParamName]; ok {
+		c.MaxBufferSize = v.(int)
+	}
+
+	if v, ok := params[flushDelayParamName]; ok {
+		c.FlushDelay = v.(time.Duration)
+	}
+
+	return c
+}
+
+func waitWritesCount(q chan struct{}, want int) int {
+	wait.Poll(10*time.Millisecond, 100*time.Millisecond, func() (bool, error) {
+		return len(q) == want, nil
 	})
-	if len(q) != 1 {
-		t.Fatalf("Write called %d times, expected 1", len(q))
-	}
-
-	s.OnList(&api_v1.EventList{})
-
-	time.Sleep(2 * config.FlushDelay)
-	if len(q) != 1 {
-		t.Fatalf("Write called %d times, expected 1", len(q))
-	}
+	// Wait for some more time to ensure that the number is not greater.
+	time.Sleep(100 * time.Millisecond)
+	return len(q)
 }

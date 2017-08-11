@@ -90,13 +90,19 @@ func (s *sdSink) OnAdd(event *api_v1.Event) {
 }
 
 func (s *sdSink) OnUpdate(oldEvent *api_v1.Event, newEvent *api_v1.Event) {
-	if newEvent.Count != oldEvent.Count+1 {
+	var oldCount int32
+	if oldEvent != nil {
+		oldCount = oldEvent.Count
+	}
+
+	if newEvent.Count != oldCount+1 {
 		// Sink doesn't send a LogEntry to Stackdriver, b/c event compression might
 		// indicate that part of the watch history was lost, which may result in
 		// multiple events being compressed. This may create an unecessary
-		// flood in Stackdriver.
+		// flood in Stackdriver. Also this is a perfectly valid behavior for the
+		// configuration with empty backing storage.
 		glog.V(2).Infof("Event count has increased by %d != 1.\n"+
-			"\tOld event: %+v\n\tNew event: %+v", newEvent.Count-oldEvent.Count, oldEvent, newEvent)
+			"\tOld event: %+v\n\tNew event: %+v", newEvent.Count-oldCount, oldEvent, newEvent)
 	}
 
 	receivedEntryCount.WithLabelValues(newEvent.Source.Component, newEvent.Source.Host).Inc()
