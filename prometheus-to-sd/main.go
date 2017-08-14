@@ -133,6 +133,7 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 			metricDescriptorCache.Refresh()
 			if useWhitelistedMetricsAutodiscovery {
 				sourceConfig.UpdateWhitelistedMetrics(metricDescriptorCache.GetMetricNames())
+				glog.V(2).Infof("Autodiscovered whitelisted metrics for component %v: %v", commonConfig.ComponentName, sourceConfig.Whitelisted)
 			}
 			signal = time.After(*metricDescriptorsResolution)
 		default:
@@ -143,7 +144,7 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 		}
 		metrics, err := translator.GetPrometheusMetrics(sourceConfig.Host, sourceConfig.Port)
 		if err != nil {
-			glog.Warningf("Error while getting Prometheus metrics %v", err)
+			glog.V(2).Infof("Error while getting Prometheus metrics %v for component %v", err, sourceConfig.Component)
 			continue
 		}
 		if *omitComponentName {
@@ -153,6 +154,6 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 			metricDescriptorCache.UpdateMetricDescriptors(metrics, sourceConfig.Whitelisted)
 		}
 		ts := translator.TranslatePrometheusToStackdriver(commonConfig, sourceConfig.Whitelisted, metrics, metricDescriptorCache)
-		translator.SendToStackdriver(stackdriverService, gceConf, ts)
+		translator.SendToStackdriver(stackdriverService, commonConfig, ts)
 	}
 }

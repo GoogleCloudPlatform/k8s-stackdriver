@@ -33,13 +33,13 @@ const (
 )
 
 // SendToStackdriver sends http request to Stackdriver to create the given timeserieses.
-func SendToStackdriver(service *v3.Service, config *config.GceConfig, ts []*v3.TimeSeries) {
+func SendToStackdriver(service *v3.Service, config *config.CommonConfig, ts []*v3.TimeSeries) {
 	if len(ts) == 0 {
-		glog.Warningf("No metrics to send to Stackdriver")
+		glog.V(3).Infof("No metrics to send to Stackdriver for component %v", config.ComponentName)
 		return
 	}
 
-	proj := createProjectName(config)
+	proj := createProjectName(config.GceConfig)
 
 	var wg sync.WaitGroup
 	var failedTs uint32
@@ -60,7 +60,7 @@ func SendToStackdriver(service *v3.Service, config *config.GceConfig, ts []*v3.T
 		}(i, end)
 	}
 	wg.Wait()
-	glog.V(4).Infof("Successfully sent %v timeserieses to Stackdriver", uint32(len(ts))-failedTs)
+	glog.V(4).Infof("Successfully sent %v timeserieses to Stackdriver for component %v", uint32(len(ts))-failedTs, config.ComponentName)
 }
 
 func getMetricDescriptors(service *v3.Service, config *config.GceConfig, component string) (map[string]*v3.MetricDescriptor, error) {

@@ -110,7 +110,7 @@ func (cache *MetricDescriptorCache) updateMetricDescriptorIfStale(metricFamily *
 func (cache *MetricDescriptorCache) getMetricDescriptor(metric string) *v3.MetricDescriptor {
 	value, ok := cache.descriptors[metric]
 	if !ok {
-		glog.Warningf("Metric %s was not found in the cache.", metric)
+		glog.V(4).Infof("Metric %s was not found in the cache for component %v", metric, cache.component)
 	}
 	return value
 }
