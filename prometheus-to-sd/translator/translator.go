@@ -103,7 +103,7 @@ func filterWhitelisted(allMetrics map[string]*dto.MetricFamily, whitelisted []st
 		if family, found := allMetrics[w]; found {
 			res[w] = family
 		} else {
-			glog.V(4).Infof("Whitelisted metric %s not present in Prometheus endpoint.", w)
+			glog.V(3).Infof("Whitelisted metric %s not present in Prometheus endpoint.", w)
 		}
 	}
 	return res
@@ -114,7 +114,7 @@ func translateFamily(config *config.CommonConfig,
 	startTime time.Time,
 	cache *MetricDescriptorCache) ([]*v3.TimeSeries, error) {
 
-	glog.V(4).Infof("Translating metric family %v", family.GetName())
+	glog.V(3).Infof("Translating metric family %v from component", family.GetName(), config.ComponentName)
 	var ts []*v3.TimeSeries
 	if _, found := supportedMetricTypes[family.GetType()]; !found {
 		return ts, fmt.Errorf("Metric type %v of family %s not supported", family.GetType(), family.GetName())
