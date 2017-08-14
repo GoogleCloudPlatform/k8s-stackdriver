@@ -43,7 +43,7 @@ type sdSinkConfig struct {
 	Resource       *sd.MonitoredResource
 }
 
-func newGceSdSinkConfig() (*sdSinkConfig, error) {
+func newGceSdSinkConfig(location string) (*sdSinkConfig, error) {
 	if !metadata.OnGCE() {
 		return nil, errors.New("not running on GCE, which is not supported for Stackdriver sink")
 	}
@@ -65,9 +65,8 @@ func newGceSdSinkConfig() (*sdSinkConfig, error) {
 		Type: "gke_cluster",
 		Labels: map[string]string{
 			"cluster_name": clusterName,
-			// TODO: Replace with the actual zone of the cluster
-			"location":   "",
-			"project_id": projectID,
+			"location":     location,
+			"project_id":   projectID,
 		},
 	}
 
