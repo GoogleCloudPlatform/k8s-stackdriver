@@ -35,6 +35,7 @@ type sdSinkFactory struct {
 	flushDelay     *time.Duration
 	maxBufferSize  *int
 	maxConcurrency *int
+	location       *string
 }
 
 // NewSdSinkFactory creates a new Stackdriver sink factory
@@ -49,6 +50,7 @@ func NewSdSinkFactory() sinks.SinkFactory {
 			"in the request to Stackdriver"),
 		maxConcurrency: fs.Int("max-concurrency", defaultMaxConcurrency, "Maximum number of "+
 			"concurrent requests to Stackdriver"),
+		location: fs.String("location", "", "GCE location of the cluster"),
 	}
 }
 
@@ -81,7 +83,7 @@ func (f *sdSinkFactory) CreateNew(opts []string) (sinks.Sink, error) {
 }
 
 func (f *sdSinkFactory) createSinkConfig() (*sdSinkConfig, error) {
-	config, err := newGceSdSinkConfig()
+	config, err := newGceSdSinkConfig(*f.location)
 	if err != nil {
 		return nil, err
 	}
