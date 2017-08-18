@@ -14,7 +14,7 @@
 
 FROM gcr.io/google-containers/debian-base-amd64:0.1
 
-ADD build/adapter adapter
+ADD build/amd64/adapter adapter
 
 RUN clean-install ca-certificates
 
