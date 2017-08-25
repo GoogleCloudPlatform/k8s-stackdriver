@@ -33,6 +33,7 @@ import (
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
+	"k8s.io/client-go/pkg/api/v1"
 )
 
 // Translator is a structure used to translate between Custom Metrics API and Stackdriver API
@@ -43,23 +44,17 @@ type Translator struct {
 	clock     clock
 }
 
-// GetSDReqForPod returns Stackdriver request for query for a single pod.
-func (t *Translator) GetSDReqForPod(pod runtime.Object, metricName string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
-	objMeta := pod.(metav1.ObjectMetaAccessor).GetObjectMeta()
-	resourceID := fmt.Sprintf("%s", objMeta.GetUID())
-
-	project := fmt.Sprintf("projects/%s", t.config.Project)
-	endTime := t.clock.Now()
-	startTime := endTime.Add(-t.reqWindow)
-	filter, err := t.createFilter([]string{fmt.Sprintf("%q", resourceID)}, t.config.Project, t.config.Zone, t.config.Cluster, metricName)
+// GetSDReqForPods returns Stackdriver request for query for multiple pods.
+func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
+	resourceIDs := getResourceIDs(podList)
+	if len(resourceIDs) == 0 {
+		return nil, fmt.Errorf("No objects matching provided selector")
+	}
+	filter, err := t.createFilter(resourceIDs, t.config.Project, t.config.Zone, t.config.Cluster, metricName)
 	if err != nil {
 		return nil, err
 	}
-	return t.service.Projects.TimeSeries.List(project).Filter(filter).
-		IntervalStartTime(startTime.Format(time.RFC3339)).
-		IntervalEndTime(endTime.Format(time.RFC3339)).
-		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
-		AggregationAlignmentPeriod(fmt.Sprintf("%vs", int64(t.reqWindow.Seconds()))), nil
+	return t.createListTimeseriesRequest(filter), nil
 }
 
 // GetRespForPod returns translates Stackdriver response to a Custom Metric associated with a single
@@ -84,6 +79,24 @@ func (t *Translator) GetRespForPod(response *stackdriver.ListTimeSeriesResponse,
 	return nil, fmt.Errorf("Illegal state")
 }
 
+// GetRespForPods returns translates Stackdriver response to a Custom Metric associated
+// with multiple pods.
+func (t *Translator) GetRespForPods(response *stackdriver.ListTimeSeriesResponse, podList *v1.PodList, groupResource schema.GroupResource, metricName string, namespace string) (*custom_metrics.MetricValueList, error) {
+	values, err := t.getMetricValuesFromResponse(groupResource, namespace, response)
+	if err != nil {
+		return nil, err
+	}
+	return t.metricsFor(values, groupResource, metricName, podList)
+}
+
+func getResourceIDs(list *v1.PodList) []string {
+	resourceIDs := []string{}
+	for _, item := range list.Items {
+		resourceIDs = append(resourceIDs, fmt.Sprintf("%q", item.GetUID()))
+	}
+	return resourceIDs
+}
+
 func (t *Translator) createFilter(podIDs []string, project string, zone string, clusterName string, metricName string) (string, error) {
 	// project_id, cluster_name and pod_id together identify a pod unambiguously
 	projectFilter := fmt.Sprintf("resource.label.project_id = %q", project)
@@ -102,6 +115,17 @@ func (t *Translator) createFilter(podIDs []string, project string, zone string, 
 		nameFilter = fmt.Sprintf("resource.label.pod_id = one_of(%s)", strings.Join(podIDs, ","))
 	}
 	return fmt.Sprintf("(%s) AND (%s) AND (%s) AND (%s) AND (%s) AND (%s)", metricFilter, projectFilter, clusterFilter, zoneFilter, nameFilter, containerFilter), nil
+}
+
+func (t *Translator) createListTimeseriesRequest(filter string) *stackdriver.ProjectsTimeSeriesListCall {
+	project := fmt.Sprintf("projects/%s", t.config.Project)
+	endTime := t.clock.Now()
+	startTime := endTime.Add(-t.reqWindow)
+	return t.service.Projects.TimeSeries.List(project).Filter(filter).
+		IntervalStartTime(startTime.Format(time.RFC3339)).
+		IntervalEndTime(endTime.Format(time.RFC3339)).
+		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+		AggregationAlignmentPeriod(fmt.Sprintf("%vs", int64(t.reqWindow.Seconds())))
 }
 
 func (t *Translator) getMetricValuesFromResponse(groupResource schema.GroupResource, namespace string, response *stackdriver.ListTimeSeriesResponse) (map[string]resource.Quantity, error) {
@@ -138,6 +162,7 @@ func (t *Translator) getMetricValuesFromResponse(groupResource schema.GroupResou
 	}
 	return metricValues, nil
 }
+
 func (t *Translator) metricFor(value resource.Quantity, groupResource schema.GroupResource, namespace string, name string, metricName string) (*custom_metrics.MetricValue, error) {
 	group, err := api.Registry.Group(groupResource.Group)
 	if err != nil {
@@ -158,5 +183,24 @@ func (t *Translator) metricFor(value resource.Quantity, groupResource schema.Gro
 		MetricName: metricName,
 		Timestamp:  metav1.Time{t.clock.Now()},
 		Value:      value,
+	}, nil
+}
+
+func (t *Translator) metricsFor(values map[string]resource.Quantity, groupResource schema.GroupResource, metricName string, podList *v1.PodList) (*custom_metrics.MetricValueList, error) {
+	res := make([]custom_metrics.MetricValue, 0)
+
+	for _, item := range podList.Items {
+		if _, ok := values[fmt.Sprintf("%s", item.GetUID())]; !ok {
+			return nil, fmt.Errorf("No metric found for object: '%s'", item.GetName())
+		}
+		value, err := t.metricFor(values[fmt.Sprintf("%s", item.GetUID())], groupResource, item.GetNamespace(), item.GetName(), metricName)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, *value)
+	}
+
+	return &custom_metrics.MetricValueList{
+		Items: res,
 	}, nil
 }

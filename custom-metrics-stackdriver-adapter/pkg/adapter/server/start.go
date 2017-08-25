@@ -102,7 +102,8 @@ func (o sampleAdapterServerOptions) RunCustomMetricsAdapterServer(stopCh <-chan 
 	if err != nil {
 		return fmt.Errorf("Failed to create Stackdriver client: %v", err)
 	}
-	cmProvider := provider.NewStackdriverProvider(client.RESTClient(), stackdriverService, 5*time.Minute)
+	//cmProvider := provider.NewStackdriverProvider(client.RESTClient(), stackdriverService, 5*time.Minute)
+	cmProvider := provider.NewStackdriverProvider(coreclient.New(client.RESTClient()), stackdriverService, 5*time.Minute)
 
 	server, err := config.Complete().New(cmProvider)
 	if err != nil {

@@ -22,9 +22,10 @@ import (
 
 	"github.com/golang/glog"
 	stackdriver "google.golang.org/api/monitoring/v3"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/rest"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 
 	// Install registers the API group and adds types to a scheme.
@@ -32,10 +33,10 @@ import (
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/provider"
+	"k8s.io/client-go/pkg/api/v1"
 )
 
 // TODO(kawych):
-// * Support metrics for pods identified by selector - in progress.
 // * Use discovery REST mapper instead of api.Registry
 // * Implement ListAllMetrics - in progress.
 // * Support metrics for objects other than pod, e.i. root-scoped - depends on SD resource types.
@@ -55,7 +56,7 @@ func (c realClock) Now() time.Time {
 
 // StackdriverProvider is a provider of custom metrics from Stackdriver.
 type StackdriverProvider struct {
-	apiserverClient    rest.Interface
+	kubeClient         *corev1.CoreV1Client
 	stackdriverService *stackdriver.Service
 	config             *config.GceConfig
 	rateInterval       time.Duration
@@ -63,14 +64,14 @@ type StackdriverProvider struct {
 }
 
 // NewStackdriverProvider creates a StackdriverProvider
-func NewStackdriverProvider(apiserverClient rest.Interface, stackdriverService *stackdriver.Service, rateInterval time.Duration) provider.CustomMetricsProvider {
+func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, stackdriverService *stackdriver.Service, rateInterval time.Duration) provider.CustomMetricsProvider {
 	gceConf, err := config.GetGceConfig("custom.googleapis.com")
 	if err != nil {
 		glog.Fatalf("Failed to retrieve GCE config: %v", err)
 	}
 
 	return &StackdriverProvider{
-		apiserverClient:    apiserverClient,
+		kubeClient:         kubeClient,
 		stackdriverService: stackdriverService,
 		config:             gceConf,
 		rateInterval:       rateInterval,
@@ -98,11 +99,11 @@ func (p *StackdriverProvider) GetRootScopedMetricBySelector(groupResource schema
 // GetNamespacedMetricByName queries Stackdriver for metrics identified by name and associated
 // with a namespace.
 func (p *StackdriverProvider) GetNamespacedMetricByName(groupResource schema.GroupResource, namespace string, name string, metricName string) (*custom_metrics.MetricValue, error) {
-	matchingObject, err := p.apiserverClient.Get().Namespace(namespace).Resource(groupResource.Resource).Name(name).Do().Get()
+	matchingPod, err := p.kubeClient.Pods(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
-	stackdriverRequest, err := p.translator.GetSDReqForPod(matchingObject, metricName)
+	stackdriverRequest, err := p.translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{*matchingPod}}, metricName)
 	if err != nil {
 		return nil, err
 	}
@@ -115,9 +116,21 @@ func (p *StackdriverProvider) GetNamespacedMetricByName(groupResource schema.Gro
 
 // GetNamespacedMetricBySelector queries Stackdriver for metrics identified by selector and associated
 // with a namespace.
-// TODO(kawych): implement this
 func (p *StackdriverProvider) GetNamespacedMetricBySelector(groupResource schema.GroupResource, namespace string, selector labels.Selector, metricName string) (*custom_metrics.MetricValueList, error) {
-	return nil, fmt.Errorf("Selectors not supported")
+	matchingPods, err := p.kubeClient.Pods(namespace).List(metav1.ListOptions{LabelSelector: selector.String()})
+	if err != nil {
+		return nil, err
+	}
+	stackdriverRequest, err := p.translator.GetSDReqForPods(matchingPods, metricName)
+	if err != nil {
+		return nil, err
+	}
+	stackdriverResponse, err := stackdriverRequest.Do()
+	if err != nil {
+		return nil, err
+	}
+
+	return p.translator.GetRespForPods(stackdriverResponse, matchingPods, groupResource, metricName, namespace)
 }
 
 // ListAllMetrics returns all custom metrics available from Stackdriver.
