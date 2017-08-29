@@ -38,6 +38,17 @@ func NewMetricNotFoundForError(resource schema.GroupResource, metricName string,
 	return newMetricNotFoundWithMessageError(fmt.Sprintf("the server could not find the metric %s for %s %s", metricName, resource.String(), resourceName))
 }
 
+// NewOperationNotSupportedError returns a StatusError indicating that the invoked API call is not
+// supported.
+func NewOperationNotSupportedError(operation string) *apierr.StatusError {
+	return &apierr.StatusError{metav1.Status{
+		Status:  metav1.StatusFailure,
+		Code:    int32(http.StatusNotImplemented),
+		Reason:  metav1.StatusReasonBadRequest,
+		Message: fmt.Sprintf("Operation: %q is not implemented", operation),
+	}}
+}
+
 func newMetricNotFoundWithMessageError(message string) *apierr.StatusError {
 	return &apierr.StatusError{metav1.Status{
 		Status:  metav1.StatusFailure,
