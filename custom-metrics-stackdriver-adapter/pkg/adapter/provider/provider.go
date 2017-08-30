@@ -36,10 +36,10 @@ import (
 )
 
 // TODO(kawych):
-// * Honor 100-pod limit for one_of function by splitting large SD request.
 // * Handle clusters with nodes in multiple zones. Currently the Adapter always queries metrics in
 //   the same zone it runs.
-// * Use discovery REST mapper instead of api.Registry.
+// * Use discovery REST mapper instead of api.Registry. Note: this will be relevant for Custom
+//   Metrics API implementation for all k8s objects (current implementation supports only pods).
 // * Support metrics for objects other than pod, e.i. root-scoped - depends on SD resource types.
 // * Support long responses from Stackdriver (pagination).
 
@@ -120,16 +120,23 @@ func (p *StackdriverProvider) GetNamespacedMetricBySelector(groupResource schema
 	if err != nil {
 		return nil, err
 	}
-	stackdriverRequest, err := p.translator.GetSDReqForPods(matchingPods, metricName)
-	if err != nil {
-		return nil, err
+	result := []custom_metrics.MetricValue{}
+	for i := 0; i < len(matchingPods.Items); i += 100 {
+		stackdriverRequest, err := p.translator.GetSDReqForPods(&v1.PodList{Items: matchingPods.Items[i:min(i+100, len(matchingPods.Items))]}, metricName)
+		if err != nil {
+			return nil, err
+		}
+		stackdriverResponse, err := stackdriverRequest.Do()
+		if err != nil {
+			return nil, err
+		}
+		slice, err := p.translator.GetRespForPods(stackdriverResponse, matchingPods, groupResource, metricName, namespace)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, slice...)
 	}
-	stackdriverResponse, err := stackdriverRequest.Do()
-	if err != nil {
-		return nil, err
-	}
-
-	return p.translator.GetRespForPods(stackdriverResponse, matchingPods, groupResource, metricName, namespace)
+	return &custom_metrics.MetricValueList{Items: result}, nil
 }
 
 // ListAllMetrics returns all custom metrics available from Stackdriver.
@@ -143,4 +150,11 @@ func (p *StackdriverProvider) ListAllMetrics() []provider.MetricInfo {
 		return metrics
 	}
 	return p.translator.GetMetricsFromSDDescriptorsResp(response)
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
