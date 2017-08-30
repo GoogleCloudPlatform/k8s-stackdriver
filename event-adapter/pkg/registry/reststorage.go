@@ -17,13 +17,14 @@ limitations under the License.
 package registry
 
 import (
+	"fmt"
 	specificinstaller "github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/apiserver/installer/context"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/provider"
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/types"
 	metainternalversion "k8s.io/apimachinery/pkg/apis/meta/internalversion"
 	"k8s.io/apimachinery/pkg/runtime"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
+	"k8s.io/client-go/pkg/api"
 )
 
 // REST is a wrapper for EventsProvider that provides implementation for Storage and Lister interfaces
@@ -43,24 +44,53 @@ func NewREST(evProvider provider.EventsProvider) *REST {
 
 // New implements Storage
 func (r *REST) New() runtime.Object {
-	return &types.EventValue{}
+	return &api.Event{}
 }
 
 // NewList implement Lister
 func (r *REST) NewList() runtime.Object {
-	return &types.EventValueList{}
+	return &api.EventList{}
 }
 
 // List selects the events that match to the selector
 func (r *REST) List(ctx genericapirequest.Context, options *metainternalversion.ListOptions) (runtime.Object, error) {
 
 	namespace := genericapirequest.NamespaceValue(ctx)
-
-	eventName, ok := specificinstaller.ResourceInformationFrom(ctx)
-
-	if !ok {
-		return r.evProvider.ListAllEventsByNamespace(namespace)
+	if namespace == "" {
+		return r.evProvider.ListAllEvents()
 	}
 
-	return r.evProvider.GetNamespacedEventsByName(namespace, eventName)
+	eventName, methodSingleEvent, ok := specificinstaller.RequestInformationFrom(ctx)
+	methodListEvents, list := specificinstaller.RequestListInformationFrom(ctx)
+
+	if methodListEvents == "" && methodSingleEvent == "" {
+		return nil, fmt.Errorf("Unable to serve the request: forgiven method")
+	}
+
+	if list {
+		return r.listEventsAPI(namespace, methodListEvents)
+	}
+
+	if ok {
+		return r.singleEventAPI(namespace, eventName, methodSingleEvent)
+	}
+
+	return nil, fmt.Errorf("Unable to serve the request")
+}
+
+func (r *REST) singleEventAPI(namespace, name, method string) (runtime.Object, error) {
+	if method == "GET" {
+		return r.evProvider.GetNamespacedEventsByName(namespace, name)
+	}
+	return nil, fmt.Errorf("Method %s not allowed", method)
+}
+
+func (r *REST) listEventsAPI(namespace, method string) (runtime.Object, error) {
+	switch method {
+	case "GET":
+		return r.evProvider.ListAllEventsByNamespace(namespace)
+	case "POST":
+		return r.evProvider.CreateNewEvent(namespace)
+	}
+	return nil, fmt.Errorf("Method %s not allowed", method)
 }

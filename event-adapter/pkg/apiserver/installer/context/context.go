@@ -20,9 +20,14 @@ import (
 	"k8s.io/apiserver/pkg/endpoints/request"
 )
 
-// resourceInformation holds the resource and subresource for a request in the context.
-type resourceInformation struct {
+// requestInformation holds the resource and method for a request in the context.
+type requestInformation struct {
 	resource string
+	method   string
+}
+
+type requestListInformation struct {
+	method string
 }
 
 // contextKey is the type of the keys for the context in this file.
@@ -31,16 +36,30 @@ type contextKey int
 
 const resourceKey contextKey = iota
 
-// WithResourceInformation returns a copy of parent in which the resource and subresource values are set
-func WithResourceInformation(parent request.Context, resource string) request.Context {
-	return request.WithValue(parent, resourceKey, resourceInformation{resource})
+// WithRequestInformation returns a copy of parent in which the resource and method values are set
+func WithRequestInformation(parent request.Context, resource, method string) request.Context {
+	return request.WithValue(parent, resourceKey, requestInformation{resource, method})
 }
 
-// ResourceInformationFrom returns resource and subresource on the ctx
-func ResourceInformationFrom(ctx request.Context) (resource string, ok bool) {
-	resourceInfo, ok := ctx.Value(resourceKey).(resourceInformation)
+// WithRequestListInformation returns a copy of parent in which the method values is set
+func WithRequestListInformation(parent request.Context, method string) request.Context {
+	return request.WithValue(parent, resourceKey, requestListInformation{method})
+}
+
+// RequestInformationFrom returns resource and method on the ctx
+func RequestInformationFrom(ctx request.Context) (resource string, method string, ok bool) {
+	requestInfo, ok := ctx.Value(resourceKey).(requestInformation)
+	if !ok {
+		return "", "", ok
+	}
+	return requestInfo.resource, requestInfo.method, ok
+}
+
+// RequestListInformationFrom returns method on the ctx
+func RequestListInformationFrom(ctx request.Context) (method string, ok bool) {
+	requestInfo, ok := ctx.Value(resourceKey).(requestListInformation)
 	if !ok {
 		return "", ok
 	}
-	return resourceInfo.resource, ok
+	return requestInfo.method, ok
 }

@@ -33,7 +33,7 @@ func Install(groupFactoryRegistry announced.APIGroupFactoryRegistry, registry *r
 		&announced.GroupMetaFactoryArgs{
 			GroupName:                  GroupName,
 			VersionPreferenceOrder:     []string{SchemeGroupVersion.Version},
-			ImportPrefix:               "github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/types",
+			ImportPrefix:               "",
 			AddInternalObjectsToScheme: AddToScheme,
 		},
 		announced.VersionToSchemeFunc{
