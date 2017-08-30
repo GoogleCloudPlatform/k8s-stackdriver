@@ -19,30 +19,42 @@ package provider
 import (
 	"fmt"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/provider"
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/types"
 	stackdriver "google.golang.org/api/monitoring/v3"
+	"k8s.io/client-go/pkg/api"
 )
 
-type sdService stackdriver.Service
+//TODO(erocchi) Use the Kubernetes AIP - compatible errors, see example definitions here: https://github.com/kubernetes-incubator/custom-metrics-apiserver/blob/master/pkg/provider/errors.go
 
-//TODO(erocchi) add integration with Stackdriver
+type sdService stackdriver.Service
 
 // StackdriverProvider implements EventsProvider
 type StackdriverProvider struct {
 	//TODO(erocchi) Define fields for this struct. It should contain what will be needed to communicate with Stackdriver.
 }
 
+//TODO(erocchi) add implementation to communicate with Stackdriver
+
 // NewStackdriverProvider creates a new Provider with standard settings
 func NewStackdriverProvider() provider.EventsProvider {
 	return &StackdriverProvider{}
 }
 
-// GetNamespacedEventsByName gets the event with the given name
-func (p *StackdriverProvider) GetNamespacedEventsByName(namespace, eventName string) (*types.EventValue, error) {
+// GetNamespacedEventsByName gets the event with the given namespace and name
+func (p *StackdriverProvider) GetNamespacedEventsByName(namespace, eventName string) (*api.Event, error) {
 	return nil, fmt.Errorf("GetNamespacedEventsByName is not implemented yet.")
 }
 
-// ListAllEventsByNamespace gets all the events
-func (p *StackdriverProvider) ListAllEventsByNamespace(namespace string) (*types.EventValueList, error) {
+// ListAllEventsByNamespace gets all the events with the given namespace
+func (p *StackdriverProvider) ListAllEventsByNamespace(namespace string) (*api.EventList, error) {
 	return nil, fmt.Errorf("ListAllEventsByNamespace is not implemented yet.")
+}
+
+// ListAllEvents gets all the events
+func (p *StackdriverProvider) ListAllEvents() (*api.EventList, error) {
+	return nil, fmt.Errorf("ListAllEvents is not implemented yet.")
+}
+
+// CreateNewEvent creates a new event in the given namespace
+func (p *StackdriverProvider) CreateNewEvent(namespace string) (*api.Event, error) {
+	return nil, fmt.Errorf("CreateNewEvent is not implemented yet.")
 }
