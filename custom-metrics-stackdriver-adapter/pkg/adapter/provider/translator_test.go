@@ -166,18 +166,21 @@ func TestTranslator_GetRespForPods(t *testing.T) {
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
-	expectedMetrics := &custom_metrics.MetricValueList{
-		Items: []custom_metrics.MetricValue{
-			{
-				Value:           *resource.NewQuantity(151, resource.DecimalSI),
-				Timestamp:       metav1.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC),
-				DescribedObject: api.ObjectReference{Name: "my-pod-name", APIVersion: "/__internal", Kind: "Pod", Namespace: "my-namespace"},
-				MetricName:      "my/custom/metric",
-			},
+	expectedMetrics := []custom_metrics.MetricValue{
+		{
+			Value:           *resource.NewQuantity(151, resource.DecimalSI),
+			Timestamp:       metav1.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC),
+			DescribedObject: api.ObjectReference{Name: "my-pod-name", APIVersion: "/__internal", Kind: "Pod", Namespace: "my-namespace"},
+			MetricName:      "my/custom/metric",
 		},
 	}
-	if !reflect.DeepEqual(*metrics, *expectedMetrics) {
-		t.Errorf("Unexpected result. Expected: \n%s,\n received: \n%s", *expectedMetrics, *metrics)
+	if len(metrics) != len(expectedMetrics) {
+		t.Errorf("Unexpected result. Expected %s metrics, received %s", len(expectedMetrics), len(metrics))
+	}
+	for i := range metrics {
+		if !reflect.DeepEqual(metrics[i], expectedMetrics[i]) {
+			t.Errorf("Unexpected result. Expected: \n%s,\n received: \n%s", expectedMetrics[i], metrics[i])
+		}
 	}
 }
 
