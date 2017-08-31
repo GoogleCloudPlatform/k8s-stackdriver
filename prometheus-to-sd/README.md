@@ -44,5 +44,5 @@ always empty for now.
 
 Example of [deployment](https://github.com/GoogleCloudPlatform/k8s-stackdriver/blob/master/prometheus-to-sd/kubernetes/prometheus-to-sd-kube-state-metrics.yaml)
 used to monitor
-[kube-state-metrics](https://raw.githubusercontent.com/kubernetes/kube-state-metrics) component, that is used to collect
+[kube-state-metrics](https://github.com/kubernetes/kube-state-metrics) component, that is used to collect
 different metrics about the state of k8s cluster.
