@@ -23,15 +23,21 @@ import (
 	"k8s.io/apiserver/pkg/util/logs"
 )
 
+var (
+	maxRetrievedEvents = flag.Int("max-retrieved-events", 100, "Maximum number of events can be retrieved")
+	sinceMillis        = flag.Int64("retrieve-events-since-millis", -1, "Retrieve only events that where logged at most the given amount of seconds ago")
+)
+
 func main() {
 	logs.InitLogs()
 	defer logs.FlushLogs()
+	flag.Parse()
 
 	if len(os.Getenv("GOMAXPROCS")) == 0 {
 		runtime.GOMAXPROCS(runtime.NumCPU())
 	}
 
-	cmd := server.NewCommandStartSampleAdapterServer(os.Stdout, os.Stderr, wait.NeverStop)
+	cmd := server.NewCommandStartSampleAdapterServer(os.Stdout, os.Stderr, wait.NeverStop, *maxRetrievedEvents, *sinceMillis)
 	cmd.Flags().AddGoFlagSet(flag.CommandLine)
 	if err := cmd.Execute(); err != nil {
 		panic(err)

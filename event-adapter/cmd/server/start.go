@@ -21,7 +21,7 @@ import (
 	"io"
 
 	"github.com/spf13/cobra"
-	stackdriver "google.golang.org/api/monitoring/v3"
+	sd "google.golang.org/api/logging/v2"
 	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -33,7 +33,7 @@ import (
 )
 
 // NewCommandStartSampleAdapterServer provides a CLI handler for 'start master' command
-func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan struct{}) *cobra.Command {
+func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan struct{}, maxRetrievedEvents int, sinceMillis int64) *cobra.Command {
 	baseOpts := server.NewEventsAdapterServerOptions(out, errOut)
 	o := SampleAdapterServerOptions{
 		EventsAdapterServerOptions: baseOpts,
@@ -49,7 +49,7 @@ func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan str
 			if err := o.Validate(args); err != nil {
 				return err
 			}
-			if err := o.RunEventsAdapterServer(stopCh); err != nil {
+			if err := o.RunEventsAdapterServer(stopCh, maxRetrievedEvents, sinceMillis); err != nil {
 				return err
 			}
 			return nil
@@ -69,7 +69,7 @@ func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan str
 }
 
 // RunEventsAdapterServer runs Events adapter API server
-func (o SampleAdapterServerOptions) RunEventsAdapterServer(stopCh <-chan struct{}) error {
+func (o SampleAdapterServerOptions) RunEventsAdapterServer(stopCh <-chan struct{}, maxRetrievedEvents int, sinceMillis int64) error {
 	config, err := o.Config()
 	if err != nil {
 		return err
@@ -88,16 +88,16 @@ func (o SampleAdapterServerOptions) RunEventsAdapterServer(stopCh <-chan struct{
 		return fmt.Errorf("unable to construct lister client config to initialize provider: %v", err)
 	}
 
-	_, err = coreclient.NewForConfig(clientConfig)
+	client, err := coreclient.NewForConfig(clientConfig)
 	if err != nil {
 		return fmt.Errorf("unable to construct lister client to initialize provider: %v", err)
 	}
 	oauthClient := oauth2.NewClient(oauth2.NoContext, google.ComputeTokenSource(""))
-	_, err = stackdriver.New(oauthClient)
+	stackdriverService, err := sd.New(oauthClient)
 	if err != nil {
 		return fmt.Errorf("Failed to create Stackdriver client: %v", err)
 	}
-	evProvider := provider.NewStackdriverProvider()
+	evProvider := provider.NewStackdriverProvider(client.RESTClient(), stackdriverService, maxRetrievedEvents, sinceMillis)
 
 	server, err := config.Complete().New(evProvider)
 	if err != nil {

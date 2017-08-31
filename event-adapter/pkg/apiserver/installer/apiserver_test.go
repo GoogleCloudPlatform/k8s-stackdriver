@@ -38,7 +38,7 @@ import (
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/provider"
 	restorage "github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/registry"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/types"
-	"k8s.io/client-go/pkg/api"
+	api "k8s.io/client-go/pkg/api/v1"
 )
 
 // defaultAPIServer exposes nested objects for testability.
@@ -101,7 +101,6 @@ func extractBodyString(response *http.Response) (string, error) {
 	}
 	return string(body), err
 }
-
 func handle(prov provider.EventsProvider) http.Handler {
 	container := restful.NewContainer()
 	container.Router(restful.CurlyRouter{})
@@ -209,7 +208,6 @@ func TestEventsAPI(t *testing.T) {
 	}
 
 	prov := &fakeProvider{}
-
 	server := httptest.NewServer(handle(prov))
 	defer server.Close()
 	client := http.Client{}

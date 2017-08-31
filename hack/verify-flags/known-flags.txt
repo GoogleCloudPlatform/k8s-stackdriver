@@ -85,6 +85,7 @@ max-grateful-termination-sec
 max-node-provision-time
 max-nodes-total
 max-pr-number
+max-retrieved-events
 max-sync-failures
 max-total-unready-percentage
 metric-descriptors-resolution

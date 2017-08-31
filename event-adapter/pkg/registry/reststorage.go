@@ -24,7 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
-	"k8s.io/client-go/pkg/api"
+	api "k8s.io/client-go/pkg/api/v1"
 )
 
 // REST is a wrapper for EventsProvider that provides implementation for Storage and Lister interfaces
