@@ -34,18 +34,25 @@ func NewResourceLister(provider EventsProvider) handlers.APIResourceLister {
 
 // ListAPIResources lists the supported API paths
 func (l *eventsResourceLister) ListAPIResources() []metav1.APIResource {
-	resources := make([]metav1.APIResource, 2)
+	resources := make([]metav1.APIResource, 3)
 	resources[0] = metav1.APIResource{
 		Name:       "namespace/{namespaces}/events/{eventName}",
 		Namespaced: true,
-		Kind:       "EventValue",
+		Kind:       "Event",
 		Verbs:      metav1.Verbs{"get"},
 	}
 
 	resources[1] = metav1.APIResource{
 		Name:       "namespace/{namespaces}/events",
 		Namespaced: true,
-		Kind:       "EventValueList",
+		Kind:       "EventList",
+		Verbs:      metav1.Verbs{"get", "post"},
+	}
+
+	resources[2] = metav1.APIResource{
+		Name:       "events",
+		Namespaced: true,
+		Kind:       "EventList",
 		Verbs:      metav1.Verbs{"get"},
 	}
 
