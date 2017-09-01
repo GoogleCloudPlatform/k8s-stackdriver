@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/emicklei/go-restful"
+	restful "github.com/emicklei/go-restful"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -172,6 +172,37 @@ func (a *EventsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *
 		return err
 	}
 
+	scope := mapping.Scope
+	nameParam := ws.PathParameter("name", "name of the described event").DataType("string")
+	namespaceParam := ws.PathParameter(scope.ArgumentName(), scope.ParamDescription()).DataType("string")
+
+	namespacedParams := []*restful.Parameter{
+		nameParam,
+		namespaceParam,
+	}
+
+	// REGISTER: BY NAME & NAMESPACE
+	namespacedPath := scope.ParamName() + "/{" + scope.ArgumentName() + "}/events/{name}"
+
+	mediaTypes, streamMediaTypes := negotiation.MediaTypesForSerializer(a.group.Serializer)
+	allMediaTypes := append(mediaTypes, streamMediaTypes...)
+	ws.Produces(allMediaTypes...)
+
+	reqScope := handlers.RequestScope{
+		Serializer:      a.group.Serializer,
+		ParameterCodec:  a.group.ParameterCodec,
+		Creater:         a.group.Creater,
+		Convertor:       a.group.Convertor,
+		Copier:          a.group.Copier,
+		Typer:           a.group.Typer,
+		UnsafeConvertor: a.group.UnsafeConvertor,
+		// TODO: This seems wrong for cross-group subresources. It makes an assumption that a subresource and its parent are in the same group version. Revisit this.
+		Resource:         a.group.GroupVersion.WithResource("*"),
+		Subresource:      "*",
+		Kind:             fqKindToRegister,
+		MetaGroupVersion: metav1.SchemeGroupVersion,
+	}
+
 	ctxFn := func(req *restful.Request) request.Context {
 		var ctx request.Context
 		if ctx != nil {
@@ -182,61 +213,19 @@ func (a *EventsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *
 		if ctx == nil {
 			ctx = request.NewContext()
 		}
-
-		// inject the name here so that
-		// we don't have to write custom handler logic
-
 		ctx = request.WithUserAgent(ctx, req.HeaderParameter("User-Agent"))
 		name := req.PathParameter("name")
-		ctx = specificcontext.WithResourceInformation(ctx, name)
-
+		ctx = specificcontext.WithRequestInformation(ctx, name, "GET")
 		return ctx
 	}
-
-	scope := mapping.Scope
-	nameParam := ws.PathParameter("name", "name of the described event").DataType("string")
-	resourceParam := ws.PathParameter("resource", "the name of the resource").DataType("string")
-	namespaceParam := ws.PathParameter(scope.ArgumentName(), scope.ParamDescription()).DataType("string")
-
-	namespacedParams := []*restful.Parameter{
-		nameParam,
-		resourceParam,
-		namespaceParam,
-	}
-
-	//EVENT REGEXP:
-	namespacedPath := scope.ParamName() + "/{" + scope.ArgumentName() + "}/events/{name}"
-
-	mediaTypes, streamMediaTypes := negotiation.MediaTypesForSerializer(a.group.Serializer)
-	allMediaTypes := append(mediaTypes, streamMediaTypes...)
-	ws.Produces(allMediaTypes...)
-
-	reqScope := handlers.RequestScope{
-		ContextFunc:     ctxFn,
-		Serializer:      a.group.Serializer,
-		ParameterCodec:  a.group.ParameterCodec,
-		Creater:         a.group.Creater,
-		Convertor:       a.group.Convertor,
-		Copier:          a.group.Copier,
-		Typer:           a.group.Typer,
-		UnsafeConvertor: a.group.UnsafeConvertor,
-
-		// TODO: This seems wrong for cross-group subresources. It makes an assumption that a subresource and its parent are in the same group version. Revisit this.
-		Resource:    a.group.GroupVersion.WithResource("*"),
-		Subresource: "*",
-		Kind:        fqKindToRegister,
-
-		MetaGroupVersion: metav1.SchemeGroupVersion,
-	}
+	reqScope.ContextFunc = ctxFn
 	if a.group.MetaGroupVersion != nil {
 		reqScope.MetaGroupVersion = *a.group.MetaGroupVersion
 	}
-
-	// we need one path for namespaced resources, one for non-namespaced resources
-	doc := "list events"
 	// install the namespace-scoped route
 	reqScope.Namer = scopeNaming{scope, a.group.Linker, nil, false}
 	namespacedHandler := handlers.ListResource(lister, nil, reqScope, false, a.minRequestTimeout)
+	doc := "get event with the given name and namespace"
 	namespacedRoute := ws.GET(namespacedPath).To(namespacedHandler).
 		Doc(doc).
 		Param(ws.QueryParameter("pretty", "If 'true', then the output is pretty printed.")).
@@ -250,12 +239,62 @@ func (a *EventsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *
 	addParams(namespacedRoute, namespacedParams)
 	ws.Route(namespacedRoute)
 
-	//REGISTER LIST ALL EVENT
+	//PATH namespaces/{namespace}/events/{eventName}
+
 	namespacedListPath := scope.ParamName() + "/{" + scope.ArgumentName() + "}/events"
 	namespacedListParams := []*restful.Parameter{
 		namespaceParam,
-		resourceParam,
 	}
+
+	docList := map[string]string{
+		"GET":  "list events with the given namespace",
+		"POST": "create an event with the given namepsace",
+	}
+
+	methods := map[string]func(ws *restful.WebService, path string) *restful.RouteBuilder{
+		"GET": func(ws *restful.WebService, path string) *restful.RouteBuilder {
+			return ws.GET(path)
+		},
+		"POST": func(ws *restful.WebService, path string) *restful.RouteBuilder {
+			return ws.POST(path)
+		},
+	}
+
+	for k, v := range methods {
+		method := k
+		namespacedCtxFn := func(req *restful.Request) request.Context {
+			var ctx request.Context
+			if ctx != nil {
+				if existingCtx, ok := context.Get(req.Request); ok {
+					ctx = existingCtx
+				}
+			}
+			if ctx == nil {
+				ctx = request.NewContext()
+			}
+
+			ctx = request.WithUserAgent(ctx, req.HeaderParameter("User-Agent"))
+			ctx = specificcontext.WithRequestListInformation(ctx, method)
+			return ctx
+		}
+		reqScope.ContextFunc = namespacedCtxFn
+		namespacedHandler := handlers.ListResource(lister, nil, reqScope, false, a.minRequestTimeout)
+		routeBuilder := v(ws, namespacedListPath)
+		namespacedRoute := routeBuilder.To(namespacedHandler).
+			Doc(docList[method]).
+			Param(ws.QueryParameter("pretty", "If 'true', then the output is pretty printed.")).
+			Produces(allMediaTypes...).
+			Returns(http.StatusOK, "OK", versionedList).
+			Writes(versionedList)
+		if err := addObjectParams(ws, namespacedRoute, versionedListOptions); err != nil {
+			return err
+		}
+		addParams(namespacedRoute, namespacedListParams)
+		ws.Route(namespacedRoute)
+	}
+
+	//LIST ALL EVENTS
+	eventsListPath := "events"
 
 	ctxFnList := func(req *restful.Request) request.Context {
 		var ctx request.Context
@@ -269,24 +308,26 @@ func (a *EventsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *
 		}
 
 		ctx = request.WithUserAgent(ctx, req.HeaderParameter("User-Agent"))
+		ctx = specificcontext.WithRequestListInformation(ctx, "GET")
 
 		return ctx
 	}
 
 	reqScope.ContextFunc = ctxFnList
-	namespacedHandler = handlers.ListResource(lister, nil, reqScope, false, a.minRequestTimeout)
-	namespacedRoute = ws.GET(namespacedListPath).To(namespacedHandler).
+	reqScope.Namer = rootScopeNaming{scope, a.group.Linker, a.prefix, eventsListPath}
+	rootScopedHandler := handlers.ListResource(lister, nil, reqScope, false, a.minRequestTimeout)
+	doc = "list all the events"
+	rootScopedRoute := ws.GET(eventsListPath).To(rootScopedHandler).
 		Doc(doc).
 		Param(ws.QueryParameter("pretty", "If 'true', then the output is pretty printed.")).
 		Operation("listNamespaced"+kind).
 		Produces(allMediaTypes...).
 		Returns(http.StatusOK, "OK", versionedList).
 		Writes(versionedList)
-	if err := addObjectParams(ws, namespacedRoute, versionedListOptions); err != nil {
+	if err := addObjectParams(ws, rootScopedRoute, versionedListOptions); err != nil {
 		return err
 	}
-	addParams(namespacedRoute, namespacedListParams)
-	ws.Route(namespacedRoute)
+	ws.Route(rootScopedRoute)
 
 	return nil
 }

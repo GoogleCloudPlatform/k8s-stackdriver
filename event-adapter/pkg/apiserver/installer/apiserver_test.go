@@ -38,6 +38,7 @@ import (
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/provider"
 	restorage "github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/registry"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/types"
+	"k8s.io/client-go/pkg/api"
 )
 
 // defaultAPIServer exposes nested objects for testability.
@@ -136,9 +137,9 @@ func handle(prov provider.EventsProvider) http.Handler {
 
 type fakeProvider struct{}
 
-func (p *fakeProvider) GetNamespacedEventsByName(namespace, name string) (*types.EventValue, error) {
+func (p *fakeProvider) GetNamespacedEventsByName(namespace, name string) (*api.Event, error) {
 	if namespace == "default" && name == "existing_event" {
-		return &types.EventValue{}, nil
+		return &api.Event{}, nil
 	}
 
 	err := NotFoundError{
@@ -157,8 +158,16 @@ func (p *fakeProvider) GetNamespacedEventsByName(namespace, name string) (*types
 	return nil, fmt.Errorf("Namespace : %s, event name: %s", namespace, name)
 }
 
-func (p *fakeProvider) ListAllEventsByNamespace(namespace string) (*types.EventValueList, error) {
-	return &types.EventValueList{}, nil
+func (p *fakeProvider) ListAllEventsByNamespace(namespace string) (*api.EventList, error) {
+	return &api.EventList{}, nil
+}
+
+func (p *fakeProvider) ListAllEvents() (*api.EventList, error) {
+	return &api.EventList{}, nil
+}
+
+func (p *fakeProvider) CreateNewEvent(namespace string) (*api.Event, error) {
+	return &api.Event{}, nil
 }
 
 func TestEventsAPI(t *testing.T) {
@@ -185,6 +194,18 @@ func TestEventsAPI(t *testing.T) {
 
 		"GET no namespace": {"GET", prefix + "/" + group + "/foo/default/events/foo", http.StatusNotFound},
 		"GET wrong prefix": {"GET", "//apis/v1foo/v1alpha1/", http.StatusNotFound},
+
+		"GET list all events":           {"GET", prefix + "/" + group + "/events", http.StatusOK},
+		"GET list all events with typo": {"GET", prefix + "/" + group + "/foo", http.StatusNotFound},
+
+		"POST create a new event":                   {"POST", prefix + "/" + group + "/namespaces/default/events", http.StatusOK},
+		"POST create a new event without namespace": {"POST", prefix + "/" + group + "/events", http.StatusMethodNotAllowed},
+		"POST create a new event giving name":       {"POST", prefix + "/" + group + "/namespaces/default/events/foo", http.StatusMethodNotAllowed},
+		"POST prefix":                               {"POST", prefix + "/" + group, http.StatusMethodNotAllowed},
+
+		"POST no namespace": {"POST", prefix + "/" + group + "/foo/default/events", http.StatusNotFound},
+		"POST no events":    {"POST", prefix + "/" + group + "/namespaces/default/foo", http.StatusNotFound},
+		"POST wrong prefix": {"POST", "//apis/v1foo/v1alpha1/", http.StatusNotFound},
 	}
 
 	prov := &fakeProvider{}

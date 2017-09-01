@@ -17,8 +17,8 @@ limitations under the License.
 package provider
 
 import (
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/types"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/pkg/api"
 )
 
 // EventInfo contains info relevant for an Event
@@ -33,6 +33,11 @@ type EventInfo struct {
 
 // EventsProvider is an interface that contains the methods that will provide info for the given events
 type EventsProvider interface {
-	GetNamespacedEventsByName(namespace, eventName string) (*types.EventValue, error)
-	ListAllEventsByNamespace(namespace string) (*types.EventValueList, error)
+	// READ
+	GetNamespacedEventsByName(namespace, eventName string) (*api.Event, error)
+	ListAllEventsByNamespace(namespace string) (*api.EventList, error)
+	ListAllEvents() (*api.EventList, error)
+
+	// WRITE
+	CreateNewEvent(namespace string) (*api.Event, error)
 }
