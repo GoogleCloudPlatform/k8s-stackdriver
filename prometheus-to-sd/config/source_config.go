@@ -18,11 +18,16 @@ package config
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net"
+	"net/http"
 	"strconv"
 	"strings"
 
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/golang/glog"
+	promconfig "github.com/prometheus/common/config"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/flags"
 )
@@ -33,10 +38,11 @@ type SourceConfig struct {
 	Host        string
 	Port        uint
 	Whitelisted []string
+	Client      *http.Client
 }
 
 // newSourceConfig creates a new SourceConfig based on string representation of fields.
-func newSourceConfig(component string, host string, port string, whitelisted string) (*SourceConfig, error) {
+func newSourceConfig(component string, host string, port string, whitelisted string, config string) (*SourceConfig, error) {
 	if port == "" {
 		return nil, fmt.Errorf("No port provided.")
 	}
@@ -51,11 +57,25 @@ func newSourceConfig(component string, host string, port string, whitelisted str
 		whitelistedList = strings.Split(whitelisted, ",")
 	}
 
+	client := http.DefaultClient
+	if config != "" {
+		cfg, err := LoadHTTPConfigFile(config)
+		if err != nil {
+			return nil, err
+		}
+
+		client, err = promconfig.NewHTTPClientFromConfig(cfg)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &SourceConfig{
 		Component:   component,
 		Host:        host,
 		Port:        uint(portNum),
 		Whitelisted: whitelistedList,
+		Client:      client,
 	}, nil
 }
 
@@ -69,8 +89,9 @@ func parseSourceConfig(uri flags.Uri) (*SourceConfig, error) {
 	component := uri.Key
 	values := uri.Val.Query()
 	whitelisted := values.Get("whitelisted")
+	config := values.Get("config")
 
-	return newSourceConfig(component, host, port, whitelisted)
+	return newSourceConfig(component, host, port, whitelisted, config)
 }
 
 // UpdateWhitelistedMetrics sets passed list as a list of whitelisted metrics.
@@ -93,7 +114,7 @@ func SourceConfigsFromFlags(source flags.Uris, component *string, host *string, 
 		glog.Warningf("--component, --host, --port and --whitelisted flags are deprecated. Please use --source instead.")
 		portStr := strconv.FormatUint(uint64(*port), 10)
 
-		if sourceConfig, err := newSourceConfig(*component, *host, portStr, *whitelisted); err != nil {
+		if sourceConfig, err := newSourceConfig(*component, *host, portStr, *whitelisted, ""); err != nil {
 			glog.Fatalf("Error while parsing --component flag: %v", err)
 		} else {
 			glog.Infof("Created a new source instance from --component flag: %+v", sourceConfig)
@@ -101,4 +122,23 @@ func SourceConfigsFromFlags(source flags.Uris, component *string, host *string, 
 		}
 	}
 	return sourceConfigs
+}
+
+// LoadHTTPConfigFile parses the given YAML file into a HTTPClientConfig.
+func LoadHTTPConfigFile(filename string) (*promconfig.HTTPClientConfig, error) {
+	content, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return LoadHTTPConfig(content)
+}
+
+// LoadHTTPConfig parses the YAML input s into a HTTPClientConfig.
+func LoadHTTPConfig(data []byte) (*promconfig.HTTPClientConfig, error) {
+	cfg := &promconfig.HTTPClientConfig{}
+	err := yaml.Unmarshal(data, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return cfg, nil
 }
