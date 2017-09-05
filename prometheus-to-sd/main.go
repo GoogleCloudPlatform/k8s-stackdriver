@@ -142,7 +142,7 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 			glog.V(4).Infof("Skipping %v component as there are no metric to expose.", sourceConfig.Component)
 			continue
 		}
-		metrics, err := translator.GetPrometheusMetrics(sourceConfig.Host, sourceConfig.Port)
+		metrics, err := translator.GetPrometheusMetrics(sourceConfig.Host, sourceConfig.Port, sourceConfig.Client)
 		if err != nil {
 			glog.V(2).Infof("Error while getting Prometheus metrics %v for component %v", err, sourceConfig.Component)
 			continue
