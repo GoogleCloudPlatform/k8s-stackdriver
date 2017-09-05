@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"net/http"
 	"net/url"
 	"testing"
 
@@ -31,29 +32,32 @@ func TestNewSourceConfig(t *testing.T) {
 		host        string
 		port        string
 		whitelisted string
+		config      string
 		output      SourceConfig
 	}{
-		{"testComponent", "localhost", "1234", "a,b,c,d",
+		{"testComponent", "localhost", "1234", "a,b,c,d", "",
 			SourceConfig{
 				Component:   "testComponent",
 				Host:        "localhost",
 				Port:        1234,
 				Whitelisted: []string{"a", "b", "c", "d"},
+				Client:      http.DefaultClient,
 			},
 		},
 
-		{"testComponent", "localhost", "1234", "",
+		{"testComponent", "localhost", "1234", "", "",
 			SourceConfig{
 				Component:   "testComponent",
 				Host:        "localhost",
 				Port:        1234,
 				Whitelisted: nil,
+				Client:      http.DefaultClient,
 			},
 		},
 	}
 
 	for _, c := range correct {
-		res, err := newSourceConfig(c.component, c.host, c.port, c.whitelisted)
+		res, err := newSourceConfig(c.component, c.host, c.port, c.whitelisted, c.config)
 		if assert.NoError(t, err) {
 			assert.Equal(t, c.output, *res)
 		}
@@ -78,6 +82,7 @@ func TestParseSourceConfig(t *testing.T) {
 			Host:        "hostname",
 			Port:        1234,
 			Whitelisted: []string{"a", "b", "c", "d"},
+			Client:      http.DefaultClient,
 		},
 	}
 
