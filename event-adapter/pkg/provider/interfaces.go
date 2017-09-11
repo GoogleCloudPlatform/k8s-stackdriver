@@ -18,7 +18,7 @@ package provider
 
 import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/pkg/api"
+	api "k8s.io/client-go/pkg/api/v1"
 )
 
 // EventInfo contains info relevant for an Event

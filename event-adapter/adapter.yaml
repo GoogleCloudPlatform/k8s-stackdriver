@@ -31,7 +31,6 @@ spec:
           name: pod-event-adapter
           command:
             - /adapter
-            - --requestheader-client-ca-file=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
           resources:
             limits:
               cpu: 250m
