@@ -57,7 +57,7 @@ func TestScopeNamingGenerateLink(t *testing.T) {
 	s := scopeNaming{
 		meta.RESTScopeNamespace,
 		selfLinker,
-		func(name, namespace, resource, subresource string) bytes.Buffer {
+		func(name, namespace string) bytes.Buffer {
 			return *bytes.NewBufferString("/api/v1events/v1alpha/namespaces/" + namespace + "/events/" + name)
 		},
 		true,

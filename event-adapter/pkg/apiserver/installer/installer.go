@@ -183,11 +183,9 @@ func (a *EventsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *
 
 	// REGISTER: BY NAME & NAMESPACE
 	namespacedPath := scope.ParamName() + "/{" + scope.ArgumentName() + "}/events/{name}"
-
 	mediaTypes, streamMediaTypes := negotiation.MediaTypesForSerializer(a.group.Serializer)
 	allMediaTypes := append(mediaTypes, streamMediaTypes...)
 	ws.Produces(allMediaTypes...)
-
 	reqScope := handlers.RequestScope{
 		Serializer:      a.group.Serializer,
 		ParameterCodec:  a.group.ParameterCodec,
@@ -202,7 +200,16 @@ func (a *EventsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *
 		Kind:             fqKindToRegister,
 		MetaGroupVersion: metav1.SchemeGroupVersion,
 	}
-
+	itemPathPrefix := gpath.Join(a.prefix, scope.ParamName()) + "/"
+	itemPathMiddle := "/events/"
+	itemPathFn := func(name, namespace string) bytes.Buffer {
+		var buf bytes.Buffer
+		buf.WriteString(itemPathPrefix)
+		buf.WriteString(url.QueryEscape(name))
+		buf.WriteString(itemPathMiddle)
+		buf.WriteString(url.QueryEscape(namespace))
+		return buf
+	}
 	ctxFn := func(req *restful.Request) request.Context {
 		var ctx request.Context
 		if ctx != nil {
@@ -223,7 +230,7 @@ func (a *EventsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *
 		reqScope.MetaGroupVersion = *a.group.MetaGroupVersion
 	}
 	// install the namespace-scoped route
-	reqScope.Namer = scopeNaming{scope, a.group.Linker, nil, false}
+	reqScope.Namer = scopeNaming{scope, a.group.Linker, itemPathFn, false}
 	namespacedHandler := handlers.ListResource(lister, nil, reqScope, false, a.minRequestTimeout)
 	doc := "get event with the given name and namespace"
 	namespacedRoute := ws.GET(namespacedPath).To(namespacedHandler).
@@ -240,17 +247,23 @@ func (a *EventsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *
 	ws.Route(namespacedRoute)
 
 	//PATH namespaces/{namespace}/events/{eventName}
-
 	namespacedListPath := scope.ParamName() + "/{" + scope.ArgumentName() + "}/events"
 	namespacedListParams := []*restful.Parameter{
 		namespaceParam,
 	}
-
 	docList := map[string]string{
 		"GET":  "list events with the given namespace",
 		"POST": "create an event with the given namepsace",
 	}
-
+	itemPathListPrefix := gpath.Join(a.prefix, scope.ParamName()) + "/"
+	itemPathListMiddle := "/events"
+	itemPathListFn := func(name, namespace string) bytes.Buffer {
+		var buf bytes.Buffer
+		buf.WriteString(itemPathListPrefix)
+		buf.WriteString(url.QueryEscape(namespace))
+		buf.WriteString(itemPathListMiddle)
+		return buf
+	}
 	methods := map[string]func(ws *restful.WebService, path string) *restful.RouteBuilder{
 		"GET": func(ws *restful.WebService, path string) *restful.RouteBuilder {
 			return ws.GET(path)
@@ -259,7 +272,6 @@ func (a *EventsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *
 			return ws.POST(path)
 		},
 	}
-
 	for k, v := range methods {
 		method := k
 		namespacedCtxFn := func(req *restful.Request) request.Context {
@@ -278,6 +290,7 @@ func (a *EventsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *
 			return ctx
 		}
 		reqScope.ContextFunc = namespacedCtxFn
+		reqScope.Namer = scopeNaming{scope, a.group.Linker, itemPathListFn, false}
 		namespacedHandler := handlers.ListResource(lister, nil, reqScope, false, a.minRequestTimeout)
 		routeBuilder := v(ws, namespacedListPath)
 		namespacedRoute := routeBuilder.To(namespacedHandler).
@@ -295,7 +308,6 @@ func (a *EventsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *
 
 	//LIST ALL EVENTS
 	eventsListPath := "events"
-
 	ctxFnList := func(req *restful.Request) request.Context {
 		var ctx request.Context
 		if ctx != nil {
@@ -306,13 +318,10 @@ func (a *EventsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws *
 		if ctx == nil {
 			ctx = request.NewContext()
 		}
-
 		ctx = request.WithUserAgent(ctx, req.HeaderParameter("User-Agent"))
 		ctx = specificcontext.WithRequestListInformation(ctx, "GET")
-
 		return ctx
 	}
-
 	reqScope.ContextFunc = ctxFnList
 	reqScope.Namer = rootScopeNaming{scope, a.group.Linker, a.prefix, eventsListPath}
 	rootScopedHandler := handlers.ListResource(lister, nil, reqScope, false, a.minRequestTimeout)
@@ -530,7 +539,7 @@ func (n rootScopeNaming) ObjectName(obj runtime.Object) (namespace, name string,
 type scopeNaming struct {
 	scope meta.RESTScope
 	runtime.SelfLinker
-	itemPathFn    func(name, namespace, resource, subresource string) bytes.Buffer
+	itemPathFn    func(name, namespace string) bytes.Buffer
 	allNamespaces bool
 }
 
@@ -562,10 +571,6 @@ func (n scopeNaming) Name(req *restful.Request) (namespace, name string, err err
 	return
 }
 
-func (n scopeNaming) reqResource(req *restful.Request) (resource, subresource string) {
-	return req.PathParameter("resource"), req.PathParameter("subresource")
-}
-
 // GenerateLink returns the appropriate path and query to locate an object by its canonical path.
 func (n scopeNaming) GenerateLink(req *restful.Request, obj runtime.Object) (uri string, err error) {
 	namespace, name, err := n.ObjectName(obj)
@@ -581,10 +586,7 @@ func (n scopeNaming) GenerateLink(req *restful.Request, obj runtime.Object) (uri
 	if len(name) == 0 {
 		return "", errEmptyName
 	}
-
-	resource, subresource := n.reqResource(req)
-
-	result := n.itemPathFn(name, namespace, resource, subresource)
+	result := n.itemPathFn(name, namespace)
 	return result.String(), nil
 }
 

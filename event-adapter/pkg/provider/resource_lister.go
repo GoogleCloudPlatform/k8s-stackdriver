@@ -36,14 +36,14 @@ func NewResourceLister(provider EventsProvider) handlers.APIResourceLister {
 func (l *eventsResourceLister) ListAPIResources() []metav1.APIResource {
 	resources := make([]metav1.APIResource, 3)
 	resources[0] = metav1.APIResource{
-		Name:       "namespace/{namespaces}/events/{eventName}",
+		Name:       "namespaces/{namespace}/events/{eventName}",
 		Namespaced: true,
 		Kind:       "Event",
 		Verbs:      metav1.Verbs{"get"},
 	}
 
 	resources[1] = metav1.APIResource{
-		Name:       "namespace/{namespaces}/events",
+		Name:       "namespaces/{namespace}/events",
 		Namespaced: true,
 		Kind:       "EventList",
 		Verbs:      metav1.Verbs{"get", "post"},
