@@ -58,7 +58,7 @@ var (
 		"Namespace name of the pod in which monitored component is running.")
 	omitComponentName = flag.Bool("omit-component-name", true,
 		"If metric name starts with the component name then this substring is removed to keep metric name shorter.")
-	debugPort = flag.Uint("port", 6060, "Port on which debug information is exposed.")
+	debugPort = flag.Uint("port", 6061, "Port on which debug information is exposed.")
 
 	customMetricsPrefix = "custom.googleapis.com"
 )
