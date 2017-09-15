@@ -60,7 +60,7 @@ func GetGceConfig(metricsPrefix string, project string) (*GceConfig, error) {
 		return nil, fmt.Errorf("cluster-name metadata was empty")
 	}
 
-	instance, err := gce.Hostname()
+	instance, err := gce.InstanceName()
 	if err != nil {
 		return nil, fmt.Errorf("error while getting instance hostname: %v", err)
 	}
