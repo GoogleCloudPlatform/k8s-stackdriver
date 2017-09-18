@@ -1,6 +1,6 @@
 OUT_DIR = build
 PACKAGE = k8s.io/event-adapter
-PREFIX = gcr.io/erocchi-gke-dev-1attempt
+PREFIX ?= gcr.io/google-containers
 TAG = 1.0
 
 PKG := $(shell find pkg/* -type f)
