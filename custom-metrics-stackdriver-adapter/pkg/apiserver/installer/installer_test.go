@@ -19,11 +19,11 @@ import (
 	"net/http"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/endpoints/handlers"
 	"k8s.io/apiserver/pkg/endpoints/request"
-	"k8s.io/client-go/pkg/api"
 )
 
 type setTestSelfLinker struct {
@@ -67,7 +67,7 @@ func TestScopeNamingGenerateLink(t *testing.T) {
 			SelfLinkPathPrefix: "/api/v1/",
 		},
 	}
-	service := &api.Service{
+	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
 			Namespace: "other",
@@ -76,7 +76,7 @@ func TestScopeNamingGenerateLink(t *testing.T) {
 			Kind: "Service",
 		},
 	}
-	_, err := s.GenerateLink(&http.Request{}, service)
+	_, err := s.GenerateLink(&request.RequestInfo{}, service)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}

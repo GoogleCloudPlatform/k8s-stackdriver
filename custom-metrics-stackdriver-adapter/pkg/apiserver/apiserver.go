@@ -33,21 +33,22 @@ import (
 var (
 	groupFactoryRegistry = make(announced.APIGroupFactoryRegistry)
 	registry             = registered.NewOrDie("")
-	scheme               = runtime.NewScheme()
+	// Scheme is a runtime scheme
+	Scheme = runtime.NewScheme()
 	// Codecs is a codec factory
-	Codecs = serializer.NewCodecFactory(scheme)
+	Codecs = serializer.NewCodecFactory(Scheme)
 )
 
 func init() {
-	install.Install(groupFactoryRegistry, registry, scheme)
+	install.Install(groupFactoryRegistry, registry, Scheme)
 
 	// we need to add the options to empty v1
 	// TODO fix the server code to avoid this
-	metav1.AddToGroupVersion(scheme, schema.GroupVersion{Version: "v1"})
+	metav1.AddToGroupVersion(Scheme, schema.GroupVersion{Version: "v1"})
 
 	// TODO: keep the generic API server from wanting this
 	unversioned := schema.GroupVersion{Group: "", Version: "v1"}
-	scheme.AddUnversionedTypes(unversioned,
+	Scheme.AddUnversionedTypes(unversioned,
 		&metav1.Status{},
 		&metav1.APIVersions{},
 		&metav1.APIGroupList{},
@@ -58,7 +59,7 @@ func init() {
 
 // Config contains a configuration for the api server.
 type Config struct {
-	GenericConfig *genericapiserver.Config
+	GenericConfig *genericapiserver.RecommendedConfig
 }
 
 // CustomMetricsAdapterServer contains state for a Kubernetes cluster master/api server.
@@ -68,29 +69,24 @@ type CustomMetricsAdapterServer struct {
 }
 
 type completedConfig struct {
-	*Config
+	GenericConfig genericapiserver.CompletedConfig
 }
 
 // Complete fills in any fields not set that are required to have valid data. It's mutating the receiver.
-func (c *Config) Complete() completedConfig {
-	c.GenericConfig.Complete()
+func (cfg *Config) Complete() *completedConfig {
+	c := completedConfig{cfg.GenericConfig.Complete()}
 
 	c.GenericConfig.Version = &version.Info{
 		Major: "1",
 		Minor: "0",
 	}
 
-	return completedConfig{c}
-}
-
-// SkipComplete provides a way to construct a server instance without config completion.
-func (c *Config) SkipComplete() completedConfig {
-	return completedConfig{c}
+	return &c
 }
 
 // New returns a new instance of CustomMetricsAdapterServer from the given config.
 func (c completedConfig) New(cmProvider provider.CustomMetricsProvider) (*CustomMetricsAdapterServer, error) {
-	genericServer, err := c.Config.GenericConfig.SkipComplete().New(genericapiserver.EmptyDelegate) // completion is done in Complete, no need for a second time
+	genericServer, err := c.GenericConfig.New("custom-metrics-stackdriver-adapter", genericapiserver.EmptyDelegate)
 	if err != nil {
 		return nil, err
 	}

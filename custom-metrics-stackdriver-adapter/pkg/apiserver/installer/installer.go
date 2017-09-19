@@ -38,6 +38,7 @@ import (
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
 
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/provider"
 	"github.com/emicklei/go-restful"
 )
 
@@ -61,16 +62,16 @@ type MetricsAPIGroupVersion struct {
 // InstallREST registers the dynamic REST handlers into a restful Container.
 // It is expected that the provided path root prefix will serve all operations.  Root MUST
 // NOT end in a slash.  It should mirror InstallREST in the plain APIGroupVersion.
-func (g *MetricsAPIGroupVersion) InstallREST(container *restful.Container) error {
+func (g *MetricsAPIGroupVersion) InstallREST(container *restful.Container, cmProvider provider.CustomMetricsProvider, requestContextMapper request.RequestContextMapper) error {
 	installer := g.newDynamicInstaller()
 	ws := installer.NewWebService()
 
 	registrationErrors := installer.Install(ws)
-	lister := g.ResourceLister
+	lister := provider.NewResourceLister(cmProvider)
 	if lister == nil {
 		return fmt.Errorf("must provide a dynamic lister for dynamic API groups")
 	}
-	versionDiscoveryHandler := discovery.NewAPIVersionHandler(g.Serializer, g.GroupVersion, lister)
+	versionDiscoveryHandler := discovery.NewAPIVersionHandler(g.Serializer, g.GroupVersion, lister, requestContextMapper)
 	versionDiscoveryHandler.AddToWebService(ws)
 	container.Add(ws)
 	return utilerrors.NewAggregate(registrationErrors)
@@ -243,7 +244,7 @@ func (a *MetricsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws 
 		},
 	}
 
-	rootScopedHandler := metrics.InstrumentRouteFunc("LIST", "custom-metrics", restfulListResource(lister, nil, reqScope, false, a.minRequestTimeout))
+	rootScopedHandler := metrics.InstrumentRouteFunc("LIST", "custom-metrics", "", "", restfulListResource(lister, nil, reqScope, false, a.minRequestTimeout))
 
 	// install the root-scoped route
 	rootScopedRoute := ws.GET(rootScopedPath).To(rootScopedHandler).
@@ -268,7 +269,7 @@ func (a *MetricsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws 
 			SelfLinkPathPrefix: gpath.Join(a.prefix, scope.ParamName()) + "/",
 		},
 	}
-	namespacedHandler := metrics.InstrumentRouteFunc("LIST", "custom-metrics-namespaced", restfulListResource(lister, nil, reqScope, false, a.minRequestTimeout))
+	namespacedHandler := metrics.InstrumentRouteFunc("LIST", "custom-metrics-namespaced", "", "", restfulListResource(lister, nil, reqScope, false, a.minRequestTimeout))
 	namespacedRoute := ws.GET(namespacedPath).To(namespacedHandler).
 		Doc(doc).
 		Param(ws.QueryParameter("pretty", "If 'true', then the output is pretty printed.")).
@@ -292,7 +293,7 @@ func (a *MetricsAPIInstaller) registerResourceHandlers(storage rest.Storage, ws 
 			SelfLinkPathPrefix: gpath.Join(a.prefix, scope.ParamName()) + "/",
 		},
 	}
-	namespaceSpecificHandler := metrics.InstrumentRouteFunc("LIST", "custom-metrics-for-namespace", restfulListResource(lister, nil, reqScope, false, a.minRequestTimeout))
+	namespaceSpecificHandler := metrics.InstrumentRouteFunc("LIST", "custom-metrics-for-namespace", "", "", restfulListResource(lister, nil, reqScope, false, a.minRequestTimeout))
 	namespaceSpecificRoute := ws.GET(namespaceSpecificPath).To(namespaceSpecificHandler).
 		Doc(doc).
 		Param(ws.QueryParameter("pretty", "If 'true', then the output is pretty printed.")).
@@ -450,12 +451,7 @@ type MetricsNaming struct {
 }
 
 // GenerateLink returns the appropriate path and query to locate an object by its canonical path.
-func (n MetricsNaming) GenerateLink(req *http.Request, obj runtime.Object) (uri string, err error) {
-	requestInfo, ok := request.RequestInfoFrom(n.GetContext(req))
-	if !ok {
-		return "", fmt.Errorf("missing requestInfo")
-	}
-
+func (n MetricsNaming) GenerateLink(requestInfo *request.RequestInfo, obj runtime.Object) (uri string, err error) {
 	if requestInfo.Resource != "metrics" {
 		n.SelfLinkPathSuffix += "/" + requestInfo.Subresource
 	}
@@ -464,10 +460,10 @@ func (n MetricsNaming) GenerateLink(req *http.Request, obj runtime.Object) (uri 
 	// (since we copy around every method call)
 	if n.ClusterScoped {
 		n.SelfLinkPathPrefix += requestInfo.Resource + "/"
-		return n.ContextBasedNaming.GenerateLink(req, obj)
+		return n.ContextBasedNaming.GenerateLink(requestInfo, obj)
 	}
 
-	return n.ContextBasedNaming.GenerateLink(req, obj)
+	return n.ContextBasedNaming.GenerateLink(requestInfo, obj)
 }
 
 func restfulListResource(r rest.Lister, rw rest.Watcher, scope handlers.RequestScope, forceWatch bool, minRequestTimeout time.Duration) restful.RouteFunction {

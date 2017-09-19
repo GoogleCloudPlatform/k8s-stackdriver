@@ -24,11 +24,15 @@ import (
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/apiserver"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
+	custom_metrics "k8s.io/metrics/pkg/apis/custom_metrics/v1beta1"
 )
+
+var defaultEtcdPathPrefix = "/registry/" + custom_metrics.GroupName
 
 // CustomMetricsAdapterServerOptions stores a configuration for custom metrics adapter.
 type CustomMetricsAdapterServerOptions struct {
 	// genericoptions.ReccomendedOptions - EtcdOptions
+	Recommended    *genericoptions.RecommendedOptions
 	SecureServing  *genericoptions.SecureServingOptions
 	Authentication *genericoptions.DelegatingAuthenticationOptions
 	Authorization  *genericoptions.DelegatingAuthorizationOptions
@@ -42,6 +46,7 @@ type CustomMetricsAdapterServerOptions struct {
 // output interface.
 func NewCustomMetricsAdapterServerOptions(out, errOut io.Writer) *CustomMetricsAdapterServerOptions {
 	o := &CustomMetricsAdapterServerOptions{
+		Recommended:    genericoptions.NewRecommendedOptions(defaultEtcdPathPrefix, apiserver.Scheme, apiserver.Codecs.LegacyCodec(custom_metrics.SchemeGroupVersion)),
 		SecureServing:  genericoptions.NewSecureServingOptions(),
 		Authentication: genericoptions.NewDelegatingAuthenticationOptions(),
 		Authorization:  genericoptions.NewDelegatingAuthorizationOptions(),
@@ -73,15 +78,17 @@ func (o CustomMetricsAdapterServerOptions) Config() (*apiserver.Config, error) {
 		return nil, fmt.Errorf("error creating self-signed certificates: %v", err)
 	}
 
-	serverConfig := genericapiserver.NewConfig(apiserver.Codecs)
-	if err := o.SecureServing.ApplyTo(serverConfig); err != nil {
+	serverConfig := genericapiserver.NewRecommendedConfig(apiserver.Codecs)
+	if err := o.Recommended.ApplyTo(serverConfig); err != nil {
 		return nil, err
 	}
-
-	if err := o.Authentication.ApplyTo(serverConfig); err != nil {
+	if err := o.SecureServing.ApplyTo(&serverConfig.Config); err != nil {
 		return nil, err
 	}
-	if err := o.Authorization.ApplyTo(serverConfig); err != nil {
+	if err := o.Authentication.ApplyTo(&serverConfig.Config); err != nil {
+		return nil, err
+	}
+	if err := o.Authorization.ApplyTo(&serverConfig.Config); err != nil {
 		return nil, err
 	}
 

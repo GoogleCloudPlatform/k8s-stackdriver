@@ -26,11 +26,11 @@ import (
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/provider"
 	"github.com/golang/glog"
 	sd "google.golang.org/api/monitoring/v3"
+	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/pkg/api"
-	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 )
 
@@ -133,7 +133,7 @@ func TestTranslator_GetRespForPod(t *testing.T) {
 	expectedMetric := &custom_metrics.MetricValue{
 		Value:           *resource.NewQuantity(151, resource.DecimalSI),
 		Timestamp:       metav1.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC),
-		DescribedObject: api.ObjectReference{Name: "my-pod-name", APIVersion: "/__internal", Kind: "Pod", Namespace: "my-namespace"},
+		DescribedObject: custom_metrics.ObjectReference{Name: "my-pod-name", APIVersion: "/__internal", Kind: "Pod", Namespace: "my-namespace"},
 		MetricName:      "my/custom/metric",
 	}
 	if !reflect.DeepEqual(*metric, *expectedMetric) {
@@ -170,7 +170,7 @@ func TestTranslator_GetRespForPods(t *testing.T) {
 		{
 			Value:           *resource.NewQuantity(151, resource.DecimalSI),
 			Timestamp:       metav1.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC),
-			DescribedObject: api.ObjectReference{Name: "my-pod-name", APIVersion: "/__internal", Kind: "Pod", Namespace: "my-namespace"},
+			DescribedObject: custom_metrics.ObjectReference{Name: "my-pod-name", APIVersion: "/__internal", Kind: "Pod", Namespace: "my-namespace"},
 			MetricName:      "my/custom/metric",
 		},
 	}
@@ -231,6 +231,8 @@ func newFakeTranslator(reqWindow time.Duration, metricPrefix, project, cluster, 
 	if err != nil {
 		glog.Fatal("Unexpected error creating stackdriver Service client")
 	}
+	restMapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{}, meta.InterfacesForUnstructured)
+	restMapper.Add(v1.SchemeGroupVersion.WithKind("Pod"), meta.RESTScopeNamespace)
 	return &Translator{
 		service:   sdService,
 		reqWindow: reqWindow,
@@ -240,6 +242,7 @@ func newFakeTranslator(reqWindow time.Duration, metricPrefix, project, cluster, 
 			Cluster:       cluster,
 			Zone:          zone,
 		},
-		clock: fakeClock{currentTime},
+		clock:  fakeClock{currentTime},
+		mapper: restMapper,
 	}, sdService
 }

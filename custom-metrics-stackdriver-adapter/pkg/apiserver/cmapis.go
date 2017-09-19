@@ -26,7 +26,6 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
 	specificapi "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/apiserver/installer"
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/provider"
 	metricstorage "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/registry/custom_metrics"
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 )
@@ -52,12 +51,12 @@ func (s *CustomMetricsAdapterServer) InstallCustomMetricsAPI() error {
 
 	cmAPI := s.cmAPI(groupMeta, &groupMeta.GroupVersion)
 
-	if err := cmAPI.InstallREST(s.GenericAPIServer.Handler.GoRestfulContainer); err != nil {
+	if err := cmAPI.InstallREST(s.GenericAPIServer.Handler.GoRestfulContainer, s.Provider, s.GenericAPIServer.RequestContextMapper()); err != nil {
 		return err
 	}
 
 	s.GenericAPIServer.DiscoveryGroupManager.AddGroup(apiGroup)
-	s.GenericAPIServer.Handler.GoRestfulContainer.Add(discovery.NewAPIGroupHandler(s.GenericAPIServer.Serializer, apiGroup).WebService())
+	s.GenericAPIServer.Handler.GoRestfulContainer.Add(discovery.NewAPIGroupHandler(s.GenericAPIServer.Serializer, apiGroup, s.GenericAPIServer.RequestContextMapper()).WebService())
 
 	return nil
 }
@@ -72,19 +71,17 @@ func (s *CustomMetricsAdapterServer) cmAPI(groupMeta *apimachinery.GroupMeta, gr
 
 			ParameterCodec:  metav1.ParameterCodec,
 			Serializer:      Codecs,
-			Creater:         scheme,
-			Convertor:       scheme,
-			UnsafeConvertor: runtime.UnsafeObjectConvertor(scheme),
-			Copier:          scheme,
-			Typer:           scheme,
+			Creater:         Scheme,
+			Convertor:       Scheme,
+			UnsafeConvertor: runtime.UnsafeObjectConvertor(Scheme),
+			Copier:          Scheme,
+			Typer:           Scheme,
 			Linker:          groupMeta.SelfLinker,
 			Mapper:          groupMeta.RESTMapper,
 
 			Context:                s.GenericAPIServer.RequestContextMapper(),
 			MinRequestTimeout:      s.GenericAPIServer.MinRequestTimeout(),
 			OptionsExternalVersion: &schema.GroupVersion{Version: "v1"},
-
-			ResourceLister: provider.NewResourceLister(s.Provider),
 		},
 	}
 }
