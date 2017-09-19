@@ -17,19 +17,20 @@ limitations under the License.
 package etcd3
 
 import (
+	"errors"
 	"fmt"
-	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/value"
 
 	"github.com/coreos/etcd/clientv3"
-	etcdrpc "github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes"
 	"github.com/golang/glog"
 	"golang.org/x/net/context"
 )
@@ -39,6 +40,24 @@ const (
 	incomingBufSize = 100
 	outgoingBufSize = 100
 )
+
+// fatalOnDecodeError is used during testing to panic the server if watcher encounters a decoding error
+var fatalOnDecodeError = false
+
+// errTestingDecode is the only error that testingDeferOnDecodeError catches during a panic
+var errTestingDecode = errors.New("sentinel error only used during testing to indicate watch decoding error")
+
+// testingDeferOnDecodeError is used during testing to recover from a panic caused by errTestingDecode, all other values continue to panic
+func testingDeferOnDecodeError() {
+	if r := recover(); r != nil && r != errTestingDecode {
+		panic(r)
+	}
+}
+
+func init() {
+	// check to see if we are running in a test environment
+	fatalOnDecodeError, _ = strconv.ParseBool(os.Getenv("KUBE_PANIC_WATCH_DECODE_ERROR"))
+}
 
 type watcher struct {
 	client      *clientv3.Client
@@ -97,7 +116,7 @@ func (w *watcher) createWatchChan(ctx context.Context, key string, rev int64, re
 		resultChan:        make(chan watch.Event, outgoingBufSize),
 		errChan:           make(chan error, 1),
 	}
-	if pred.Label.Empty() && pred.Field.Empty() {
+	if pred.Empty() {
 		// The filter doesn't filter out any object.
 		wc.internalFilter = nil
 	}
@@ -118,7 +137,7 @@ func (wc *watchChan) run() {
 		if err == context.Canceled {
 			break
 		}
-		errResult := parseError(err)
+		errResult := transformErrorToEvent(err)
 		if errResult != nil {
 			// error result is guaranteed to be received by user before closing ResultChan.
 			select {
@@ -298,28 +317,15 @@ func (wc *watchChan) transform(e *event) (res *watch.Event) {
 	return res
 }
 
-func parseError(err error) *watch.Event {
-	var status *metav1.Status
-	switch {
-	case err == etcdrpc.ErrCompacted:
-		status = &metav1.Status{
-			Status:  metav1.StatusFailure,
-			Message: err.Error(),
-			Code:    http.StatusGone,
-			Reason:  metav1.StatusReasonExpired,
-		}
-	default:
-		status = &metav1.Status{
-			Status:  metav1.StatusFailure,
-			Message: err.Error(),
-			Code:    http.StatusInternalServerError,
-			Reason:  metav1.StatusReasonInternalError,
-		}
+func transformErrorToEvent(err error) *watch.Event {
+	err = interpretWatchError(err)
+	if _, ok := err.(apierrs.APIStatus); !ok {
+		err = apierrs.NewInternalError(err)
 	}
-
+	status := err.(apierrs.APIStatus).Status()
 	return &watch.Event{
 		Type:   watch.Error,
-		Object: status,
+		Object: &status,
 	}
 }
 
@@ -373,9 +379,18 @@ func (wc *watchChan) prepareObjs(e *event) (curObj runtime.Object, oldObj runtim
 	return curObj, oldObj, nil
 }
 
-func decodeObj(codec runtime.Codec, versioner storage.Versioner, data []byte, rev int64) (runtime.Object, error) {
+func decodeObj(codec runtime.Codec, versioner storage.Versioner, data []byte, rev int64) (_ runtime.Object, err error) {
 	obj, err := runtime.Decode(codec, []byte(data))
 	if err != nil {
+		if fatalOnDecodeError {
+			// catch watch decode error iff we caused it on
+			// purpose during a unit test
+			defer testingDeferOnDecodeError()
+			// we are running in a test environment and thus an
+			// error here is due to a coder mistake if the defer
+			// does not catch it
+			panic(err)
+		}
 		return nil, err
 	}
 	// ensure resource version is set on the object we load from etcd

@@ -19,8 +19,10 @@ package custom_metrics
 import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/pkg/api"
+	"k8s.io/apimachinery/pkg/types"
 )
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // a list of values for a given metric for some set of objects
 type MetricValueList struct {
@@ -31,12 +33,14 @@ type MetricValueList struct {
 	Items []MetricValue `json:"items"`
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // a metric value for some object
 type MetricValue struct {
 	metav1.TypeMeta `json:",inline"`
 
 	// a reference to the described object
-	DescribedObject api.ObjectReference `json:"describedObject"`
+	DescribedObject ObjectReference `json:"describedObject"`
 
 	// the name of the metric
 	MetricName string `json:"metricName"`
@@ -57,3 +61,21 @@ type MetricValue struct {
 // allObjects is a wildcard used to select metrics
 // for all objects matching the given label selector
 const AllObjects = "*"
+
+// NOTE: ObjectReference is copied from k8s.io/kubernetes/pkg/api/types.go. We
+// cannot depend on k8s.io/kubernetes/pkg/api because that creates cyclic
+// dependency between k8s.io/metrics and k8s.io/kubernetes. We cannot depend on
+// k8s.io/client-go/pkg/api because the package is going to be deprecated soon.
+// There is no need to keep it an exact copy. Each repo can define its own
+// internal objects.
+
+// ObjectReference contains enough information to let you inspect or modify the referred object.
+type ObjectReference struct {
+	Kind            string
+	Namespace       string
+	Name            string
+	UID             types.UID
+	APIVersion      string
+	ResourceVersion string
+	FieldPath       string
+}
