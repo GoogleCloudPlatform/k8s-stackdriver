@@ -26,7 +26,7 @@ spec:
         kubernetes.io/cluster-service: "true"
     spec:
       containers:
-        - image: gcr.io/erocchi-gke-dev-1attempt/event-adapter:1.0
+        - image: gcr.io/google-containers/event-adapter:1.0
           imagePullPolicy: Always
           name: pod-event-adapter
           command:
