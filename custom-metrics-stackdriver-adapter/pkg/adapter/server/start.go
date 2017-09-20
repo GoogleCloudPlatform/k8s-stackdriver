@@ -51,10 +51,8 @@ func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan str
 			if err := o.Validate(args); err != nil {
 				return err
 			}
-			if err := o.RunCustomMetricsAdapterServer(stopCh); err != nil {
-				return err
-			}
-			return nil
+			err := o.RunCustomMetricsAdapterServer(stopCh)
+			return err
 		},
 	}
 
