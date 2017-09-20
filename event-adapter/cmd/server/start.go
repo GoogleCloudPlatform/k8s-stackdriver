@@ -46,10 +46,8 @@ func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan str
 			if err := o.Validate(args); err != nil {
 				return err
 			}
-			if err := o.RunEventsAdapterServer(stopCh, maxRetrievedEvents, sinceMillis); err != nil {
-				return err
-			}
-			return nil
+			err := o.RunEventsAdapterServer(stopCh, maxRetrievedEvents, sinceMillis)
+			return err
 		},
 	}
 	flags := cmd.Flags()
