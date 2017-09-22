@@ -90,6 +90,7 @@ max-retrieved-events
 max-sync-failures
 max-total-unready-percentage
 metric-descriptors-resolution
+metric-name
 metrics-resolution
 min-pr-number
 min-replica-count
