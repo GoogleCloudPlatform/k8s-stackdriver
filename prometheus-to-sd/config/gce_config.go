@@ -39,7 +39,7 @@ func GetGceConfig(metricsPrefix string, project string) (*GceConfig, error) {
 	}
 
 	if project == "use-gce" {
-		projectId, err := gce.ProjectID()
+		projectId, err := gce.NumericProjectID()
 		if err != nil {
 			return nil, fmt.Errorf("error while getting project id: %v", err)
 		}
@@ -60,9 +60,9 @@ func GetGceConfig(metricsPrefix string, project string) (*GceConfig, error) {
 		return nil, fmt.Errorf("cluster-name metadata was empty")
 	}
 
-	instance, err := gce.InstanceName()
+	instance, err := gce.InstanceID()
 	if err != nil {
-		return nil, fmt.Errorf("error while getting instance hostname: %v", err)
+		return nil, fmt.Errorf("error while getting instance id: %v", err)
 	}
 
 	return &GceConfig{
