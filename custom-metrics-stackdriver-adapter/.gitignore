@@ -1,3 +1,4 @@
 build
+testing/sd_dummy_exporter
 *.swp
 *~

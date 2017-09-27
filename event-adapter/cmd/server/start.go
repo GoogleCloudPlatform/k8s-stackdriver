@@ -18,27 +18,24 @@ package server
 
 import (
 	"fmt"
-	"io"
-
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/cmd/provider"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/cmd/server"
 	"github.com/spf13/cobra"
-	stackdriver "google.golang.org/api/monitoring/v3"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	sd "google.golang.org/api/logging/v2"
+	"io"
 	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/cmd/provider"
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-adapter/pkg/cmd/server"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 )
 
 // NewCommandStartSampleAdapterServer provides a CLI handler for 'start master' command
-func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan struct{}) *cobra.Command {
+func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan struct{}, maxRetrievedEvents int, sinceMillis int64) *cobra.Command {
 	baseOpts := server.NewEventsAdapterServerOptions(out, errOut)
 	o := SampleAdapterServerOptions{
 		EventsAdapterServerOptions: baseOpts,
 	}
-
 	cmd := &cobra.Command{
 		Short: "Launch the events API adapter server",
 		Long:  "Launch the events API adapter server",
@@ -49,13 +46,10 @@ func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan str
 			if err := o.Validate(args); err != nil {
 				return err
 			}
-			if err := o.RunEventsAdapterServer(stopCh); err != nil {
-				return err
-			}
-			return nil
+			err := o.RunEventsAdapterServer(stopCh, maxRetrievedEvents, sinceMillis)
+			return err
 		},
 	}
-
 	flags := cmd.Flags()
 	o.SecureServing.AddFlags(flags)
 	o.Authentication.AddFlags(flags)
@@ -69,12 +63,11 @@ func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan str
 }
 
 // RunEventsAdapterServer runs Events adapter API server
-func (o SampleAdapterServerOptions) RunEventsAdapterServer(stopCh <-chan struct{}) error {
+func (o SampleAdapterServerOptions) RunEventsAdapterServer(stopCh <-chan struct{}, maxRetrievedEvents int, sinceMillis int64) error {
 	config, err := o.Config()
 	if err != nil {
 		return err
 	}
-
 	var clientConfig *rest.Config
 	if len(o.RemoteKubeConfigFile) > 0 {
 		loadingRules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: o.RemoteKubeConfigFile}
@@ -87,18 +80,16 @@ func (o SampleAdapterServerOptions) RunEventsAdapterServer(stopCh <-chan struct{
 	if err != nil {
 		return fmt.Errorf("unable to construct lister client config to initialize provider: %v", err)
 	}
-
 	_, err = coreclient.NewForConfig(clientConfig)
 	if err != nil {
 		return fmt.Errorf("unable to construct lister client to initialize provider: %v", err)
 	}
 	oauthClient := oauth2.NewClient(oauth2.NoContext, google.ComputeTokenSource(""))
-	_, err = stackdriver.New(oauthClient)
+	stackdriverService, err := sd.New(oauthClient)
 	if err != nil {
 		return fmt.Errorf("Failed to create Stackdriver client: %v", err)
 	}
-	evProvider := provider.NewStackdriverProvider()
-
+	evProvider := provider.NewStackdriverProvider(stackdriverService, maxRetrievedEvents, sinceMillis)
 	server, err := config.Complete().New(evProvider)
 	if err != nil {
 		return err
@@ -109,7 +100,6 @@ func (o SampleAdapterServerOptions) RunEventsAdapterServer(stopCh <-chan struct{
 // SampleAdapterServerOptions contains sample EventsAdapterServerOptions
 type SampleAdapterServerOptions struct {
 	*server.EventsAdapterServerOptions
-
 	// RemoteKubeConfigFile is the config used to list pods from the master API server
 	RemoteKubeConfigFile string
 }
