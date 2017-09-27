@@ -21,22 +21,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/provider"
+	"github.com/golang/glog"
 	stackdriver "google.golang.org/api/monitoring/v3"
+	"k8s.io/api/core/v1"
 	apierr "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/pkg/api"
-
-	// Install registers the API group and adds types to a scheme.
-	_ "k8s.io/client-go/pkg/api/install"
 	"k8s.io/metrics/pkg/apis/custom_metrics"
-
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/provider"
-	"github.com/golang/glog"
-	"k8s.io/client-go/pkg/api/v1"
 )
 
 // Translator is a structure used to translate between Custom Metrics API and Stackdriver API
@@ -45,6 +41,7 @@ type Translator struct {
 	config    *config.GceConfig
 	reqWindow time.Duration
 	clock     clock
+	mapper    apimeta.RESTMapper
 }
 
 // GetSDReqForPods returns Stackdriver request for query for multiple pods.
@@ -180,15 +177,6 @@ func (t *Translator) createListTimeseriesRequest(filter string) *stackdriver.Pro
 }
 
 func (t *Translator) getMetricValuesFromResponse(groupResource schema.GroupResource, namespace string, response *stackdriver.ListTimeSeriesResponse, metricName string) (map[string]resource.Quantity, error) {
-	group, err := api.Registry.Group(groupResource.Group)
-	if err != nil {
-		return nil, err
-	}
-	_, err = api.Registry.RESTMapper().KindFor(groupResource.WithVersion(group.GroupVersion.Version))
-	if err != nil {
-		return nil, err
-	}
-
 	if len(response.TimeSeries) < 1 {
 		return nil, provider.NewMetricNotFoundError(groupResource, metricName)
 	}
@@ -216,17 +204,13 @@ func (t *Translator) getMetricValuesFromResponse(groupResource schema.GroupResou
 }
 
 func (t *Translator) metricFor(value resource.Quantity, groupResource schema.GroupResource, namespace string, name string, metricName string) (*custom_metrics.MetricValue, error) {
-	group, err := api.Registry.Group(groupResource.Group)
-	if err != nil {
-		return nil, err
-	}
-	kind, err := api.Registry.RESTMapper().KindFor(groupResource.WithVersion(group.GroupVersion.Version))
+	kind, err := t.mapper.KindFor(groupResource.WithVersion(""))
 	if err != nil {
 		return nil, err
 	}
 
 	return &custom_metrics.MetricValue{
-		DescribedObject: api.ObjectReference{
+		DescribedObject: custom_metrics.ObjectReference{
 			APIVersion: groupResource.Group + "/" + runtime.APIVersionInternal,
 			Kind:       kind.Kind,
 			Name:       name,

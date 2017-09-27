@@ -21,11 +21,11 @@ import (
 
 	"github.com/emicklei/go-restful-swagger12"
 
-	"github.com/go-openapi/spec"
+	"github.com/googleapis/gnostic/OpenAPIv2"
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/version"
-	"k8s.io/client-go/pkg/api/v1"
 	kubeversion "k8s.io/client-go/pkg/version"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/testing"
@@ -155,7 +155,9 @@ func (c *FakeDiscovery) SwaggerSchema(version schema.GroupVersion) (*swagger.Api
 }
 
 // OpenAPISchema fetches the open api schema using a rest client and parses the proto.
-func (c *FakeDiscovery) OpenAPISchema() (*spec.Swagger, error) { return &spec.Swagger{}, nil }
+func (c *FakeDiscovery) OpenAPISchema() (*openapi_v2.Document, error) {
+	return &openapi_v2.Document{}, nil
+}
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.

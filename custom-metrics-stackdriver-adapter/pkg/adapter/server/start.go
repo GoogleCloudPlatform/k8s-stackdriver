@@ -22,14 +22,17 @@ import (
 
 	"github.com/spf13/cobra"
 	stackdriver "google.golang.org/api/monitoring/v3"
+	"k8s.io/client-go/discovery"
 	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/provider"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/cmd/server"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/dynamicmapper"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"time"
 )
 
@@ -95,13 +98,22 @@ func (o sampleAdapterServerOptions) RunCustomMetricsAdapterServer(stopCh <-chan 
 	if err != nil {
 		return fmt.Errorf("unable to construct lister client to initialize provider: %v", err)
 	}
+
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(clientConfig)
+	if err != nil {
+		return fmt.Errorf("unable to construct discovery client for dynamic client: %v", err)
+	}
+	dynamicMapper, err := dynamicmapper.NewRESTMapper(discoveryClient, meta.InterfacesForUnstructured, time.Minute)
+	if err != nil {
+		return fmt.Errorf("unable to construct dynamic mapper: %v", err)
+	}
+
 	oauthClient := oauth2.NewClient(oauth2.NoContext, google.ComputeTokenSource(""))
 	stackdriverService, err := stackdriver.New(oauthClient)
 	if err != nil {
 		return fmt.Errorf("Failed to create Stackdriver client: %v", err)
 	}
-	//cmProvider := provider.NewStackdriverProvider(client.RESTClient(), stackdriverService, 5*time.Minute)
-	cmProvider := provider.NewStackdriverProvider(coreclient.New(client.RESTClient()), stackdriverService, 5*time.Minute)
+	cmProvider := provider.NewStackdriverProvider(coreclient.New(client.RESTClient()), dynamicMapper, stackdriverService, 5*time.Minute)
 
 	server, err := config.Complete().New(cmProvider)
 	if err != nil {

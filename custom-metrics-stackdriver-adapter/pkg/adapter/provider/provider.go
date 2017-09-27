@@ -27,19 +27,15 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 
-	// Install registers the API group and adds types to a scheme.
-	_ "k8s.io/client-go/pkg/api/install"
-
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/provider"
-	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/api/core/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 )
 
 // TODO(kawych):
 // * Handle clusters with nodes in multiple zones. Currently the Adapter always queries metrics in
 //   the same zone it runs.
-// * Use discovery REST mapper instead of api.Registry. Note: this will be relevant for Custom
-//   Metrics API implementation for all k8s objects (current implementation supports only pods).
 // * Support metrics for objects other than pod, e.i. root-scoped - depends on SD resource types.
 // * Support long responses from Stackdriver (pagination).
 
@@ -63,7 +59,7 @@ type StackdriverProvider struct {
 }
 
 // NewStackdriverProvider creates a StackdriverProvider
-func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, stackdriverService *stackdriver.Service, rateInterval time.Duration) provider.CustomMetricsProvider {
+func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.RESTMapper, stackdriverService *stackdriver.Service, rateInterval time.Duration) provider.CustomMetricsProvider {
 	gceConf, err := config.GetGceConfig("custom.googleapis.com")
 	if err != nil {
 		glog.Fatalf("Failed to retrieve GCE config: %v", err)
@@ -79,6 +75,7 @@ func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, stackdriverService 
 			config:    gceConf,
 			reqWindow: rateInterval,
 			clock:     realClock{},
+			mapper:    mapper,
 		},
 	}
 }

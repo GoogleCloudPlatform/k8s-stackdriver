@@ -24,6 +24,7 @@ import (
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/apiserver/pkg/admission/initializer"
 	"k8s.io/apiserver/pkg/server"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -35,11 +36,16 @@ type AdmissionOptions struct {
 }
 
 // NewAdmissionOptions creates a new instance of AdmissionOptions
-func NewAdmissionOptions(plugins *admission.Plugins) *AdmissionOptions {
-	return &AdmissionOptions{
-		Plugins:     plugins,
+// Note:
+// In addition it calls RegisterAllAdmissionPlugins to register
+// all generic admission plugins.
+func NewAdmissionOptions() *AdmissionOptions {
+	options := &AdmissionOptions{
+		Plugins:     &admission.Plugins{},
 		PluginNames: []string{},
 	}
+	server.RegisterAllAdmissionPlugins(options.Plugins)
+	return options
 }
 
 // AddFlags adds flags related to admission for a specific APIServer to the specified FlagSet
@@ -58,17 +64,17 @@ func (a *AdmissionOptions) AddFlags(fs *pflag.FlagSet) {
 //  genericconfig.LoopbackClientConfig
 //  genericconfig.SharedInformerFactory
 //  genericconfig.Authorizer
-func (a *AdmissionOptions) ApplyTo(serverCfg *server.Config, pluginInitializers ...admission.PluginInitializer) error {
+func (a *AdmissionOptions) ApplyTo(c *server.Config, informers informers.SharedInformerFactory, pluginInitializers ...admission.PluginInitializer) error {
 	pluginsConfigProvider, err := admission.ReadAdmissionConfiguration(a.PluginNames, a.ConfigFile)
 	if err != nil {
 		return fmt.Errorf("failed to read plugin config: %v", err)
 	}
 
-	clientset, err := kubernetes.NewForConfig(serverCfg.LoopbackClientConfig)
+	clientset, err := kubernetes.NewForConfig(c.LoopbackClientConfig)
 	if err != nil {
 		return err
 	}
-	genericInitializer, err := initializer.New(clientset, serverCfg.SharedInformerFactory, serverCfg.Authorizer)
+	genericInitializer, err := initializer.New(clientset, informers, c.Authorizer)
 	if err != nil {
 		return err
 	}
@@ -81,6 +87,11 @@ func (a *AdmissionOptions) ApplyTo(serverCfg *server.Config, pluginInitializers 
 		return err
 	}
 
-	serverCfg.AdmissionControl = admissionChain
+	c.AdmissionControl = admissionChain
 	return nil
+}
+
+func (a *AdmissionOptions) Validate() []error {
+	errs := []error{}
+	return errs
 }
