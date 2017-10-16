@@ -227,7 +227,8 @@ func (t *Translator) metricsFor(values map[string]resource.Quantity, groupResour
 
 	for _, item := range podList.Items {
 		if _, ok := values[fmt.Sprintf("%s", item.GetUID())]; !ok {
-			return nil, provider.NewMetricNotFoundForError(groupResource, metricName, item.GetName())
+			glog.V(4).Infof("Metric '%s' not found for pod '%s'", metricName, item.Name)
+			continue
 		}
 		value, err := t.metricFor(values[fmt.Sprintf("%s", item.GetUID())], groupResource, item.GetNamespace(), item.GetName(), metricName)
 		if err != nil {
