@@ -122,7 +122,7 @@ func getZone(zone string) (string, error) {
 // getProjectID returns projectID if it's given, or gets it from gce if asked.
 func getProjectID(projectID string) (string, error) {
 	if projectID == "use-gce" {
-		body, err := getGCEMetaData(metaDataURI("/project/project-id"))
+		body, err := getGCEMetaData(metaDataURI("/project/numeric-project-id"))
 		if err != nil {
 			return "", fmt.Errorf("Failed to get zone from GCE: %v", err)
 		}
@@ -155,12 +155,12 @@ func getKubeletHost(kubeletHost string) (string, error) {
 	return kubeletHost, nil
 }
 
-// getInstance returns the instance name if given, or the hostname from gce.
+// getInstance returns the instance id if given or from gce.
 func getInstance(instance string) (string, error) {
 	if instance == "use-gce" {
-		body, err := getGCEMetaData(metaDataURI("/instance/hostname"))
+		body, err := getGCEMetaData(metaDataURI("/instance/id"))
 		if err != nil {
-			return "", fmt.Errorf("Failed to get hostname from GCE: %v", err)
+			return "", fmt.Errorf("Failed to get instance id from GCE: %v", err)
 		}
 		instance = string(body)
 	}

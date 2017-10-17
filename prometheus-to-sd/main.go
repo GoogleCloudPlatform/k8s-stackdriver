@@ -59,7 +59,7 @@ var (
 	omitComponentName = flag.Bool("omit-component-name", true,
 		"If metric name starts with the component name then this substring is removed to keep metric name shorter.")
 	debugPort = flag.Uint("port", 6061, "Port on which debug information is exposed.")
-
+	project   = flag.String("project", "use-gce", "The project id where this component runs.")
 	customMetricsPrefix = "custom.googleapis.com"
 )
 
@@ -72,7 +72,7 @@ func main() {
 
 	sourceConfigs := config.SourceConfigsFromFlags(source, component, host, port, whitelisted)
 
-	gceConf, err := config.GetGceConfig(*metricsPrefix)
+	gceConf, err := config.GetGceConfig(*metricsPrefix, *project)
 	podConfig := &config.PodConfig{
 		PodId:       *podId,
 		NamespaceId: *namespaceId,
