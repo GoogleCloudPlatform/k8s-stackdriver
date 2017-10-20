@@ -59,7 +59,7 @@ func newSourceConfig(component string, host string, port string, whitelisted str
 
 	client := http.DefaultClient
 	if config != "" {
-		cfg, err := LoadHTTPConfigFile(config)
+		cfg, err := loadHTTPConfigFile(config)
 		if err != nil {
 			return nil, err
 		}
@@ -124,17 +124,17 @@ func SourceConfigsFromFlags(source flags.Uris, component *string, host *string, 
 	return sourceConfigs
 }
 
-// LoadHTTPConfigFile parses the given YAML file into a HTTPClientConfig.
-func LoadHTTPConfigFile(filename string) (*promconfig.HTTPClientConfig, error) {
+// loadHTTPConfigFile parses the given YAML file into a HTTPClientConfig.
+func loadHTTPConfigFile(filename string) (*promconfig.HTTPClientConfig, error) {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
-	return LoadHTTPConfig(content)
+	return loadHTTPConfig(content)
 }
 
-// LoadHTTPConfig parses the YAML input s into a HTTPClientConfig.
-func LoadHTTPConfig(data []byte) (*promconfig.HTTPClientConfig, error) {
+// loadHTTPConfig parses the YAML inputs into a HTTPClientConfig.
+func loadHTTPConfig(data []byte) (*promconfig.HTTPClientConfig, error) {
 	cfg := &promconfig.HTTPClientConfig{}
 	err := yaml.Unmarshal(data, cfg)
 	if err != nil {
