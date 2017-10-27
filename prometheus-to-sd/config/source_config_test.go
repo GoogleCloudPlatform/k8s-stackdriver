@@ -31,29 +31,35 @@ func TestNewSourceConfig(t *testing.T) {
 		host        string
 		port        string
 		whitelisted string
+		labels      string
 		output      SourceConfig
 	}{
-		{"testComponent", "localhost", "1234", "a,b,c,d",
+		{"testComponent", "localhost", "1234", "a,b,c,d", "keya=valuea,keyb=valueb",
 			SourceConfig{
 				Component:   "testComponent",
 				Host:        "localhost",
 				Port:        1234,
 				Whitelisted: []string{"a", "b", "c", "d"},
+				Labels: map[string]string{
+					"keya": "valuea",
+					"keyb": "valueb",
+				},
 			},
 		},
 
-		{"testComponent", "localhost", "1234", "",
+		{"testComponent", "localhost", "1234", "", "",
 			SourceConfig{
 				Component:   "testComponent",
 				Host:        "localhost",
 				Port:        1234,
 				Whitelisted: nil,
+				Labels:      map[string]string{},
 			},
 		},
 	}
 
 	for _, c := range correct {
-		res, err := newSourceConfig(c.component, c.host, c.port, c.whitelisted)
+		res, err := newSourceConfig(c.component, c.host, c.port, c.whitelisted, c.labels)
 		if assert.NoError(t, err) {
 			assert.Equal(t, c.output, *res)
 		}
@@ -70,7 +76,7 @@ func TestParseSourceConfig(t *testing.T) {
 			Val: url.URL{
 				Scheme:   "http",
 				Host:     "hostname:1234",
-				RawQuery: "whitelisted=a,b,c,d",
+				RawQuery: "whitelisted=a,b,c,d&labels=keya=valuea,keyb=valueb",
 			},
 		},
 		SourceConfig{
@@ -78,6 +84,10 @@ func TestParseSourceConfig(t *testing.T) {
 			Host:        "hostname",
 			Port:        1234,
 			Whitelisted: []string{"a", "b", "c", "d"},
+			Labels: map[string]string{
+				"keya": "valuea",
+				"keyb": "valueb",
+			},
 		},
 	}
 
@@ -101,6 +111,14 @@ func TestParseSourceConfig(t *testing.T) {
 				Scheme:   "http",
 				Host:     "hostname",
 				RawQuery: "whitelisted=a,b,c,d",
+			},
+		},
+		{
+			Key: "incorrectLabels",
+			Val: url.URL{
+				Scheme:   "http",
+				Host:     "hostname:1234",
+				RawQuery: "labels=keya,keyb",
 			},
 		},
 	}
