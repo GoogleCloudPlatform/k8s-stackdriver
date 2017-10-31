@@ -65,7 +65,7 @@ var (
 
 func main() {
 	flag.Set("logtostderr", "true")
-	flag.Var(&source, "source", "source(s) to watch in [component-name]:http://host:port?whitelisted=a,b,c format")
+	flag.Var(&source, "source", "source(s) to watch in [component-name]:http://host:port?whitelisted=a,b,c&labels=keya=valuea,keyb=valueb format")
 
 	defer glog.Flush()
 	flag.Parse()
@@ -154,6 +154,11 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 			metricDescriptorCache.UpdateMetricDescriptors(metrics, sourceConfig.Whitelisted)
 		}
 		ts := translator.TranslatePrometheusToStackdriver(commonConfig, sourceConfig.Whitelisted, metrics, metricDescriptorCache)
+		for i := range ts {
+			for k, v := range sourceConfig.Labels {
+				ts[i].Resource.Labels[k] = v
+			}
+		}
 		translator.SendToStackdriver(stackdriverService, commonConfig, ts)
 	}
 }
