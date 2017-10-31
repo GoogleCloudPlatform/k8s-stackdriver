@@ -17,10 +17,14 @@ limitations under the License.
 package translator
 
 import (
+	"fmt"
 	"testing"
 
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	v3 "google.golang.org/api/monitoring/v3"
+
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/config"
 )
 
 var equalDescriptor = "equal"
@@ -64,6 +68,105 @@ func TestDescriptorChanged(t *testing.T) {
 			assert.True(t, descriptorChanged(&originalDescriptor, descriptor))
 		} else {
 			assert.False(t, descriptorChanged(&originalDescriptor, descriptor))
+		}
+	}
+}
+
+func TestValidateMetricDescriptors(t *testing.T) {
+	testCases := []struct {
+		description  string
+		descriptors  []string
+		metricFamily *dto.MetricFamily
+		missing      bool
+		broken       bool
+	}{
+		{
+			description: "Metric is broken if new label was added",
+			descriptors: []string{"descriptor1"},
+			metricFamily: &dto.MetricFamily{
+				Name: stringPtr("descriptor1"),
+				Metric: []*dto.Metric{
+					{
+						Counter: &dto.Counter{
+							Value: floatPtr(100.0),
+						},
+						Label: []*dto.LabelPair{
+							{
+								Name:  stringPtr("newLabel"),
+								Value: stringPtr("newValue"),
+							},
+						},
+					},
+				},
+			},
+			missing: false,
+			broken:  true,
+		},
+		{
+			description: "Metric family hasn't changed",
+			descriptors: []string{"descriptor1"},
+			metricFamily: &dto.MetricFamily{
+				Name: stringPtr("descriptor1"),
+				Metric: []*dto.Metric{
+					{
+						Counter: &dto.Counter{
+							Value: floatPtr(100.0),
+						},
+					},
+				},
+			},
+			missing: false,
+			broken:  false,
+		},
+		{
+			description: "Metric is not in the cache",
+			descriptors: []string{"descriptor1"},
+			metricFamily: &dto.MetricFamily{
+				Name: stringPtr("descriptor2"),
+				Metric: []*dto.Metric{
+					{
+						Counter: &dto.Counter{
+							Value: floatPtr(100.0),
+						},
+					},
+				},
+			},
+			missing: true,
+			broken:  false,
+		},
+	}
+
+	for _, tc := range testCases {
+		// Init cache
+		cache := &MetricDescriptorCache{
+			fresh:       true,
+			descriptors: make(map[string]*v3.MetricDescriptor),
+			broken:      make(map[string]bool),
+			config: &config.CommonConfig{
+				ComponentName: "test-component",
+				GceConfig: &config.GceConfig{
+					MetricsPrefix: "container.googleapis.com",
+				},
+			},
+		}
+		for _, descriptor := range tc.descriptors {
+			cache.descriptors[descriptor] = &v3.MetricDescriptor{
+				Name: descriptor,
+			}
+			cache.broken[descriptor] = false
+			metrics := make(map[string]*dto.MetricFamily)
+			metricName := tc.metricFamily.GetName()
+			metrics[metricName] = tc.metricFamily
+
+			cache.ValidateMetricDescriptors(metrics, tc.descriptors)
+			res, ok := cache.broken[metricName]
+
+			if tc.missing {
+				assert.False(t, ok, fmt.Sprintf("Metric is not expected to be in the cache %s", metricName))
+			} else {
+				assert.True(t, ok, fmt.Sprintf("Metric was not found in the cache %s", metricName))
+				assert.Equal(t, res, tc.broken, fmt.Sprintf("Broken state of metric %s expected to be %v", metricName, tc.broken))
+			}
 		}
 	}
 }
