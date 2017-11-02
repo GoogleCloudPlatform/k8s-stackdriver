@@ -43,7 +43,7 @@ spec:
     spec:
       serviceAccountName: event-exporter-sa
       containers:
-      - name: event-exporter
-        image: gcr.io/google-containers/event-exporter:v0.1.7
-        command:
-          - '/event-exporter'
+        - name: event-exporter
+          image: gcr.io/google-containers/event-exporter:v0.1.7
+          command:
+            - '/event-exporter'
