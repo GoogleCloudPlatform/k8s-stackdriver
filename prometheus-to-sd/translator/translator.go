@@ -279,7 +279,7 @@ func extractValueType(mType dto.MetricType, originalDescriptor *v3.MetricDescrip
 	if mType == dto.MetricType_HISTOGRAM {
 		return "DISTRIBUTION"
 	}
-	return "INT64"
+	return "DOUBLE"
 }
 
 func extractAllLabels(family *dto.MetricFamily, originalDescriptor *v3.MetricDescriptor) []*v3.LabelDescriptor {
