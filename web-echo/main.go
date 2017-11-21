@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 )
 
 var response []byte
@@ -35,11 +36,22 @@ func main() {
 		port = fromEnv
 	}
 
+	set_response([]byte(""))
+
 	server := http.NewServeMux()
 	server.HandleFunc("/response", put_response)
 	server.HandleFunc("/", echo)
 	log.Printf("Server listening on port %s", port)
 	log.Fatal(http.ListenAndServe(":"+port, server))
+}
+
+func set_response(new_response []byte) {
+	response_mux.Lock()
+	response = append([]byte("# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.\n"+
+		"# TYPE process_start_time_seconds gauge\n"+
+		fmt.Sprintf("process_start_time_seconds %v\n", time.Now().Unix())),
+		new_response...)
+	response_mux.Unlock()
 }
 
 func put_response(w http.ResponseWriter, r *http.Request) {
@@ -53,9 +65,7 @@ func put_response(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Cannot read body from request: %v", err), http.StatusBadRequest)
 	}
 	log.Printf("Setting response: %s", body)
-	response_mux.Lock()
-	response = body
-	response_mux.Unlock()
+	set_response(body)
 }
 
 func echo(w http.ResponseWriter, r *http.Request) {
