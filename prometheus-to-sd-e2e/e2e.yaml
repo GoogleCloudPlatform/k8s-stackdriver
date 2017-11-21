@@ -26,6 +26,13 @@ items:
           - containerPort: 8000
             hostPort: 8000
             protocol: TCP
+          volumeMounts:
+          - mountPath: /var/run/docker.sock
+            name: docker-sock
+        volumes:
+        - hostPath:
+            path: /var/run/docker.sock
+          name: docker-sock
 - kind: Pod
   apiVersion: v1
   metadata:
