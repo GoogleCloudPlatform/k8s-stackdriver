@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: List
+items:
+- kind: DaemonSet
+  apiVersion: extensions/v1beta1
+  metadata:
+    labels:
+      app: stackdriver-agents
+    name: stackdriver-agents
+    namespace: default
+  spec:
+    selector:
+      matchLabels:
+        app: stackdriver-agents
+    template:
+      metadata:
+        labels:
+          app: stackdriver-agents
+      spec:
+        containers:
+        - image: us.gcr.io/container-monitoring-storage/stackdriver-metadata-agent:latest
+          # The integration test is always against the most recent agent.
+          imagePullPolicy: Always
+          name: metadata-agent
+          ports:
+          - containerPort: 8000
+            hostPort: 8000
+            protocol: TCP
+- kind: Pod
+  apiVersion: v1
+  metadata:
+    name: echo
+  spec:
+    hostNetwork: true
+    containers:
+    - name: web-echo
+      image: gcr.io/prometheus-to-sd/web-echo:v1.1
+      ports:
+        - name: web-echo
+          containerPort: 8080 # Currently hardcoded
+    - name: prometheus-to-sd
+      image: gcr.io/google-containers/prometheus-to-sd:v0.2.2
+      command:
+        - /monitor
+        - --stackdriver-prefix=custom.googleapis.com
+        - --source=web-echo:http://localhost:8080
+        - --pod-id=$(POD_NAME)
+        - --namespace-id=$(POD_NAMESPACE)
+      env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
