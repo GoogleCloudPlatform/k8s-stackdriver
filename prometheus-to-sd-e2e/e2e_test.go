@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/golang/glog"
@@ -118,8 +119,8 @@ func queryStackdriverMetric(service *monitoring.Service, resource *monitoring.Mo
 	return ValueAsInt64(timeSeries.Points[0].Value), nil
 }
 
-func main() {
-	flag.Parse()
+func TestE2E(t *testing.T) {
+	// TODO(jkohen): add code to start and turn down a cluster
 	k8sInstanceId := getKubernetesInstanceId()
 	client, err := google.DefaultClient(
 		context.Background(), "https://www.googleapis.com/auth/monitoring.read")
@@ -152,3 +153,5 @@ func main() {
 	}
 	glog.Infof("Got value: %v", value)
 }
+
+func main() {}
