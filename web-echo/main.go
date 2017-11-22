@@ -18,43 +18,50 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"sync"
-	"time"
 )
 
-var response []byte
-var response_mux sync.Mutex
+var fromFile = flag.String("from-file", "", "Set the initial response from the contents of a file")
+
+var response = []byte{}
+var responseMux sync.Mutex
 
 func main() {
+	flag.Parse()
 	port := "8080"
 	if fromEnv := os.Getenv("PORT"); fromEnv != "" {
 		port = fromEnv
 	}
 
-	set_response([]byte(""))
+	if *fromFile != "" {
+		log.Printf("Loading initial response from file: %v", *fromFile)
+		content, err := ioutil.ReadFile(*fromFile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		setResponse([]byte(content))
+	}
 
 	server := http.NewServeMux()
-	server.HandleFunc("/response", put_response)
+	server.HandleFunc("/response", putResponse)
 	server.HandleFunc("/", echo)
 	log.Printf("Server listening on port %s", port)
 	log.Fatal(http.ListenAndServe(":"+port, server))
 }
 
-func set_response(new_response []byte) {
-	response_mux.Lock()
-	response = append([]byte("# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.\n"+
-		"# TYPE process_start_time_seconds gauge\n"+
-		fmt.Sprintf("process_start_time_seconds %v\n", time.Now().Unix())),
-		new_response...)
-	response_mux.Unlock()
+func setResponse(newResponse []byte) {
+	responseMux.Lock()
+	response = newResponse
+	responseMux.Unlock()
 }
 
-func put_response(w http.ResponseWriter, r *http.Request) {
+func putResponse(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		echo(w, r)
 		return
@@ -65,14 +72,14 @@ func put_response(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Cannot read body from request: %v", err), http.StatusBadRequest)
 	}
 	log.Printf("Setting response: %s", body)
-	set_response(body)
+	setResponse(body)
 }
 
 func echo(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Serving 'get' request: %s", r.URL.Path)
-	response_mux.Lock()
+	responseMux.Lock()
 	w.Write(response)
-	response_mux.Unlock()
+	responseMux.Unlock()
 }
 
 // [END all]
