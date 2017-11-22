@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/golang/glog"
@@ -36,6 +37,10 @@ func homeDir() string {
 		return h
 	}
 	return os.Getenv("USERPROFILE") // windows
+}
+
+func getProjectId() string {
+	return "prometheus-to-sd"
 }
 
 // Returns the value from a TypedValue as an int64. Floats are returned after
@@ -55,7 +60,7 @@ func ValueAsInt64(value *monitoring.TypedValue) int64 {
 }
 
 // TODO(jkohen): Move to its own module (kubernetes.go?).
-func getTestInstanceId() string {
+func getKubernetesInstanceId() string {
 	var kubeconfig *string
 	if home := homeDir(); home != "" {
 		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
@@ -78,13 +83,22 @@ func getTestInstanceId() string {
 		panic(err.Error())
 	}
 	glog.V(1).Infof("Found pod nodename: %v", pod.Spec.NodeName)
-	return pod.Spec.NodeName
+	return fmt.Sprintf("%s.c.%s.internal", pod.Spec.NodeName, getProjectId())
+}
+
+func buildFilter(selector string, labels map[string]string) string {
+	s := make([]string, len(labels))
+	for k, v := range labels {
+		s = append(s, fmt.Sprintf("%s.labels.%s=\"%s\"", selector, k, v))
+	}
+	return strings.Join(s, " ")
 }
 
 func queryStackdriverMetric(service *monitoring.Service, resource *monitoring.MonitoredResource, metric *monitoring.Metric) (int64, error) {
 	request := service.Projects.TimeSeries.
-		List("projects/prometheus-to-sd").
-		Filter(fmt.Sprintf("resource.type=\"%v\" metric.type=\"%v\"", resource.Type, metric.Type)).
+		List(fmt.Sprintf("projects/%s", getProjectId())).
+		Filter(fmt.Sprintf("resource.type=\"%s\" metric.type=\"%s\" %s %s", resource.Type, metric.Type,
+			buildFilter("resource", resource.Labels), buildFilter("metric", metric.Labels))).
 		AggregationAlignmentPeriod("300s").
 		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
 		IntervalEndTime(time.Now().Format(time.RFC3339))
@@ -106,7 +120,7 @@ func queryStackdriverMetric(service *monitoring.Service, resource *monitoring.Mo
 
 func main() {
 	flag.Parse()
-	testInstanceId := getTestInstanceId()
+	k8sInstanceId := getKubernetesInstanceId()
 	client, err := google.DefaultClient(
 		context.Background(), "https://www.googleapis.com/auth/monitoring.read")
 	if err != nil {
@@ -122,12 +136,13 @@ func main() {
 		&monitoring.MonitoredResource{
 			Type: "gke_container",
 			Labels: map[string]string{
-				"cluster_name": "quickstart-cluster-1",
-				"namespace_id": "default",
-				"instance_id":  testInstanceId,
-				"pod_id":       "echo",
-				"container":    "",
-				"location":     "us-central1-a",
+				"project_id":     getProjectId(),
+				"cluster_name":   "quickstart-cluster-1",
+				"namespace_id":   "default",
+				"instance_id":    k8sInstanceId,
+				"pod_id":         "echo",
+				"container_name": "",
+				"zone":           "us-central1-a",
 			},
 		}, &monitoring.Metric{
 			Type: "custom.googleapis.com/web-echo/process_start_time_seconds",
