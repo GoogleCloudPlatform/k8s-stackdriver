@@ -50,6 +50,7 @@ items:
       - name: metrics-volume
         mountPath: /etc/metrics
     - name: prometheus-to-sd
+      # TODO(jkohen): Switch to :latest once prometheus-to-sd starts using it.
       image: gcr.io/google-containers/prometheus-to-sd:v0.2.2
       command:
         - /monitor
