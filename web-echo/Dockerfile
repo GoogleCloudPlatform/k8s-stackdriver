@@ -5,4 +5,4 @@ RUN go install web-echo
 FROM alpine:latest
 COPY --from=0 /go/bin/web-echo .
 ENV PORT 8080
-CMD ["./web-echo"]
+ENTRYPOINT ["./web-echo"]
