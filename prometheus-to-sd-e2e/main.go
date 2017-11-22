@@ -38,7 +38,23 @@ func homeDir() string {
 	return os.Getenv("USERPROFILE") // windows
 }
 
-// TODO(jkohen): Move to its own module.
+// Returns the value from a TypedValue as an int64. Floats are returned after
+// casting, other types are returned as zero.
+func ValueAsInt64(value *monitoring.TypedValue) int64 {
+	if value == nil {
+		return 0
+	}
+	switch {
+	case value.Int64Value != nil:
+		return *value.Int64Value
+	case value.DoubleValue != nil:
+		return int64(*value.DoubleValue)
+	default:
+		return 0
+	}
+}
+
+// TODO(jkohen): Move to its own module (kubernetes.go?).
 func getTestInstanceId() string {
 	var kubeconfig *string
 	if home := homeDir(); home != "" {
@@ -65,7 +81,7 @@ func getTestInstanceId() string {
 	return pod.Spec.NodeName
 }
 
-func queryStackdriverMetric(service *monitoring.Service, resource *monitoring.MonitoredResource, metric *monitoring.Metric) (*monitoring.TypedValue, error) {
+func queryStackdriverMetric(service *monitoring.Service, resource *monitoring.MonitoredResource, metric *monitoring.Metric) (int64, error) {
 	request := service.Projects.TimeSeries.
 		List("projects/prometheus-to-sd").
 		Filter(fmt.Sprintf("resource.type=\"%v\" metric.type=\"%v\"", resource.Type, metric.Type)).
@@ -75,18 +91,17 @@ func queryStackdriverMetric(service *monitoring.Service, resource *monitoring.Mo
 	glog.V(2).Infof("ListTimeSeriesRequest: %v", request)
 	response, err := request.Do()
 	if err != nil {
-		return &monitoring.TypedValue{}, err
+		return 0, err
 	}
 	glog.V(2).Infof("ListTimeSeriesResponse: %v", response)
 	if len(response.TimeSeries) != 1 {
-		return &monitoring.TypedValue{}, errors.New(fmt.Sprintf("Expected 1 time series, got %v", response.TimeSeries))
+		return 0, errors.New(fmt.Sprintf("Expected 1 time series, got %v", response.TimeSeries))
 	}
 	timeSeries := response.TimeSeries[0]
 	if len(timeSeries.Points) != 1 {
-		return &monitoring.TypedValue{}, errors.New(fmt.Sprintf("Expected 1 point, got %v", timeSeries))
+		return 0, errors.New(fmt.Sprintf("Expected 1 point, got %v", timeSeries))
 	}
-	glog.Infof("Value as int64: %v", *timeSeries.Points[0].Value.Int64Value)
-	return timeSeries.Points[0].Value, nil
+	return ValueAsInt64(timeSeries.Points[0].Value), nil
 }
 
 func main() {
@@ -102,7 +117,7 @@ func main() {
 		glog.Fatalf("Failed to create Stackdriver client: %v", err)
 	}
 	glog.V(4).Infof("Successfully created Stackdriver client")
-	typedValue, err := queryStackdriverMetric(
+	value, err := queryStackdriverMetric(
 		stackdriverService,
 		&monitoring.MonitoredResource{
 			Type: "gke_container",
@@ -120,5 +135,5 @@ func main() {
 	if err != nil {
 		glog.Fatalf("Failed to fetch metric: %v", err)
 	}
-	glog.Infof("Got value: %v", typedValue)
+	glog.Infof("Got value: %v", value)
 }
