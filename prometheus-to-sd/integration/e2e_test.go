@@ -126,35 +126,37 @@ func TestE2E(t *testing.T) {
 		t.Skip("skipping integration test: disabled")
 	}
 	// TODO(jkohen): add code to start and turn down a cluster
-	k8sInstanceId := getKubernetesInstanceId()
-	client, err := google.DefaultClient(
-		context.Background(), "https://www.googleapis.com/auth/monitoring.read")
-	if err != nil {
-		t.Fatalf("Failed to get Google OAuth2 credentials: %v", err)
-	}
-	stackdriverService, err := monitoring.New(client)
-	if err != nil {
-		t.Fatalf("Failed to create Stackdriver client: %v", err)
-	}
-	log.Printf("Successfully created Stackdriver client")
-	value, err := queryStackdriverMetric(
-		stackdriverService,
-		&monitoring.MonitoredResource{
-			Type: "gke_container",
-			Labels: map[string]string{
-				"project_id":     getProjectId(),
-				"cluster_name":   "quickstart-cluster-1",
-				"namespace_id":   "default",
-				"instance_id":    k8sInstanceId,
-				"pod_id":         "echo",
-				"container_name": "",
-				"zone":           "us-central1-a",
-			},
-		}, &monitoring.Metric{
-			Type: "custom.googleapis.com/web-echo/process_start_time_seconds",
-		})
-	if err != nil {
-		t.Fatalf("Failed to fetch metric: %v", err)
-	}
-	log.Printf("Got value: %v", value)
+	t.Run("gke_container", func(t *testing.T) {
+		k8sInstanceId := getKubernetesInstanceId()
+		client, err := google.DefaultClient(
+			context.Background(), "https://www.googleapis.com/auth/monitoring.read")
+		if err != nil {
+			t.Fatalf("Failed to get Google OAuth2 credentials: %v", err)
+		}
+		stackdriverService, err := monitoring.New(client)
+		if err != nil {
+			t.Fatalf("Failed to create Stackdriver client: %v", err)
+		}
+		log.Printf("Successfully created Stackdriver client")
+		value, err := queryStackdriverMetric(
+			stackdriverService,
+			&monitoring.MonitoredResource{
+				Type: "gke_container",
+				Labels: map[string]string{
+					"project_id":     getProjectId(),
+					"cluster_name":   "quickstart-cluster-1",
+					"namespace_id":   "default",
+					"instance_id":    k8sInstanceId,
+					"pod_id":         "echo",
+					"container_name": "",
+					"zone":           "us-central1-a",
+				},
+			}, &monitoring.Metric{
+				Type: "custom.googleapis.com/web-echo/process_start_time_seconds",
+			})
+		if err != nil {
+			t.Fatalf("Failed to fetch metric: %v", err)
+		}
+		log.Printf("Got value: %v", value)
+	})
 }
