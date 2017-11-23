@@ -11,20 +11,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package integration
 
 import (
 	"context"
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/golang/glog"
 	"golang.org/x/oauth2/google"
 	monitoring "google.golang.org/api/monitoring/v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,6 +32,8 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp" // Load the GCP plugin (only required to authenticate against GKE clusters).
 	"k8s.io/client-go/tools/clientcmd"
 )
+
+var integration = flag.Bool("integration", false, "run integration tests")
 
 func homeDir() string {
 	if h := os.Getenv("HOME"); h != "" {
@@ -83,7 +85,7 @@ func getKubernetesInstanceId() string {
 	if err != nil {
 		panic(err.Error())
 	}
-	glog.V(1).Infof("Found pod nodename: %v", pod.Spec.NodeName)
+	log.Printf("Found pod nodename: %v", pod.Spec.NodeName)
 	return fmt.Sprintf("%s.c.%s.internal", pod.Spec.NodeName, getProjectId())
 }
 
@@ -103,12 +105,12 @@ func queryStackdriverMetric(service *monitoring.Service, resource *monitoring.Mo
 		AggregationAlignmentPeriod("300s").
 		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
 		IntervalEndTime(time.Now().Format(time.RFC3339))
-	glog.V(2).Infof("ListTimeSeriesRequest: %v", request)
+	log.Printf("ListTimeSeriesRequest: %v", request)
 	response, err := request.Do()
 	if err != nil {
 		return 0, err
 	}
-	glog.V(2).Infof("ListTimeSeriesResponse: %v", response)
+	log.Printf("ListTimeSeriesResponse: %v", response)
 	if len(response.TimeSeries) != 1 {
 		return 0, errors.New(fmt.Sprintf("Expected 1 time series, got %v", response.TimeSeries))
 	}
@@ -120,18 +122,21 @@ func queryStackdriverMetric(service *monitoring.Service, resource *monitoring.Mo
 }
 
 func TestE2E(t *testing.T) {
+	if !*integration {
+		t.Skip("skipping integration test: disabled")
+	}
 	// TODO(jkohen): add code to start and turn down a cluster
 	k8sInstanceId := getKubernetesInstanceId()
 	client, err := google.DefaultClient(
 		context.Background(), "https://www.googleapis.com/auth/monitoring.read")
 	if err != nil {
-		glog.Fatalf("Failed to get Google OAuth2 credentials: %v", err)
+		log.Fatalf("Failed to get Google OAuth2 credentials: %v", err)
 	}
 	stackdriverService, err := monitoring.New(client)
 	if err != nil {
-		glog.Fatalf("Failed to create Stackdriver client: %v", err)
+		log.Fatalf("Failed to create Stackdriver client: %v", err)
 	}
-	glog.V(4).Infof("Successfully created Stackdriver client")
+	log.Printf("Successfully created Stackdriver client")
 	value, err := queryStackdriverMetric(
 		stackdriverService,
 		&monitoring.MonitoredResource{
@@ -149,9 +154,7 @@ func TestE2E(t *testing.T) {
 			Type: "custom.googleapis.com/web-echo/process_start_time_seconds",
 		})
 	if err != nil {
-		glog.Fatalf("Failed to fetch metric: %v", err)
+		log.Fatalf("Failed to fetch metric: %v", err)
 	}
-	glog.Infof("Got value: %v", value)
+	log.Printf("Got value: %v", value)
 }
-
-func main() {}
