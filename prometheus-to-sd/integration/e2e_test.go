@@ -19,12 +19,15 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/cenkalti/backoff"
 	"golang.org/x/oauth2/google"
 	monitoring "google.golang.org/api/monitoring/v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,18 +36,17 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-var integration = flag.Bool("integration", false, "run integration tests")
-
-func homeDir() string {
-	if h := os.Getenv("HOME"); h != "" {
-		return h
-	}
-	return os.Getenv("USERPROFILE") // windows
-}
+var (
+	clusterName = flag.String("cluster-name", "", "the name of the cluster where to launch the testing environment."+
+		" If empty, a random one will be used, and -cluster-create must be used")
+	integration = flag.Bool("integration", false, "whether to run integration tests")
+)
 
 func getProjectId() string {
 	return "prometheus-to-sd"
 }
+
+func getClusterZone() string { return "us-central1-a" }
 
 // Returns the value from a TypedValue as an int64. Floats are returned after
 // casting, other types are returned as zero.
@@ -62,8 +64,15 @@ func ValueAsInt64(value *monitoring.TypedValue) int64 {
 	}
 }
 
+func homeDir() string {
+	if h := os.Getenv("HOME"); h != "" {
+		return h
+	}
+	return os.Getenv("USERPROFILE") // windows
+}
+
 // TODO(jkohen): Move to its own module (kubernetes.go?).
-func getKubernetesInstanceId() string {
+func getKubernetesClientset() *kubernetes.Clientset {
 	var kubeconfig *string
 	if home := homeDir(); home != "" {
 		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
@@ -80,8 +89,11 @@ func getKubernetesInstanceId() string {
 	if err != nil {
 		panic(err.Error())
 	}
-	const namespace = "default"
-	pod, err := clientset.CoreV1().Pods(namespace).Get("echo", metav1.GetOptions{})
+	return clientset
+}
+
+func getKubernetesInstanceId(namespaceName string) string {
+	pod, err := getKubernetesClientset().CoreV1().Pods(namespaceName).Get("echo", metav1.GetOptions{})
 	if err != nil {
 		panic(err.Error())
 	}
@@ -98,38 +110,71 @@ func buildFilter(selector string, labels map[string]string) string {
 }
 
 func queryStackdriverMetric(service *monitoring.Service, resource *monitoring.MonitoredResource, metric *monitoring.Metric) (int64, error) {
-	request := service.Projects.TimeSeries.
-		List(fmt.Sprintf("projects/%s", getProjectId())).
-		Filter(fmt.Sprintf("resource.type=\"%s\" metric.type=\"%s\" %s %s", resource.Type, metric.Type,
-			buildFilter("resource", resource.Labels), buildFilter("metric", metric.Labels))).
-		AggregationAlignmentPeriod("300s").
-		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
-		IntervalEndTime(time.Now().Format(time.RFC3339))
-	log.Printf("ListTimeSeriesRequest: %v", request)
-	response, err := request.Do()
-	if err != nil {
-		return 0, err
-	}
-	log.Printf("ListTimeSeriesResponse: %v", response)
-	if len(response.TimeSeries) != 1 {
-		return 0, errors.New(fmt.Sprintf("Expected 1 time series, got %v", response.TimeSeries))
-	}
-	timeSeries := response.TimeSeries[0]
-	if len(timeSeries.Points) != 1 {
-		return 0, errors.New(fmt.Sprintf("Expected 1 point, got %v", timeSeries))
-	}
-	return ValueAsInt64(timeSeries.Points[0].Value), nil
+	var value int64 = 0
+	backoffPolicy := backoff.NewExponentialBackOff()
+	backoffPolicy.InitialInterval = 10 * time.Second
+	err := backoff.Retry(
+		func() error {
+			request := service.Projects.TimeSeries.
+				List(fmt.Sprintf("projects/%s", getProjectId())).
+				Filter(fmt.Sprintf("resource.type=\"%s\" metric.type=\"%s\" %s %s", resource.Type, metric.Type,
+					buildFilter("resource", resource.Labels), buildFilter("metric", metric.Labels))).
+				AggregationAlignmentPeriod("300s").
+				AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+				IntervalEndTime(time.Now().Format(time.RFC3339))
+			log.Printf("ListTimeSeriesRequest: %v", request)
+			response, err := request.Do()
+			if err != nil {
+				return backoff.Permanent(err)
+			}
+			log.Printf("ListTimeSeriesResponse: %v", response)
+			if len(response.TimeSeries) != 1 {
+				return errors.New(fmt.Sprintf("Expected 1 time series, got %v", response.TimeSeries))
+			}
+			timeSeries := response.TimeSeries[0]
+			if len(timeSeries.Points) != 1 {
+				return errors.New(fmt.Sprintf("Expected 1 point, got %v", timeSeries))
+			}
+			value = ValueAsInt64(timeSeries.Points[0].Value)
+			return nil
+		}, backoffPolicy)
+	return value, err
+}
+
+func execKubectl(args ...string) error {
+	// TODO(jkohen): log stdout and stderr
+	kubectlPath := "kubectl" // Assume in PATH
+	cmd := exec.Command(kubectlPath, args...)
+	human := strings.Join(cmd.Args, " ")
+	log.Printf("Running command: %s", human)
+	return cmd.Run()
 }
 
 func TestE2E(t *testing.T) {
 	if !*integration {
 		t.Skip("skipping integration test: disabled")
 	}
-	// TODO(jkohen): add code to start and turn down a cluster
+	if *clusterName == "" {
+		t.Fatalf("the cluster name must not be empty")
+	}
+	log.Printf("Cluster name: %s", *clusterName)
+	namespaceName := fmt.Sprintf("e2e-%x", rand.Uint64())
+	log.Printf("Namespace name: %s", namespaceName)
+	if err := execKubectl("create", "namespace", namespaceName); err != nil {
+		t.Fatalf("Failed to run kubectl: %v", err)
+	}
+	if err := execKubectl("apply", "--namespace", namespaceName, "-f", "e2e.yaml"); err != nil {
+		t.Fatalf("Failed to run kubectl: %v", err)
+	}
+	defer func() {
+		if err := execKubectl("delete", "namespace", namespaceName); err != nil {
+			t.Fatalf("Failed to run kubectl: %v", err)
+		}
+	}()
 	t.Run("gke_container", func(t *testing.T) {
-		k8sInstanceId := getKubernetesInstanceId()
+		k8sInstanceId := getKubernetesInstanceId(namespaceName)
 		client, err := google.DefaultClient(
-			context.Background(), "https://www.googleapis.com/auth/monitoring.read")
+			context.Background(), monitoring.MonitoringReadScope)
 		if err != nil {
 			t.Fatalf("Failed to get Google OAuth2 credentials: %v", err)
 		}
@@ -144,12 +189,12 @@ func TestE2E(t *testing.T) {
 				Type: "gke_container",
 				Labels: map[string]string{
 					"project_id":     getProjectId(),
-					"cluster_name":   "quickstart-cluster-1",
-					"namespace_id":   "default",
+					"cluster_name":   *clusterName,
+					"namespace_id":   namespaceName,
 					"instance_id":    k8sInstanceId,
 					"pod_id":         "echo",
 					"container_name": "",
-					"zone":           "us-central1-a",
+					"zone":           getClusterZone(),
 				},
 			}, &monitoring.Metric{
 				Type: "custom.googleapis.com/web-echo/process_start_time_seconds",
@@ -159,4 +204,8 @@ func TestE2E(t *testing.T) {
 		}
 		log.Printf("Got value: %v", value)
 	})
+}
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
 }

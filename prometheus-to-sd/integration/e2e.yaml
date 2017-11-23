@@ -7,7 +7,6 @@ items:
     labels:
       app: stackdriver-agents
     name: stackdriver-agents
-    namespace: default
   spec:
     selector:
       matchLabels:
@@ -80,4 +79,3 @@ items:
       process_start_time_seconds 1511292718
   metadata:
     name: web-echo-metrics
-    namespace: default
