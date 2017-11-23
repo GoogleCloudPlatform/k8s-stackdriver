@@ -171,8 +171,8 @@ func TestE2E(t *testing.T) {
 			t.Fatalf("Failed to run kubectl: %v", err)
 		}
 	}()
+	k8sInstanceId := getKubernetesInstanceId(namespaceName)
 	t.Run("gke_container", func(t *testing.T) {
-		k8sInstanceId := getKubernetesInstanceId(namespaceName)
 		client, err := google.DefaultClient(
 			context.Background(), monitoring.MonitoringReadScope)
 		if err != nil {
