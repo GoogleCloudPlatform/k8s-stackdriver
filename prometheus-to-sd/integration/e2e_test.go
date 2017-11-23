@@ -130,11 +130,11 @@ func TestE2E(t *testing.T) {
 	client, err := google.DefaultClient(
 		context.Background(), "https://www.googleapis.com/auth/monitoring.read")
 	if err != nil {
-		log.Fatalf("Failed to get Google OAuth2 credentials: %v", err)
+		t.Fatalf("Failed to get Google OAuth2 credentials: %v", err)
 	}
 	stackdriverService, err := monitoring.New(client)
 	if err != nil {
-		log.Fatalf("Failed to create Stackdriver client: %v", err)
+		t.Fatalf("Failed to create Stackdriver client: %v", err)
 	}
 	log.Printf("Successfully created Stackdriver client")
 	value, err := queryStackdriverMetric(
@@ -154,7 +154,7 @@ func TestE2E(t *testing.T) {
 			Type: "custom.googleapis.com/web-echo/process_start_time_seconds",
 		})
 	if err != nil {
-		log.Fatalf("Failed to fetch metric: %v", err)
+		t.Fatalf("Failed to fetch metric: %v", err)
 	}
 	log.Printf("Got value: %v", value)
 }
