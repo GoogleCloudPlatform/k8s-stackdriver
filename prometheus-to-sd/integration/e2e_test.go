@@ -94,6 +94,7 @@ func TestE2E(t *testing.T) {
 		log.Printf("Successfully created Stackdriver client")
 		value, err := fetchInt64Metric(
 			stackdriverService,
+			getProjectId(),
 			&monitoring.MonitoredResource{
 				Type: "gke_container",
 				Labels: map[string]string{

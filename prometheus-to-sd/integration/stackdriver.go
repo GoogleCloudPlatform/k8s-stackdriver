@@ -53,14 +53,14 @@ func buildFilter(selector string, labels map[string]string) string {
 // that matches the request, which should be true as long as all labels are
 // set. This method will block until there is at least one time series, and will
 // abort if it finds more than one.
-func fetchInt64Metric(service *monitoring.Service, resource *monitoring.MonitoredResource, metric *monitoring.Metric) (int64, error) {
+func fetchInt64Metric(service *monitoring.Service, projectId string, resource *monitoring.MonitoredResource, metric *monitoring.Metric) (int64, error) {
 	var value int64 = 0
 	backoffPolicy := backoff.NewExponentialBackOff()
 	backoffPolicy.InitialInterval = 10 * time.Second
 	err := backoff.Retry(
 		func() error {
 			request := service.Projects.TimeSeries.
-				List(fmt.Sprintf("projects/%s", getProjectId())).
+				List(fmt.Sprintf("projects/%s", projectId)).
 				Filter(fmt.Sprintf("resource.type=\"%s\" metric.type=\"%s\" %s %s", resource.Type, metric.Type,
 					buildFilter("resource", resource.Labels), buildFilter("metric", metric.Labels))).
 				AggregationAlignmentPeriod("300s").
