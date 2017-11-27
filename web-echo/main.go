@@ -49,7 +49,7 @@ func main() {
 	}
 
 	server := http.NewServeMux()
-	server.HandleFunc("/response", putResponse)
+	server.HandleFunc("/response", postResponse)
 	server.HandleFunc("/", echo)
 	log.Printf("Server listening on port %s", port)
 	log.Fatal(http.ListenAndServe(":"+port, server))
@@ -61,7 +61,7 @@ func setResponse(newResponse []byte) {
 	responseMux.Unlock()
 }
 
-func putResponse(w http.ResponseWriter, r *http.Request) {
+func postResponse(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		echo(w, r)
 		return
