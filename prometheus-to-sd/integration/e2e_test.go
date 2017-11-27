@@ -30,8 +30,7 @@ import (
 )
 
 var (
-	clusterName = flag.String("cluster-name", "", "the name of the cluster where to launch the testing environment."+
-		" If empty, a random one will be used, and -cluster-create must be used")
+	clusterName = flag.String("cluster-name", "", "the name of the cluster used by kubectl in the context where this test runs")
 	integration = flag.Bool("integration", false, "whether to run integration tests")
 )
 
