@@ -28,4 +28,8 @@ type CommonConfig struct {
 	GceConfig     *GceConfig
 	PodConfig     *PodConfig
 	ComponentName string
+	// Contains metrics which will be converted from Prometheus
+	// Gauge to Stackdriver Cumulative. Temporary workaround
+	// which will be removed.
+	GaugeToCumulativeWhitelist []string
 }

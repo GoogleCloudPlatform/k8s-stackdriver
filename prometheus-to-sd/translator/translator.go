@@ -143,6 +143,11 @@ func translateOne(config *config.CommonConfig,
 		EndTime: time.Now().UTC().Format(time.RFC3339),
 	}
 	metricKind := extractMetricKind(mType)
+	// Prometheus Cumulative -> Stackdriver Gauge translation
+	if metricKind == "GAUGE" && isMetricGaugeToCumulativeWhitelisted(name, config) {
+		metricKind = "CUMULATIVE"
+		interval.StartTime = start.UTC().Format(time.RFC3339)
+	}
 	if metricKind == "CUMULATIVE" {
 		interval.StartTime = start.UTC().Format(time.RFC3339)
 	}
@@ -320,4 +325,14 @@ func getResourceLabels(config *config.CommonConfig) map[string]string {
 		"pod_id":         config.PodConfig.PodId,
 		"container_name": "",
 	}
+}
+
+// Checks if a metric is whitelisted for Gauge -> Cumulative translation.
+func isMetricGaugeToCumulativeWhitelisted(name string, config *config.CommonConfig) bool {
+	for _, metricName := range config.GaugeToCumulativeWhitelist {
+		if metricName == name {
+			return true
+		}
+	}
+	return false
 }
