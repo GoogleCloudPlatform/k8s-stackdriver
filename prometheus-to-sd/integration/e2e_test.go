@@ -20,9 +20,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -31,9 +29,6 @@ import (
 	"golang.org/x/oauth2/google"
 	monitoring "google.golang.org/api/monitoring/v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp" // Load the GCP plugin (only required to authenticate against GKE clusters).
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 var (
@@ -64,36 +59,9 @@ func ValueAsInt64(value *monitoring.TypedValue) int64 {
 	}
 }
 
-func homeDir() string {
-	if h := os.Getenv("HOME"); h != "" {
-		return h
-	}
-	return os.Getenv("USERPROFILE") // windows
-}
-
-// TODO(jkohen): Move to its own module (kubernetes.go?).
-func getKubernetesClientset() *kubernetes.Clientset {
-	var kubeconfig *string
-	if home := homeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-	} else {
-		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	}
-
-	// Use the current context in kubeconfig.
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
-	if err != nil {
-		panic(err.Error())
-	}
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
-	return clientset
-}
-
-func getKubernetesInstanceId(namespaceName string) string {
-	pod, err := getKubernetesClientset().CoreV1().Pods(namespaceName).Get("echo", metav1.GetOptions{})
+// GetPodInstanceId returns the instance id used in Stackdriver Monitored Resources for the given namespace and pod name.
+func getPodInstanceId(namespaceName string, podName string) string {
+	pod, err := GetClientset().CoreV1().Pods(namespaceName).Get(podName, metav1.GetOptions{})
 	if err != nil {
 		panic(err.Error())
 	}
@@ -171,7 +139,7 @@ func TestE2E(t *testing.T) {
 			t.Fatalf("Failed to run kubectl: %v", err)
 		}
 	}()
-	k8sInstanceId := getKubernetesInstanceId(namespaceName)
+	k8sInstanceId := getPodInstanceId(namespaceName, "echo")
 	t.Run("gke_container", func(t *testing.T) {
 		client, err := google.DefaultClient(
 			context.Background(), monitoring.MonitoringReadScope)
