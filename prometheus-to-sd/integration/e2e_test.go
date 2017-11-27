@@ -15,7 +15,6 @@ package integration
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -25,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff"
 	"golang.org/x/oauth2/google"
 	monitoring "google.golang.org/api/monitoring/v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,22 +41,6 @@ func getProjectId() string {
 
 func getClusterZone() string { return "us-central1-a" }
 
-// Returns the value from a TypedValue as an int64. Floats are returned after
-// casting, other types are returned as zero.
-func ValueAsInt64(value *monitoring.TypedValue) int64 {
-	if value == nil {
-		return 0
-	}
-	switch {
-	case value.Int64Value != nil:
-		return *value.Int64Value
-	case value.DoubleValue != nil:
-		return int64(*value.DoubleValue)
-	default:
-		return 0
-	}
-}
-
 // GetPodInstanceId returns the instance id used in Stackdriver Monitored Resources for the given namespace and pod name.
 func getPodInstanceId(namespaceName string, podName string) string {
 	pod, err := GetClientset().CoreV1().Pods(namespaceName).Get(podName, metav1.GetOptions{})
@@ -67,46 +49,6 @@ func getPodInstanceId(namespaceName string, podName string) string {
 	}
 	log.Printf("Found pod nodename: %v", pod.Spec.NodeName)
 	return fmt.Sprintf("%s.c.%s.internal", pod.Spec.NodeName, getProjectId())
-}
-
-func buildFilter(selector string, labels map[string]string) string {
-	s := make([]string, len(labels))
-	for k, v := range labels {
-		s = append(s, fmt.Sprintf("%s.labels.%s=\"%s\"", selector, k, v))
-	}
-	return strings.Join(s, " ")
-}
-
-func queryStackdriverMetric(service *monitoring.Service, resource *monitoring.MonitoredResource, metric *monitoring.Metric) (int64, error) {
-	var value int64 = 0
-	backoffPolicy := backoff.NewExponentialBackOff()
-	backoffPolicy.InitialInterval = 10 * time.Second
-	err := backoff.Retry(
-		func() error {
-			request := service.Projects.TimeSeries.
-				List(fmt.Sprintf("projects/%s", getProjectId())).
-				Filter(fmt.Sprintf("resource.type=\"%s\" metric.type=\"%s\" %s %s", resource.Type, metric.Type,
-					buildFilter("resource", resource.Labels), buildFilter("metric", metric.Labels))).
-				AggregationAlignmentPeriod("300s").
-				AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
-				IntervalEndTime(time.Now().Format(time.RFC3339))
-			log.Printf("ListTimeSeriesRequest: %v", request)
-			response, err := request.Do()
-			if err != nil {
-				return backoff.Permanent(err)
-			}
-			log.Printf("ListTimeSeriesResponse: %v", response)
-			if len(response.TimeSeries) != 1 {
-				return errors.New(fmt.Sprintf("Expected 1 time series, got %v", response.TimeSeries))
-			}
-			timeSeries := response.TimeSeries[0]
-			if len(timeSeries.Points) != 1 {
-				return errors.New(fmt.Sprintf("Expected 1 point, got %v", timeSeries))
-			}
-			value = ValueAsInt64(timeSeries.Points[0].Value)
-			return nil
-		}, backoffPolicy)
-	return value, err
 }
 
 func execKubectl(args ...string) error {
@@ -151,7 +93,7 @@ func TestE2E(t *testing.T) {
 			t.Fatalf("Failed to create Stackdriver client: %v", err)
 		}
 		log.Printf("Successfully created Stackdriver client")
-		value, err := queryStackdriverMetric(
+		value, err := fetchInt64Metric(
 			stackdriverService,
 			&monitoring.MonitoredResource{
 				Type: "gke_container",
