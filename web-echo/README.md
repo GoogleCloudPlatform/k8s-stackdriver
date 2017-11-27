@@ -1,6 +1,6 @@
 # Overview
 
-web-echo is a simple web server that returns the same response on every GET endpoint. The response can be modified.
+web-echo is a simple web server that returns the same response on every GET endpoint. The response can be modified on-the-fly.
 
 # Usage
 
