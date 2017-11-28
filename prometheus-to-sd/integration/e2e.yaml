@@ -35,6 +35,8 @@ items:
 - kind: Pod
   apiVersion: v1
   metadata:
+    labels: # TODO(jkohen) remove once the Metadata agent stops looking for this unconditionally.
+      app: echo
     name: echo
   spec:
     hostNetwork: true
