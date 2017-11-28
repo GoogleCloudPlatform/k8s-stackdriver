@@ -72,7 +72,7 @@ func main() {
 	defer glog.Flush()
 	flag.Parse()
 
-	sourceConfigs := config.SourceConfigsFromFlags(source, component, host, port, whitelisted, gaugeToCumulativeWhitelist)
+	sourceConfigs := config.SourceConfigsFromFlags(source, component, host, port, whitelisted)
 
 	gceConf, err := config.GetGceConfig(*metricsPrefix)
 	podConfig := &config.PodConfig{
@@ -163,7 +163,7 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 		if strings.HasPrefix(commonConfig.GceConfig.MetricsPrefix, customMetricsPrefix) {
 			metricDescriptorCache.UpdateMetricDescriptors(metrics, sourceConfig.Whitelisted)
 		}
-		ts := translator.TranslatePrometheusToStackdriver(commonConfig, sourceConfig.Whitelisted, gaugeToCumulativeWhitelistedList, metrics, metricDescriptorCache)
+		ts := translator.TranslatePrometheusToStackdriver(commonConfig, sourceConfig.Whitelisted, metrics, metricDescriptorCache)
 		translator.SendToStackdriver(stackdriverService, commonConfig, ts)
 	}
 }
