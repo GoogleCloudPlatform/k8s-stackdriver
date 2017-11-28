@@ -14,7 +14,6 @@ limitations under the License.
 package integration
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -53,14 +52,14 @@ func buildFilter(selector string, labels map[string]string) string {
 // that matches the request, which should be true as long as all labels are
 // set. This method will block until there is at least one time series, and will
 // abort if it finds more than one.
-func fetchInt64Metric(service *monitoring.Service, projectId string, resource *monitoring.MonitoredResource, metric *monitoring.Metric) (int64, error) {
-	var value int64 = 0
+func fetchInt64Metric(service *monitoring.Service, projectID string, resource *monitoring.MonitoredResource, metric *monitoring.Metric) (int64, error) {
+	var value int64
 	backoffPolicy := backoff.NewExponentialBackOff()
 	backoffPolicy.InitialInterval = 10 * time.Second
 	err := backoff.Retry(
 		func() error {
 			request := service.Projects.TimeSeries.
-				List(fmt.Sprintf("projects/%s", projectId)).
+				List(fmt.Sprintf("projects/%s", projectID)).
 				Filter(fmt.Sprintf("resource.type=\"%s\" metric.type=\"%s\" %s %s", resource.Type, metric.Type,
 					buildFilter("resource", resource.Labels), buildFilter("metric", metric.Labels))).
 				AggregationAlignmentPeriod("300s").
@@ -73,14 +72,14 @@ func fetchInt64Metric(service *monitoring.Service, projectId string, resource *m
 			}
 			log.Printf("ListTimeSeriesResponse: %v", response)
 			if len(response.TimeSeries) > 1 {
-				return backoff.Permanent(errors.New(fmt.Sprintf("Expected 1 time series, got %v", response.TimeSeries)))
+				return backoff.Permanent(fmt.Errorf("Expected 1 time series, got %v", response.TimeSeries))
 			}
 			if len(response.TimeSeries) == 0 {
-				return errors.New(fmt.Sprintf("Waiting for 1 time series that matches the request", response.TimeSeries))
+				return fmt.Errorf("Waiting for 1 time series that matches the request", response.TimeSeries)
 			}
 			timeSeries := response.TimeSeries[0]
 			if len(timeSeries.Points) != 1 {
-				return errors.New(fmt.Sprintf("Expected 1 point, got %v", timeSeries))
+				return fmt.Errorf("Expected 1 point, got %v", timeSeries)
 			}
 			value = valueAsInt64(timeSeries.Points[0].Value)
 			return nil

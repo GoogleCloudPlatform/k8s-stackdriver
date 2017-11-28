@@ -30,7 +30,7 @@ func homeDir() string {
 	return os.Getenv("USERPROFILE") // windows
 }
 
-// GetClientSet returns a kubernetes.ClientSet configured with the kubeconfig in the environment.
+// GetClientset returns a kubernetes.ClientSet configured with the kubeconfig in the environment.
 func GetClientset() *kubernetes.Clientset {
 	var kubeconfig *string
 	if home := homeDir(); home != "" {

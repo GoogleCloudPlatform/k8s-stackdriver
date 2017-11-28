@@ -34,20 +34,20 @@ var (
 	integration = flag.Bool("integration", false, "whether to run integration tests")
 )
 
-func getProjectId() string {
+func getProjectID() string {
 	return "prometheus-to-sd"
 }
 
 func getClusterZone() string { return "us-central1-a" }
 
-// GetPodInstanceId returns the instance id used in Stackdriver Monitored Resources for the given namespace and pod name.
-func getPodInstanceId(namespaceName string, podName string) string {
+// GetPodInstanceID returns the instance id used in Stackdriver Monitored Resources for the given namespace and pod name.
+func getPodInstanceID(namespaceName string, podName string) string {
 	pod, err := GetClientset().CoreV1().Pods(namespaceName).Get(podName, metav1.GetOptions{})
 	if err != nil {
 		panic(err.Error())
 	}
 	log.Printf("Found pod nodename: %v", pod.Spec.NodeName)
-	return fmt.Sprintf("%s.c.%s.internal", pod.Spec.NodeName, getProjectId())
+	return fmt.Sprintf("%s.c.%s.internal", pod.Spec.NodeName, getProjectID())
 }
 
 func execKubectl(args ...string) error {
@@ -80,7 +80,7 @@ func TestE2E(t *testing.T) {
 			t.Fatalf("Failed to run kubectl: %v", err)
 		}
 	}()
-	k8sInstanceId := getPodInstanceId(namespaceName, "echo")
+	k8sInstanceID := getPodInstanceID(namespaceName, "echo")
 	t.Run("gke_container", func(t *testing.T) {
 		client, err := google.DefaultClient(
 			context.Background(), monitoring.MonitoringReadScope)
@@ -94,14 +94,14 @@ func TestE2E(t *testing.T) {
 		log.Printf("Successfully created Stackdriver client")
 		value, err := fetchInt64Metric(
 			stackdriverService,
-			getProjectId(),
+			getProjectID(),
 			&monitoring.MonitoredResource{
 				Type: "gke_container",
 				Labels: map[string]string{
-					"project_id":     getProjectId(),
+					"project_id":     getProjectID(),
 					"cluster_name":   *clusterName,
 					"namespace_id":   namespaceName,
-					"instance_id":    k8sInstanceId,
+					"instance_id":    k8sInstanceID,
 					"pod_id":         "echo",
 					"container_name": "",
 					"zone":           getClusterZone(),
