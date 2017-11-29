@@ -126,7 +126,7 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 		GceConfig:     gceConf,
 		PodConfig:     podConfig,
 		ComponentName: sourceConfig.Component,
-		GaugetoCumulativeWhitelist: gaugeToCumulativeWhitelistedList,
+		GaugeToCumulativeWhitelist: gaugeToCumulativeWhitelistedList,
 	}
 	metricDescriptorCache := translator.NewMetricDescriptorCache(stackdriverService, commonConfig, sourceConfig.Component)
 	signal := time.After(0)
