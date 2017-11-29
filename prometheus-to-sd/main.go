@@ -118,8 +118,8 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 
 	// Parse whitelist for metrics that will undergo Prometheus Gauge to Stackdriver Cumulative translation.
         var gaugeToCumulativeWhitelistedList []string
-	if gaugeToCumulatativeWhitelist != "" {
-		gaugeToCumulativeWhitelistedList = strings.Split(gaugeToCumulativeWhitelist, ",")
+	if gaugeToCumulativeWhitelist != "" {
+		gaugeToCumulativeWhitelistedList = strings.Split(*gaugeToCumulativeWhitelist, ",")
 	}
 
 	commonConfig := &config.CommonConfig{
