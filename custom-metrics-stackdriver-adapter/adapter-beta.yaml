@@ -77,7 +77,6 @@ spec:
         name: pod-custom-metrics-stackdriver-adapter
         command:
         - /adapter
-        - --requestheader-client-ca-file=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         resources:
           limits:
             cpu: 250m
@@ -120,37 +119,3 @@ spec:
     name: custom-metrics-stackdriver-adapter
     namespace: custom-metrics
   version: v1beta1
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: custom-metrics-reader
-rules:
-- apiGroups:
-  - "custom.metrics.k8s.io"
-  resources:
-  - "*"
-  verbs:
-  - list
-  - get
-  - watch
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: custom-metrics-reader
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: custom-metrics-reader
-subjects:
-- apiGroup: rbac.authorization.k8s.io
-  kind: Group
-  name: system:anonymous
-- apiGroup: rbac.authorization.k8s.io
-  kind: Group
-  name: system:unauthenticated
-- kind: ServiceAccount
-  name: horizontal-pod-autoscaler
-  namespace: kube-system
-
