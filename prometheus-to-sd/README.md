@@ -20,7 +20,7 @@ to the Stackdriver.
 
 ## Custom metrics
 
-To be able to push custom metrics to the Stackdriver flag `metrics-prefix=custom.googleapis.com`
+To be able to push custom metrics to the Stackdriver flag `stackdriver-prefix=custom.googleapis.com`
 has to be specified. In such case metric `bar` from the component
 `foo` is going to be pushed to the Stackdriver as `custom.googleapis.com/foo/bar`.
 
