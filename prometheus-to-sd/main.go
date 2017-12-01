@@ -59,7 +59,9 @@ var (
 	omitComponentName = flag.Bool("omit-component-name", true,
 		"If metric name starts with the component name then this substring is removed to keep metric name shorter.")
 	debugPort = flag.Uint("port", 6061, "Port on which debug information is exposed.")
-
+	// Warning: Does not work for custom.googleapis.com endpoints.
+	gaugeToCumulativeWhitelist = flag.String("gauge-to-cumulative-whitelist", "",
+	        "Comma-separated list of Prometheus Gauge metrics which will be converted to Stackdriver Cumulatives.")
 	customMetricsPrefix = "custom.googleapis.com"
 )
 
@@ -113,10 +115,18 @@ func main() {
 
 func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *config.GceConfig, podConfig *config.PodConfig, sourceConfig config.SourceConfig) {
 	glog.Infof("Running prometheus-to-sd, monitored target is %s %v:%v", sourceConfig.Component, sourceConfig.Host, sourceConfig.Port)
+
+	// Parse whitelist for metrics that will undergo Prometheus Gauge to Stackdriver Cumulative translation.
+        var gaugeToCumulativeWhitelistedList []string
+	if *gaugeToCumulativeWhitelist != "" {
+		gaugeToCumulativeWhitelistedList = strings.Split(*gaugeToCumulativeWhitelist, ",")
+	}
+
 	commonConfig := &config.CommonConfig{
 		GceConfig:     gceConf,
 		PodConfig:     podConfig,
 		ComponentName: sourceConfig.Component,
+		GaugeToCumulativeWhitelist: gaugeToCumulativeWhitelistedList,
 	}
 	metricDescriptorCache := translator.NewMetricDescriptorCache(stackdriverService, commonConfig, sourceConfig.Component)
 	signal := time.After(0)

@@ -43,6 +43,8 @@ func (ts ByMetricTypeReversed) Less(i, j int) bool {
 	return ts[i].Metric.Type > ts[j].Metric.Type
 }
 
+var gaugeToCumulativeMetric = "gauge_to_cumulative_metric"
+
 var commonConfig = &config.CommonConfig{
 	GceConfig: &config.GceConfig{
 		Project:       "test-proj",
@@ -56,6 +58,7 @@ var commonConfig = &config.CommonConfig{
 		PodId:       "machine",
 	},
 	ComponentName: "testcomponent",
+	GaugeToCumulativeWhitelist: []string{gaugeToCumulativeMetric},
 }
 
 var metricTypeGauge = dto.MetricType_GAUGE
@@ -178,6 +181,15 @@ var metrics = map[string]*dto.MetricFamily{
 			},
 		},
 	},
+	gaugeToCumulativeMetric : {
+		Name: &gaugeToCumulativeMetric,
+		Type: &metricTypeGauge,
+		Metric: []*dto.Metric{
+			{
+				Gauge: &dto.Gauge{Value: floatPtr(3.0)},
+			},
+		},
+	},
 }
 
 var metricDescriptors = map[string]*v3.MetricDescriptor{
@@ -223,16 +235,21 @@ var metricDescriptors = map[string]*v3.MetricDescriptor{
 		MetricKind:  "CUMULATIVE",
 		ValueType:   "DISTRIBUTION",
 	},
+	gaugeToCumulativeMetric: {
+		Type:        "container.googleapis.com/master/testcomponent/gauge_to_cumulative_metric",
+		MetricKind:  "CUMULATIVE",
+		ValueType:   "INT64",
+	},
 }
 
 func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	epsilon := float64(0.001)
 	cache := buildCacheForTesting()
-	whitelistedMetrics := []string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName}
+	whitelistedMetrics := []string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName, gaugeToCumulativeMetric}
 
 	ts := TranslatePrometheusToStackdriver(commonConfig, whitelistedMetrics, metrics, cache)
 
-	assert.Equal(t, 6, len(ts))
+	assert.Equal(t, 7, len(ts))
 	// TranslatePrometheusToStackdriver uses maps to represent data, so order of output is randomized.
 	sort.Sort(ByMetricTypeReversed(ts))
 
@@ -286,8 +303,17 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	assert.Equal(t, int64(0), counts[2])
 	assert.Equal(t, int64(1), counts[3])
 
-	// Then float value.
+	// gaugeToCumulativeMetric check
 	metric = ts[3]
+	assert.Equal(t, "container.googleapis.com/master/testcomponent/gauge_to_cumulative_metric", metric.Metric.Type)
+	assert.Equal(t, "INT64", metric.ValueType)
+	assert.Equal(t, "CUMULATIVE", metric.MetricKind)
+	assert.Equal(t, 1, len(metric.Points))
+	assert.Equal(t, "2009-02-13T23:31:30Z", metric.Points[0].Interval.StartTime)
+	assert.InEpsilon(t, int64(3.0), *(metric.Points[0].Value.Int64Value), epsilon)
+
+	// Then float value.
+	metric = ts[4]
 	assert.Equal(t, "container.googleapis.com/master/testcomponent/float_metric", metric.Metric.Type)
 	assert.Equal(t, "DOUBLE", metric.ValueType)
 	assert.Equal(t, "CUMULATIVE", metric.MetricKind)
@@ -296,7 +322,7 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	assert.Equal(t, "2009-02-13T23:31:30Z", metric.Points[0].Interval.StartTime)
 
 	// Then two boolean values.
-	for i := 4; i <= 5; i++ {
+	for i := 5; i <= 6; i++ {
 		metric := ts[i]
 		assert.Equal(t, "container.googleapis.com/master/testcomponent/boolean_metric", metric.Metric.Type)
 		assert.Equal(t, "BOOL", metric.ValueType)
@@ -316,9 +342,12 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 
 func TestMetricFamilyToMetricDescriptor(t *testing.T) {
 	for metricName, metric := range metrics {
-		metricDescriptor := MetricFamilyToMetricDescriptor(commonConfig, metric, getOriginalDescriptor(metricName))
-		expectedMetricDescriptor := metricDescriptors[metricName]
-		assert.Equal(t, metricDescriptor, expectedMetricDescriptor)
+		// Don't perform this test for the gaugeToCumulativeMetric since it will break it.
+		if metricName != gaugeToCumulativeMetric {
+			metricDescriptor := MetricFamilyToMetricDescriptor(commonConfig, metric, getOriginalDescriptor(metricName))
+			expectedMetricDescriptor := metricDescriptors[metricName]
+			assert.Equal(t, metricDescriptor, expectedMetricDescriptor)
+	        }
 	}
 }
 
