@@ -129,6 +129,9 @@ func translateFamily(config *config.CommonConfig,
 
 // getMetricType creates metric type name base on the metric prefix, component name and metric name.
 func getMetricType(config *config.CommonConfig, name string) string {
+	if config.ComponentName == "" {
+		return fmt.Sprintf("%s/%s", config.GceConfig.MetricsPrefix, name)
+	}
 	return fmt.Sprintf("%s/%s/%s", config.GceConfig.MetricsPrefix, config.ComponentName, name)
 }
 

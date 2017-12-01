@@ -25,29 +25,79 @@ import (
 )
 
 func TestGetMetricType(t *testing.T) {
-	testConfig := &config.CommonConfig{
-		GceConfig:     &config.GceConfig{MetricsPrefix: "container.googleapis.com/master"},
-		ComponentName: "component",
+	testCases := []struct {
+		config   *config.CommonConfig
+		metric   string
+		expected string
+	}{
+		{
+			&config.CommonConfig{
+				GceConfig: &config.GceConfig{
+					MetricsPrefix: "container.googleapis.com/master",
+				},
+				ComponentName: "component",
+			},
+			"name",
+			"container.googleapis.com/master/component/name",
+		},
+		{
+			&config.CommonConfig{
+				GceConfig: &config.GceConfig{
+					MetricsPrefix: "container.googleapis.com",
+				},
+				ComponentName: "",
+			},
+			"name",
+			"container.googleapis.com/name",
+		},
 	}
-	expected := "container.googleapis.com/master/component/name"
-	assert.Equal(t, expected, getMetricType(testConfig, "name"))
+	for _, tc := range testCases {
+		assert.Equal(t, tc.expected, getMetricType(tc.config, tc.metric))
+	}
 }
 
 func TestParseMetricType(t *testing.T) {
 	testConfig := &config.GceConfig{MetricsPrefix: "container.googleapis.com/master"}
-	correct := "container.googleapis.com/master/component/name"
-	component, metricName, err := parseMetricType(testConfig, correct)
-
-	if assert.NoError(t, err) {
-		assert.Equal(t, "component", component)
-		assert.Equal(t, "name", metricName)
+	testCases := []struct {
+		metricType string
+		correct    bool
+		component  string
+		metricName string
+	}{
+		{
+			metricType: "container.googleapis.com/master/component/name",
+			correct:    true,
+			component:  "component",
+			metricName: "name",
+		},
+		{
+			metricType: "container.googleapis.com/master/name",
+			correct:    true,
+			component:  "",
+			metricName: "name",
+		},
+		{
+			metricType: "container.googleapis.com/master",
+			correct:    false,
+		},
+		{
+			metricType: "incorrect.prefix.com/component/name",
+			correct:    false,
+		},
+		{
+			metricType: "container.googleapis.com/component/name/subname",
+			correct:    false,
+		},
 	}
 
-	incorrect1 := "container.googleapis.com/master/component"
-	_, _, err = parseMetricType(testConfig, incorrect1)
-	assert.Error(t, err)
-
-	incorrect2 := "incorrect.prefix.com/master/component"
-	_, _, err = parseMetricType(testConfig, incorrect2)
-	assert.Error(t, err)
+	for _, tc := range testCases {
+		component, metricName, err := parseMetricType(testConfig, tc.metricType)
+		if tc.correct {
+			assert.NoError(t, err, tc.metricType)
+			assert.Equal(t, tc.component, component, tc.metricType)
+			assert.Equal(t, tc.metricName, metricName, tc.metricType)
+		} else {
+			assert.Error(t, err, tc.metricType)
+		}
+	}
 }
