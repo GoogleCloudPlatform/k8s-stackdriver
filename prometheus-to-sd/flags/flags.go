@@ -44,18 +44,16 @@ func (u *Uri) String() string {
 // Set parses single instance of a flag.
 func (u *Uri) Set(value string) error {
 	s := strings.SplitN(value, ":", 2)
-	if s[0] == "" {
-		return fmt.Errorf("missing uri key in '%s'", value)
-	}
 	u.Key = s[0]
-	if len(s) > 1 && s[1] != "" {
-		e := os.ExpandEnv(s[1])
-		uri, err := url.Parse(e)
-		if err != nil {
-			return err
-		}
-		u.Val = *uri
+	if len(s) != 2 || s[1] == "" {
+		return fmt.Errorf("unproperly formatted url %s", value)
 	}
+	e := os.ExpandEnv(s[1])
+	uri, err := url.Parse(e)
+	if err != nil {
+		return err
+	}
+	u.Val = *uri
 	return nil
 }
 

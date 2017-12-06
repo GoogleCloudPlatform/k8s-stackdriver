@@ -61,17 +61,27 @@ func TestUriSet(t *testing.T) {
 	}{
 		{"", Uri{}, true},
 		{":", Uri{}, true},
-		{":foo", Uri{}, true},
 		{"key:incorrecturl/%gh&%ij", Uri{}, true},
 		{
-			"gcm",
-			Uri{Key: "gcm"},
+			":http://localhost:100",
+			Uri{
+				Key: "",
+				Val: url.URL{
+					Scheme: "http",
+					Host:   "localhost:100",
+				},
+			},
 			false,
 		},
 		{
+			"gcm",
+			Uri{},
+			true,
+		},
+		{
 			"gcm:",
-			Uri{Key: "gcm"},
-			false,
+			Uri{},
+			true,
 		},
 		{
 			"influxdb:http://monitoring-influxdb:8086?key=val&key2=val2",
@@ -142,18 +152,20 @@ func TestUrisSet(t *testing.T) {
 		wantErr bool
 	}{
 		{[]string{""}, Uris{}, true},
-		{[]string{":foo"}, Uris{}, true},
 		{
 			[]string{"gcm"},
 			Uris{
-				Uri{Key: "gcm"},
+				Uri{},
 			},
-			false,
+			true,
 		},
 		{
-			[]string{"gcm", "influxdb:foo"},
+			[]string{"gcm:localhost", "influxdb:foo"},
 			Uris{
-				Uri{Key: "gcm"},
+				Uri{
+					Key: "gcm",
+					Val: url.URL{Path: "localhost"},
+				},
 				Uri{
 					Key: "influxdb",
 					Val: url.URL{Path: "foo"},

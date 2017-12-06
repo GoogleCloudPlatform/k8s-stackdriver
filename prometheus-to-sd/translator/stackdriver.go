@@ -99,16 +99,18 @@ func updateMetricDescriptorInStackdriver(service *v3.Service, config *config.Gce
 
 // parseMetricType extracts component and metricName from Metric.Type (e.g. output of getMetricType).
 func parseMetricType(config *config.GceConfig, metricType string) (component, metricName string, err error) {
-	if !strings.HasPrefix(metricType, config.MetricsPrefix) {
+	if !strings.HasPrefix(metricType, fmt.Sprintf("%s/", config.MetricsPrefix)) {
 		return "", "", fmt.Errorf("MetricType is expected to have prefix: %v. Got %v instead.", config.MetricsPrefix, metricType)
 	}
 
 	componentMetricName := strings.TrimPrefix(metricType, fmt.Sprintf("%s/", config.MetricsPrefix))
 	split := strings.SplitN(componentMetricName, "/", 2)
 
-	if len(split) != 2 {
-		return "", "", fmt.Errorf("MetricType should be in format %v/<component>/<name>. Got %v instead.", config.MetricsPrefix, metricType)
+	if len(split) < 1 || len(split) > 2 {
+		return "", "", fmt.Errorf("MetricType should be in format %v/<component>/<name> or %v/<name>. Got %v instead.", config.MetricsPrefix, metricType)
 	}
-
+	if len(split) == 1 {
+		return "", split[0], nil
+	}
 	return split[0], split[1], nil
 }
