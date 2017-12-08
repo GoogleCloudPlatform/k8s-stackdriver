@@ -1,0 +1,65 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    run: custom-metric-prometheus-sd
+  name: custom-metric-prometheus-sd
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      run: custom-metric-prometheus-sd
+  template:
+    metadata:
+      labels:
+        run: custom-metric-prometheus-sd
+    spec:
+      containers:
+      - command:
+        - /bin/sh
+        - -c
+        - ./prometheus_dummy_exporter --metric-name=foo --metric-value=40 --port=8080
+        image: gcr.io/google-containers/prometheus-dummy-exporter:v0.1.0
+        name: prometheus-dummy-exporter
+        resources:
+          requests:
+            cpu: 100m
+      - name: prometheus-to-sd
+        image: gcr.io/google-containers/prometheus-to-sd:v0.2.3
+        command:
+          - /monitor
+          - --source=:http://localhost:8080
+          - --stackdriver-prefix=custom.googleapis.com
+          - --pod-id=$(POD_ID)
+          - --namespace-id=$(POD_NAMESPACE)
+        env:
+          - name: POD_ID
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.uid
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+---
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: custom-metric-prometheus-sd
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1beta1
+    kind: Deployment
+    name: custom-metric-prometheus-sd
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+  - type: Pods
+    pods:
+      metricName: foo
+      targetAverageValue: 20
+
+ 
