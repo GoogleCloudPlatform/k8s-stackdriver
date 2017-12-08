@@ -139,7 +139,7 @@ func (t *Translator) translateNode(node stats.NodeStats) ([]*v3.TimeSeries, erro
 	uptimePoint := &v3.Point{
 		Interval: &v3.TimeInterval{
 			EndTime:   now.Format(time.RFC3339),
-			StartTime: now.Add(-1 * t.resolution).Format(time.RFC3339),
+			StartTime: node.StartTime.Time.Format(time.RFC3339),
 		},
 		Value: &v3.TypedValue{
 			DoubleValue: monitor.Float64Ptr(float64(time.Since(node.StartTime.Time).Seconds())),
@@ -148,21 +148,21 @@ func (t *Translator) translateNode(node stats.NodeStats) ([]*v3.TimeSeries, erro
 	timeSeries = append(timeSeries, tsFactory.newTimeSeries(noLabels, uptimeMD, uptimePoint))
 
 	// Memory stats.
-	memTS, err := translateMemory(node.Memory, tsFactory)
+	memTS, err := translateMemory(node.Memory, tsFactory, node.StartTime.Time)
 	if err != nil {
 		return nil, err
 	}
 	timeSeries = append(timeSeries, memTS...)
 
 	// File-system stats.
-	fsTS, err := translateFS("/", node.Fs, tsFactory)
+	fsTS, err := translateFS("/", node.Fs, tsFactory, node.StartTime.Time)
 	if err != nil {
 		return nil, err
 	}
 	timeSeries = append(timeSeries, fsTS...)
 
 	// CPU stats.
-	cpuTS, err := translateCPU(node.CPU, tsFactory)
+	cpuTS, err := translateCPU(node.CPU, tsFactory, node.StartTime.Time)
 	if err != nil {
 		return nil, err
 	}
@@ -216,27 +216,27 @@ func (t *Translator) translateContainers(pods []stats.PodStats) ([]*v3.TimeSerie
 			containerSeries = append(containerSeries, tsFactory.newTimeSeries(noLabels, uptimeMD, uptimePoint))
 
 			// Memory stats.
-			memTS, err := translateMemory(container.Memory, tsFactory)
+			memTS, err := translateMemory(container.Memory, tsFactory, container.StartTime.Time)
 			if err != nil {
 				return nil, err
 			}
 			containerSeries = append(containerSeries, memTS...)
 
 			// File-system stats.
-			rootfsTS, err := translateFS("/", container.Rootfs, tsFactory)
+			rootfsTS, err := translateFS("/", container.Rootfs, tsFactory, container.StartTime.Time)
 			if err != nil {
 				return nil, err
 			}
 			containerSeries = append(containerSeries, rootfsTS...)
 
-			logfsTS, err := translateFS("logs", container.Logs, tsFactory)
+			logfsTS, err := translateFS("logs", container.Logs, tsFactory, container.StartTime.Time)
 			if err != nil {
 				return nil, err
 			}
 			containerSeries = append(containerSeries, logfsTS...)
 
 			// CPU stats.
-			cpuTS, err := translateCPU(container.CPU, tsFactory)
+			cpuTS, err := translateCPU(container.CPU, tsFactory, container.StartTime.Time)
 			if err != nil {
 				return nil, err
 			}
@@ -254,7 +254,7 @@ func (t *Translator) translateContainers(pods []stats.PodStats) ([]*v3.TimeSerie
 }
 
 // translateCPU creates all the TimeSeries for a give CPUStat.
-func translateCPU(cpu *stats.CPUStats, tsFactory *timeSeriesFactory) ([]*v3.TimeSeries, error) {
+func translateCPU(cpu *stats.CPUStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
 	var timeSeries []*v3.TimeSeries
 
 	// First check that all required information is present.
@@ -272,13 +272,13 @@ func translateCPU(cpu *stats.CPUStats, tsFactory *timeSeriesFactory) ([]*v3.Time
 	cpuTotalPoint := tsFactory.newPoint(&v3.TypedValue{
 		DoubleValue:     monitor.Float64Ptr(float64(*cpu.UsageCoreNanoSeconds) / float64(1000*1000*1000)),
 		ForceSendFields: []string{"DoubleValue"},
-	}, cpu.Time.Time, usageTimeMD.MetricKind)
+	}, startTime, cpu.Time.Time, usageTimeMD.MetricKind)
 	timeSeries = append(timeSeries, tsFactory.newTimeSeries(noLabels, usageTimeMD, cpuTotalPoint))
 	return timeSeries, nil
 }
 
 // translateFS creates all the TimeSeries for a given FsStats and volume name.
-func translateFS(volume string, fs *stats.FsStats, tsFactory *timeSeriesFactory) ([]*v3.TimeSeries, error) {
+func translateFS(volume string, fs *stats.FsStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
 	var timeSeries []*v3.TimeSeries
 
 	// First, check that we've been given all the data we need.
@@ -301,20 +301,20 @@ func translateFS(volume string, fs *stats.FsStats, tsFactory *timeSeriesFactory)
 	diskTotalPoint := tsFactory.newPoint(&v3.TypedValue{
 		Int64Value:      monitor.Int64Ptr(int64(*fs.CapacityBytes)),
 		ForceSendFields: []string{"Int64Value"},
-	}, now, diskTotalMD.MetricKind)
+	}, startTime, now, diskTotalMD.MetricKind)
 	timeSeries = append(timeSeries, tsFactory.newTimeSeries(resourceLabels, diskTotalMD, diskTotalPoint))
 
 	// Total disk used.
 	diskUsedPoint := tsFactory.newPoint(&v3.TypedValue{
 		Int64Value:      monitor.Int64Ptr(int64(*fs.UsedBytes)),
 		ForceSendFields: []string{"Int64Value"},
-	}, now, diskUsedMD.MetricKind)
+	}, startTime, now, diskUsedMD.MetricKind)
 	timeSeries = append(timeSeries, tsFactory.newTimeSeries(resourceLabels, diskUsedMD, diskUsedPoint))
 	return timeSeries, nil
 }
 
 // translateMemory creates all the TimeSeries for a given MemoryStats.
-func translateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory) ([]*v3.TimeSeries, error) {
+func translateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
 	var timeSeries []*v3.TimeSeries
 
 	// First, check that we've been given all the data we need.
@@ -338,26 +338,26 @@ func translateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory) ([
 	majorPFPoint := tsFactory.newPoint(&v3.TypedValue{
 		Int64Value:      monitor.Int64Ptr(int64(*memory.MajorPageFaults)),
 		ForceSendFields: []string{"Int64Value"},
-	}, memory.Time.Time, pageFaultsMD.MetricKind)
+	}, startTime, memory.Time.Time, pageFaultsMD.MetricKind)
 	timeSeries = append(timeSeries, tsFactory.newTimeSeries(majorPageFaultLabels, pageFaultsMD, majorPFPoint))
 	// Minor page faults.
 	minorPFPoint := tsFactory.newPoint(&v3.TypedValue{
 		Int64Value:      monitor.Int64Ptr(int64(*memory.PageFaults - *memory.MajorPageFaults)),
 		ForceSendFields: []string{"Int64Value"},
-	}, memory.Time.Time, pageFaultsMD.MetricKind)
+	}, startTime, memory.Time.Time, pageFaultsMD.MetricKind)
 	timeSeries = append(timeSeries, tsFactory.newTimeSeries(minorPageFaultLabels, pageFaultsMD, minorPFPoint))
 
 	// Non-evictable memory.
 	nonEvictMemPoint := tsFactory.newPoint(&v3.TypedValue{
 		Int64Value:      monitor.Int64Ptr(int64(*memory.WorkingSetBytes)),
 		ForceSendFields: []string{"Int64Value"},
-	}, memory.Time.Time, memUsedMD.MetricKind)
+	}, startTime, memory.Time.Time, memUsedMD.MetricKind)
 	timeSeries = append(timeSeries, tsFactory.newTimeSeries(memUsedNonEvictableLabels, memUsedMD, nonEvictMemPoint))
 	// Evictable memory.
 	evictMemPoint := tsFactory.newPoint(&v3.TypedValue{
 		Int64Value:      monitor.Int64Ptr(int64(*memory.UsageBytes - *memory.WorkingSetBytes)),
 		ForceSendFields: []string{"Int64Value"},
-	}, memory.Time.Time, memUsedMD.MetricKind)
+	}, startTime, memory.Time.Time, memUsedMD.MetricKind)
 	timeSeries = append(timeSeries, tsFactory.newTimeSeries(memUsedEvictableLabels, memUsedMD, evictMemPoint))
 
 	// Available memory. This may or may not be present, so don't fail if it's absent.
@@ -365,7 +365,7 @@ func translateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory) ([
 		availableMemPoint := tsFactory.newPoint(&v3.TypedValue{
 			Int64Value:      monitor.Int64Ptr(int64(*memory.AvailableBytes)),
 			ForceSendFields: []string{"Int64Value"},
-		}, memory.Time.Time, memTotalMD.MetricKind)
+		}, startTime, memory.Time.Time, memTotalMD.MetricKind)
 		timeSeries = append(timeSeries, tsFactory.newTimeSeries(noLabels, memTotalMD, availableMemPoint))
 	}
 	return timeSeries, nil
@@ -383,15 +383,14 @@ func newTimeSeriesFactory(monitoredLabels map[string]string, resolution time.Dur
 	}
 }
 
-func (t *timeSeriesFactory) newPoint(val *v3.TypedValue, sampleTime time.Time, metricKind string) *v3.Point {
-	start := sampleTime.Add(-1 * t.resolution)
+func (t *timeSeriesFactory) newPoint(val *v3.TypedValue, collectionStartTime time.Time, sampleTime time.Time, metricKind string) *v3.Point {
 	if metricKind == "GAUGE" {
-		start = sampleTime
+		collectionStartTime = sampleTime
 	}
 	return &v3.Point{
 		Interval: &v3.TimeInterval{
 			EndTime:   sampleTime.Format(time.RFC3339),
-			StartTime: start.Format(time.RFC3339),
+			StartTime: collectionStartTime.Format(time.RFC3339),
 		},
 		Value: val,
 	}
