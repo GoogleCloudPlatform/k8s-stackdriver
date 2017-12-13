@@ -1,0 +1,53 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    run: custom-metric-sd
+  name: custom-metric-sd
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      run: custom-metric-sd
+  template:
+    metadata:
+      labels:
+        run: custom-metric-sd
+    spec:
+      containers:
+      - command:
+        - /bin/sh
+        - -c
+        - ./sd_dummy_exporter --metric-name=foo --metric-value=40 --pod-id=$(POD_ID)
+        image: gcr.io/google-containers/sd-dummy-exporter:v0.1.0
+        name: sd-dummy-exporter
+        resources:
+          requests:
+            cpu: 100m
+        env:
+          - name: POD_ID
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.uid
+---
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: custom-metric-sd
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1beta1
+    kind: Deployment
+    name: custom-metric-sd
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+  - type: Pods
+    pods:
+      metricName: foo
+      targetAverageValue: 20
+
+ 
