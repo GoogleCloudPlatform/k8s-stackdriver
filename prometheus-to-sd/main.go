@@ -154,6 +154,6 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 			metricDescriptorCache.UpdateMetricDescriptors(metrics, sourceConfig.Whitelisted)
 		}
 		ts := translator.TranslatePrometheusToStackdriver(commonConfig, sourceConfig.Whitelisted, metrics, metricDescriptorCache)
-		translator.SendToStackdriver(stackdriverService, commonConfig, ts)
+		translator.SendToStackdriver(context.TODO(), stackdriverService, commonConfig, ts)
 	}
 }

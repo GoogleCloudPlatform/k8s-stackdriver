@@ -17,6 +17,7 @@ limitations under the License.
 package translator
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -33,7 +34,7 @@ const (
 )
 
 // SendToStackdriver sends http request to Stackdriver to create the given timeserieses.
-func SendToStackdriver(service *v3.Service, config *config.CommonConfig, ts []*v3.TimeSeries) {
+func SendToStackdriver(ctx context.Context, service *v3.Service, config *config.CommonConfig, ts []*v3.TimeSeries) {
 	if len(ts) == 0 {
 		glog.V(3).Infof("No metrics to send to Stackdriver for component %v", config.ComponentName)
 		return
@@ -52,7 +53,7 @@ func SendToStackdriver(service *v3.Service, config *config.CommonConfig, ts []*v
 		go func(begin int, end int) {
 			defer wg.Done()
 			req := &v3.CreateTimeSeriesRequest{TimeSeries: ts[begin:end]}
-			_, err := service.Projects.TimeSeries.Create(proj, req).Do()
+			_, err := service.Projects.TimeSeries.Create(proj, req).Context(ctx).Do()
 			if err != nil {
 				atomic.AddUint32(&failedTs, uint32(end-begin))
 				glog.Errorf("Error while sending request to Stackdriver %v", err)
