@@ -1,28 +1,45 @@
+custom-metrics-stackdriver-adapter/README.md:               "cluster_name":   <your cluster name>,
 custom-metrics-stackdriver-adapter/README.md:               "namespace_id":   <your namespace>,
 custom-metrics-stackdriver-adapter/README.md:               "pod_id":         <your pod ID>,
 custom-metrics-stackdriver-adapter/README.md:               // namespace_id and instance_id labels don't matter for the custom
 custom-metrics-stackdriver-adapter/README.md:           - my-app --pod_id=$(POD_ID)
+custom-metrics-stackdriver-adapter/README.md:       cluster_name, err := gce.InstanceAttributeValue("cluster-name")
 custom-metrics-stackdriver-adapter/README.md:       podIdFlag := flag.String("pod_id", "", "a string")
 custom-metrics-stackdriver-adapter/README.md:     - `pod_id` - set this to pod UID obtained via downward API. Example configuration that passes POD_ID to your application as a flag:
+custom-metrics-stackdriver-adapter/README.md:     - `project_id`, `zone`, `cluster_name` - can be obtained by your application from
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:		name := series.Resource.Labels["pod_id"]
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:		return fmt.Sprintf("resource.label.pod_id = %s", podIDs[0])
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	clusterFilter := fmt.Sprintf("resource.label.cluster_name = %q", strings.TrimSpace(t.config.Cluster))
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	return "resource.label.pod_id != \"\" AND resource.label.pod_id != \"machine\""
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	return fmt.Sprintf("resource.label.pod_id = one_of(%s)", strings.Join(podIDs, ","))
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.label.cluster_name = \"my-cluster\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.label.cluster_name = \"my-cluster\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.label.cluster_name = \"my-cluster\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.label.container_name = \"\" AND resource.label.pod_id != \"\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.label.pod_id != \"machine\"")
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.label.pod_id = \"my-pod-id\"").
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.label.pod_id = one_of(\"my-pod-id-1\",\"my-pod-id-2\")").
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
+custom-metrics-stackdriver-adapter/testing/sd_dummy_exporter.go:							"cluster_name":   clusterName,
 custom-metrics-stackdriver-adapter/testing/sd_dummy_exporter.go:							"namespace_id": "default",
 custom-metrics-stackdriver-adapter/testing/sd_dummy_exporter.go:							"pod_id":         podId,
 custom-metrics-stackdriver-adapter/testing/sd_dummy_exporter.go:							// namespace_id and instance_id don't matter
+event-exporter/sinks/stackdriver/sink_config.go:			"cluster_name": clusterName,
+kubelet-to-gcm/monitor/controller/translator.go:		"cluster_name":   t.cluster,
 kubelet-to-gcm/monitor/controller/translator.go:		"namespace_id":   "",
 kubelet-to-gcm/monitor/controller/translator.go:		"pod_id":         "machine",
+kubelet-to-gcm/monitor/kubelet/translate.go:				"cluster_name":   t.cluster,
 kubelet-to-gcm/monitor/kubelet/translate.go:				"namespace_id":   namespace,
 kubelet-to-gcm/monitor/kubelet/translate.go:				"pod_id":         podID,
+kubelet-to-gcm/monitor/kubelet/translate.go:		"cluster_name":   t.cluster,
 kubelet-to-gcm/monitor/kubelet/translate.go:		"namespace_id":   "",
 kubelet-to-gcm/monitor/kubelet/translate.go:		"pod_id":         "machine",
+prometheus-to-sd/README.md:`project_id`, `cluster_name`, `instance_id` and `zone` are filled automatically by
 prometheus-to-sd/README.md:the prometheus-to-sd. Values of the `namespace_id` and `pod_id` can be passed to
+prometheus-to-sd/integration/e2e_test.go:					"cluster_name":   *clusterName,
+prometheus-to-sd/integration/e2e_test.go:					"namespace_id":   namespaceName,
+prometheus-to-sd/integration/e2e_test.go:					"pod_id":         "echo",
+prometheus-to-sd/translator/translator.go:		"cluster_name":   config.GceConfig.Cluster,
 prometheus-to-sd/translator/translator.go:		"namespace_id":   config.PodConfig.NamespaceId,
 prometheus-to-sd/translator/translator.go:		"pod_id":         config.PodConfig.PodId,
