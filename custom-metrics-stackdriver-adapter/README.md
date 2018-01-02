@@ -167,10 +167,14 @@ by a simple name, as defined in [custom metric naming rules].
      stackdriverService.Projects.TimeSeries.Create("projects/<your project ID>", request).Do()
      ```
 
-#### Example
+#### Examples
 
-Here is a full example application that exports custom metric to Stackdriver
-filling in all required labels: [sd_dummy_exporter].
+To test your custom metrics setup or see a reference on how to push your metrics
+to Stackdriver, check out our examples:
+* application that exports custom metric directly to Stackdriver filling in all
+  required labels: [direct-example]
+* application that exports custom metrics to Stackdriver using [Prometheus text format] 
+  and [Prometheus to Stackdriver] adapter: [prometheus-to-sd-example]
 
 [Custom Metrics API]:
 https://github.com/kubernetes/metrics/tree/master/pkg/apis/custom_metrics
@@ -183,11 +187,17 @@ https://cloud.google.com/monitoring/custom-metrics/creating-metrics
 https://github.com/GoogleCloudPlatform/k8s-stackdriver/tree/master/prometheus-to-sd
 [custom metric naming rules]:
 https://github.com/kubernetes/community/blob/master/contributors/design-proposals/instrumentation/custom-metrics-api.md#metric-names
-[sd_dummy_exporter]:
-https://github.com/kawych/k8s-stackdriver/blob/docs/custom-metrics-stackdriver-adapter/testing/sd_dummy_exporter.go
+[direct-example]:
+https://github.com/GoogleCloudPlatform/k8s-stackdriver/blob/master/custom-metrics-stackdriver-adapter/examples/direct-to-sd
+[prometheus-to-sd-example]:
+https://github.com/GoogleCloudPlatform/k8s-stackdriver/blob/master/custom-metrics-stackdriver-adapter/examples/prometheus-to-sd
 [OAuth 2.0 API Scopes]:
 https://developers.google.com/identity/protocols/googlescopes
 [kube-up.sh script]:
 https://github.com/kubernetes/kubernetes/blob/master/cluster/kube-up.sh
 [monitored resources documentation]:
 https://cloud.google.com/monitoring/api/resources
+[Prometheus to Stackdriver]:
+https://github.com/GoogleCloudPlatform/k8s-stackdriver/tree/master/prometheus-to-sd
+[Prometheus text format]:
+https://prometheus.io/docs/instrumenting/exposition_formats
