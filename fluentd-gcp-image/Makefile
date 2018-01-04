@@ -26,7 +26,7 @@
 .PHONY:	build push
 
 PREFIX=gcr.io/google-containers
-TAG = 2.0.12
+TAG = 2.0.13
 
 build:
 	docker build --pull -t $(PREFIX)/fluentd-gcp:$(TAG) .
