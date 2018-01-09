@@ -42,6 +42,7 @@ func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan str
 	o := sampleAdapterServerOptions{
 		CustomMetricsAdapterServerOptions: baseOpts,
 		DiscoveryInterval:                 10 * time.Minute,
+		UseNewResourceModel:               false,
 	}
 
 	cmd := &cobra.Command{
@@ -70,6 +71,8 @@ func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan str
 		"any described objets")
 	flags.DurationVar(&o.DiscoveryInterval, "discovery-interval", o.DiscoveryInterval, ""+
 		"interval at which to refresh API discovery information")
+	flags.BoolVar(&o.UseNewResourceModel, "use-new-resource-model", o.UseNewResourceModel, ""+
+		"whether to use new Stackdriver resource model")
 
 	return cmd
 }
@@ -113,7 +116,7 @@ func (o sampleAdapterServerOptions) RunCustomMetricsAdapterServer(stopCh <-chan 
 	if err != nil {
 		return fmt.Errorf("Failed to create Stackdriver client: %v", err)
 	}
-	cmProvider := provider.NewStackdriverProvider(coreclient.New(client.RESTClient()), dynamicMapper, stackdriverService, 5*time.Minute)
+	cmProvider := provider.NewStackdriverProvider(coreclient.New(client.RESTClient()), dynamicMapper, stackdriverService, 5*time.Minute, o.UseNewResourceModel)
 
 	server, err := config.Complete().New(cmProvider)
 	if err != nil {
@@ -129,4 +132,7 @@ type sampleAdapterServerOptions struct {
 	RemoteKubeConfigFile string
 	// DiscoveryInterval is the interval at which discovery information is refreshed
 	DiscoveryInterval time.Duration
+	// UseNewResourceModel is a flag that indicates whether new Stackdriver resource model should be
+	// used
+	UseNewResourceModel bool
 }

@@ -48,16 +48,16 @@ func (f fakeClock) Now() time.Time {
 
 func TestTranslator_GetSDReqForPods_Single(t *testing.T) {
 	translator, sdService :=
-		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC))
+		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			// Pod name, namespace and labels are never used. UID is sufficient to identify a pod.
 			ClusterName: "my-cluster",
 			UID:         "my-pod-id",
+			Name:        "my-pod-name",
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName)
+	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "default")
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -65,8 +65,10 @@ func TestTranslator_GetSDReqForPods_Single(t *testing.T) {
 		Filter("metric.type = \"custom.googleapis.com/my/custom/metric\" " +
 			"AND resource.label.project_id = \"my-project\" " +
 			"AND resource.label.cluster_name = \"my-cluster\" " +
-			"AND resource.label.zone = \"my-zone\" AND resource.label.container_name = \"\" " +
-			"AND resource.label.pod_id = \"my-pod-id\"").
+			"AND resource.label.location = \"my-zone\" " +
+			"AND resource.label.namespace_name = \"default\" " +
+			"AND resource.label.pod_name = \"my-pod-name\" " +
+			"AND resource.type = \"k8s_pod\"").
 		IntervalStartTime("2017-01-02T13:00:00Z").
 		IntervalEndTime("2017-01-02T13:01:00Z").
 		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
@@ -78,7 +80,46 @@ func TestTranslator_GetSDReqForPods_Single(t *testing.T) {
 
 func TestTranslator_GetSDReqForPods_Multiple(t *testing.T) {
 	translator, sdService :=
-		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC))
+		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC), true)
+	pod1 := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id-1",
+			Name:        "my-pod-name-1",
+		},
+	}
+	pod2 := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id-2",
+			Name:        "my-pod-name-2",
+		},
+	}
+	metricName := "my/custom/metric"
+	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "default")
+	if err != nil {
+		t.Errorf("Translation error: %s", err)
+	}
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter("metric.type = \"custom.googleapis.com/my/custom/metric\" " +
+			"AND resource.label.project_id = \"my-project\" " +
+			"AND resource.label.cluster_name = \"my-cluster\" " +
+			"AND resource.label.location = \"my-zone\" " +
+			"AND resource.label.namespace_name = \"default\" " +
+			"AND resource.label.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
+			"AND resource.type = \"k8s_pod\"").
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:01:00Z").
+		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+		AggregationAlignmentPeriod("60s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected: \n%s,\n received: \n%s", *expectedRequest, *request)
+	}
+}
+
+func TestTranslator_GetSDReqForPods_legacyResourceModel(t *testing.T) {
+	translator, sdService :=
+		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC), false)
 	pod1 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			ClusterName: "my-cluster",
@@ -92,7 +133,7 @@ func TestTranslator_GetSDReqForPods_Multiple(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName)
+	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "default")
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -100,7 +141,6 @@ func TestTranslator_GetSDReqForPods_Multiple(t *testing.T) {
 		Filter("metric.type = \"custom.googleapis.com/my/custom/metric\" " +
 			"AND resource.label.project_id = \"my-project\" " +
 			"AND resource.label.cluster_name = \"my-cluster\" " +
-			"AND resource.label.zone = \"my-zone\" " +
 			"AND resource.label.container_name = \"\" " +
 			"AND resource.label.pod_id = one_of(\"my-pod-id-1\",\"my-pod-id-2\")").
 		IntervalStartTime("2017-01-02T13:00:00Z").
@@ -114,7 +154,7 @@ func TestTranslator_GetSDReqForPods_Multiple(t *testing.T) {
 
 func TestTranslator_GetRespForPod(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC))
+		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC), true)
 	var metricValue int64 = 151
 	response := &sd.ListTimeSeriesResponse{
 		TimeSeries: []*sd.TimeSeries{{
@@ -143,7 +183,7 @@ func TestTranslator_GetRespForPod(t *testing.T) {
 
 func TestTranslator_GetRespForPods(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC))
+		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC), true)
 	var val int64 = 151
 	response := &sd.ListTimeSeriesResponse{
 		TimeSeries: []*sd.TimeSeries{{
@@ -186,13 +226,27 @@ func TestTranslator_GetRespForPods(t *testing.T) {
 
 func TestTranslator_ListMetricDescriptors(t *testing.T) {
 	translator, sdService :=
-		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC))
+		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC), true)
 	request := translator.ListMetricDescriptors()
 	expectedRequest := sdService.Projects.MetricDescriptors.List("projects/my-project").
 		Filter("metric.type = starts_with(\"custom.googleapis.com/\") " +
 			"AND resource.label.project_id = \"my-project\" " +
 			"AND resource.label.cluster_name = \"my-cluster\" " +
-			"AND resource.label.zone = \"my-zone\" " +
+			"AND resource.label.location = \"my-zone\" " +
+			"AND resource.type = \"k8s_pod\"")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected: \n%s,\n received: \n%s", *expectedRequest, *request)
+	}
+}
+
+func TestTranslator_ListMetricDescriptors_legacyResourceType(t *testing.T) {
+	translator, sdService :=
+		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC), false)
+	request := translator.ListMetricDescriptors()
+	expectedRequest := sdService.Projects.MetricDescriptors.List("projects/my-project").
+		Filter("metric.type = starts_with(\"custom.googleapis.com/\") " +
+			"AND resource.label.project_id = \"my-project\" " +
+			"AND resource.label.cluster_name = \"my-cluster\" " +
 			"AND resource.label.container_name = \"\" AND resource.label.pod_id != \"\" " +
 			"AND resource.label.pod_id != \"machine\"")
 	if !reflect.DeepEqual(*request, *expectedRequest) {
@@ -202,7 +256,7 @@ func TestTranslator_ListMetricDescriptors(t *testing.T) {
 
 func TestTranslator_GetMetricsFromSDDescriptorsResp(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC))
+		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC), false)
 	response := &sd.ListMetricDescriptorsResponse{
 		MetricDescriptors: []*sd.MetricDescriptor{
 			{Type: "custom.googleapis.com/qps-int", MetricKind: "GAUGE", ValueType: "INT64"},
@@ -226,7 +280,7 @@ func TestTranslator_GetMetricsFromSDDescriptorsResp(t *testing.T) {
 	}
 }
 
-func newFakeTranslator(reqWindow time.Duration, metricPrefix, project, cluster, zone string, currentTime time.Time) (*Translator, *sd.Service) {
+func newFakeTranslator(reqWindow time.Duration, metricPrefix, project, cluster, location string, currentTime time.Time, useNewResourceModel bool) (*Translator, *sd.Service) {
 	sdService, err := sd.New(http.DefaultClient)
 	if err != nil {
 		glog.Fatal("Unexpected error creating stackdriver Service client")
@@ -240,9 +294,10 @@ func newFakeTranslator(reqWindow time.Duration, metricPrefix, project, cluster, 
 			MetricsPrefix: metricPrefix,
 			Project:       project,
 			Cluster:       cluster,
-			Zone:          zone,
+			Location:      location,
 		},
-		clock:  fakeClock{currentTime},
-		mapper: restMapper,
+		clock:               fakeClock{currentTime},
+		mapper:              restMapper,
+		useNewResourceModel: useNewResourceModel,
 	}, sdService
 }
