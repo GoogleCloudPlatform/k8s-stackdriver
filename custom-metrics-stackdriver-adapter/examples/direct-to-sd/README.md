@@ -25,7 +25,7 @@ The example can be used to test your custom metrics setup using Stackdriver. See
 
 Running 
 ```
-kubectl create -f https://github.com/GoogleCloudPlatform/k8s-stackdriver/blob/master/custom-metrics-stackdriver-adapter/examples/direct-to-sd/custom-metrics-sd.yaml 
+kubectl create -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/examples/direct-to-sd/custom-metrics-sd.yaml
 ```
 will create a custom-metric-sd deployment containing sd_dummy_exporter container.
 Additionally it will create the HPA object to tell Kubernetes to scale
