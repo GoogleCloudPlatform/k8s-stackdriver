@@ -5,7 +5,7 @@ that collects Docker container log files using [Fluentd][fluentd]
 and sends them to [Stackdriver Logging][stackdriverLogging].
 
 This image is designed to be used as part of the [Kubernetes][kubernetes]
-cluster bring up process. The image resides at DockerHub under the name
+cluster bring up process. The image resides at GCR under the name
 [gcr.io/google-containers/fluentd-gcp][image].
 
 # Usage
