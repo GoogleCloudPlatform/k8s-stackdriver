@@ -54,7 +54,7 @@ The example can be used to test your custom metrics setup using Stackdriver. See
 
 Running 
 ```
-kubectl create -f https://github.com/GoogleCloudPlatform/k8s-stackdriver/blob/master/custom-metrics-stackdriver-adapter/examples/prometheus-to-sd/custom-metrics-prometheus-sd.yaml 
+kubectl create -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/examples/prometheus-to-sd/custom-metrics-prometheus-sd.yaml 
 ```
 will create a custom-metric-prometheus-sd deployment containing prometheus_dummy_exporter container and a sidecar prometheus-to-sd container.
 Additionally it will create the HPA object to tell Kubernetes to scale the deployment based on the exported metric. Default maximum number of
