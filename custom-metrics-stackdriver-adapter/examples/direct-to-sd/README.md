@@ -49,7 +49,7 @@ Make sure that:
   * name starts with ```custom.googleapis.com/``` prefix
 * There are no errors when writing your metrics to Stackdriver.
 ```
-kubectl get logs custom-metric-sd
+kubectl logs custom-metric-sd
 ```
 Search for "Failed to write time series data" in the logs
 
