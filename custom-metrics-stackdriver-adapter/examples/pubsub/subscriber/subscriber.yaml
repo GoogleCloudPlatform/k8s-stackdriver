@@ -1,0 +1,35 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: pubsub-subscriber
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: pubsub-subscriber
+    spec:
+      volumes:
+      - name: google-cloud-key
+        secret:
+          secretName: pubsub-subscriber-key
+      containers:
+      - name: subscriber
+        image: gcr.io/aleksandram-public-images/pubsub-subscriber:dev
+        imagePullPolicy: Always
+        volumeMounts:
+        - name: google-cloud-key
+          mountPath: /var/secrets/google
+        command:
+          - ./pubsub_subscriber
+        env:
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: /var/secrets/google/key.json
+        - name: GOOGLE_CLOUD_PROJECT
+          value: aleksandram-gke-dev
+        - name: TOPIC
+          value: test-topic
+        - name: SUBSCRIPTION
+          value: test-sub
+        - name: INTERVAL
+          value: 1s
