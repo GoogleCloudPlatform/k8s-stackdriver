@@ -16,11 +16,17 @@ reset_to_defaults() {
   MEMORY_LIMIT=${DEFAULT_MEMORY_LIMIT}
 }
 
+log() {
+  echo $(date -Is) $*
+}
+
 apply_scaling() {
+  # This is assuming there is a ScalingPolicy installed in the cluster.
+  # See https://github.com/justinsb/scaler for more details.
   if ! kubectl get scalingpolicies -n ${NAMESPACE} ${SCALING_POLICY}
   then
-    echo "${SCALING_POLICY} not found in namespace ${NAMESPACE}, using defaults."
-    exit 0
+    log "${SCALING_POLICY} not found in namespace ${NAMESPACE}, using defaults."
+    return
   fi
   for resource_class in request limit
   do
@@ -74,13 +80,38 @@ build_flags() {
   add_limit memory ${MEMORY_LIMIT}
 }
 
+while test $# -gt 0; do
+  case "$1" in
+    --ds-name=*)
+      export DS_NAME=$(echo $1 | sed -e 's/^[^=]*=//g')
+      if [ -z ${DS_NAME} ]; then
+        log "Missing DaemonSet name in --ds-name flag." >&2
+        exit 1
+      fi
+      shift
+      ;;
+    --scaling-policy=*)
+      export SCALING_POLICY=$(echo $1 | sed -e 's/^[^=]*=//g')
+      if [ -z ${SCALING_POLICY} ]; then
+        log "Missing ScalingPolicy name in --scaling-policy flag." >&2
+        exit 1
+      fi
+      shift
+      ;;
+    *)
+      log "Unrecognized argument $1." >&2
+      exit 1
+      ;;
+  esac
+done
+
 if [ -z ${DS_NAME} ]; then
-  echo "DaemonSet name has to be set via DS_NAME variable." >&2
+  log "DaemonSet name has to be set via --ds-name flag." >&2
   exit 1
 fi
 
 if [ -z ${SCALING_POLICY} ]; then
-  echo "Scaling policy name was not specified." >&2
+  log "ScalingPolicy name has to be set via --scaling-policy flag." >&2
   exit 1
 fi
 
@@ -91,10 +122,8 @@ do
   build_flags
   if [ ${REQUESTS} ] || [ ${LIMITS} ]
   then
-    echo "Running: kubectl set resources -n ${NAMESPACE} ds ${DS_NAME} ${REQUESTS} ${LIMITS}"
+    log "Running: kubectl set resources -n ${NAMESPACE} ds ${DS_NAME} ${REQUESTS} ${LIMITS}"
     kubectl set resources -n ${NAMESPACE} ds ${DS_NAME} ${REQUESTS} ${LIMITS}
-  else
-    echo "No requests nor limits provided, doing nothing and going back to sleep."
   fi
   sleep ${SLEEP_SECONDS}
 done

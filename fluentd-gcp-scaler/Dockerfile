@@ -26,5 +26,3 @@ RUN \
     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false curl
 
 COPY scaler.sh /scaler.sh
-
-CMD /scaler.sh
