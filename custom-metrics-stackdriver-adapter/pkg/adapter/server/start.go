@@ -108,7 +108,11 @@ func (o sampleAdapterServerOptions) RunCustomMetricsAdapterServer(stopCh <-chan 
 		return fmt.Errorf("unable to construct dynamic mapper: %v", err)
 	}
 
-	oauthClient := oauth2.NewClient(oauth2.NoContext, google.ComputeTokenSource(""))
+	tokenSource, err := google.DefaultTokenSource(oauth2.NoContext, "")
+	if err != nil {
+		return fmt.Errorf("unable to use default token source: %v", err)
+	}
+	oauthClient := oauth2.NewClient(oauth2.NoContext, tokenSource)
 	stackdriverService, err := stackdriver.New(oauthClient)
 	if err != nil {
 		return fmt.Errorf("Failed to create Stackdriver client: %v", err)
