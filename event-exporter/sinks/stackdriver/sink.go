@@ -117,8 +117,9 @@ func (s *sdSink) OnDelete(*api_v1.Event) {
 
 func (s *sdSink) OnList(list *api_v1.EventList) {
 	if s.beforeFirstList {
-		s.logEntryChannel <- s.logEntryFactory.FromMessage("Event exporter started watching. " +
+		entry := s.logEntryFactory.FromMessage("Event exporter started watching. " +
 			"Some events may have been lost up to this point.")
+		s.writer.Write([]*sd.LogEntry{entry}, s.logName, s.config.Resource)
 		s.beforeFirstList = false
 	}
 }
