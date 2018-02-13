@@ -107,7 +107,7 @@ func parseMetricType(config *config.GceConfig, metricType string) (component, me
 	split := strings.SplitN(componentMetricName, "/", 2)
 
 	if len(split) < 1 || len(split) > 2 {
-		return "", "", fmt.Errorf("MetricType should be in format %v/<component>/<name> or %v/<name>. Got %v instead.", config.MetricsPrefix, metricType)
+		return "", "", fmt.Errorf("MetricType should be in format %v/<component>/<name> or %v/<name>. Got %v instead.", config.MetricsPrefix, metricType, componentMetricName)
 	}
 	if len(split) == 1 {
 		return "", split[0], nil
