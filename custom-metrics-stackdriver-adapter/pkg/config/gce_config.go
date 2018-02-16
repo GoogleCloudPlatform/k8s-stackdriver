@@ -25,7 +25,7 @@ import (
 // GceConfig aggregates all GCE related configuration parameters.
 type GceConfig struct {
 	Project       string
-	Zone          string
+	Location      string
 	Cluster       string
 	Instance      string
 	MetricsPrefix string
@@ -42,9 +42,9 @@ func GetGceConfig(metricsPrefix string) (*GceConfig, error) {
 		return nil, fmt.Errorf("error while getting project id: %v", err)
 	}
 
-	zone, err := gce.Zone()
+	location, err := gce.InstanceAttributeValue("cluster-location")
 	if err != nil {
-		return nil, fmt.Errorf("error while getting zone: %v", err)
+		return nil, fmt.Errorf("error while getting cluster location: %v", err)
 	}
 
 	cluster, err := gce.InstanceAttributeValue("cluster-name")
@@ -59,7 +59,7 @@ func GetGceConfig(metricsPrefix string) (*GceConfig, error) {
 
 	return &GceConfig{
 		Project:       project,
-		Zone:          zone,
+		Location:      location,
 		Cluster:       cluster,
 		Instance:      instance,
 		MetricsPrefix: metricsPrefix,

@@ -37,29 +37,40 @@ import (
 
 // Translator is a structure used to translate between Custom Metrics API and Stackdriver API
 type Translator struct {
-	service   *stackdriver.Service
-	config    *config.GceConfig
-	reqWindow time.Duration
-	clock     clock
-	mapper    apimeta.RESTMapper
+	service             *stackdriver.Service
+	config              *config.GceConfig
+	reqWindow           time.Duration
+	clock               clock
+	mapper              apimeta.RESTMapper
+	useNewResourceModel bool
 }
 
 // GetSDReqForPods returns Stackdriver request for query for multiple pods.
 // podList is required to be no longer than 100 items. This is enforced by limitation of "one_of()"
 // operator in Stackdriver filters, see documentation:
 // https://cloud.google.com/monitoring/api/v3/filters
-func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
+func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName string, namespace string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
 	if len(podList.Items) == 0 {
 		return nil, apierr.NewBadRequest("No objects matched to provided selector")
 	}
 	if len(podList.Items) > 100 {
 		return nil, apierr.NewInternalError(fmt.Errorf("GetSDReqForPods called with %v pod list, but allowed limit is 100 pods", len(podList.Items)))
 	}
-	resourceIDs := getResourceIDs(podList)
-	filter := joinFilters(
-		t.filterForMetric(t.config.MetricsPrefix+"/"+metricName),
-		t.filterForCluster(),
-		t.filterForPods(resourceIDs))
+	var filter string
+	if t.useNewResourceModel {
+		resourceNames := getResourceNames(podList)
+		filter = joinFilters(
+			t.filterForMetric(t.config.MetricsPrefix+"/"+metricName),
+			t.filterForCluster(),
+			t.filterForPods(resourceNames, namespace),
+			t.filterForAnyPod())
+	} else {
+		resourceIDs := getResourceIDs(podList)
+		filter = joinFilters(
+			t.filterForMetric(t.config.MetricsPrefix+"/"+metricName),
+			t.legacyFilterForCluster(),
+			t.legacyFilterForPods(resourceIDs))
+	}
 	return t.createListTimeseriesRequest(filter), nil
 }
 
@@ -97,7 +108,12 @@ func (t *Translator) GetRespForPods(response *stackdriver.ListTimeSeriesResponse
 
 // ListMetricDescriptors returns Stackdriver request for all custom metrics descriptors.
 func (t *Translator) ListMetricDescriptors() *stackdriver.ProjectsMetricDescriptorsListCall {
-	filter := joinFilters(t.filterForMetricPrefix(), t.filterForCluster(), t.filterForAnyObject())
+	var filter string
+	if t.useNewResourceModel {
+		filter = joinFilters(t.filterForMetricPrefix(), t.filterForCluster(), t.filterForAnyPod())
+	} else {
+		filter = joinFilters(t.filterForMetricPrefix(), t.legacyFilterForCluster(), t.legacyFilterForAnyPod())
+	}
 	return t.service.Projects.MetricDescriptors.
 		List(fmt.Sprintf("projects/%s", t.config.Project)).
 		Filter(filter)
@@ -124,6 +140,14 @@ func (t *Translator) GetMetricsFromSDDescriptorsResp(response *stackdriver.ListM
 	return metrics
 }
 
+func getResourceNames(list *v1.PodList) []string {
+	resourceNames := []string{}
+	for _, item := range list.Items {
+		resourceNames = append(resourceNames, fmt.Sprintf("%q", item.GetName()))
+	}
+	return resourceNames
+}
+
 func getResourceIDs(list *v1.PodList) []string {
 	resourceIDs := []string{}
 	for _, item := range list.Items {
@@ -138,10 +162,9 @@ func joinFilters(filters ...string) string {
 
 func (t *Translator) filterForCluster() string {
 	projectFilter := fmt.Sprintf("resource.label.project_id = %q", t.config.Project)
-	zoneFilter := fmt.Sprintf("resource.label.zone = %q", t.config.Zone)
 	clusterFilter := fmt.Sprintf("resource.label.cluster_name = %q", strings.TrimSpace(t.config.Cluster))
-	containerFilter := "resource.label.container_name = \"\""
-	return fmt.Sprintf("%s AND %s AND %s AND %s", projectFilter, clusterFilter, zoneFilter, containerFilter)
+	locationFilter := fmt.Sprintf("resource.label.location = %q", t.config.Location)
+	return fmt.Sprintf("%s AND %s AND %s", projectFilter, clusterFilter, locationFilter)
 }
 
 func (t *Translator) filterForMetricPrefix() string {
@@ -152,11 +175,32 @@ func (t *Translator) filterForMetric(metricName string) string {
 	return fmt.Sprintf("metric.type = %q", metricName)
 }
 
-func (t *Translator) filterForAnyObject() string {
+func (t *Translator) filterForAnyPod() string {
+	return "resource.type = \"k8s_pod\""
+}
+
+func (t *Translator) filterForPods(podNames []string, namespace string) string {
+	if len(podNames) == 0 {
+		glog.Fatalf("createFilterForIDs called with empty list of pod IDs")
+	} else if len(podNames) == 1 {
+		return fmt.Sprintf("resource.label.namespace_name = %q AND resource.label.pod_name = %s", namespace, podNames[0])
+	}
+	return fmt.Sprintf("resource.label.namespace_name = %q AND resource.label.pod_name = one_of(%s)", namespace, strings.Join(podNames, ","))
+}
+
+func (t *Translator) legacyFilterForCluster() string {
+	projectFilter := fmt.Sprintf("resource.label.project_id = %q", t.config.Project)
+	// Skip location, since it may be set incorrectly by Heapster for old resource model
+	clusterFilter := fmt.Sprintf("resource.label.cluster_name = %q", strings.TrimSpace(t.config.Cluster))
+	containerFilter := "resource.label.container_name = \"\""
+	return fmt.Sprintf("%s AND %s AND %s", projectFilter, clusterFilter, containerFilter)
+}
+
+func (t *Translator) legacyFilterForAnyPod() string {
 	return "resource.label.pod_id != \"\" AND resource.label.pod_id != \"machine\""
 }
 
-func (t *Translator) filterForPods(podIDs []string) string {
+func (t *Translator) legacyFilterForPods(podIDs []string) string {
 	if len(podIDs) == 0 {
 		glog.Fatalf("createFilterForIDs called with empty list of pod IDs")
 	} else if len(podIDs) == 1 {

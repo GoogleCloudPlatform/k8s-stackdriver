@@ -34,8 +34,6 @@ import (
 )
 
 // TODO(kawych):
-// * Handle clusters with nodes in multiple zones. Currently the Adapter always queries metrics in
-//   the same zone it runs.
 // * Support metrics for objects other than pod, e.i. root-scoped - depends on SD resource types.
 // * Support long responses from Stackdriver (pagination).
 
@@ -51,15 +49,16 @@ func (c realClock) Now() time.Time {
 
 // StackdriverProvider is a provider of custom metrics from Stackdriver.
 type StackdriverProvider struct {
-	kubeClient         *corev1.CoreV1Client
-	stackdriverService *stackdriver.Service
-	config             *config.GceConfig
-	rateInterval       time.Duration
-	translator         *Translator
+	kubeClient          *corev1.CoreV1Client
+	stackdriverService  *stackdriver.Service
+	config              *config.GceConfig
+	rateInterval        time.Duration
+	translator          *Translator
+	useNewResourceModel bool
 }
 
 // NewStackdriverProvider creates a StackdriverProvider
-func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.RESTMapper, stackdriverService *stackdriver.Service, rateInterval time.Duration) provider.CustomMetricsProvider {
+func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.RESTMapper, stackdriverService *stackdriver.Service, rateInterval time.Duration, useNewResourceModel bool) provider.CustomMetricsProvider {
 	gceConf, err := config.GetGceConfig("custom.googleapis.com")
 	if err != nil {
 		glog.Fatalf("Failed to retrieve GCE config: %v", err)
@@ -71,11 +70,12 @@ func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.REST
 		config:             gceConf,
 		rateInterval:       rateInterval,
 		translator: &Translator{
-			service:   stackdriverService,
-			config:    gceConf,
-			reqWindow: rateInterval,
-			clock:     realClock{},
-			mapper:    mapper,
+			service:             stackdriverService,
+			config:              gceConf,
+			reqWindow:           rateInterval,
+			clock:               realClock{},
+			mapper:              mapper,
+			useNewResourceModel: useNewResourceModel,
 		},
 	}
 }
@@ -99,7 +99,7 @@ func (p *StackdriverProvider) GetNamespacedMetricByName(groupResource schema.Gro
 	if err != nil {
 		return nil, err
 	}
-	stackdriverRequest, err := p.translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{*matchingPod}}, metricName)
+	stackdriverRequest, err := p.translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{*matchingPod}}, metricName, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func (p *StackdriverProvider) GetNamespacedMetricBySelector(groupResource schema
 	}
 	result := []custom_metrics.MetricValue{}
 	for i := 0; i < len(matchingPods.Items); i += 100 {
-		stackdriverRequest, err := p.translator.GetSDReqForPods(&v1.PodList{Items: matchingPods.Items[i:min(i+100, len(matchingPods.Items))]}, metricName)
+		stackdriverRequest, err := p.translator.GetSDReqForPods(&v1.PodList{Items: matchingPods.Items[i:min(i+100, len(matchingPods.Items))]}, metricName, namespace)
 		if err != nil {
 			return nil, err
 		}

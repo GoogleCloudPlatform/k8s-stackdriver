@@ -173,6 +173,7 @@ url-list
 use-cluster-credentials
 use-ip
 use-kubernetes-cluster-service
+use-new-resource-model
 use-real-cloud
 use-reviewers
 user-whitelist
