@@ -1,0 +1,30 @@
+timeout: 10800s
+
+substitutions:
+  { "_PREFIX": "gcr.io/k8s-image-staging",
+    "_TAG": "2.0.16" }
+
+steps:
+- name: gcr.io/cloud-builders/git
+  id: git-clone
+  entrypoint: bash
+  args:
+  - "-c"
+  - |
+    set -ex
+    mkdir -p /workspace/src/k8s.io
+    cd /workspace/src/k8s.io
+    git clone https://github.com/GoogleCloudPlatform/k8s-stackdriver
+
+- name: gcr.io/cloud-builders/docker
+  id: docker-build
+  entrypoint: bash
+  dir: "/workspace/src/k8s.io/k8s-stackdriver/fluentd-gcp-image"
+  args:
+  - "-c"
+  - |
+    set -e
+    docker build -t ${_PREFIX}/fluentd-gcp:${_TAG} .
+
+images:
+- "${_PREFIX}/fluentd-gcp:${_TAG}"
