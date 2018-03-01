@@ -7,8 +7,7 @@ k8s cluster should run on GCE or GKE.
 
 ## Container Image
 
-The latest container image can be found at
-`gcr.io/google-containers/prometheus-to-sd:v0.2.1`.
+Look at the following link: https://gcr.io/google-containers/prometheus-to-sd and pick the latest image. 
 
 # Usage
 
