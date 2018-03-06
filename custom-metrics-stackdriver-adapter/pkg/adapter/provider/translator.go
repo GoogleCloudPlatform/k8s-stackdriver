@@ -162,7 +162,7 @@ func joinFilters(filters ...string) string {
 
 func (t *Translator) filterForCluster() string {
 	projectFilter := fmt.Sprintf("resource.label.project_id = %q", t.config.Project)
-	clusterFilter := fmt.Sprintf("resource.label.cluster_name = %q", strings.TrimSpace(t.config.Cluster))
+	clusterFilter := fmt.Sprintf("resource.label.cluster_name = %q", t.config.Cluster)
 	locationFilter := fmt.Sprintf("resource.label.location = %q", t.config.Location)
 	return fmt.Sprintf("%s AND %s AND %s", projectFilter, clusterFilter, locationFilter)
 }
@@ -191,7 +191,7 @@ func (t *Translator) filterForPods(podNames []string, namespace string) string {
 func (t *Translator) legacyFilterForCluster() string {
 	projectFilter := fmt.Sprintf("resource.label.project_id = %q", t.config.Project)
 	// Skip location, since it may be set incorrectly by Heapster for old resource model
-	clusterFilter := fmt.Sprintf("resource.label.cluster_name = %q", strings.TrimSpace(t.config.Cluster))
+	clusterFilter := fmt.Sprintf("resource.label.cluster_name = %q", t.config.Cluster)
 	containerFilter := "resource.label.container_name = \"\""
 	return fmt.Sprintf("%s AND %s AND %s", projectFilter, clusterFilter, containerFilter)
 }

@@ -20,6 +20,8 @@ import (
 	"fmt"
 
 	gce "cloud.google.com/go/compute/metadata"
+	"github.com/golang/glog"
+	"strings"
 )
 
 // GceConfig aggregates all GCE related configuration parameters.
@@ -44,7 +46,11 @@ func GetGceConfig(metricsPrefix string) (*GceConfig, error) {
 
 	location, err := gce.InstanceAttributeValue("cluster-location")
 	if err != nil {
-		return nil, fmt.Errorf("error while getting cluster location: %v", err)
+		glog.Warningf("Failed to retrieve cluster location, falling back to local zone: %s", err)
+		location, err = gce.Zone()
+		if err != nil {
+			return nil, fmt.Errorf("error while getting cluster location: %v", err)
+		}
 	}
 
 	cluster, err := gce.InstanceAttributeValue("cluster-name")
@@ -58,9 +64,10 @@ func GetGceConfig(metricsPrefix string) (*GceConfig, error) {
 	}
 
 	return &GceConfig{
-		Project:       project,
-		Location:      location,
-		Cluster:       cluster,
+		Project: project,
+		// Trim trailing '\n' from parameters obtained from instance attributes
+		Location:      strings.TrimSpace(location),
+		Cluster:       strings.TrimSpace(cluster),
 		Instance:      instance,
 		MetricsPrefix: metricsPrefix,
 	}, nil
