@@ -11,9 +11,11 @@ custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:		return f
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:		return timeSeries.Resource.Labels["pod_id"], nil
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	return "resource.label.pod_id != \"\" AND resource.label.pod_id != \"machine\""
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	return fmt.Sprintf("resource.label.pod_id = one_of(%s)", strings.Join(podIDs, ","))
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:				"resource.label.pod_id": "my-pod-id",
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.label.container_name = \"\" AND resource.label.pod_id != \"\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.label.pod_id != \"machine\"")
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.label.pod_id = one_of(\"my-pod-id-1\",\"my-pod-id-2\")").
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
 kubelet-to-gcm/monitor/controller/translator.go:		"namespace_id":   "",
