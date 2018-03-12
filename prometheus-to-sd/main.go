@@ -152,6 +152,8 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 		}
 		if strings.HasPrefix(commonConfig.GceConfig.MetricsPrefix, customMetricsPrefix) {
 			metricDescriptorCache.UpdateMetricDescriptors(metrics, sourceConfig.Whitelisted)
+		} else {
+			metricDescriptorCache.ValidateMetricDescriptors(metrics, sourceConfig.Whitelisted)
 		}
 		ts := translator.TranslatePrometheusToStackdriver(commonConfig, sourceConfig.Whitelisted, metrics, metricDescriptorCache)
 		translator.SendToStackdriver(stackdriverService, commonConfig, ts)
