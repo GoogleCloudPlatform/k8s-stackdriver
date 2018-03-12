@@ -84,7 +84,7 @@ func (cache *MetricDescriptorCache) ValidateMetricDescriptors(metrics map[string
 			continue
 		}
 		updatedMetricDescriptor := MetricFamilyToMetricDescriptor(cache.config, metricFamily, metricDescriptor)
-		if descriptorChanged(metricDescriptor, updatedMetricDescriptor) {
+		if descriptorLabelSetChanged(metricDescriptor, updatedMetricDescriptor) {
 			cache.broken[metricFamily.GetName()] = true
 			glog.Warningf("Definition of the metric %s was changed and metric is not going to be pushed", metricFamily.GetName())
 		}
@@ -141,10 +141,18 @@ func (cache *MetricDescriptorCache) getMetricDescriptor(metric string) *v3.Metri
 }
 
 func descriptorChanged(original *v3.MetricDescriptor, checked *v3.MetricDescriptor) bool {
+	return descriptorDescriptionChanged(original, checked) || descriptorLabelSetChanged(original, checked)
+}
+
+func descriptorDescriptionChanged(original *v3.MetricDescriptor, checked *v3.MetricDescriptor) bool {
 	if original.Description != checked.Description {
 		glog.V(4).Infof("Description is different, %v != %v", original.Description, checked.Description)
 		return true
 	}
+	return false
+}
+
+func descriptorLabelSetChanged(original *v3.MetricDescriptor, checked *v3.MetricDescriptor) bool {
 	for _, label := range checked.Labels {
 		found := false
 		for _, labelFromOriginal := range original.Labels {
