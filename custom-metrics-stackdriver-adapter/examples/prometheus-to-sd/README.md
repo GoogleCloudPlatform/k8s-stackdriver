@@ -134,7 +134,7 @@ This should return a MetricValueList object. If you get a 404, the metric timese
 custom-metrics-stackdriver-adapter.
 
 Make sure that:
-* pod-id and namespace-id are passed in correctly to prometheus-to-sd container. See [example](prometheus-to-sd-flags)
+* pod-id and namespace-id are passed in correctly to prometheus-to-sd container. See [example](#prometheus-to-sd-flags)
 
 4. Check that the HPA object is configured correctly
 
