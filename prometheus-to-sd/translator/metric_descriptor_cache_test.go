@@ -75,14 +75,18 @@ func TestDescriptorChanged(t *testing.T) {
 func TestValidateMetricDescriptors(t *testing.T) {
 	testCases := []struct {
 		description  string
-		descriptors  []string
+		descriptors  []*v3.MetricDescriptor
 		metricFamily *dto.MetricFamily
 		missing      bool
 		broken       bool
 	}{
 		{
 			description: "Metric is broken if new label was added",
-			descriptors: []string{"descriptor1"},
+			descriptors: []*v3.MetricDescriptor{
+				{
+					Name: "descriptor1",
+				},
+			},
 			metricFamily: &dto.MetricFamily{
 				Name: stringPtr("descriptor1"),
 				Metric: []*dto.Metric{
@@ -104,7 +108,11 @@ func TestValidateMetricDescriptors(t *testing.T) {
 		},
 		{
 			description: "Metric family hasn't changed",
-			descriptors: []string{"descriptor1"},
+			descriptors: []*v3.MetricDescriptor{
+				{
+					Name: "descriptor1",
+				},
+			},
 			metricFamily: &dto.MetricFamily{
 				Name: stringPtr("descriptor1"),
 				Metric: []*dto.Metric{
@@ -120,7 +128,11 @@ func TestValidateMetricDescriptors(t *testing.T) {
 		},
 		{
 			description: "Metric is not in the cache",
-			descriptors: []string{"descriptor1"},
+			descriptors: []*v3.MetricDescriptor{
+				{
+					Name: "descriptor1",
+				},
+			},
 			metricFamily: &dto.MetricFamily{
 				Name: stringPtr("descriptor2"),
 				Metric: []*dto.Metric{
@@ -132,6 +144,28 @@ func TestValidateMetricDescriptors(t *testing.T) {
 				},
 			},
 			missing: true,
+			broken:  false,
+		},
+		{
+			description: "Description change doesn't break metric family",
+			descriptors: []*v3.MetricDescriptor{
+				{
+					Name:        "descriptor1",
+					Description: "original description",
+				},
+			},
+			metricFamily: &dto.MetricFamily{
+				Name: stringPtr("descriptor1"),
+				Help: stringPtr("changed description"),
+				Metric: []*dto.Metric{
+					{
+						Counter: &dto.Counter{
+							Value: floatPtr(100.0),
+						},
+					},
+				},
+			},
+			missing: false,
 			broken:  false,
 		},
 	}
@@ -149,16 +183,16 @@ func TestValidateMetricDescriptors(t *testing.T) {
 				},
 			},
 		}
+		var whitelisted []string
 		for _, descriptor := range tc.descriptors {
-			cache.descriptors[descriptor] = &v3.MetricDescriptor{
-				Name: descriptor,
-			}
-			cache.broken[descriptor] = false
+			cache.descriptors[descriptor.Name] = descriptor
+			cache.broken[descriptor.Name] = false
+			whitelisted = append(whitelisted, descriptor.Name)
 			metrics := make(map[string]*dto.MetricFamily)
 			metricName := tc.metricFamily.GetName()
 			metrics[metricName] = tc.metricFamily
 
-			cache.ValidateMetricDescriptors(metrics, tc.descriptors)
+			cache.ValidateMetricDescriptors(metrics, whitelisted)
 			res, ok := cache.broken[metricName]
 
 			if tc.missing {
