@@ -117,6 +117,37 @@ func TestTranslator_GetSDReqForPods_Multiple(t *testing.T) {
 	}
 }
 
+func TestTranslator_GetSDReqForNodes(t *testing.T) {
+	translator, sdService :=
+		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC), true)
+	node := v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-node-id-1",
+			Name:        "my-node-name-1",
+		},
+	}
+	metricName := "my/custom/metric"
+	request, err := translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{node}}, metricName)
+	if err != nil {
+		t.Errorf("Translation error: %s", err)
+	}
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter("metric.type = \"custom.googleapis.com/my/custom/metric\" " +
+			"AND resource.label.project_id = \"my-project\" " +
+			"AND resource.label.cluster_name = \"my-cluster\" " +
+			"AND resource.label.location = \"my-zone\" " +
+			"AND resource.label.node_name = \"my-node-name-1\" " +
+			"AND resource.type = \"k8s_node\"").
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:01:00Z").
+		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+		AggregationAlignmentPeriod("60s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected: \n%s,\n received: \n%s", *expectedRequest, *request)
+	}
+}
+
 func TestTranslator_GetSDReqForPods_legacyResourceModel(t *testing.T) {
 	translator, sdService :=
 		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC), false)
@@ -152,9 +183,67 @@ func TestTranslator_GetSDReqForPods_legacyResourceModel(t *testing.T) {
 	}
 }
 
-func TestTranslator_GetRespForPod(t *testing.T) {
+func TestTranslator_GetRespForNodes_Aggregation(t *testing.T) {
 	translator, _ :=
 		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC), true)
+	var valPart1 float64 = 101
+	var valPart2 float64 = 50
+	response := &sd.ListTimeSeriesResponse{
+		TimeSeries: []*sd.TimeSeries{
+			{
+				Resource:   &sd.MonitoredResource{Type: "k8s_node", Labels: map[string]string{"node_name": "my-node-name"}},
+				MetricKind: "GAUGE",
+				ValueType:  "DOUBLE",
+				Metric: &sd.Metric{
+					Type:   "custom.googleapis.com/my/custom/metric",
+					Labels: map[string]string{"irrelevant_label": "value1"},
+				},
+				Points: []*sd.Point{{Interval: &sd.TimeInterval{StartTime: "2017-01-02T13:00:00Z", EndTime: "2017-01-02T13:01:00Z"}, Value: &sd.TypedValue{DoubleValue: &valPart1}}},
+			},
+			{
+				Resource:   &sd.MonitoredResource{Type: "k8s_node", Labels: map[string]string{"node_name": "my-node-name"}},
+				MetricKind: "GAUGE",
+				ValueType:  "DOUBLE",
+				Metric: &sd.Metric{
+					Type:   "custom.googleapis.com/my/custom/metric",
+					Labels: map[string]string{"irrelevant_label": "value2"},
+				},
+				Points: []*sd.Point{{Interval: &sd.TimeInterval{StartTime: "2017-01-02T13:00:00Z", EndTime: "2017-01-02T13:01:00Z"}, Value: &sd.TypedValue{DoubleValue: &valPart2}}},
+			},
+		},
+	}
+	node := v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "my-node-name",
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+		},
+	}
+	metrics, err := translator.GetRespForMultipleObjects(response, translator.getNodeItems(&v1.NodeList{Items: []v1.Node{node}}), schema.GroupResource{Resource: "Node"}, "my/custom/metric")
+	if err != nil {
+		t.Errorf("Translation error: %s", err)
+	}
+	expectedMetrics := []custom_metrics.MetricValue{
+		{
+			Value:           *resource.NewMilliQuantity(151000, resource.DecimalSI),
+			Timestamp:       metav1.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC),
+			DescribedObject: custom_metrics.ObjectReference{Name: "my-node-name", APIVersion: "/__internal", Kind: "Node"},
+			MetricName:      "my/custom/metric",
+		},
+	}
+	if len(metrics) != len(expectedMetrics) {
+		t.Errorf("Unexpected result. Expected %v metrics, received %v", len(expectedMetrics), len(metrics))
+	}
+	for i := range metrics {
+		if !reflect.DeepEqual(metrics[i], expectedMetrics[i]) {
+			t.Errorf("Unexpected result. Expected: \n%s,\n received: \n%s", expectedMetrics[i], metrics[i])
+		}
+	}
+}
+
+func TestTranslator_GetRespForPod_legacyResourceType(t *testing.T) {
+	translator, _ :=
+		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC), false)
 	var metricValue int64 = 151
 	response := &sd.ListTimeSeriesResponse{
 		TimeSeries: []*sd.TimeSeries{{
@@ -165,7 +254,7 @@ func TestTranslator_GetRespForPod(t *testing.T) {
 			Points:     []*sd.Point{{Interval: &sd.TimeInterval{StartTime: "2017-01-02T13:00:00Z", EndTime: "2017-01-02T13:01:00Z"}, Value: &sd.TypedValue{Int64Value: &metricValue}}},
 		}},
 	}
-	metric, err := translator.GetRespForPod(response, schema.GroupResource{Resource: "Pod", Group: ""}, "my/custom/metric", "my-namespace", "my-pod-name")
+	metric, err := translator.GetRespForSingleObject(response, schema.GroupResource{Resource: "Pod", Group: ""}, "my/custom/metric", "my-namespace", "my-pod-name")
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 		return
@@ -181,9 +270,9 @@ func TestTranslator_GetRespForPod(t *testing.T) {
 	}
 }
 
-func TestTranslator_GetRespForPods(t *testing.T) {
+func TestTranslator_GetRespForPods_legacyResourceType(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC), true)
+		newFakeTranslator(time.Minute, "custom.googleapis.com", "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC), false)
 	var val int64 = 151
 	response := &sd.ListTimeSeriesResponse{
 		TimeSeries: []*sd.TimeSeries{{
@@ -202,7 +291,7 @@ func TestTranslator_GetRespForPods(t *testing.T) {
 			UID:         "my-pod-id",
 		},
 	}
-	metrics, err := translator.GetRespForPods(response, &v1.PodList{Items: []v1.Pod{pod}}, schema.GroupResource{Resource: "Pod"}, "my/custom/metric", "my-namespace")
+	metrics, err := translator.GetRespForMultipleObjects(response, translator.getPodItems(&v1.PodList{Items: []v1.Pod{pod}}), schema.GroupResource{Resource: "Pod"}, "my/custom/metric")
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -215,7 +304,7 @@ func TestTranslator_GetRespForPods(t *testing.T) {
 		},
 	}
 	if len(metrics) != len(expectedMetrics) {
-		t.Errorf("Unexpected result. Expected %s metrics, received %s", len(expectedMetrics), len(metrics))
+		t.Errorf("Unexpected result. Expected %v metrics, received %v", len(expectedMetrics), len(metrics))
 	}
 	for i := range metrics {
 		if !reflect.DeepEqual(metrics[i], expectedMetrics[i]) {
@@ -233,7 +322,7 @@ func TestTranslator_ListMetricDescriptors(t *testing.T) {
 			"AND resource.label.project_id = \"my-project\" " +
 			"AND resource.label.cluster_name = \"my-cluster\" " +
 			"AND resource.label.location = \"my-zone\" " +
-			"AND resource.type = \"k8s_pod\"")
+			"AND resource.type = one_of(\"k8s_pod\",\"k8s_node\")")
 	if !reflect.DeepEqual(*request, *expectedRequest) {
 		t.Errorf("Unexpected result. Expected: \n%s,\n received: \n%s", *expectedRequest, *request)
 	}
@@ -272,8 +361,8 @@ func TestTranslator_GetMetricsFromSDDescriptorsResp(t *testing.T) {
 	}
 	metricInfo := translator.GetMetricsFromSDDescriptorsResp(response)
 	expectedMetricInfo := []provider.MetricInfo{
-		{Metric: "qps-int", GroupResource: schema.GroupResource{Group: "", Resource: "pods"}, Namespaced: true},
-		{Metric: "qps-double", GroupResource: schema.GroupResource{Group: "", Resource: "pods"}, Namespaced: true},
+		{Metric: "qps-int", GroupResource: schema.GroupResource{Group: "", Resource: "*"}, Namespaced: true},
+		{Metric: "qps-double", GroupResource: schema.GroupResource{Group: "", Resource: "*"}, Namespaced: true},
 	}
 	if !reflect.DeepEqual(metricInfo, expectedMetricInfo) {
 		t.Errorf("Unexpected result. Expected: \n%s,\n received: \n%s", expectedMetricInfo, metricInfo)
@@ -287,6 +376,7 @@ func newFakeTranslator(reqWindow time.Duration, metricPrefix, project, cluster, 
 	}
 	restMapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{}, meta.InterfacesForUnstructured)
 	restMapper.Add(v1.SchemeGroupVersion.WithKind("Pod"), meta.RESTScopeNamespace)
+	restMapper.Add(v1.SchemeGroupVersion.WithKind("Node"), meta.RESTScopeRoot)
 	return &Translator{
 		service:   sdService,
 		reqWindow: reqWindow,
