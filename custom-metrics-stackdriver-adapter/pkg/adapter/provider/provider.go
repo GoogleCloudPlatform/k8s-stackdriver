@@ -140,7 +140,7 @@ func (p *StackdriverProvider) GetRootScopedMetricBySelector(groupResource schema
 // GetNamespacedMetricByName queries Stackdriver for metrics identified by name and associated
 // with a namespace.
 func (p *StackdriverProvider) GetNamespacedMetricByName(groupResource schema.GroupResource, namespace string, name string, metricName string) (*custom_metrics.MetricValue, error) {
-	if groupResource.Resource != nodeResource {
+	if groupResource.Resource != podResource {
 		return nil, provider.NewOperationNotSupportedError(fmt.Sprintf("Get namespaced metric by name for resource %q", groupResource.Resource))
 	}
 	matchingPod, err := p.kubeClient.Pods(namespace).Get(name, metav1.GetOptions{})
