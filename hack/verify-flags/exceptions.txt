@@ -6,18 +6,27 @@ custom-metrics-stackdriver-adapter/README.md:       podIdFlag := flag.String("po
 custom-metrics-stackdriver-adapter/README.md:     - `pod_id` - set this to pod UID obtained via downward API. Example configuration that passes POD_ID to your application as a flag:
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"namespace_id": "default",
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"pod_id":         podId,
+custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"pod_name":       name,
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		// namespace_id and instance_id don't matter
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:			return timeSeries.Resource.Labels["namespace_name"] + ":" + timeSeries.Resource.Labels["pod_name"], nil
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:		return fmt.Sprintf("resource.label.namespace_name = %q AND resource.label.pod_name = %s", namespace, podNames[0])
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:		return fmt.Sprintf("resource.label.pod_id = %s", podIDs[0])
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:		return timeSeries.Resource.Labels["pod_id"], nil
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	return "resource.label.pod_id != \"\" AND resource.label.pod_id != \"machine\""
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	return fmt.Sprintf("resource.label.namespace_name = %q AND resource.label.pod_name = one_of(%s)", namespace, strings.Join(podNames, ","))
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	return fmt.Sprintf("resource.label.pod_id = one_of(%s)", strings.Join(podIDs, ","))
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:				"resource.label.pod_id": "my-pod-id",
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.label : pod_name " +
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.label.container_name = \"\" AND resource.label.pod_id != \"\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.label.pod_id != \"machine\"")
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.label.pod_id = one_of(\"my-pod-id-1\",\"my-pod-id-2\")").
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.label.pod_name = \"my-pod-name\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.label.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:	req2, _ := labels.NewRequirement("resource.label.pod_name", selection.Exists, []string{})
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:	req3, _ := labels.NewRequirement("resource.label.pod_name", selection.Exists, []string{})
 kubelet-to-gcm/monitor/controller/translator.go:		"namespace_id":   "",
 kubelet-to-gcm/monitor/controller/translator.go:		"pod_id":         "machine",
 kubelet-to-gcm/monitor/kubelet/translate.go:				"namespace_id":   namespace,

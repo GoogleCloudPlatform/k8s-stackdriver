@@ -107,6 +107,7 @@ one-time
 on-start
 path-label-config
 pod-id
+pod-name
 pod-scheduled-timeout
 poll-period
 presubmit-jobs
@@ -174,6 +175,7 @@ use-cluster-credentials
 use-ip
 use-kubernetes-cluster-service
 use-new-resource-model
+use-old-resource-model
 use-real-cloud
 use-reviewers
 user-whitelist
