@@ -27,8 +27,8 @@ import (
 )
 
 // GetPrometheusMetrics scrapes metrics from the given host and port using /metrics handler.
-func GetPrometheusMetrics(host string, port uint) (map[string]*dto.MetricFamily, error) {
-	url := fmt.Sprintf("http://%s:%d/metrics", host, port)
+func GetPrometheusMetrics(host string, port uint, path string) (map[string]*dto.MetricFamily, error) {
+	url := fmt.Sprintf("http://%s:%d%s", host, port, path)
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("request %s failed: %v", url, err)

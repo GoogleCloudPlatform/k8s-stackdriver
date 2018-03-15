@@ -32,11 +32,12 @@ type SourceConfig struct {
 	Component   string
 	Host        string
 	Port        uint
+	Path        string
 	Whitelisted []string
 }
 
 // newSourceConfig creates a new SourceConfig based on string representation of fields.
-func newSourceConfig(component string, host string, port string, whitelisted string) (*SourceConfig, error) {
+func newSourceConfig(component string, host string, port string, path string, whitelisted string) (*SourceConfig, error) {
 	if port == "" {
 		return nil, fmt.Errorf("No port provided.")
 	}
@@ -55,6 +56,7 @@ func newSourceConfig(component string, host string, port string, whitelisted str
 		Component:   component,
 		Host:        host,
 		Port:        uint(portNum),
+		Path:        path,
 		Whitelisted: whitelistedList,
 	}, nil
 }
@@ -68,9 +70,10 @@ func parseSourceConfig(uri flags.Uri) (*SourceConfig, error) {
 
 	component := uri.Key
 	values := uri.Val.Query()
+	path := uri.Val.Path
 	whitelisted := values.Get("whitelisted")
 
-	return newSourceConfig(component, host, port, whitelisted)
+	return newSourceConfig(component, host, port, path, whitelisted)
 }
 
 // UpdateWhitelistedMetrics sets passed list as a list of whitelisted metrics.
@@ -93,7 +96,7 @@ func SourceConfigsFromFlags(source flags.Uris, component *string, host *string, 
 		glog.Warningf("--component, --host, --port and --whitelisted flags are deprecated. Please use --source instead.")
 		portStr := strconv.FormatUint(uint64(*port), 10)
 
-		if sourceConfig, err := newSourceConfig(*component, *host, portStr, *whitelisted); err != nil {
+		if sourceConfig, err := newSourceConfig(*component, *host, portStr, "/metrics", *whitelisted); err != nil {
 			glog.Fatalf("Error while parsing --component flag: %v", err)
 		} else {
 			glog.Infof("Created a new source instance from --component flag: %+v", sourceConfig)
