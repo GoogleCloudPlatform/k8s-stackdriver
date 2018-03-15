@@ -1873,6 +1873,16 @@
 			"ImportPath": "k8s.io/metrics/pkg/apis/external_metrics",
 			"Comment": "kubernetes-1.10.0-alpha.3-30-g9de7b8b",
 			"Rev": "9de7b8b42ee02a196dd1822988718c6574732901"
+		},
+		{
+			"ImportPath": "k8s.io/metrics/pkg/apis/external_metrics/install",
+			"Comment": "kubernetes-1.10.0-alpha.3-30-g9de7b8b",
+			"Rev": "9de7b8b42ee02a196dd1822988718c6574732901"
+		},
+		{
+			"ImportPath": "k8s.io/metrics/pkg/apis/external_metrics/v1beta1",
+			"Comment": "kubernetes-1.10.0-alpha.3-30-g9de7b8b",
+			"Rev": "9de7b8b42ee02a196dd1822988718c6574732901"
 		}
 	]
 }
