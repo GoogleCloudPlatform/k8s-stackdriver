@@ -1,4 +1,5 @@
 build
-testing/sd_dummy_exporter
+examples/direct-to-sd/sd_dummy_exporter
+examples/prometheus-to-sd/prometheus_dummy_exporter
 *.swp
 *~
