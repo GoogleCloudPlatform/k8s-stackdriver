@@ -363,7 +363,7 @@ func TestTranslator_GetMetricsFromSDDescriptorsResp(t *testing.T) {
 		},
 	}
 	metricInfo := translator.GetMetricsFromSDDescriptorsResp(response)
-	expectedMetricInfo := []provider.MetricInfo{
+	expectedMetricInfo := []provider.CustomMetricInfo{
 		{Metric: "qps-int", GroupResource: schema.GroupResource{Group: "", Resource: "*"}, Namespaced: true},
 		{Metric: "qps-double", GroupResource: schema.GroupResource{Group: "", Resource: "*"}, Namespaced: true},
 	}

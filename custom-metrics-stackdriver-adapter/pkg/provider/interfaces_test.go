@@ -21,45 +21,48 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
+	corev1 "k8s.io/api/core/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-func newRESTMapper() meta.RESTMapper {
-	restMapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{}, meta.InterfacesForUnstructured)
-	restMapper.Add(v1.SchemeGroupVersion.WithKind("Pod"), meta.RESTScopeNamespace)
-	return restMapper
+// restMapper creates a RESTMapper with just the types we need for
+// these tests.
+func restMapper() apimeta.RESTMapper {
+	mapper := apimeta.NewDefaultRESTMapper([]schema.GroupVersion{corev1.SchemeGroupVersion}, apimeta.InterfacesForUnstructured)
+	mapper.Add(corev1.SchemeGroupVersion.WithKind("Pod"), apimeta.RESTScopeNamespace)
+
+	return mapper
 }
 
 func TestNormalizeMetricInfoProducesSingularForm(t *testing.T) {
-	pluralInfo := MetricInfo{
+	pluralInfo := CustomMetricInfo{
 		GroupResource: schema.GroupResource{Resource: "pods"},
 		Namespaced:    true,
 		Metric:        "cpu_usage",
 	}
 
-	_, singularRes, err := pluralInfo.Normalized(newRESTMapper())
+	_, singularRes, err := pluralInfo.Normalized(restMapper())
 	require.NoError(t, err, "should not have returned an error while normalizing the plural MetricInfo")
 	assert.Equal(t, "pod", singularRes, "should have produced a singular resource from the pural metric info")
 }
 
 func TestNormalizeMetricInfoDealsWithPluralization(t *testing.T) {
-	singularInfo := MetricInfo{
+	singularInfo := CustomMetricInfo{
 		GroupResource: schema.GroupResource{Resource: "pod"},
 		Namespaced:    true,
 		Metric:        "cpu_usage",
 	}
 
-	pluralInfo := MetricInfo{
+	pluralInfo := CustomMetricInfo{
 		GroupResource: schema.GroupResource{Resource: "pods"},
 		Namespaced:    true,
 		Metric:        "cpu_usage",
 	}
 
-	singularNormalized, singularRes, err := singularInfo.Normalized(newRESTMapper())
+	singularNormalized, singularRes, err := singularInfo.Normalized(restMapper())
 	require.NoError(t, err, "should not have returned an error while normalizing the singular MetricInfo")
-	pluralNormalized, pluralSingularRes, err := pluralInfo.Normalized(newRESTMapper())
+	pluralNormalized, pluralSingularRes, err := pluralInfo.Normalized(restMapper())
 	require.NoError(t, err, "should not have returned an error while normalizing the plural MetricInfo")
 
 	assert.Equal(t, singularRes, pluralSingularRes, "the plural and singular MetricInfo should have the same singularized resource")

@@ -37,6 +37,8 @@ dump-nginx-configuration
 e2e-status-context
 election-namespace
 enable-md-yaml
+enable-custom-metrics-api
+enable-external-metrics-api
 enable-output-coloring
 error-page
 etcd-prefix

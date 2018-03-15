@@ -60,7 +60,7 @@ type StackdriverProvider struct {
 }
 
 // NewStackdriverProvider creates a StackdriverProvider
-func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.RESTMapper, stackdriverService *stackdriver.Service, rateInterval time.Duration, useNewResourceModel bool) provider.CustomMetricsProvider {
+func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.RESTMapper, stackdriverService *stackdriver.Service, rateInterval time.Duration, useNewResourceModel bool) provider.MetricsProvider {
 	gceConf, err := config.GetGceConfig("custom.googleapis.com")
 	if err != nil {
 		glog.Fatalf("Failed to retrieve GCE config: %v", err)
@@ -192,8 +192,8 @@ func (p *StackdriverProvider) GetNamespacedMetricBySelector(groupResource schema
 
 // ListAllMetrics returns all custom metrics available from Stackdriver.
 // List only pod metrics
-func (p *StackdriverProvider) ListAllMetrics() []provider.MetricInfo {
-	metrics := []provider.MetricInfo{}
+func (p *StackdriverProvider) ListAllMetrics() []provider.CustomMetricInfo {
+	metrics := []provider.CustomMetricInfo{}
 	stackdriverRequest := p.translator.ListMetricDescriptors()
 	response, err := stackdriverRequest.Do()
 	if err != nil {
@@ -221,6 +221,12 @@ func (p *StackdriverProvider) GetExternalMetric(namespace string, metricNameEsca
 	return &external_metrics.ExternalMetricValueList{
 		Items: externalMetricItems,
 	}, nil
+}
+
+// ListAllExternalMetrics returns a list of available external metrics.
+// Not implemented (currently returns empty list).
+func (p *StackdriverProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo {
+	return []provider.ExternalMetricInfo{}
 }
 
 func unescapeMetricName(metricName string) string {
