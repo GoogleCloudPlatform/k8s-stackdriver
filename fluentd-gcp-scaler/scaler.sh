@@ -107,7 +107,7 @@ update_if_needed() {
   fi
   if [ ${REQUESTS_FLAG} ] || [ ${LIMITS_FLAG} ]
   then
-    KUBECTL_CMD="kubectl set resources -n ${NAMESPACE} ds ${DS_NAME} ${REQUESTS_FLAG} ${LIMITS_FLAG}"
+    KUBECTL_CMD="kubectl set resources -n ${NAMESPACE} ds ${DS_NAME} -c fluentd-gcp ${REQUESTS_FLAG} ${LIMITS_FLAG}"
     log "Running: ${KUBECTL_CMD}"
     ${KUBECTL_CMD}
   fi
