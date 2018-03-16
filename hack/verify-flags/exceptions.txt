@@ -34,5 +34,6 @@ kubelet-to-gcm/monitor/kubelet/translate.go:				"pod_id":         podID,
 kubelet-to-gcm/monitor/kubelet/translate.go:		"namespace_id":   "",
 kubelet-to-gcm/monitor/kubelet/translate.go:		"pod_id":         "machine",
 prometheus-to-sd/README.md:the prometheus-to-sd. Values of the `namespace_id` and `pod_id` can be passed to
+prometheus-to-sd/translator/metrics.go:		[]string{"component_name", "metric_name"},
 prometheus-to-sd/translator/translator.go:		"namespace_id":   config.PodConfig.NamespaceId,
 prometheus-to-sd/translator/translator.go:		"pod_id":         config.PodConfig.PodId,

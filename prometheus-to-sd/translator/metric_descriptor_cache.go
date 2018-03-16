@@ -86,7 +86,10 @@ func (cache *MetricDescriptorCache) ValidateMetricDescriptors(metrics map[string
 		updatedMetricDescriptor := MetricFamilyToMetricDescriptor(cache.config, metricFamily, metricDescriptor)
 		if descriptorLabelSetChanged(metricDescriptor, updatedMetricDescriptor) {
 			cache.broken[metricFamily.GetName()] = true
+			metricFamilyDropped.WithLabelValues(cache.component, metricFamily.GetName()).Set(1.0)
 			glog.Warningf("Definition of the metric %s was changed and metric is not going to be pushed", metricFamily.GetName())
+		} else {
+			metricFamilyDropped.WithLabelValues(cache.component, metricFamily.GetName()).Set(0.0)
 		}
 	}
 }
