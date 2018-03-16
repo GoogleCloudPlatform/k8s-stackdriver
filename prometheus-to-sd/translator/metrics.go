@@ -21,12 +21,12 @@ import (
 )
 
 var (
-	componentMetricsAvailability = prometheus.NewGaugeVec(
+	componentMetricsAvailable = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "component_metrics_availability",
+			Name: "component_metrics_available",
 			Help: "Contains true(1.0) if /metrics endpoint of the component is available, otherwise false(0.0)",
 		},
-		[]string{"component"},
+		[]string{"component_name"},
 	)
 
 	timeseriesPushed = prometheus.NewCounterVec(
@@ -34,7 +34,7 @@ var (
 			Name: "timeseries_pushed_total",
 			Help: "Number of timeseries successfully pushed to the Stackdriver",
 		},
-		[]string{"component"},
+		[]string{"component_name"},
 	)
 
 	timeseriesDropped = prometheus.NewCounterVec(
@@ -42,7 +42,7 @@ var (
 			Name: "timeseries_dropped_total",
 			Help: "Number of timeseries dropped during a push to the Stackdriver",
 		},
-		[]string{"component"},
+		[]string{"component_name"},
 	)
 
 	metricFamilyDropped = prometheus.NewGaugeVec(
@@ -50,12 +50,12 @@ var (
 			Name: "metric_family_dropped",
 			Help: "Contains true(1.0) if metrics of specific family where not pushed, due to the incompatible change of metric descriptor, otherwise false(0.0)",
 		},
-		[]string{"component", "metric_name"},
+		[]string{"component_name", "metric_name"},
 	)
 )
 
 func init() {
-	prometheus.MustRegister(componentMetricsAvailability)
+	prometheus.MustRegister(componentMetricsAvailable)
 	prometheus.MustRegister(timeseriesPushed)
 	prometheus.MustRegister(timeseriesDropped)
 	prometheus.MustRegister(metricFamilyDropped)

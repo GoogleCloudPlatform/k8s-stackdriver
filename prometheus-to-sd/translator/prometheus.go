@@ -32,9 +32,9 @@ import (
 func GetPrometheusMetrics(config *config.SourceConfig) (map[string]*dto.MetricFamily, error) {
 	res, err := getPrometheusMetrics(config)
 	if err != nil {
-		componentMetricsAvailability.WithLabelValues(config.Component).Set(0.0)
+		componentMetricsAvailable.WithLabelValues(config.Component).Set(0.0)
 	} else {
-		componentMetricsAvailability.WithLabelValues(config.Component).Set(1.0)
+		componentMetricsAvailable.WithLabelValues(config.Component).Set(1.0)
 	}
 	return res, err
 }
