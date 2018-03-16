@@ -214,13 +214,13 @@ func (t *Translator) ListMetricDescriptors() *stackdriver.ProjectsMetricDescript
 // - metricKind is "GAUGE"
 // - valueType is "INT64" or "DOUBLE"
 // - metric name doesn't contain "/" character after "custom.googleapis.com/" prefix
-func (t *Translator) GetMetricsFromSDDescriptorsResp(response *stackdriver.ListMetricDescriptorsResponse) []provider.MetricInfo {
-	metrics := []provider.MetricInfo{}
+func (t *Translator) GetMetricsFromSDDescriptorsResp(response *stackdriver.ListMetricDescriptorsResponse) []provider.CustomMetricInfo {
+	metrics := []provider.CustomMetricInfo{}
 	for _, descriptor := range response.MetricDescriptors {
 		if descriptor.MetricKind == "GAUGE" &&
 			(descriptor.ValueType == "INT64" || descriptor.ValueType == "DOUBLE") &&
 			!strings.Contains(strings.TrimPrefix(descriptor.Type, t.config.MetricsPrefix+"/"), "/") {
-			metrics = append(metrics, provider.MetricInfo{
+			metrics = append(metrics, provider.CustomMetricInfo{
 				GroupResource: schema.GroupResource{Group: "", Resource: "*"},
 				Metric:        strings.TrimPrefix(descriptor.Type, t.config.MetricsPrefix+"/"),
 				Namespaced:    true,
