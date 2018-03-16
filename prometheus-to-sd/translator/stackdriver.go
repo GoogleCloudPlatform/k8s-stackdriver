@@ -61,6 +61,8 @@ func SendToStackdriver(service *v3.Service, config *config.CommonConfig, ts []*v
 	}
 	wg.Wait()
 	glog.V(4).Infof("Successfully sent %v timeserieses to Stackdriver for component %v", uint32(len(ts))-failedTs, config.ComponentName)
+	timeseriesPushed.WithLabelValues(config.ComponentName).Add(float64(uint32(len(ts)) - failedTs))
+	timeseriesDropped.WithLabelValues(config.ComponentName).Add(float64(failedTs))
 }
 
 func getMetricDescriptors(service *v3.Service, config *config.GceConfig, component string) (map[string]*v3.MetricDescriptor, error) {
