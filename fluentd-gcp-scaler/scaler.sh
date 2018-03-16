@@ -8,8 +8,8 @@ DEFAULT_CPU_LIMIT=${CPU_LIMIT:-}
 DEFAULT_MEMORY_LIMIT=${MEMORY_LIMIT:-}
 
 reset_to_defaults() {
-  REQUESTS=
-  LIMITS=
+  REQUESTS_FLAG=
+  LIMITS_FLAG=
   CPU_REQUEST=${DEFAULT_CPU_REQUEST}
   MEMORY_REQUEST=${DEFAULT_MEMORY_REQUEST}
   CPU_LIMIT=${DEFAULT_CPU_LIMIT}
@@ -17,7 +17,7 @@ reset_to_defaults() {
 }
 
 log() {
-  echo $(date -Is) $*
+  echo $(date -Ins) $*
 }
 
 apply_scaling() {
@@ -49,12 +49,12 @@ add_request() {
   RESOURCE=$1
   VALUE=$2
   if [ ${VALUE} ]; then
-    if [ -z ${REQUESTS} ]; then
-      REQUESTS='--requests='
+    if [ -z ${REQUESTS_FLAG} ]; then
+      REQUESTS_FLAG='--requests='
     else
-      REQUESTS=${REQUESTS},
+      REQUESTS_FLAG=${REQUESTS_FLAG},
     fi
-    REQUESTS=${REQUESTS}${RESOURCE}=${VALUE}
+    REQUESTS_FLAG=${REQUESTS_FLAG}${RESOURCE}=${VALUE}
   fi
 }
 
@@ -64,12 +64,12 @@ add_limit() {
   RESOURCE=$1
   VALUE=$2
   if [ ${VALUE} ]; then
-    if [ -z ${LIMITS} ]; then
-      LIMITS='--limits='
+    if [ -z ${LIMITS_FLAG} ]; then
+      LIMITS_FLAG='--limits='
     else
-      LIMITS=${LIMITS},
+      LIMITS_FLAG=${LIMITS_FLAG},
     fi
-    LIMITS=${LIMITS}${RESOURCE}=${VALUE}
+    LIMITS_FLAG=${LIMITS_FLAG}${RESOURCE}=${VALUE}
   fi
 }
 
@@ -78,6 +78,39 @@ build_flags() {
   add_request memory ${MEMORY_REQUEST}
   add_limit cpu ${CPU_LIMIT}
   add_limit memory ${MEMORY_LIMIT}
+}
+
+# $1 is {limits,requests}.{cpu,memory}
+# $2 is the desired value
+needs_update() {
+  CURRENT=$(kubectl get ds -n kube-system ${DS_NAME} -o \
+    jsonpath="{.spec.template.spec.containers[?(@.name=='fluentd-gcp')].resources.$1}")
+  DESIRED=$2
+  if [ "${CURRENT}" != "${DESIRED}" ]
+  then
+    log "$1 needs updating. Is: '${CURRENT}', want: '${DESIRED}'."
+    return 0
+  fi
+  return 1
+}
+
+update_if_needed() {
+  NEED_UPDATE=false
+  if needs_update requests.cpu ${CPU_REQUEST}; then NEED_UPDATE=true; fi
+  if needs_update requests.memory ${MEMORY_REQUEST}; then NEED_UPDATE=true; fi
+  if needs_update limits.cpu ${CPU_LIMIT}; then NEED_UPDATE=true; fi
+  if needs_update limits.memory ${MEMORY_LIMIT}; then NEED_UPDATE=true; fi
+  if ! ${NEED_UPDATE}
+  then
+    log "Nothing to update."
+    return
+  fi
+  if [ ${REQUESTS_FLAG} ] || [ ${LIMITS_FLAG} ]
+  then
+    KUBECTL_CMD="kubectl set resources -n ${NAMESPACE} ds ${DS_NAME} -c fluentd-gcp ${REQUESTS_FLAG} ${LIMITS_FLAG}"
+    log "Running: ${KUBECTL_CMD}"
+    ${KUBECTL_CMD}
+  fi
 }
 
 while test $# -gt 0; do
@@ -120,11 +153,7 @@ do
   reset_to_defaults
   apply_scaling
   build_flags
-  if [ ${REQUESTS} ] || [ ${LIMITS} ]
-  then
-    log "Running: kubectl set resources -n ${NAMESPACE} ds ${DS_NAME} ${REQUESTS} ${LIMITS}"
-    kubectl set resources -n ${NAMESPACE} ds ${DS_NAME} ${REQUESTS} ${LIMITS}
-  fi
+  update_if_needed
   sleep ${SLEEP_SECONDS}
 done
 

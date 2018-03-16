@@ -32,6 +32,8 @@ import (
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/provider"
 	"k8s.io/api/core/v1"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/metrics/pkg/apis/external_metrics"
+	"strings"
 )
 
 // TODO(kawych):
@@ -140,7 +142,7 @@ func (p *StackdriverProvider) GetRootScopedMetricBySelector(groupResource schema
 // GetNamespacedMetricByName queries Stackdriver for metrics identified by name and associated
 // with a namespace.
 func (p *StackdriverProvider) GetNamespacedMetricByName(groupResource schema.GroupResource, namespace string, name string, metricName string) (*custom_metrics.MetricValue, error) {
-	if groupResource.Resource != nodeResource {
+	if groupResource.Resource != podResource {
 		return nil, provider.NewOperationNotSupportedError(fmt.Sprintf("Get namespaced metric by name for resource %q", groupResource.Resource))
 	}
 	matchingPod, err := p.kubeClient.Pods(namespace).Get(name, metav1.GetOptions{})
@@ -199,6 +201,30 @@ func (p *StackdriverProvider) ListAllMetrics() []provider.MetricInfo {
 		return metrics
 	}
 	return p.translator.GetMetricsFromSDDescriptorsResp(response)
+}
+
+// GetExternalMetric queries Stackdriver for external metrics.
+func (p *StackdriverProvider) GetExternalMetric(namespace string, metricNameEscaped string, metricSelector labels.Selector) (*external_metrics.ExternalMetricValueList, error) {
+	metricName := unescapeMetricName(metricNameEscaped)
+	stackdriverRequest, err := p.translator.GetExternalMetricRequest(metricName, metricSelector)
+	if err != nil {
+		return nil, err
+	}
+	stackdriverResponse, err := stackdriverRequest.Do()
+	if err != nil {
+		return nil, err
+	}
+	externalMetricItems, err := p.translator.GetRespForExternalMetric(stackdriverResponse, metricNameEscaped)
+	if err != nil {
+		return nil, err
+	}
+	return &external_metrics.ExternalMetricValueList{
+		Items: externalMetricItems,
+	}, nil
+}
+
+func unescapeMetricName(metricName string) string {
+	return strings.Replace(metricName, "|", "/", -1)
 }
 
 func min(a, b int) int {

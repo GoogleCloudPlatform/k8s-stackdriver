@@ -1,4 +1,4 @@
-TAG = v0.1.0
+TAG = v0.2.0
 PREFIX = gcr.io/google-containers
 
 build: sd_dummy_exporter
