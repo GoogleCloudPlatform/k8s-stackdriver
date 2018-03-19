@@ -1,7 +1,7 @@
 # A staging deployment of Custom Metrics - Stackdriver Adapter.
 # This can be using for testing the adapter or components that depend on it.
-# It must not be used for production purposes, instead the deployment
-# adapter-beta.yaml, which used the officially released image, should be used.
+# It must not be used for production purposes, instead the production
+# deployment, which uses the officially released image, should be used.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -81,6 +81,7 @@ spec:
         name: pod-custom-metrics-stackdriver-adapter
         command:
         - /adapter
+        - --use-new-resource-model=false
         resources:
           limits:
             cpu: 250m
