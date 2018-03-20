@@ -1,0 +1,56 @@
+timeout: 10800s
+
+substitutions:
+  { "_CGO_ENABLED": "0",
+    "_GOARCH": "amd64",
+    "_GOOS": "linux",
+    "_PREFIX": "gcr.io/k8s-image-staging",
+    "_TAG": "v0.1.8" }
+
+steps:
+- name: gcr.io/cloud-builders/git
+  id: git-clone
+  entrypoint: bash
+  args:
+  - "-c"
+  - |
+    set -ex
+    mkdir -p /workspace/src/github.com/GoogleCloudPlatform
+    cd /workspace/src/github.com/GoogleCloudPlatform
+    git clone https://github.com/GoogleCloudPlatform/k8s-stackdriver.git
+
+- name: gcr.io/k8s-image-staging/godep
+  id: go-test
+  dir: "/workspace/src/github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter"
+  env:
+  - "GOPATH=/workspace/"
+  - "CG_ENABLED=${_CGO_ENABLED}"
+  - "GOARCH=${_GOARCH}"
+  - "GOOS=${_GOOS}"
+  args: ["go", "test", "./..."]
+  waitFor: "git-clone"
+
+- name: gcr.io/k8s-image-staging/godep
+  id: go-build
+  dir: "/workspace/src/github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter"
+  env:
+  - "GOPATH=/workspace/"
+  - "CG_ENABLED=${_CGO_ENABLED}"
+  - "GOARCH=${_GOARCH}"
+  - "GOOS=${_GOOS}"
+  args: ["go", "build", "-o", "event-exporter"]
+  waitFor: "git-clone"
+
+- name: gcr.io/cloud-builders/docker
+  id: docker-build
+  entrypoint: bash
+  dir: "/workspace/src/github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter"
+  args:
+  - "-c"
+  - |
+    set -e
+    docker build -t ${_PREFIX}/event-exporter:${_TAG} .
+  waitFor: ["go-test", "go-build"]
+
+images:
+  - "${_PREFIX}/event-exporter:${_TAG}"
