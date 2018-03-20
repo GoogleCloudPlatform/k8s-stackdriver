@@ -1,0 +1,33 @@
+timeout: 10800s
+
+substitutions:
+  { "_PREFIX": "gcr.io/k8s-image-staging",
+    "_TAG": "1.2.4"}
+
+steps:
+- name: gcr.io/cloud-builders/git
+  id: git-clone
+  entrypoint: bash
+  args:
+  - "-c"
+  - |
+    set -ex
+    mkdir -p /workspace/src/github.com/GoogleCloudPlatform
+    cd /workspace/src/github.com/GoogleCloudPlatform
+    git clone https://github.com/GoogleCloudPlatform/k8s-stackdriver.git
+
+- name: gcr.io/k8s-image-staging/godep
+  id: go-build
+  entrypoint: bash
+  dir: "/workspace/src/github.com/GoogleCloudPlatform/k8s-stackdriver/kubelet-to-gcm"
+  env:
+  - "GOPATH=/workspace/"
+  args: ["-c", "make go"]
+
+- name: gcr.io/cloud-builders/docker
+  id: docker-build
+  dir: "/workspace/src/github.com/GoogleCloudPlatform/k8s-stackdriver/kubelet-to-gcm"
+  args: ["build", "-t", "${_PREFIX}/kubelet-to-gcm:${_TAG}", "."]
+
+images:
+  - "${_PREFIX}/kubelet-to-gcm:${_TAG}"
