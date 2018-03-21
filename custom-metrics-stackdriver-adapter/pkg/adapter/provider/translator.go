@@ -42,7 +42,7 @@ import (
 var (
 	// allowedLabelPrefixes and allowedFullLabelNames specify all metric labels allowed for querying
 	// External Metrics API.
-	allowedLabelPrefixes  = []string{"metric.label", "resource.label", "metadata.system_label", "metadata.user_label"}
+	allowedLabelPrefixes  = []string{"metric.labels", "resource.labels", "metadata.system_labels", "metadata.user_labels"}
 	allowedFullLabelNames = []string{"resource.type"}
 )
 
@@ -290,9 +290,9 @@ func joinFilters(filters ...string) string {
 }
 
 func (t *Translator) filterForCluster() string {
-	projectFilter := fmt.Sprintf("resource.label.project_id = %q", t.config.Project)
-	clusterFilter := fmt.Sprintf("resource.label.cluster_name = %q", t.config.Cluster)
-	locationFilter := fmt.Sprintf("resource.label.location = %q", t.config.Location)
+	projectFilter := fmt.Sprintf("resource.labels.project_id = %q", t.config.Project)
+	clusterFilter := fmt.Sprintf("resource.labels.cluster_name = %q", t.config.Cluster)
+	locationFilter := fmt.Sprintf("resource.labels.location = %q", t.config.Location)
 	return fmt.Sprintf("%s AND %s AND %s", projectFilter, clusterFilter, locationFilter)
 }
 
@@ -320,39 +320,39 @@ func (t *Translator) filterForPods(podNames []string, namespace string) string {
 	if len(podNames) == 0 {
 		glog.Fatalf("createFilterForPods called with empty list of pod names")
 	} else if len(podNames) == 1 {
-		return fmt.Sprintf("resource.label.namespace_name = %q AND resource.label.pod_name = %s", namespace, podNames[0])
+		return fmt.Sprintf("resource.labels.namespace_name = %q AND resource.labels.pod_name = %s", namespace, podNames[0])
 	}
-	return fmt.Sprintf("resource.label.namespace_name = %q AND resource.label.pod_name = one_of(%s)", namespace, strings.Join(podNames, ","))
+	return fmt.Sprintf("resource.labels.namespace_name = %q AND resource.labels.pod_name = one_of(%s)", namespace, strings.Join(podNames, ","))
 }
 
 func (t *Translator) filterForNodes(nodeNames []string) string {
 	if len(nodeNames) == 0 {
 		glog.Fatalf("createFilterForNodes called with empty list of node names")
 	} else if len(nodeNames) == 1 {
-		return fmt.Sprintf("resource.label.node_name = %s", nodeNames[0])
+		return fmt.Sprintf("resource.labels.node_name = %s", nodeNames[0])
 	}
-	return fmt.Sprintf("resource.label.node_name = one_of(%s)", strings.Join(nodeNames, ","))
+	return fmt.Sprintf("resource.labels.node_name = one_of(%s)", strings.Join(nodeNames, ","))
 }
 
 func (t *Translator) legacyFilterForCluster() string {
-	projectFilter := fmt.Sprintf("resource.label.project_id = %q", t.config.Project)
+	projectFilter := fmt.Sprintf("resource.labels.project_id = %q", t.config.Project)
 	// Skip location, since it may be set incorrectly by Heapster for old resource model
-	clusterFilter := fmt.Sprintf("resource.label.cluster_name = %q", t.config.Cluster)
-	containerFilter := "resource.label.container_name = \"\""
+	clusterFilter := fmt.Sprintf("resource.labels.cluster_name = %q", t.config.Cluster)
+	containerFilter := "resource.labels.container_name = \"\""
 	return fmt.Sprintf("%s AND %s AND %s", projectFilter, clusterFilter, containerFilter)
 }
 
 func (t *Translator) legacyFilterForAnyPod() string {
-	return "resource.label.pod_id != \"\" AND resource.label.pod_id != \"machine\""
+	return "resource.labels.pod_id != \"\" AND resource.labels.pod_id != \"machine\""
 }
 
 func (t *Translator) legacyFilterForPods(podIDs []string) string {
 	if len(podIDs) == 0 {
 		glog.Fatalf("createFilterForIDs called with empty list of pod IDs")
 	} else if len(podIDs) == 1 {
-		return fmt.Sprintf("resource.label.pod_id = %s", podIDs[0])
+		return fmt.Sprintf("resource.labels.pod_id = %s", podIDs[0])
 	}
-	return fmt.Sprintf("resource.label.pod_id = one_of(%s)", strings.Join(podIDs, ","))
+	return fmt.Sprintf("resource.labels.pod_id = one_of(%s)", strings.Join(podIDs, ","))
 }
 
 func (t *Translator) filterForSelector(metricSelector labels.Selector) (string, error) {
@@ -427,11 +427,11 @@ func (t *Translator) filterForSelector(metricSelector labels.Selector) (string, 
 func (t *Translator) getMetricLabels(series *stackdriver.TimeSeries) map[string]string {
 	metricLabels := map[string]string{}
 	for label, value := range series.Metric.Labels {
-		metricLabels["metric.label."+label] = value
+		metricLabels["metric.labels."+label] = value
 	}
 	metricLabels["resource.type"] = series.Resource.Type
 	for label, value := range series.Resource.Labels {
-		metricLabels["resource.label."+label] = value
+		metricLabels["resource.labels."+label] = value
 	}
 	return metricLabels
 }

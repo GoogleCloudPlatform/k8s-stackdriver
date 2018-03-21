@@ -67,11 +67,11 @@ func TestTranslator_GetSDReqForPods_Single(t *testing.T) {
 	}
 	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
 		Filter("metric.type = \"custom.googleapis.com/my/custom/metric\" " +
-			"AND resource.label.project_id = \"my-project\" " +
-			"AND resource.label.cluster_name = \"my-cluster\" " +
-			"AND resource.label.location = \"my-zone\" " +
-			"AND resource.label.namespace_name = \"default\" " +
-			"AND resource.label.pod_name = \"my-pod-name\" " +
+			"AND resource.labels.project_id = \"my-project\" " +
+			"AND resource.labels.cluster_name = \"my-cluster\" " +
+			"AND resource.labels.location = \"my-zone\" " +
+			"AND resource.labels.namespace_name = \"default\" " +
+			"AND resource.labels.pod_name = \"my-pod-name\" " +
 			"AND resource.type = \"k8s_pod\"").
 		IntervalStartTime("2017-01-02T13:00:00Z").
 		IntervalEndTime("2017-01-02T13:01:00Z").
@@ -106,11 +106,11 @@ func TestTranslator_GetSDReqForPods_Multiple(t *testing.T) {
 	}
 	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
 		Filter("metric.type = \"custom.googleapis.com/my/custom/metric\" " +
-			"AND resource.label.project_id = \"my-project\" " +
-			"AND resource.label.cluster_name = \"my-cluster\" " +
-			"AND resource.label.location = \"my-zone\" " +
-			"AND resource.label.namespace_name = \"default\" " +
-			"AND resource.label.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
+			"AND resource.labels.project_id = \"my-project\" " +
+			"AND resource.labels.cluster_name = \"my-cluster\" " +
+			"AND resource.labels.location = \"my-zone\" " +
+			"AND resource.labels.namespace_name = \"default\" " +
+			"AND resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
 			"AND resource.type = \"k8s_pod\"").
 		IntervalStartTime("2017-01-02T13:00:00Z").
 		IntervalEndTime("2017-01-02T13:01:00Z").
@@ -138,10 +138,10 @@ func TestTranslator_GetSDReqForNodes(t *testing.T) {
 	}
 	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
 		Filter("metric.type = \"custom.googleapis.com/my/custom/metric\" " +
-			"AND resource.label.project_id = \"my-project\" " +
-			"AND resource.label.cluster_name = \"my-cluster\" " +
-			"AND resource.label.location = \"my-zone\" " +
-			"AND resource.label.node_name = \"my-node-name-1\" " +
+			"AND resource.labels.project_id = \"my-project\" " +
+			"AND resource.labels.cluster_name = \"my-cluster\" " +
+			"AND resource.labels.location = \"my-zone\" " +
+			"AND resource.labels.node_name = \"my-node-name-1\" " +
 			"AND resource.type = \"k8s_node\"").
 		IntervalStartTime("2017-01-02T13:00:00Z").
 		IntervalEndTime("2017-01-02T13:01:00Z").
@@ -174,10 +174,10 @@ func TestTranslator_GetSDReqForPods_legacyResourceModel(t *testing.T) {
 	}
 	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
 		Filter("metric.type = \"custom.googleapis.com/my/custom/metric\" " +
-			"AND resource.label.project_id = \"my-project\" " +
-			"AND resource.label.cluster_name = \"my-cluster\" " +
-			"AND resource.label.container_name = \"\" " +
-			"AND resource.label.pod_id = one_of(\"my-pod-id-1\",\"my-pod-id-2\")").
+			"AND resource.labels.project_id = \"my-project\" " +
+			"AND resource.labels.cluster_name = \"my-cluster\" " +
+			"AND resource.labels.container_name = \"\" " +
+			"AND resource.labels.pod_id = one_of(\"my-pod-id-1\",\"my-pod-id-2\")").
 		IntervalStartTime("2017-01-02T13:00:00Z").
 		IntervalEndTime("2017-01-02T13:01:00Z").
 		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
@@ -322,9 +322,9 @@ func TestTranslator_ListMetricDescriptors(t *testing.T) {
 	request := translator.ListMetricDescriptors()
 	expectedRequest := sdService.Projects.MetricDescriptors.List("projects/my-project").
 		Filter("metric.type = starts_with(\"custom.googleapis.com/\") " +
-			"AND resource.label.project_id = \"my-project\" " +
-			"AND resource.label.cluster_name = \"my-cluster\" " +
-			"AND resource.label.location = \"my-zone\" " +
+			"AND resource.labels.project_id = \"my-project\" " +
+			"AND resource.labels.cluster_name = \"my-cluster\" " +
+			"AND resource.labels.location = \"my-zone\" " +
 			"AND resource.type = one_of(\"k8s_pod\",\"k8s_node\")")
 	if !reflect.DeepEqual(*request, *expectedRequest) {
 		t.Errorf("Unexpected result. Expected: \n%s,\n received: \n%s", *expectedRequest, *request)
@@ -337,10 +337,10 @@ func TestTranslator_ListMetricDescriptors_legacyResourceType(t *testing.T) {
 	request := translator.ListMetricDescriptors()
 	expectedRequest := sdService.Projects.MetricDescriptors.List("projects/my-project").
 		Filter("metric.type = starts_with(\"custom.googleapis.com/\") " +
-			"AND resource.label.project_id = \"my-project\" " +
-			"AND resource.label.cluster_name = \"my-cluster\" " +
-			"AND resource.label.container_name = \"\" AND resource.label.pod_id != \"\" " +
-			"AND resource.label.pod_id != \"machine\"")
+			"AND resource.labels.project_id = \"my-project\" " +
+			"AND resource.labels.cluster_name = \"my-cluster\" " +
+			"AND resource.labels.container_name = \"\" AND resource.labels.pod_id != \"\" " +
+			"AND resource.labels.pod_id != \"machine\"")
 	if !reflect.DeepEqual(*request, *expectedRequest) {
 		t.Errorf("Unexpected result. Expected: \n%s,\n received: \n%s", *expectedRequest, *request)
 	}
@@ -392,20 +392,20 @@ func TestTranslator_GetExternalMetricRequest_NoSelector(t *testing.T) {
 func TestTranslator_GetExternalMetricRequest_CorrectSelector(t *testing.T) {
 	translator, sdService := newFakeTranslatorForExternalMetrics(time.Minute, "my-project", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC))
 	req1, _ := labels.NewRequirement("resource.type", selection.Equals, []string{"k8s_pod"})
-	req2, _ := labels.NewRequirement("resource.label.project_id", selection.Equals, []string{"my-project"})
-	req3, _ := labels.NewRequirement("resource.label.pod_name", selection.Exists, []string{})
-	req4, _ := labels.NewRequirement("resource.label.namespace_name", selection.NotIn, []string{"default", "kube-system"})
-	req5, _ := labels.NewRequirement("metric.label.my_label", selection.GreaterThan, []string{"86"})
+	req2, _ := labels.NewRequirement("resource.labels.project_id", selection.Equals, []string{"my-project"})
+	req3, _ := labels.NewRequirement("resource.labels.pod_name", selection.Exists, []string{})
+	req4, _ := labels.NewRequirement("resource.labels.namespace_name", selection.NotIn, []string{"default", "kube-system"})
+	req5, _ := labels.NewRequirement("metric.labels.my_label", selection.GreaterThan, []string{"86"})
 	request, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", labels.NewSelector().Add(*req1, *req2, *req3, *req4, *req5))
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
 	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
 		Filter("metric.type = \"custom.googleapis.com/my/metric/name\" " +
-			"AND metric.label.my_label > 86 " +
-			"AND NOT resource.label.namespace_name = one_of(\"default\",\"kube-system\") " +
-			"AND resource.label : pod_name " +
-			"AND resource.label.project_id = \"my-project\" " +
+			"AND metric.labels.my_label > 86 " +
+			"AND NOT resource.labels.namespace_name = one_of(\"default\",\"kube-system\") " +
+			"AND resource.labels : pod_name " +
+			"AND resource.labels.project_id = \"my-project\" " +
 			"AND resource.type = \"k8s_pod\"").
 		IntervalStartTime("2017-01-02T13:00:00Z").
 		IntervalEndTime("2017-01-02T13:01:00Z").
@@ -430,9 +430,9 @@ func TestTranslator_GetExternalMetricRequest_InvalidLabel(t *testing.T) {
 func TestTranslator_GetExternalMetricRequest_OneInvalidRequirement(t *testing.T) {
 	translator, _ := newFakeTranslatorForExternalMetrics(time.Minute, "my-project", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC))
 	req1, _ := labels.NewRequirement("resource.type", selection.Equals, []string{"k8s_pod"})
-	req2, _ := labels.NewRequirement("resource.label.pod_name", selection.Exists, []string{})
-	req3, _ := labels.NewRequirement("resource.label.namespace_name", selection.NotIn, []string{"default", "kube-system"})
-	req4, _ := labels.NewRequirement("metric.label.my_label", selection.DoesNotExist, []string{})
+	req2, _ := labels.NewRequirement("resource.labels.pod_name", selection.Exists, []string{})
+	req3, _ := labels.NewRequirement("resource.labels.namespace_name", selection.NotIn, []string{"default", "kube-system"})
+	req4, _ := labels.NewRequirement("metric.labels.my_label", selection.DoesNotExist, []string{})
 	_, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", labels.NewSelector().Add(*req1, *req2, *req3, *req4))
 	expectedError := errors.NewBadRequest("Label selector with operator DoesNotExist is not allowed")
 	if *err.(*errors.StatusError) != *expectedError {
@@ -462,9 +462,9 @@ func TestTranslator_GetRespForExternalMetric(t *testing.T) {
 			Timestamp:  metav1.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC),
 			MetricName: "my/custom/metric",
 			MetricLabels: map[string]string{
-				"resource.type":         "gke_container",
-				"resource.label.pod_id": "my-pod-id",
-				"metric.label.foo":      "bar",
+				"resource.type":          "gke_container",
+				"resource.labels.pod_id": "my-pod-id",
+				"metric.labels.foo":      "bar",
 			},
 		},
 	}
