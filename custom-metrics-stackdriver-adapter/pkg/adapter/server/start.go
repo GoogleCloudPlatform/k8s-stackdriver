@@ -43,6 +43,8 @@ func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan str
 		CustomMetricsAdapterServerOptions: baseOpts,
 		DiscoveryInterval:                 10 * time.Minute,
 		UseNewResourceModel:               false,
+		EnableCustomMetricsAPI:            true,
+		EnableExternalMetricsAPI:          true,
 	}
 
 	cmd := &cobra.Command{
@@ -73,6 +75,10 @@ func NewCommandStartSampleAdapterServer(out, errOut io.Writer, stopCh <-chan str
 		"interval at which to refresh API discovery information")
 	flags.BoolVar(&o.UseNewResourceModel, "use-new-resource-model", o.UseNewResourceModel, ""+
 		"whether to use new Stackdriver resource model")
+	flags.BoolVar(&o.EnableCustomMetricsAPI, "enable-custom-metrics-api", o.EnableCustomMetricsAPI, ""+
+		"whether to enable Custom Metrics API")
+	flags.BoolVar(&o.EnableExternalMetricsAPI, "enable-external-metrics-api", o.EnableExternalMetricsAPI, ""+
+		"whether to enable External Metrics API")
 
 	return cmd
 }
@@ -120,9 +126,16 @@ func (o sampleAdapterServerOptions) RunCustomMetricsAdapterServer(stopCh <-chan 
 	if err != nil {
 		return fmt.Errorf("Failed to create Stackdriver client: %v", err)
 	}
-	cmProvider := provider.NewStackdriverProvider(coreclient.New(client.RESTClient()), dynamicMapper, stackdriverService, 5*time.Minute, o.UseNewResourceModel)
+	provider := provider.NewStackdriverProvider(coreclient.New(client.RESTClient()), dynamicMapper, stackdriverService, 5*time.Minute, o.UseNewResourceModel)
+	customMetricsProvider, externalMetricsProvider := provider, provider
+	if !o.EnableCustomMetricsAPI {
+		customMetricsProvider = nil
+	}
+	if !o.EnableExternalMetricsAPI {
+		externalMetricsProvider = nil
+	}
 
-	server, err := config.Complete().New(cmProvider)
+	server, err := config.Complete().New("custom-metrics-stackdriver-adapter", customMetricsProvider, externalMetricsProvider)
 	if err != nil {
 		return err
 	}
@@ -139,4 +152,8 @@ type sampleAdapterServerOptions struct {
 	// UseNewResourceModel is a flag that indicates whether new Stackdriver resource model should be
 	// used
 	UseNewResourceModel bool
+	// EnableCustomMetricsAPI switches on sample apiserver for Custom Metrics API
+	EnableCustomMetricsAPI bool
+	// EnableExternalMetricsAPI switches on sample apiserver for External Metrics API
+	EnableExternalMetricsAPI bool
 }

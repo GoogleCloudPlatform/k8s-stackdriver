@@ -49,8 +49,7 @@ them to scale your application, following [HPA walkthrough].
 1. Start *Custom Metrics - Stackdriver Adapter*.
 
 ```sh
-kubectl create -f
-https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/adapter-beta.yaml
+kubectl create -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/adapter-beta.yaml
 ```
 
 ### Export metrics to Stackdriver

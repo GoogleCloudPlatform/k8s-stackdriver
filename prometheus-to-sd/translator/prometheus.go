@@ -24,11 +24,23 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/config"
 )
 
 // GetPrometheusMetrics scrapes metrics from the given host and port using /metrics handler.
-func GetPrometheusMetrics(host string, port uint) (map[string]*dto.MetricFamily, error) {
-	url := fmt.Sprintf("http://%s:%d/metrics", host, port)
+func GetPrometheusMetrics(config *config.SourceConfig) (map[string]*dto.MetricFamily, error) {
+	res, err := getPrometheusMetrics(config)
+	if err != nil {
+		componentMetricsAvailable.WithLabelValues(config.Component).Set(0.0)
+	} else {
+		componentMetricsAvailable.WithLabelValues(config.Component).Set(1.0)
+	}
+	return res, err
+}
+
+func getPrometheusMetrics(config *config.SourceConfig) (map[string]*dto.MetricFamily, error) {
+	url := fmt.Sprintf("http://%s:%d/metrics", config.Host, config.Port)
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("request %s failed: %v", url, err)

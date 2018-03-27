@@ -26,16 +26,27 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// NewMetricNotFoundError returns a StatusError indicating the given metric could not be found.
-// It is similar to NewNotFound, but more specialized
+// NewMetricNotFoundError returns a StatusError indicating that the given metric could not be found.
+// It is similar to NewNotFound, but more specialized.
 func NewMetricNotFoundError(resource schema.GroupResource, metricName string) *apierr.StatusError {
 	return newMetricNotFoundWithMessageError(fmt.Sprintf("the server could not find the metric %s for %s", metricName, resource.String()))
 }
 
-// NewMetricNotFoundForError returns a StatusError indicating the given metric could not be found for
-// the given named object. It is similar to NewNotFound, but more specialized
+// NewMetricNotFoundForError returns a StatusError indicating that the given metric could not be
+// found for the given named object. It is similar to NewNotFound, but more specialized.
 func NewMetricNotFoundForError(resource schema.GroupResource, metricName string, resourceName string) *apierr.StatusError {
 	return newMetricNotFoundWithMessageError(fmt.Sprintf("the server could not find the metric %s for %s %s", metricName, resource.String(), resourceName))
+}
+
+// NewExternalMetricNotFoundError returns a status error indicating that the given metric could
+// not be found. It is similar to NewNotFound, but more specialized.
+func NewExternalMetricNotFoundError(metricName string) *apierr.StatusError {
+	return newMetricNotFoundWithMessageError(fmt.Sprintf("the server could not find the metric %s for provided labels", metricName))
+}
+
+// NewLabelNotAllowedError returns a status error indicating that the given label is forbidden.
+func NewLabelNotAllowedError(label string) *apierr.StatusError {
+	return apierr.NewBadRequest(fmt.Sprintf("Metric label: %q is not allowed", label))
 }
 
 // NewOperationNotSupportedError returns a StatusError indicating that the invoked API call is not

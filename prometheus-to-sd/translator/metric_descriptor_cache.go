@@ -66,6 +66,34 @@ func (cache *MetricDescriptorCache) MarkStale() {
 	cache.fresh = false
 }
 
+// ValidateMetricDescriptors checks if metric descriptors differs from the values kept in the cache.
+// If the value has changed then metric family is marked is broken. Use this method to verify that
+// metrics with prefix "container.googleapis.com" haven't changed.
+func (cache *MetricDescriptorCache) ValidateMetricDescriptors(metrics map[string]*dto.MetricFamily, whitelisted []string) {
+	// Perform cache operation only if cache was recently refreshed. This is done mostly from the optimization point
+	// of view, we don't want to check all metric descriptors too often, as they should change rarely.
+	if !cache.fresh {
+		return
+	}
+	for _, metricFamily := range metrics {
+		if !isMetricWhitelisted(metricFamily.GetName(), whitelisted) {
+			continue
+		}
+		metricDescriptor, ok := cache.descriptors[metricFamily.GetName()]
+		if !ok {
+			continue
+		}
+		updatedMetricDescriptor := MetricFamilyToMetricDescriptor(cache.config, metricFamily, metricDescriptor)
+		if descriptorLabelSetChanged(metricDescriptor, updatedMetricDescriptor) {
+			cache.broken[metricFamily.GetName()] = true
+			metricFamilyDropped.WithLabelValues(cache.component, metricFamily.GetName()).Set(1.0)
+			glog.Warningf("Definition of the metric %s was changed and metric is not going to be pushed", metricFamily.GetName())
+		} else {
+			metricFamilyDropped.WithLabelValues(cache.component, metricFamily.GetName()).Set(0.0)
+		}
+	}
+}
+
 // UpdateMetricDescriptors iterates over all metricFamilies and updates metricDescriptors in the Stackdriver if required.
 func (cache *MetricDescriptorCache) UpdateMetricDescriptors(metrics map[string]*dto.MetricFamily, whitelisted []string) {
 	// Perform cache operation only if cache was recently refreshed. This is done mostly from the optimization point
@@ -116,10 +144,18 @@ func (cache *MetricDescriptorCache) getMetricDescriptor(metric string) *v3.Metri
 }
 
 func descriptorChanged(original *v3.MetricDescriptor, checked *v3.MetricDescriptor) bool {
+	return descriptorDescriptionChanged(original, checked) || descriptorLabelSetChanged(original, checked)
+}
+
+func descriptorDescriptionChanged(original *v3.MetricDescriptor, checked *v3.MetricDescriptor) bool {
 	if original.Description != checked.Description {
 		glog.V(4).Infof("Description is different, %v != %v", original.Description, checked.Description)
 		return true
 	}
+	return false
+}
+
+func descriptorLabelSetChanged(original *v3.MetricDescriptor, checked *v3.MetricDescriptor) bool {
 	for _, label := range checked.Labels {
 		found := false
 		for _, labelFromOriginal := range original.Labels {

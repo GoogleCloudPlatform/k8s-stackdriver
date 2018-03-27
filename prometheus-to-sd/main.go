@@ -33,6 +33,7 @@ import (
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/config"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/flags"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/translator"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
@@ -83,6 +84,7 @@ func main() {
 	glog.Infof("GCE config: %+v", gceConf)
 
 	go func() {
+		http.Handle("/metrics", promhttp.Handler())
 		glog.Error(http.ListenAndServe(fmt.Sprintf(":%d", *debugPort), nil))
 	}()
 
@@ -142,7 +144,7 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 			glog.V(4).Infof("Skipping %v component as there are no metric to expose.", sourceConfig.Component)
 			continue
 		}
-		metrics, err := translator.GetPrometheusMetrics(sourceConfig.Host, sourceConfig.Port)
+		metrics, err := translator.GetPrometheusMetrics(&sourceConfig)
 		if err != nil {
 			glog.V(2).Infof("Error while getting Prometheus metrics %v for component %v", err, sourceConfig.Component)
 			continue
@@ -152,6 +154,8 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 		}
 		if strings.HasPrefix(commonConfig.GceConfig.MetricsPrefix, customMetricsPrefix) {
 			metricDescriptorCache.UpdateMetricDescriptors(metrics, sourceConfig.Whitelisted)
+		} else {
+			metricDescriptorCache.ValidateMetricDescriptors(metrics, sourceConfig.Whitelisted)
 		}
 		ts := translator.TranslatePrometheusToStackdriver(commonConfig, sourceConfig.Whitelisted, metrics, metricDescriptorCache)
 		translator.SendToStackdriver(stackdriverService, commonConfig, ts)

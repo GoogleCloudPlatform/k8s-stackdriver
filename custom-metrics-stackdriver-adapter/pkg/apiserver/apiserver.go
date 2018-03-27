@@ -27,7 +27,8 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/provider"
-	"k8s.io/metrics/pkg/apis/custom_metrics/install"
+	cminstall "k8s.io/metrics/pkg/apis/custom_metrics/install"
+	eminstall "k8s.io/metrics/pkg/apis/external_metrics/install"
 )
 
 var (
@@ -40,7 +41,8 @@ var (
 )
 
 func init() {
-	install.Install(groupFactoryRegistry, registry, Scheme)
+	cminstall.Install(groupFactoryRegistry, registry, Scheme)
+	eminstall.Install(groupFactoryRegistry, registry, Scheme)
 
 	// we need to add the options to empty v1
 	// TODO fix the server code to avoid this
@@ -59,45 +61,54 @@ func init() {
 
 // Config contains a configuration for the api server.
 type Config struct {
-	GenericConfig *genericapiserver.RecommendedConfig
+	GenericConfig *genericapiserver.Config
 }
 
 // CustomMetricsAdapterServer contains state for a Kubernetes cluster master/api server.
 type CustomMetricsAdapterServer struct {
-	GenericAPIServer *genericapiserver.GenericAPIServer
-	Provider         provider.CustomMetricsProvider
+	GenericAPIServer        *genericapiserver.GenericAPIServer
+	customMetricsProvider   provider.CustomMetricsProvider
+	externalMetricsProvider provider.ExternalMetricsProvider
 }
 
 type completedConfig struct {
-	GenericConfig genericapiserver.CompletedConfig
+	genericapiserver.CompletedConfig
 }
 
 // Complete fills in any fields not set that are required to have valid data. It's mutating the receiver.
-func (cfg *Config) Complete() *completedConfig {
-	c := completedConfig{cfg.GenericConfig.Complete()}
-
+func (c *Config) Complete() completedConfig {
 	c.GenericConfig.Version = &version.Info{
 		Major: "1",
 		Minor: "0",
 	}
-
-	return &c
+	return completedConfig{c.GenericConfig.Complete(nil)}
 }
 
 // New returns a new instance of CustomMetricsAdapterServer from the given config.
-func (c completedConfig) New(cmProvider provider.CustomMetricsProvider) (*CustomMetricsAdapterServer, error) {
-	genericServer, err := c.GenericConfig.New("custom-metrics-stackdriver-adapter", genericapiserver.EmptyDelegate)
+// name is used to differentiate for logging.
+// Each of the arguments: customMetricsProvider, externalMetricsProvider can be set either to
+// a provider implementation, or to nil to disable one of the APIs.
+func (c completedConfig) New(name string, customMetricsProvider provider.CustomMetricsProvider, externalMetricsProvider provider.ExternalMetricsProvider) (*CustomMetricsAdapterServer, error) {
+	genericServer, err := c.CompletedConfig.New(name, genericapiserver.EmptyDelegate) // completion is done in Complete, no need for a second time
 	if err != nil {
 		return nil, err
 	}
 
 	s := &CustomMetricsAdapterServer{
-		GenericAPIServer: genericServer,
-		Provider:         cmProvider,
+		GenericAPIServer:        genericServer,
+		customMetricsProvider:   customMetricsProvider,
+		externalMetricsProvider: externalMetricsProvider,
 	}
 
-	if err := s.InstallCustomMetricsAPI(); err != nil {
-		return nil, err
+	if customMetricsProvider != nil {
+		if err := s.InstallCustomMetricsAPI(); err != nil {
+			return nil, err
+		}
+	}
+	if externalMetricsProvider != nil {
+		if err := s.InstallExternalMetricsAPI(); err != nil {
+			return nil, err
+		}
 	}
 
 	return s, nil

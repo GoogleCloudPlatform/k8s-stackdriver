@@ -26,6 +26,7 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
 	specificapi "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/apiserver/installer"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/provider"
 	metricstorage "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/registry/custom_metrics"
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 )
@@ -51,7 +52,7 @@ func (s *CustomMetricsAdapterServer) InstallCustomMetricsAPI() error {
 
 	cmAPI := s.cmAPI(groupMeta, &groupMeta.GroupVersion)
 
-	if err := cmAPI.InstallREST(s.GenericAPIServer.Handler.GoRestfulContainer, s.Provider, s.GenericAPIServer.RequestContextMapper()); err != nil {
+	if err := cmAPI.InstallREST(s.GenericAPIServer.Handler.GoRestfulContainer); err != nil {
 		return err
 	}
 
@@ -60,8 +61,9 @@ func (s *CustomMetricsAdapterServer) InstallCustomMetricsAPI() error {
 
 	return nil
 }
+
 func (s *CustomMetricsAdapterServer) cmAPI(groupMeta *apimachinery.GroupMeta, groupVersion *schema.GroupVersion) *specificapi.MetricsAPIGroupVersion {
-	resourceStorage := metricstorage.NewREST(s.Provider)
+	resourceStorage := metricstorage.NewREST(s.customMetricsProvider)
 
 	return &specificapi.MetricsAPIGroupVersion{
 		DynamicStorage: resourceStorage,
@@ -83,5 +85,8 @@ func (s *CustomMetricsAdapterServer) cmAPI(groupMeta *apimachinery.GroupMeta, gr
 			MinRequestTimeout:      s.GenericAPIServer.MinRequestTimeout(),
 			OptionsExternalVersion: &schema.GroupVersion{Version: "v1"},
 		},
+
+		ResourceLister: provider.NewCustomMetricResourceLister(s.customMetricsProvider),
+		Handlers:       &specificapi.CMHandlers{},
 	}
 }
