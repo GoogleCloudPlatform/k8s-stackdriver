@@ -67,7 +67,7 @@ type Translator struct {
 // podList is required to be no longer than oneOfMax items. This is enforced by limitation of
 // "one_of()" operator in Stackdriver filters, see documentation:
 // https://cloud.google.com/monitoring/api/v3/filters
-func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName string, namespace string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
+func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName string, metricKind, namespace string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
 	if len(podList.Items) == 0 {
 		return nil, apierr.NewBadRequest("No objects matched provided selector")
 	}
@@ -89,14 +89,14 @@ func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName string, nam
 			t.legacyFilterForCluster(),
 			t.legacyFilterForPods(resourceIDs))
 	}
-	return t.createListTimeseriesRequest(filter), nil
+	return t.createListTimeseriesRequest(filter, metricKind), nil
 }
 
 // GetSDReqForNodes returns Stackdriver request for query for multiple nodes.
 // nodeList is required to be no longer than oneOfMax items. This is enforced by limitation of
 // "one_of()" operator in Stackdriver filters, see documentation:
 // https://cloud.google.com/monitoring/api/v3/filters
-func (t *Translator) GetSDReqForNodes(nodeList *v1.NodeList, metricName string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
+func (t *Translator) GetSDReqForNodes(nodeList *v1.NodeList, metricName string, metricKind string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
 	if len(nodeList.Items) == 0 {
 		return nil, apierr.NewBadRequest("No objects matched provided selector")
 	}
@@ -113,20 +113,20 @@ func (t *Translator) GetSDReqForNodes(nodeList *v1.NodeList, metricName string) 
 		t.filterForCluster(),
 		t.filterForNodes(resourceNames),
 		t.filterForAnyNode())
-	return t.createListTimeseriesRequest(filter), nil
+	return t.createListTimeseriesRequest(filter, metricKind), nil
 }
 
 // GetExternalMetricRequest returns Stackdriver request for query for external metric.
-func (t *Translator) GetExternalMetricRequest(metricName string, metricSelector labels.Selector) (*stackdriver.ProjectsTimeSeriesListCall, error) {
+func (t *Translator) GetExternalMetricRequest(metricName string, metricKind string, metricSelector labels.Selector) (*stackdriver.ProjectsTimeSeriesListCall, error) {
 	filterForMetric := t.filterForMetric(metricName)
 	if metricSelector.Empty() {
-		return t.createListTimeseriesRequest(filterForMetric), nil
+		return t.createListTimeseriesRequest(filterForMetric, metricKind), nil
 	}
 	filterForSelector, err := t.filterForSelector(metricSelector)
 	if err != nil {
 		return nil, err
 	}
-	return t.createListTimeseriesRequest(joinFilters(filterForMetric, filterForSelector)), nil
+	return t.createListTimeseriesRequest(joinFilters(filterForMetric, filterForSelector), metricKind), nil
 }
 
 // GetRespForSingleObject returns translates Stackdriver response to a Custom Metric associated with
@@ -211,14 +211,12 @@ func (t *Translator) ListMetricDescriptors() *stackdriver.ProjectsMetricDescript
 
 // GetMetricsFromSDDescriptorsResp returns an array of MetricInfo for all metric descriptors
 // returned by Stackdriver API that satisfy the requirements:
-// - metricKind is "GAUGE"
 // - valueType is "INT64" or "DOUBLE"
 // - metric name doesn't contain "/" character after "custom.googleapis.com/" prefix
 func (t *Translator) GetMetricsFromSDDescriptorsResp(response *stackdriver.ListMetricDescriptorsResponse) []provider.CustomMetricInfo {
 	metrics := []provider.CustomMetricInfo{}
 	for _, descriptor := range response.MetricDescriptors {
-		if descriptor.MetricKind == "GAUGE" &&
-			(descriptor.ValueType == "INT64" || descriptor.ValueType == "DOUBLE") &&
+		if (descriptor.ValueType == "INT64" || descriptor.ValueType == "DOUBLE") &&
 			!strings.Contains(strings.TrimPrefix(descriptor.Type, t.config.MetricsPrefix+"/"), "/") {
 			metrics = append(metrics, provider.CustomMetricInfo{
 				GroupResource: schema.GroupResource{Group: "", Resource: "*"},
@@ -228,6 +226,15 @@ func (t *Translator) GetMetricsFromSDDescriptorsResp(response *stackdriver.ListM
 		}
 	}
 	return metrics
+}
+
+// GetMetricKind returns metricKind for metric metricName, obtained from Stackdriver Monitoring API.
+func (t *Translator) GetMetricKind(metricName string) (string, error) {
+	response, err := t.service.Projects.MetricDescriptors.Get(fmt.Sprintf("projects/%s/metricDescriptors/%s", t.config.Project, metricName)).Do()
+	if err != nil {
+		return "", apierr.NewBadRequest(fmt.Sprintf("Failed to retrieve metricKind from Stackdriver for metric %s: %s", metricName, err))
+	}
+	return response.MetricKind, nil
 }
 
 func getPodNames(list *v1.PodList) []string {
@@ -436,14 +443,19 @@ func (t *Translator) getMetricLabels(series *stackdriver.TimeSeries) map[string]
 	return metricLabels
 }
 
-func (t *Translator) createListTimeseriesRequest(filter string) *stackdriver.ProjectsTimeSeriesListCall {
+func (t *Translator) createListTimeseriesRequest(filter string, metricKind string) *stackdriver.ProjectsTimeSeriesListCall {
 	project := fmt.Sprintf("projects/%s", t.config.Project)
 	endTime := t.clock.Now()
 	startTime := endTime.Add(-t.reqWindow)
+	// use "ALIGN_NEXT_OLDER" by default, i.e. for metricKind "GAUGE"
+	aligner := "ALIGN_NEXT_OLDER"
+	if metricKind == "DELTA" || metricKind == "CUMULATIVE" {
+		aligner = "ALIGN_RATE"
+	}
 	return t.service.Projects.TimeSeries.List(project).Filter(filter).
 		IntervalStartTime(startTime.Format(time.RFC3339)).
 		IntervalEndTime(endTime.Format(time.RFC3339)).
-		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+		AggregationPerSeriesAligner(aligner).
 		AggregationAlignmentPeriod(fmt.Sprintf("%vs", int64(t.reqWindow.Seconds())))
 }
 
@@ -517,6 +529,10 @@ func (t *Translator) metricsFor(values map[string]resource.Quantity, groupResour
 	}
 
 	return res, nil
+}
+
+func (t *Translator) fullCustomMetricName(metricName string) string {
+	return t.config.MetricsPrefix + "/" + metricName
 }
 
 func (t *Translator) getPodItems(list *v1.PodList) []metav1.ObjectMeta {

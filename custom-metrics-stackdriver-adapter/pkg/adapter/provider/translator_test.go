@@ -61,7 +61,7 @@ func TestTranslator_GetSDReqForPods_Single(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "default")
+	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", "default")
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -100,7 +100,7 @@ func TestTranslator_GetSDReqForPods_Multiple(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "default")
+	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "GAUGE", "default")
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
@@ -132,7 +132,7 @@ func TestTranslator_GetSDReqForNodes(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{node}}, metricName)
+	request, err := translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{node}}, metricName, "GAUGE")
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -168,7 +168,7 @@ func TestTranslator_GetSDReqForPods_legacyResourceModel(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "default")
+	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "GAUGE", "default")
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
@@ -366,6 +366,8 @@ func TestTranslator_GetMetricsFromSDDescriptorsResp(t *testing.T) {
 	expectedMetricInfo := []provider.CustomMetricInfo{
 		{Metric: "qps-int", GroupResource: schema.GroupResource{Group: "", Resource: "*"}, Namespaced: true},
 		{Metric: "qps-double", GroupResource: schema.GroupResource{Group: "", Resource: "*"}, Namespaced: true},
+		{Metric: "qps-delta", GroupResource: schema.GroupResource{Group: "", Resource: "*"}, Namespaced: true},
+		{Metric: "qps-cum", GroupResource: schema.GroupResource{Group: "", Resource: "*"}, Namespaced: true},
 	}
 	if !reflect.DeepEqual(metricInfo, expectedMetricInfo) {
 		t.Errorf("Unexpected result. Expected: \n%s,\n received: \n%s", expectedMetricInfo, metricInfo)
@@ -374,7 +376,7 @@ func TestTranslator_GetMetricsFromSDDescriptorsResp(t *testing.T) {
 
 func TestTranslator_GetExternalMetricRequest_NoSelector(t *testing.T) {
 	translator, sdService := newFakeTranslatorForExternalMetrics(time.Minute, "my-project", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC))
-	request, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", labels.NewSelector())
+	request, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "GAUGE", labels.NewSelector())
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
@@ -389,14 +391,14 @@ func TestTranslator_GetExternalMetricRequest_NoSelector(t *testing.T) {
 	}
 }
 
-func TestTranslator_GetExternalMetricRequest_CorrectSelector(t *testing.T) {
+func TestTranslator_GetExternalMetricRequest_CorrectSelector_Cumulative(t *testing.T) {
 	translator, sdService := newFakeTranslatorForExternalMetrics(time.Minute, "my-project", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC))
 	req1, _ := labels.NewRequirement("resource.type", selection.Equals, []string{"k8s_pod"})
 	req2, _ := labels.NewRequirement("resource.labels.project_id", selection.Equals, []string{"my-project"})
 	req3, _ := labels.NewRequirement("resource.labels.pod_name", selection.Exists, []string{})
 	req4, _ := labels.NewRequirement("resource.labels.namespace_name", selection.NotIn, []string{"default", "kube-system"})
 	req5, _ := labels.NewRequirement("metric.labels.my_label", selection.GreaterThan, []string{"86"})
-	request, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", labels.NewSelector().Add(*req1, *req2, *req3, *req4, *req5))
+	request, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "CUMULATIVE", labels.NewSelector().Add(*req1, *req2, *req3, *req4, *req5))
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
@@ -409,7 +411,7 @@ func TestTranslator_GetExternalMetricRequest_CorrectSelector(t *testing.T) {
 			"AND resource.type = \"k8s_pod\"").
 		IntervalStartTime("2017-01-02T13:00:00Z").
 		IntervalEndTime("2017-01-02T13:01:00Z").
-		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+		AggregationPerSeriesAligner("ALIGN_RATE").
 		AggregationAlignmentPeriod("60s")
 	if !reflect.DeepEqual(*request, *expectedRequest) {
 		t.Errorf("Unexpected result. Expected \n%s,\n received: \n%s", *expectedRequest, *request)
@@ -418,7 +420,7 @@ func TestTranslator_GetExternalMetricRequest_CorrectSelector(t *testing.T) {
 
 func TestTranslator_GetExternalMetricRequest_InvalidLabel(t *testing.T) {
 	translator, _ := newFakeTranslatorForExternalMetrics(time.Minute, "my-project", time.Date(2017, 1, 2, 13, 1, 0, 0, time.UTC))
-	_, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", labels.SelectorFromSet(labels.Set{
+	_, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "GAUGE", labels.SelectorFromSet(labels.Set{
 		"arbitrary-label": "foo",
 	}))
 	expectedError := provider.NewLabelNotAllowedError("arbitrary-label")
@@ -433,7 +435,7 @@ func TestTranslator_GetExternalMetricRequest_OneInvalidRequirement(t *testing.T)
 	req2, _ := labels.NewRequirement("resource.labels.pod_name", selection.Exists, []string{})
 	req3, _ := labels.NewRequirement("resource.labels.namespace_name", selection.NotIn, []string{"default", "kube-system"})
 	req4, _ := labels.NewRequirement("metric.labels.my_label", selection.DoesNotExist, []string{})
-	_, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", labels.NewSelector().Add(*req1, *req2, *req3, *req4))
+	_, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "GAUGE", labels.NewSelector().Add(*req1, *req2, *req3, *req4))
 	expectedError := errors.NewBadRequest("Label selector with operator DoesNotExist is not allowed")
 	if *err.(*errors.StatusError) != *expectedError {
 		t.Errorf("Expected status error: %s, but received: %s", expectedError, err)
