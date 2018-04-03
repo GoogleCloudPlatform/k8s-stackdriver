@@ -72,11 +72,12 @@ spec:
     spec:
       serviceAccountName: custom-metrics-stackdriver-adapter
       containers:
-      - image: gcr.io/google-containers/custom-metrics-stackdriver-adapter:v0.4.0
+      - image: gcr.io/google-containers/custom-metrics-stackdriver-adapter:v0.6.0
         imagePullPolicy: Always
         name: pod-custom-metrics-stackdriver-adapter
         command:
         - /adapter
+        - --use-new-resource-model=false
         resources:
           limits:
             cpu: 250m
@@ -119,3 +120,45 @@ spec:
     name: custom-metrics-stackdriver-adapter
     namespace: custom-metrics
   version: v1beta1
+---
+apiVersion: apiregistration.k8s.io/v1beta1
+kind: APIService
+metadata:
+  name: v1beta1.external.metrics.k8s.io
+spec:
+  insecureSkipTLSVerify: true
+  group: external.metrics.k8s.io
+  groupPriorityMinimum: 100
+  versionPriority: 100
+  priority: 100
+  service:
+    name: custom-metrics-stackdriver-adapter
+    namespace: custom-metrics
+  version: v1beta1
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: external-metrics-reader
+rules:
+- apiGroups:
+  - "external.metrics.k8s.io"
+  resources:
+  - "*"
+  verbs:
+  - list
+  - get
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: external-metrics-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: external-metrics-reader
+subjects:
+- kind: ServiceAccount
+  name: horizontal-pod-autoscaler
+  namespace: kube-system
