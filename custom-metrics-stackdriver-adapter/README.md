@@ -53,9 +53,19 @@ them to scale your application, following [HPA walkthrough].
 
 1. Start *Custom Metrics - Stackdriver Adapter*.
 
-```sh
-kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/deploy/production/adapter.yaml
-```
+Stackdriver supports two models of Kubernetes resources: **the legacy model**
+using monitored resource `gke_container` and **the new model** using different
+Kubernetes monitored resources, including for example `k8s_pod`, `k8s_node`. See
+[monitored resources documentation] for more details.
+
+* If you use **legacy resource model**:
+  ```sh
+  kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/deploy/production/adapter.yaml
+  ```
+* If you use **new resource model**:
+  ```sh
+  kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/deploy/production/adapter_new_resource_model.yaml
+  ```
 
 ### Metrics available from Stackdriver
 
@@ -94,14 +104,23 @@ in Prometheus format.
 The name of your metric must start with custom.googleapis.com/ prefix followed
 by a simple name, as defined in [custom metric naming rules].
 
+You will report your metric against a appropriate monitored resource for Kubernetes
+objects. To use **legacy resource model**, use monitored resource `gke_container`.
+To use **new resource model**, use one of monitored resources: `k8s_pod` or
+`k8s_node` - corresponding to Kubernetes objects `Pod` and `Node`.
+
 1. Define your custom metric by following [Stackdriver custom metrics documentation].
    Your metric descriptor needs to meet following requirements:
    * `metricType = DOUBLE` or `INT64`
 1. Export metric from your application. The metric has to be associated with a
-   specific pod and meet folowing requirements:
-   * `resource_type = "gke_container"` (See [monitored resources documentation])
-   * Following resource labels are set to correct values:
-     - `pod_id` - set this to pod UID obtained via downward API. Example configuration that passes POD_ID to your application as a flag:
+   specific pod or node and meet folowing requirements:
+   * `resource_type` set accordingly: `gke_container` for **legacy resource
+     model** or one of `k8s_pod`, `k8s_node` for **new resource model**. (See
+     [monitored resources documentation])
+   * All resource labels for your monitored resource set to correct values. In
+     particular:
+     - `pod_id`, `pod_name`, `namespace_name` can be obtained via downward API.
+       Example configuration that passes these values to your application as flags:
 
        ```yaml
        apiVersion: v1
@@ -112,12 +131,20 @@ by a simple name, as defined in [custom metric naming rules].
          containers:
          - image: <my-image>
            command:
-           - my-app --pod_id=$(POD_ID)
+           - my-app --pod_id=$(POD_ID) --pod_name=$(POD_NAME) --namespace_name=$(NAMESPACE_NAME)
            env:
            - name: POD_ID
              valueFrom:
                fieldRef:
                  fieldPath: metadata.uid
+           - name: POD_NAME
+             valueFrom:
+               fieldRef:
+                 fieldPath: metadata.name
+           - name: NAMESPACE_NAME
+             valueFrom:
+               fieldRef:
+                 fieldPath: metadata.namespace
        ```
 
        Example flag definition in Go:
@@ -129,18 +156,30 @@ by a simple name, as defined in [custom metric naming rules].
        podID := *podIdFlag
        ```
 
-     - `container_name = ""`
-     - `project_id`, `zone`, `cluster_name` - can be obtained by your application from
-        [metadata server]. You can use Google Cloud compute metadata client to get
-        these values, example in Go:
+     - For monitored resource `gke_container`, `container_name` should be set to
+       `""` to indicate that the metric is associated with a pod, not a
+       particular container.
+     - `project_id`, `zone`, `location`, `cluster_name` - can be obtained by your
+       application from [metadata server]. You can use Google Cloud compute
+       metadata client to get these values, example in Go:
 
        ```go
        import gce "cloud.google.com/go/compute/metadata"
 
        project_id, err := gce.ProjectID()
+       // the zone where your application runs
+       // used in legacy resource model
        zone, err := gce.Zone()
+       // cluster location can be different than your application zone in
+       // clusters spanning across multiple zones
+       // used in new resource model
+       location, err := gce.InstanceAttributeValue("cluster-location")
        cluster_name, err := gce.InstanceAttributeValue("cluster-name")
        ```
+     - `namespace_id` and `instance_id` (for **legacy resource model**) are not
+       used by Custom Metrics - Stackdriver Adapter, but still it's recommended
+       to set those to the correct values to make them more useful for other use
+       cases.
 
      Example code exporting a metric to Stackdriver, written in Go:
 
@@ -168,17 +207,13 @@ by a simple name, as defined in [custom metric naming rules].
              Type: "custom.googleapis.com/" + <your metric name>,
            },
            Resource: &v3.MonitoredResource{
-             Type: "gke_container",
+             Type: "k8s_pod",
              Labels: map[string]string{
                "project_id":     <your project ID>,
-               "zone":           <your cluster zone>,
+               "location":       <your cluster location>,
                "cluster_name":   <your cluster name>,
-               "container_name": "",
-               "pod_id":         <your pod ID>,
-               // namespace_id and instance_id labels don't matter for the custom
-               // metrics use case
-               "namespace_id":   <your namespace>,
-               "instance_id":    <your instance ID>,
+               "namespace_name": <your namespace>,
+               "pod_name":       <your pod name>,
              },
            },
            Points: []*v3.Point{
