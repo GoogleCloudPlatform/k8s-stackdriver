@@ -27,7 +27,7 @@ build:
 test:
 	${ENVVAR} godep go test ./...
 
-container:
+container: build
 	docker build --pull -t ${PREFIX}/${IMAGE_NAME}:${TAG} .
 
 push: container

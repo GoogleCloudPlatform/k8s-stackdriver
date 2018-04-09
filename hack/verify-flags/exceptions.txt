@@ -27,6 +27,7 @@ custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Re
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:	req2, _ := labels.NewRequirement("resource.labels.pod_name", selection.Exists, []string{})
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:	req3, _ := labels.NewRequirement("resource.labels.pod_name", selection.Exists, []string{})
+event-exporter/sinks/stackdriver/monitored_resource_factory.go:	podName       = "pod_name"
 kubelet-to-gcm/monitor/controller/translator.go:		"namespace_id":   "",
 kubelet-to-gcm/monitor/controller/translator.go:		"pod_id":         "machine",
 kubelet-to-gcm/monitor/kubelet/translate.go:				"namespace_id":   namespace,

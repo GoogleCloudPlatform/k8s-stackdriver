@@ -31,11 +31,11 @@ import (
 )
 
 type sdSinkFactory struct {
-	flagSet        *flag.FlagSet
-	flushDelay     *time.Duration
-	maxBufferSize  *int
-	maxConcurrency *int
-	location       *string
+	flagSet              *flag.FlagSet
+	flushDelay           *time.Duration
+	maxBufferSize        *int
+	maxConcurrency       *int
+	resourceModelVersion *string
 }
 
 // NewSdSinkFactory creates a new Stackdriver sink factory
@@ -50,7 +50,8 @@ func NewSdSinkFactory() sinks.SinkFactory {
 			"in the request to Stackdriver"),
 		maxConcurrency: fs.Int("max-concurrency", defaultMaxConcurrency, "Maximum number of "+
 			"concurrent requests to Stackdriver"),
-		location: fs.String("location", "", "GCE location of the cluster"),
+		resourceModelVersion: fs.String("stackdriver-resource-model", "", "Stackdriver resource model "+
+			"to be used for exports"),
 	}
 }
 
@@ -62,7 +63,12 @@ func (f *sdSinkFactory) CreateNew(opts []string) (sinks.Sink, error) {
 
 	config, err := f.createSinkConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to build config: %v", err)
+		return nil, fmt.Errorf("failed to build sink config: %v", err)
+	}
+
+	resourceModelFactory, err := f.createMonitoredResourceFactory()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stackdriver monitored resource factory: %v", err)
 	}
 
 	ctx := context.Background()
@@ -79,11 +85,19 @@ func (f *sdSinkFactory) CreateNew(opts []string) (sinks.Sink, error) {
 
 	clk := clock.RealClock{}
 
-	return newSdSink(writer, clk, config), nil
+	return newSdSink(writer, clk, config, resourceModelFactory), nil
+}
+
+func (f *sdSinkFactory) createMonitoredResourceFactory() (*monitoredResourceFactory, error) {
+	resourceModelConfig, err := newMonitoredResourceFactoryConfig(*f.resourceModelVersion)
+	if err != nil {
+		return nil, err
+	}
+	return newMonitoredResourceFactory(resourceModelConfig), nil
 }
 
 func (f *sdSinkFactory) createSinkConfig() (*sdSinkConfig, error) {
-	config, err := newGceSdSinkConfig(*f.location)
+	config, err := newGceSdSinkConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -91,6 +105,5 @@ func (f *sdSinkFactory) createSinkConfig() (*sdSinkConfig, error) {
 	config.FlushDelay = *f.flushDelay
 	config.MaxBufferSize = *f.maxBufferSize
 	config.MaxConcurrency = *f.maxConcurrency
-
 	return config, nil
 }

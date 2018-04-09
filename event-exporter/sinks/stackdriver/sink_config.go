@@ -19,12 +19,9 @@ package stackdriver
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
-	"github.com/golang/glog"
-	sd "google.golang.org/api/logging/v2"
 )
 
 const (
@@ -40,10 +37,9 @@ type sdSinkConfig struct {
 	MaxBufferSize  int
 	MaxConcurrency int
 	LogName        string
-	Resource       *sd.MonitoredResource
 }
 
-func newGceSdSinkConfig(location string) (*sdSinkConfig, error) {
+func newGceSdSinkConfig() (*sdSinkConfig, error) {
 	if !metadata.OnGCE() {
 		return nil, errors.New("not running on GCE, which is not supported for Stackdriver sink")
 	}
@@ -52,29 +48,13 @@ func newGceSdSinkConfig(location string) (*sdSinkConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get project id: %v", err)
 	}
+
 	logName := fmt.Sprintf("projects/%s/logs/%s", projectID, eventsLogName)
-
-	clusterName, err := metadata.InstanceAttributeValue("cluster-name")
-	if err != nil {
-		glog.Warningf("'cluster-name' label is not specified on the VM, defaulting to the empty value")
-		clusterName = ""
-	}
-	clusterName = strings.TrimSpace(clusterName)
-
-	resource := &sd.MonitoredResource{
-		Type: "gke_cluster",
-		Labels: map[string]string{
-			"cluster_name": clusterName,
-			"location":     location,
-			"project_id":   projectID,
-		},
-	}
 
 	return &sdSinkConfig{
 		FlushDelay:     defaultFlushDelay,
 		MaxBufferSize:  defaultMaxBufferSize,
 		MaxConcurrency: defaultMaxConcurrency,
 		LogName:        logName,
-		Resource:       resource,
 	}, nil
 }

@@ -155,6 +155,7 @@ source-file
 ssl-ca-cert
 ssl-cert
 stackdriver-prefix
+stackdriver-resource-model
 start-from
 state-machine-enabled
 stats-port
