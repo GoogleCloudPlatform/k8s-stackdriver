@@ -173,14 +173,15 @@ func createSinkWith(params map[string]interface{}) (c *sdSinkConfig, s *sdSink, 
 			return 0
 		},
 	}
-	s = newSdSink(w, clock.NewFakeClock(time.Time{}), c)
+
+	monitoredResourceFactory := &monitoredResourceFactory{}
+	s = newSdSink(w, clock.NewFakeClock(time.Time{}), c, monitoredResourceFactory)
 	go s.Run(done)
 	return
 }
 
 func createConfig(params map[string]interface{}) *sdSinkConfig {
 	c := &sdSinkConfig{
-		Resource:       nil,
 		FlushDelay:     defaultTestFlushDelay,
 		LogName:        "logname",
 		MaxConcurrency: defaultTestMaxConcurrency,

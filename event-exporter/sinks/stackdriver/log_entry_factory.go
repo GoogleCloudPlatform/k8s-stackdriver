@@ -45,14 +45,16 @@ var (
 )
 
 type sdLogEntryFactory struct {
-	clock   clock.Clock
-	encoder runtime.Encoder
+	clock           clock.Clock
+	encoder         runtime.Encoder
+	resourceFactory *monitoredResourceFactory
 }
 
-func newSdLogEntryFactory(clock clock.Clock) *sdLogEntryFactory {
+func newSdLogEntryFactory(clock clock.Clock, resourceFactory *monitoredResourceFactory) *sdLogEntryFactory {
 	return &sdLogEntryFactory{
-		clock:   clock,
-		encoder: newEncoder(),
+		clock:           clock,
+		encoder:         newEncoder(),
+		resourceFactory: resourceFactory,
 	}
 }
 
@@ -62,10 +64,13 @@ func (f *sdLogEntryFactory) FromEvent(event *api_v1.Event) *sd.LogEntry {
 		glog.Warningf("Failed to encode event %+v: %v", event, err)
 	}
 
+	resource := f.resourceFactory.resourceFromEvent(event)
+
 	return &sd.LogEntry{
 		JsonPayload: payload,
 		Severity:    f.detectSeverity(event),
 		Timestamp:   event.LastTimestamp.Format(time.RFC3339Nano),
+		Resource:    resource,
 	}
 }
 
