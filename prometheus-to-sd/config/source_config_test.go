@@ -34,12 +34,12 @@ func TestNewSourceConfig(t *testing.T) {
 		whitelisted string
 		output      SourceConfig
 	}{
-		{"testComponent", "localhost", "1234", "/metrics", "a,b,c,d",
+		{"testComponent", "localhost", "1234", defaultMetricsPath, "a,b,c,d",
 			SourceConfig{
 				Component:   "testComponent",
 				Host:        "localhost",
 				Port:        1234,
-				Path:        "/metrics",
+				Path:        defaultMetricsPath,
 				Whitelisted: []string{"a", "b", "c", "d"},
 			},
 		},
@@ -74,7 +74,7 @@ func TestParseSourceConfig(t *testing.T) {
 				Val: url.URL{
 					Scheme:   "http",
 					Host:     "hostname:1234",
-					Path:     "/metrics",
+					Path:     defaultMetricsPath,
 					RawQuery: "whitelisted=a,b,c,d",
 				},
 			},
@@ -82,7 +82,7 @@ func TestParseSourceConfig(t *testing.T) {
 				Component:   "testComponent",
 				Host:        "hostname",
 				Port:        1234,
-				Path:        "/metrics",
+				Path:        defaultMetricsPath,
 				Whitelisted: []string{"a", "b", "c", "d"},
 			},
 		},

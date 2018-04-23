@@ -36,6 +36,8 @@ type SourceConfig struct {
 	Whitelisted []string
 }
 
+const defaultMetricsPath = "/metrics"
+
 // newSourceConfig creates a new SourceConfig based on string representation of fields.
 func newSourceConfig(component string, host string, port string, path string, whitelisted string) (*SourceConfig, error) {
 	if port == "" {
@@ -96,7 +98,7 @@ func SourceConfigsFromFlags(source flags.Uris, component *string, host *string, 
 		glog.Warningf("--component, --host, --port and --whitelisted flags are deprecated. Please use --source instead.")
 		portStr := strconv.FormatUint(uint64(*port), 10)
 
-		if sourceConfig, err := newSourceConfig(*component, *host, portStr, "/metrics", *whitelisted); err != nil {
+		if sourceConfig, err := newSourceConfig(*component, *host, portStr, defaultMetricsPath, *whitelisted); err != nil {
 			glog.Fatalf("Error while parsing --component flag: %v", err)
 		} else {
 			glog.Infof("Created a new source instance from --component flag: %+v", sourceConfig)
