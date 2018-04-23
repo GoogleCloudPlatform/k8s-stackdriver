@@ -40,7 +40,7 @@ func GetPrometheusMetrics(config *config.SourceConfig) (map[string]*dto.MetricFa
 }
 
 func getPrometheusMetrics(config *config.SourceConfig) (map[string]*dto.MetricFamily, error) {
-	url := fmt.Sprintf("http://%s:%d/metrics", config.Host, config.Port)
+	url := fmt.Sprintf("http://%s:%d%s", config.Host, config.Port, config.Path)
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("request %s failed: %v", url, err)
