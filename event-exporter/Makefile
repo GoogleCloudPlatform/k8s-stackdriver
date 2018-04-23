@@ -19,7 +19,7 @@ BINARY_NAME = event-exporter
 
 PREFIX = gcr.io/google-containers
 IMAGE_NAME = event-exporter
-TAG = v0.1.8
+TAG = v0.1.9
 
 build:
 	${ENVVAR} godep go build -a -o ${BINARY_NAME}
@@ -27,7 +27,7 @@ build:
 test:
 	${ENVVAR} godep go test ./...
 
-container:
+container: build
 	docker build --pull -t ${PREFIX}/${IMAGE_NAME}:${TAG} .
 
 push: container

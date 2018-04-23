@@ -41,7 +41,7 @@ func NewMetricNotFoundForError(resource schema.GroupResource, metricName string,
 // NewExternalMetricNotFoundError returns a status error indicating that the given metric could
 // not be found. It is similar to NewNotFound, but more specialized.
 func NewExternalMetricNotFoundError(metricName string) *apierr.StatusError {
-	return newMetricNotFoundWithMessageError("the server could not find the metric %s for provided labels")
+	return newMetricNotFoundWithMessageError(fmt.Sprintf("the server could not find the metric %s for provided labels", metricName))
 }
 
 // NewLabelNotAllowedError returns a status error indicating that the given label is forbidden.

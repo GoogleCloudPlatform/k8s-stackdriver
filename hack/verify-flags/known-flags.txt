@@ -37,6 +37,8 @@ dump-nginx-configuration
 e2e-status-context
 election-namespace
 enable-md-yaml
+enable-custom-metrics-api
+enable-external-metrics-api
 enable-output-coloring
 error-page
 etcd-prefix
@@ -153,6 +155,7 @@ source-file
 ssl-ca-cert
 ssl-cert
 stackdriver-prefix
+stackdriver-resource-model
 start-from
 state-machine-enabled
 stats-port

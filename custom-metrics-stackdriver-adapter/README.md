@@ -1,8 +1,8 @@
 # Custom Metrics - Stackdriver Adapter
 
 Custom Metrics - Stackdriver Adapter is an implementation of [Custom Metrics
-API] based on Stackdriver per-pod metrics. It's purpose is to enable pod
-autoscaling based on Stackdriver custom metrics.
+API] and [External Metrics API] using Stackdriver as a backend. Its purpose is
+to enable pod autoscaling based on Stackdriver custom metrics.
 
 ## Usage guide
 
@@ -45,15 +45,46 @@ them to scale your application, following [HPA walkthrough].
      - To set scopes in existing clusters you can use `gcloud beta compute
        instances set-scopes` command, see [gcloud
        documentation](https://cloud.google.com/sdk/gcloud/reference/beta/compute/instances/set-scopes).
+    * On GKE, you need cluster-admin permissions on your cluster. You can grant
+      your user account these permissions with following command:
+      ```
+      kubectl create clusterrolebinding cluster-admin-binding --clusterrole cluster-admin --user $(gcloud config get-value account)
+      ```
 
 1. Start *Custom Metrics - Stackdriver Adapter*.
 
 ```sh
-kubectl create -f
-https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/adapter-beta.yaml
+kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/deploy/production/adapter.yaml
 ```
 
-### Export metrics to Stackdriver
+### Metrics available from Stackdriver
+
+Custom Metrics - Stackdriver Adapter exposes Stackdriver metrics to Kubernetes
+components via two APIs.
+
+1. Any Stackdriver metric can be retrieved via **External Metrics API** with one
+   assumption: `metricType = DOUBLE` or `INT64`. For example, this API can be
+   used to configure Horizontal Pod Autoscaler to scale deployment based on any
+   of [existing metrics from other GCP services].
+
+1. Metrics attached to Kubernetes objects, such as Pod or Node, can be retrieved
+   via **Custom Metrics API**. The following section provides more details about
+   exporting such metrics.
+
+#### Metric kinds
+
+Stackdriver specifies three metric kinds, all of which are supported by Custom
+Metrics - Stackdriver Adapter:
+1. `GAUGE` - Each data point represents an instantaneous measurement, for
+   example the temperature. The adapter exposes the latest value.
+1. `DELTA` - Each data point represents the change in a value over the time
+   interval. The adapter exposes *rate* of the metric - the metric change per
+   second computed over last 5 minutes.
+1. `CUMULATIVE` - Each data point is a value being accumulated over time. The
+   adapter exposes *rate* of the metric - the metric change per second computed
+   over last 5 minutes.
+
+### Export custom metrics to Stackdriver
 
 To learn how to create your custom metric and write your data to Stackdriver,
 follow [Stackdriver custom metrics documentation]. You can also follow
@@ -65,7 +96,6 @@ by a simple name, as defined in [custom metric naming rules].
 
 1. Define your custom metric by following [Stackdriver custom metrics documentation].
    Your metric descriptor needs to meet following requirements:
-   * `metricKind = GAUGE`
    * `metricType = DOUBLE` or `INT64`
 1. Export metric from your application. The metric has to be associated with a
    specific pod and meet folowing requirements:
@@ -167,7 +197,7 @@ by a simple name, as defined in [custom metric naming rules].
      stackdriverService.Projects.TimeSeries.Create("projects/<your project ID>", request).Do()
      ```
 
-#### Examples
+### Examples
 
 To test your custom metrics setup or see a reference on how to push your metrics
 to Stackdriver, check out our examples:
@@ -178,6 +208,8 @@ to Stackdriver, check out our examples:
 
 [Custom Metrics API]:
 https://github.com/kubernetes/metrics/tree/master/pkg/apis/custom_metrics
+[External Metrics API]:
+https://github.com/kubernetes/metrics/tree/master/pkg/apis/external_metrics
 [HPA walkthrough]:
 https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough/
 [cluster setup]: https://kubernetes.io/docs/setup/
@@ -201,3 +233,5 @@ https://cloud.google.com/monitoring/api/resources
 https://github.com/GoogleCloudPlatform/k8s-stackdriver/tree/master/prometheus-to-sd
 [Prometheus text format]:
 https://prometheus.io/docs/instrumenting/exposition_formats
+[existing metrics from other GCP services]:
+https://cloud.google.com/monitoring/api/metrics_gcp

@@ -42,7 +42,7 @@ import (
 var (
 	// allowedLabelPrefixes and allowedFullLabelNames specify all metric labels allowed for querying
 	// External Metrics API.
-	allowedLabelPrefixes  = []string{"metric.label", "resource.label", "metadata.system_label", "metadata.user_label"}
+	allowedLabelPrefixes  = []string{"metric.labels", "resource.labels", "metadata.system_labels", "metadata.user_labels"}
 	allowedFullLabelNames = []string{"resource.type"}
 )
 
@@ -67,7 +67,7 @@ type Translator struct {
 // podList is required to be no longer than oneOfMax items. This is enforced by limitation of
 // "one_of()" operator in Stackdriver filters, see documentation:
 // https://cloud.google.com/monitoring/api/v3/filters
-func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName string, namespace string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
+func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName string, metricKind, namespace string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
 	if len(podList.Items) == 0 {
 		return nil, apierr.NewBadRequest("No objects matched provided selector")
 	}
@@ -89,14 +89,14 @@ func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName string, nam
 			t.legacyFilterForCluster(),
 			t.legacyFilterForPods(resourceIDs))
 	}
-	return t.createListTimeseriesRequest(filter), nil
+	return t.createListTimeseriesRequest(filter, metricKind), nil
 }
 
 // GetSDReqForNodes returns Stackdriver request for query for multiple nodes.
 // nodeList is required to be no longer than oneOfMax items. This is enforced by limitation of
 // "one_of()" operator in Stackdriver filters, see documentation:
 // https://cloud.google.com/monitoring/api/v3/filters
-func (t *Translator) GetSDReqForNodes(nodeList *v1.NodeList, metricName string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
+func (t *Translator) GetSDReqForNodes(nodeList *v1.NodeList, metricName string, metricKind string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
 	if len(nodeList.Items) == 0 {
 		return nil, apierr.NewBadRequest("No objects matched provided selector")
 	}
@@ -113,20 +113,20 @@ func (t *Translator) GetSDReqForNodes(nodeList *v1.NodeList, metricName string) 
 		t.filterForCluster(),
 		t.filterForNodes(resourceNames),
 		t.filterForAnyNode())
-	return t.createListTimeseriesRequest(filter), nil
+	return t.createListTimeseriesRequest(filter, metricKind), nil
 }
 
 // GetExternalMetricRequest returns Stackdriver request for query for external metric.
-func (t *Translator) GetExternalMetricRequest(metricName string, metricSelector labels.Selector) (*stackdriver.ProjectsTimeSeriesListCall, error) {
+func (t *Translator) GetExternalMetricRequest(metricName string, metricKind string, metricSelector labels.Selector) (*stackdriver.ProjectsTimeSeriesListCall, error) {
 	filterForMetric := t.filterForMetric(metricName)
 	if metricSelector.Empty() {
-		return t.createListTimeseriesRequest(filterForMetric), nil
+		return t.createListTimeseriesRequest(filterForMetric, metricKind), nil
 	}
 	filterForSelector, err := t.filterForSelector(metricSelector)
 	if err != nil {
 		return nil, err
 	}
-	return t.createListTimeseriesRequest(joinFilters(filterForMetric, filterForSelector)), nil
+	return t.createListTimeseriesRequest(joinFilters(filterForMetric, filterForSelector), metricKind), nil
 }
 
 // GetRespForSingleObject returns translates Stackdriver response to a Custom Metric associated with
@@ -211,16 +211,14 @@ func (t *Translator) ListMetricDescriptors() *stackdriver.ProjectsMetricDescript
 
 // GetMetricsFromSDDescriptorsResp returns an array of MetricInfo for all metric descriptors
 // returned by Stackdriver API that satisfy the requirements:
-// - metricKind is "GAUGE"
 // - valueType is "INT64" or "DOUBLE"
 // - metric name doesn't contain "/" character after "custom.googleapis.com/" prefix
-func (t *Translator) GetMetricsFromSDDescriptorsResp(response *stackdriver.ListMetricDescriptorsResponse) []provider.MetricInfo {
-	metrics := []provider.MetricInfo{}
+func (t *Translator) GetMetricsFromSDDescriptorsResp(response *stackdriver.ListMetricDescriptorsResponse) []provider.CustomMetricInfo {
+	metrics := []provider.CustomMetricInfo{}
 	for _, descriptor := range response.MetricDescriptors {
-		if descriptor.MetricKind == "GAUGE" &&
-			(descriptor.ValueType == "INT64" || descriptor.ValueType == "DOUBLE") &&
+		if (descriptor.ValueType == "INT64" || descriptor.ValueType == "DOUBLE") &&
 			!strings.Contains(strings.TrimPrefix(descriptor.Type, t.config.MetricsPrefix+"/"), "/") {
-			metrics = append(metrics, provider.MetricInfo{
+			metrics = append(metrics, provider.CustomMetricInfo{
 				GroupResource: schema.GroupResource{Group: "", Resource: "*"},
 				Metric:        strings.TrimPrefix(descriptor.Type, t.config.MetricsPrefix+"/"),
 				Namespaced:    true,
@@ -228,6 +226,15 @@ func (t *Translator) GetMetricsFromSDDescriptorsResp(response *stackdriver.ListM
 		}
 	}
 	return metrics
+}
+
+// GetMetricKind returns metricKind for metric metricName, obtained from Stackdriver Monitoring API.
+func (t *Translator) GetMetricKind(metricName string) (string, error) {
+	response, err := t.service.Projects.MetricDescriptors.Get(fmt.Sprintf("projects/%s/metricDescriptors/%s", t.config.Project, metricName)).Do()
+	if err != nil {
+		return "", apierr.NewBadRequest(fmt.Sprintf("Failed to retrieve metricKind from Stackdriver for metric %s: %s", metricName, err))
+	}
+	return response.MetricKind, nil
 }
 
 func getPodNames(list *v1.PodList) []string {
@@ -290,9 +297,9 @@ func joinFilters(filters ...string) string {
 }
 
 func (t *Translator) filterForCluster() string {
-	projectFilter := fmt.Sprintf("resource.label.project_id = %q", t.config.Project)
-	clusterFilter := fmt.Sprintf("resource.label.cluster_name = %q", t.config.Cluster)
-	locationFilter := fmt.Sprintf("resource.label.location = %q", t.config.Location)
+	projectFilter := fmt.Sprintf("resource.labels.project_id = %q", t.config.Project)
+	clusterFilter := fmt.Sprintf("resource.labels.cluster_name = %q", t.config.Cluster)
+	locationFilter := fmt.Sprintf("resource.labels.location = %q", t.config.Location)
 	return fmt.Sprintf("%s AND %s AND %s", projectFilter, clusterFilter, locationFilter)
 }
 
@@ -320,39 +327,39 @@ func (t *Translator) filterForPods(podNames []string, namespace string) string {
 	if len(podNames) == 0 {
 		glog.Fatalf("createFilterForPods called with empty list of pod names")
 	} else if len(podNames) == 1 {
-		return fmt.Sprintf("resource.label.namespace_name = %q AND resource.label.pod_name = %s", namespace, podNames[0])
+		return fmt.Sprintf("resource.labels.namespace_name = %q AND resource.labels.pod_name = %s", namespace, podNames[0])
 	}
-	return fmt.Sprintf("resource.label.namespace_name = %q AND resource.label.pod_name = one_of(%s)", namespace, strings.Join(podNames, ","))
+	return fmt.Sprintf("resource.labels.namespace_name = %q AND resource.labels.pod_name = one_of(%s)", namespace, strings.Join(podNames, ","))
 }
 
 func (t *Translator) filterForNodes(nodeNames []string) string {
 	if len(nodeNames) == 0 {
 		glog.Fatalf("createFilterForNodes called with empty list of node names")
 	} else if len(nodeNames) == 1 {
-		return fmt.Sprintf("resource.label.node_name = %s", nodeNames[0])
+		return fmt.Sprintf("resource.labels.node_name = %s", nodeNames[0])
 	}
-	return fmt.Sprintf("resource.label.node_name = one_of(%s)", strings.Join(nodeNames, ","))
+	return fmt.Sprintf("resource.labels.node_name = one_of(%s)", strings.Join(nodeNames, ","))
 }
 
 func (t *Translator) legacyFilterForCluster() string {
-	projectFilter := fmt.Sprintf("resource.label.project_id = %q", t.config.Project)
+	projectFilter := fmt.Sprintf("resource.labels.project_id = %q", t.config.Project)
 	// Skip location, since it may be set incorrectly by Heapster for old resource model
-	clusterFilter := fmt.Sprintf("resource.label.cluster_name = %q", t.config.Cluster)
-	containerFilter := "resource.label.container_name = \"\""
+	clusterFilter := fmt.Sprintf("resource.labels.cluster_name = %q", t.config.Cluster)
+	containerFilter := "resource.labels.container_name = \"\""
 	return fmt.Sprintf("%s AND %s AND %s", projectFilter, clusterFilter, containerFilter)
 }
 
 func (t *Translator) legacyFilterForAnyPod() string {
-	return "resource.label.pod_id != \"\" AND resource.label.pod_id != \"machine\""
+	return "resource.labels.pod_id != \"\" AND resource.labels.pod_id != \"machine\""
 }
 
 func (t *Translator) legacyFilterForPods(podIDs []string) string {
 	if len(podIDs) == 0 {
 		glog.Fatalf("createFilterForIDs called with empty list of pod IDs")
 	} else if len(podIDs) == 1 {
-		return fmt.Sprintf("resource.label.pod_id = %s", podIDs[0])
+		return fmt.Sprintf("resource.labels.pod_id = %s", podIDs[0])
 	}
-	return fmt.Sprintf("resource.label.pod_id = one_of(%s)", strings.Join(podIDs, ","))
+	return fmt.Sprintf("resource.labels.pod_id = one_of(%s)", strings.Join(podIDs, ","))
 }
 
 func (t *Translator) filterForSelector(metricSelector labels.Selector) (string, error) {
@@ -427,23 +434,28 @@ func (t *Translator) filterForSelector(metricSelector labels.Selector) (string, 
 func (t *Translator) getMetricLabels(series *stackdriver.TimeSeries) map[string]string {
 	metricLabels := map[string]string{}
 	for label, value := range series.Metric.Labels {
-		metricLabels["metric.label."+label] = value
+		metricLabels["metric.labels."+label] = value
 	}
 	metricLabels["resource.type"] = series.Resource.Type
 	for label, value := range series.Resource.Labels {
-		metricLabels["resource.label."+label] = value
+		metricLabels["resource.labels."+label] = value
 	}
 	return metricLabels
 }
 
-func (t *Translator) createListTimeseriesRequest(filter string) *stackdriver.ProjectsTimeSeriesListCall {
+func (t *Translator) createListTimeseriesRequest(filter string, metricKind string) *stackdriver.ProjectsTimeSeriesListCall {
 	project := fmt.Sprintf("projects/%s", t.config.Project)
 	endTime := t.clock.Now()
 	startTime := endTime.Add(-t.reqWindow)
+	// use "ALIGN_NEXT_OLDER" by default, i.e. for metricKind "GAUGE"
+	aligner := "ALIGN_NEXT_OLDER"
+	if metricKind == "DELTA" || metricKind == "CUMULATIVE" {
+		aligner = "ALIGN_RATE"
+	}
 	return t.service.Projects.TimeSeries.List(project).Filter(filter).
 		IntervalStartTime(startTime.Format(time.RFC3339)).
 		IntervalEndTime(endTime.Format(time.RFC3339)).
-		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+		AggregationPerSeriesAligner(aligner).
 		AggregationAlignmentPeriod(fmt.Sprintf("%vs", int64(t.reqWindow.Seconds())))
 }
 
@@ -517,6 +529,10 @@ func (t *Translator) metricsFor(values map[string]resource.Quantity, groupResour
 	}
 
 	return res, nil
+}
+
+func (t *Translator) fullCustomMetricName(metricName string) string {
+	return t.config.MetricsPrefix + "/" + metricName
 }
 
 func (t *Translator) getPodItems(list *v1.PodList) []metav1.ObjectMeta {

@@ -155,7 +155,7 @@ func getKubeletHost(kubeletHost string) (string, error) {
 	return kubeletHost, nil
 }
 
-// getInstance returns the instance name if given, or the hostname from gce.
+// getInstance returns the instance name if given, or instance name from gce.
 func getInstance(instance string) (string, error) {
 	if instance == "use-gce" {
 		body, err := getGCEMetaData(metaDataURI("/instance/hostname"))
@@ -164,5 +164,5 @@ func getInstance(instance string) (string, error) {
 		}
 		instance = string(body)
 	}
-	return instance, nil
+	return strings.Split(instance, ".")[0], nil
 }
