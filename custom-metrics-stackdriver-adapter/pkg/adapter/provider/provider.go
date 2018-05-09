@@ -61,7 +61,7 @@ type StackdriverProvider struct {
 
 // NewStackdriverProvider creates a StackdriverProvider
 func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.RESTMapper, stackdriverService *stackdriver.Service, rateInterval, alignmentPeriod time.Duration, useNewResourceModel bool) provider.MetricsProvider {
-	gceConf, err := config.GetGceConfig("custom.googleapis.com")
+	gceConf, err := config.GetGceConfig()
 	if err != nil {
 		glog.Fatalf("Failed to retrieve GCE config: %v", err)
 	}
@@ -85,7 +85,7 @@ func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.REST
 
 // GetRootScopedMetricByName queries Stackdriver for metrics identified by name and not associated
 // with any namespace. Current implementation doesn't support root scoped metrics.
-func (p *StackdriverProvider) GetRootScopedMetricByName(groupResource schema.GroupResource, name string, metricName string) (*custom_metrics.MetricValue, error) {
+func (p *StackdriverProvider) GetRootScopedMetricByName(groupResource schema.GroupResource, name string, escapedMetricName string) (*custom_metrics.MetricValue, error) {
 	if !p.translator.useNewResourceModel {
 		return nil, provider.NewOperationNotSupportedError("Get root scoped metric by name")
 	}
@@ -96,11 +96,11 @@ func (p *StackdriverProvider) GetRootScopedMetricByName(groupResource schema.Gro
 	if err != nil {
 		return nil, err
 	}
-	metricKind, err := p.translator.GetMetricKind(p.translator.fullCustomMetricName(metricName))
+	metricKind, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName))
 	if err != nil {
 		return nil, err
 	}
-	stackdriverRequest, err := p.translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{*matchingNode}}, metricName, metricKind)
+	stackdriverRequest, err := p.translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{*matchingNode}}, getCustomMetricName(escapedMetricName), metricKind)
 	if err != nil {
 		return nil, err
 	}
@@ -108,12 +108,12 @@ func (p *StackdriverProvider) GetRootScopedMetricByName(groupResource schema.Gro
 	if err != nil {
 		return nil, err
 	}
-	return p.translator.GetRespForSingleObject(stackdriverResponse, groupResource, metricName, "", name)
+	return p.translator.GetRespForSingleObject(stackdriverResponse, groupResource, escapedMetricName, "", name)
 }
 
 // GetRootScopedMetricBySelector queries Stackdriver for metrics identified by selector and not
 // associated with any namespace. Current implementation doesn't support root scoped metrics.
-func (p *StackdriverProvider) GetRootScopedMetricBySelector(groupResource schema.GroupResource, selector labels.Selector, metricName string) (*custom_metrics.MetricValueList, error) {
+func (p *StackdriverProvider) GetRootScopedMetricBySelector(groupResource schema.GroupResource, selector labels.Selector, escapedMetricName string) (*custom_metrics.MetricValueList, error) {
 	if !p.translator.useNewResourceModel {
 		return nil, provider.NewOperationNotSupportedError("Get root scoped metric by selector")
 	}
@@ -124,14 +124,14 @@ func (p *StackdriverProvider) GetRootScopedMetricBySelector(groupResource schema
 	if err != nil {
 		return nil, err
 	}
-	metricKind, err := p.translator.GetMetricKind(p.translator.fullCustomMetricName(metricName))
+	metricKind, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName))
 	if err != nil {
 		return nil, err
 	}
 	result := []custom_metrics.MetricValue{}
 	for i := 0; i < len(matchingNodes.Items); i += oneOfMax {
 		nodesSlice := &v1.NodeList{Items: matchingNodes.Items[i:min(i+oneOfMax, len(matchingNodes.Items))]}
-		stackdriverRequest, err := p.translator.GetSDReqForNodes(nodesSlice, metricName, metricKind)
+		stackdriverRequest, err := p.translator.GetSDReqForNodes(nodesSlice, getCustomMetricName(escapedMetricName), metricKind)
 		if err != nil {
 			return nil, err
 		}
@@ -139,7 +139,7 @@ func (p *StackdriverProvider) GetRootScopedMetricBySelector(groupResource schema
 		if err != nil {
 			return nil, err
 		}
-		slice, err := p.translator.GetRespForMultipleObjects(stackdriverResponse, p.translator.getNodeItems(matchingNodes), groupResource, metricName)
+		slice, err := p.translator.GetRespForMultipleObjects(stackdriverResponse, p.translator.getNodeItems(matchingNodes), groupResource, escapedMetricName)
 		if err != nil {
 			return nil, err
 		}
@@ -150,7 +150,7 @@ func (p *StackdriverProvider) GetRootScopedMetricBySelector(groupResource schema
 
 // GetNamespacedMetricByName queries Stackdriver for metrics identified by name and associated
 // with a namespace.
-func (p *StackdriverProvider) GetNamespacedMetricByName(groupResource schema.GroupResource, namespace string, name string, metricName string) (*custom_metrics.MetricValue, error) {
+func (p *StackdriverProvider) GetNamespacedMetricByName(groupResource schema.GroupResource, namespace string, name string, escapedMetricName string) (*custom_metrics.MetricValue, error) {
 	if groupResource.Resource != podResource {
 		return nil, provider.NewOperationNotSupportedError(fmt.Sprintf("Get namespaced metric by name for resource %q", groupResource.Resource))
 	}
@@ -158,11 +158,11 @@ func (p *StackdriverProvider) GetNamespacedMetricByName(groupResource schema.Gro
 	if err != nil {
 		return nil, err
 	}
-	metricKind, err := p.translator.GetMetricKind(p.translator.fullCustomMetricName(metricName))
+	metricKind, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName))
 	if err != nil {
 		return nil, err
 	}
-	stackdriverRequest, err := p.translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{*matchingPod}}, metricName, metricKind, namespace)
+	stackdriverRequest, err := p.translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{*matchingPod}}, getCustomMetricName(escapedMetricName), metricKind, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -170,12 +170,12 @@ func (p *StackdriverProvider) GetNamespacedMetricByName(groupResource schema.Gro
 	if err != nil {
 		return nil, err
 	}
-	return p.translator.GetRespForSingleObject(stackdriverResponse, groupResource, metricName, namespace, name)
+	return p.translator.GetRespForSingleObject(stackdriverResponse, groupResource, escapedMetricName, namespace, name)
 }
 
 // GetNamespacedMetricBySelector queries Stackdriver for metrics identified by selector and associated
 // with a namespace.
-func (p *StackdriverProvider) GetNamespacedMetricBySelector(groupResource schema.GroupResource, namespace string, selector labels.Selector, metricName string) (*custom_metrics.MetricValueList, error) {
+func (p *StackdriverProvider) GetNamespacedMetricBySelector(groupResource schema.GroupResource, namespace string, selector labels.Selector, escapedMetricName string) (*custom_metrics.MetricValueList, error) {
 	if groupResource.Resource != podResource {
 		return nil, provider.NewOperationNotSupportedError(fmt.Sprintf("Get namespaced metric by selector for resource %q", groupResource.Resource))
 	}
@@ -183,14 +183,14 @@ func (p *StackdriverProvider) GetNamespacedMetricBySelector(groupResource schema
 	if err != nil {
 		return nil, err
 	}
-	metricKind, err := p.translator.GetMetricKind(p.translator.fullCustomMetricName(metricName))
+	metricKind, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName))
 	if err != nil {
 		return nil, err
 	}
 	result := []custom_metrics.MetricValue{}
 	for i := 0; i < len(matchingPods.Items); i += oneOfMax {
 		podsSlice := &v1.PodList{Items: matchingPods.Items[i:min(i+oneOfMax, len(matchingPods.Items))]}
-		stackdriverRequest, err := p.translator.GetSDReqForPods(podsSlice, metricName, metricKind, namespace)
+		stackdriverRequest, err := p.translator.GetSDReqForPods(podsSlice, getCustomMetricName(escapedMetricName), metricKind, namespace)
 		if err != nil {
 			return nil, err
 		}
@@ -198,7 +198,7 @@ func (p *StackdriverProvider) GetNamespacedMetricBySelector(groupResource schema
 		if err != nil {
 			return nil, err
 		}
-		slice, err := p.translator.GetRespForMultipleObjects(stackdriverResponse, p.translator.getPodItems(matchingPods), groupResource, metricName)
+		slice, err := p.translator.GetRespForMultipleObjects(stackdriverResponse, p.translator.getPodItems(matchingPods), groupResource, escapedMetricName)
 		if err != nil {
 			return nil, err
 		}
@@ -222,7 +222,7 @@ func (p *StackdriverProvider) ListAllMetrics() []provider.CustomMetricInfo {
 
 // GetExternalMetric queries Stackdriver for external metrics.
 func (p *StackdriverProvider) GetExternalMetric(namespace string, metricNameEscaped string, metricSelector labels.Selector) (*external_metrics.ExternalMetricValueList, error) {
-	metricName := unescapeMetricName(metricNameEscaped)
+	metricName := getExternalMetricName(metricNameEscaped)
 	metricKind, err := p.translator.GetMetricKind(metricName)
 	if err != nil {
 		return nil, err
@@ -250,13 +250,19 @@ func (p *StackdriverProvider) ListAllExternalMetrics() []provider.ExternalMetric
 	return []provider.ExternalMetricInfo{}
 }
 
-func unescapeMetricName(metricName string) string {
-	return strings.Replace(metricName, "|", "/", -1)
-}
-
 func min(a, b int) int {
 	if a < b {
 		return a
 	}
 	return b
+}
+func getExternalMetricName(metricName string) string {
+	return strings.Replace(metricName, "|", "/", -1)
+}
+
+func getCustomMetricName(metricName string) string {
+	if strings.Contains(metricName, "|") {
+		return getExternalMetricName(metricName)
+	}
+	return "custom.googleapis.com/" + metricName
 }

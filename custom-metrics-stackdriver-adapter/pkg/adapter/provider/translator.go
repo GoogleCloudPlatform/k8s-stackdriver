@@ -79,14 +79,14 @@ func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName string, met
 	if t.useNewResourceModel {
 		resourceNames := getPodNames(podList)
 		filter = joinFilters(
-			t.filterForMetric(t.config.MetricsPrefix+"/"+metricName),
+			t.filterForMetric(metricName),
 			t.filterForCluster(),
 			t.filterForPods(resourceNames, namespace),
 			t.filterForAnyPod())
 	} else {
 		resourceIDs := getResourceIDs(podList)
 		filter = joinFilters(
-			t.filterForMetric(t.config.MetricsPrefix+"/"+metricName),
+			t.filterForMetric(metricName),
 			t.legacyFilterForCluster(),
 			t.legacyFilterForPods(resourceIDs))
 	}
@@ -110,7 +110,7 @@ func (t *Translator) GetSDReqForNodes(nodeList *v1.NodeList, metricName string, 
 	}
 	resourceNames := getNodeNames(nodeList)
 	filter = joinFilters(
-		t.filterForMetric(t.config.MetricsPrefix+"/"+metricName),
+		t.filterForMetric(metricName),
 		t.filterForCluster(),
 		t.filterForNodes(resourceNames),
 		t.filterForAnyNode())
@@ -202,9 +202,9 @@ func (t *Translator) GetRespForExternalMetric(response *stackdriver.ListTimeSeri
 func (t *Translator) ListMetricDescriptors() *stackdriver.ProjectsMetricDescriptorsListCall {
 	var filter string
 	if t.useNewResourceModel {
-		filter = joinFilters(t.filterForMetricPrefix(), t.filterForCluster(), t.filterForAnyResource())
+		filter = joinFilters(t.filterForCluster(), t.filterForAnyResource())
 	} else {
-		filter = joinFilters(t.filterForMetricPrefix(), t.legacyFilterForCluster(), t.legacyFilterForAnyPod())
+		filter = joinFilters(t.legacyFilterForCluster(), t.legacyFilterForAnyPod())
 	}
 	return t.service.Projects.MetricDescriptors.
 		List(fmt.Sprintf("projects/%s", t.config.Project)).
@@ -218,11 +218,10 @@ func (t *Translator) ListMetricDescriptors() *stackdriver.ProjectsMetricDescript
 func (t *Translator) GetMetricsFromSDDescriptorsResp(response *stackdriver.ListMetricDescriptorsResponse) []provider.CustomMetricInfo {
 	metrics := []provider.CustomMetricInfo{}
 	for _, descriptor := range response.MetricDescriptors {
-		if (descriptor.ValueType == "INT64" || descriptor.ValueType == "DOUBLE") &&
-			!strings.Contains(strings.TrimPrefix(descriptor.Type, t.config.MetricsPrefix+"/"), "/") {
+		if descriptor.ValueType == "INT64" || descriptor.ValueType == "DOUBLE" {
 			metrics = append(metrics, provider.CustomMetricInfo{
 				GroupResource: schema.GroupResource{Group: "", Resource: "*"},
-				Metric:        strings.TrimPrefix(descriptor.Type, t.config.MetricsPrefix+"/"),
+				Metric:        escapeMetric(descriptor.Type),
 				Namespaced:    true,
 			})
 		}
@@ -303,10 +302,6 @@ func (t *Translator) filterForCluster() string {
 	clusterFilter := fmt.Sprintf("resource.labels.cluster_name = %q", t.config.Cluster)
 	locationFilter := fmt.Sprintf("resource.labels.location = %q", t.config.Location)
 	return fmt.Sprintf("%s AND %s AND %s", projectFilter, clusterFilter, locationFilter)
-}
-
-func (t *Translator) filterForMetricPrefix() string {
-	return fmt.Sprintf("metric.type = starts_with(\"%s/\")", t.config.MetricsPrefix)
 }
 
 func (t *Translator) filterForMetric(metricName string) string {
@@ -538,10 +533,6 @@ func (t *Translator) metricsFor(values map[string]resource.Quantity, groupResour
 	return res, nil
 }
 
-func (t *Translator) fullCustomMetricName(metricName string) string {
-	return t.config.MetricsPrefix + "/" + metricName
-}
-
 func (t *Translator) getPodItems(list *v1.PodList) []metav1.ObjectMeta {
 	items := []metav1.ObjectMeta{}
 	for _, item := range list.Items {
@@ -577,4 +568,8 @@ func (t *Translator) metricKey(timeSeries *stackdriver.TimeSeries) (string, erro
 		return timeSeries.Resource.Labels["pod_id"], nil
 	}
 	return "", apierr.NewInternalError(fmt.Errorf("Stackdriver returned incorrect resource type %q", timeSeries.Resource.Type))
+}
+
+func escapeMetric(metricName string) string {
+	return strings.Replace(metricName, "/", "|", -1)
 }
