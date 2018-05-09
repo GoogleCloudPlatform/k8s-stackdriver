@@ -60,7 +60,7 @@ type StackdriverProvider struct {
 }
 
 // NewStackdriverProvider creates a StackdriverProvider
-func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.RESTMapper, stackdriverService *stackdriver.Service, rateInterval time.Duration, useNewResourceModel bool) provider.MetricsProvider {
+func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.RESTMapper, stackdriverService *stackdriver.Service, rateInterval, alignmentPeriod time.Duration, useNewResourceModel bool) provider.MetricsProvider {
 	gceConf, err := config.GetGceConfig("custom.googleapis.com")
 	if err != nil {
 		glog.Fatalf("Failed to retrieve GCE config: %v", err)
@@ -75,6 +75,7 @@ func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.REST
 			service:             stackdriverService,
 			config:              gceConf,
 			reqWindow:           rateInterval,
+			alignmentPeriod:     alignmentPeriod,
 			clock:               realClock{},
 			mapper:              mapper,
 			useNewResourceModel: useNewResourceModel,
