@@ -58,6 +58,7 @@ type Translator struct {
 	service             *stackdriver.Service
 	config              *config.GceConfig
 	reqWindow           time.Duration
+	alignmentPeriod     time.Duration
 	clock               clock
 	mapper              apimeta.RESTMapper
 	useNewResourceModel bool
@@ -168,10 +169,11 @@ func (t *Translator) GetRespForExternalMetric(response *stackdriver.ListTimeSeri
 	}
 	metricValues := []external_metrics.ExternalMetricValue{}
 	for _, series := range response.TimeSeries {
-		if len(series.Points) != 1 {
+		if len(series.Points) <= 0 {
 			// This shouldn't happen with correct query to Stackdriver
-			return nil, apierr.NewInternalError(fmt.Errorf("Expected exactly one Point in TimeSeries from Stackdriver, but received %v", len(series.Points)))
+			return nil, apierr.NewInternalError(fmt.Errorf("Empty time series returned from Stackdriver"))
 		}
+		// Points in a time series are returned in reverse time order
 		point := series.Points[0]
 		endTime, err := time.Parse(time.RFC3339, point.Interval.EndTime)
 		if err != nil {
@@ -449,14 +451,16 @@ func (t *Translator) createListTimeseriesRequest(filter string, metricKind strin
 	startTime := endTime.Add(-t.reqWindow)
 	// use "ALIGN_NEXT_OLDER" by default, i.e. for metricKind "GAUGE"
 	aligner := "ALIGN_NEXT_OLDER"
+	alignmentPeriod := t.reqWindow
 	if metricKind == "DELTA" || metricKind == "CUMULATIVE" {
 		aligner = "ALIGN_RATE"
+		alignmentPeriod = t.alignmentPeriod
 	}
 	return t.service.Projects.TimeSeries.List(project).Filter(filter).
 		IntervalStartTime(startTime.Format(time.RFC3339)).
 		IntervalEndTime(endTime.Format(time.RFC3339)).
 		AggregationPerSeriesAligner(aligner).
-		AggregationAlignmentPeriod(fmt.Sprintf("%vs", int64(t.reqWindow.Seconds())))
+		AggregationAlignmentPeriod(fmt.Sprintf("%vs", int64(alignmentPeriod.Seconds())))
 }
 
 func (t *Translator) getMetricValuesFromResponse(groupResource schema.GroupResource, response *stackdriver.ListTimeSeriesResponse, metricName string) (map[string]resource.Quantity, error) {
@@ -465,11 +469,13 @@ func (t *Translator) getMetricValuesFromResponse(groupResource schema.GroupResou
 	}
 	metricValues := make(map[string]resource.Quantity)
 	for _, series := range response.TimeSeries {
-		if len(series.Points) != 1 {
+		if len(series.Points) <= 0 {
 			// This shouldn't happen with correct query to Stackdriver
-			return nil, apierr.NewInternalError(fmt.Errorf("Expected exactly one Point in TimeSeries from Stackdriver, but received %v", len(series.Points)))
+			return nil, apierr.NewInternalError(fmt.Errorf("Empty time series returned from Stackdriver"))
 		}
-		value := *series.Points[0].Value
+		// Points in a time series are returned in reverse time order
+		point := *series.Points[0]
+		value := point.Value
 		name, err := t.metricKey(series)
 		if err != nil {
 			return nil, err
@@ -508,8 +514,9 @@ func (t *Translator) metricFor(value resource.Quantity, groupResource schema.Gro
 			Namespace:  namespace,
 		},
 		MetricName: metricName,
-		Timestamp:  metav1.Time{t.clock.Now()},
-		Value:      value,
+		// TODO(kawych): metric timestamp should be retrieved from Stackdriver response instead
+		Timestamp: metav1.Time{t.clock.Now()},
+		Value:     value,
 	}, nil
 }
 
