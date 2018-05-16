@@ -28,7 +28,8 @@ func newMonitoredResourceFactoryConfig(resourceModelVersion string) (*monitoredR
 	}
 
 	location, err := metadata.InstanceAttributeValue("cluster-location")
-	if err != nil {
+	location = strings.TrimSpace(location)
+	if err != nil || location == "" {
 		glog.Warningf("Failed to retrieve cluster location, falling back to local zone: %s", err)
 		location, err = metadata.Zone()
 		if err != nil {
