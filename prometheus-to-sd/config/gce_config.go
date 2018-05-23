@@ -18,6 +18,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	gce "cloud.google.com/go/compute/metadata"
@@ -34,39 +35,65 @@ type GceConfig struct {
 
 // GetGceConfig builds GceConfig based on the provided prefix and metadata server available on GCE.
 func GetGceConfig(metricsPrefix string) (*GceConfig, error) {
-	if !gce.OnGCE() {
-		return nil, fmt.Errorf("Not running on GCE.")
-	}
-
-	project, err := gce.ProjectID()
-	if err != nil {
-		return nil, fmt.Errorf("error while getting project id: %v", err)
-	}
-
-	zone, err := gce.Zone()
-	if err != nil {
-		return nil, fmt.Errorf("error while getting zone: %v", err)
-	}
-
-	cluster, err := gce.InstanceAttributeValue("cluster-name")
-	if err != nil {
-		return nil, fmt.Errorf("error while getting cluster name: %v", err)
-	}
-	cluster = strings.TrimSpace(cluster)
-	if cluster == "" {
-		return nil, fmt.Errorf("cluster-name metadata was empty")
-	}
-
-	instance, err := gce.InstanceName()
-	if err != nil {
-		return nil, fmt.Errorf("error while getting instance name: %v", err)
-	}
-
-	return &GceConfig{
-		Project:       project,
-		Zone:          zone,
-		Cluster:       cluster,
-		Instance:      instance,
+	gceConfig := &GceConfig{
+		Project:       "",
+		Zone:          "",
+		Cluster:       "",
+		Instance:      "",
 		MetricsPrefix: metricsPrefix,
-	}, nil
+	}
+
+	if gce.OnGCE() {
+		project, err := gce.ProjectID()
+		if err != nil {
+			return nil, fmt.Errorf("error while getting project id: %v", err)
+		}
+
+		zone, err := gce.Zone()
+		if err != nil {
+			return nil, fmt.Errorf("error while getting zone: %v", err)
+		}
+
+		cluster, err := gce.InstanceAttributeValue("cluster-name")
+		if err != nil {
+			return nil, fmt.Errorf("error while getting cluster name: %v", err)
+		}
+
+		cluster = strings.TrimSpace(cluster)
+		if cluster == "" {
+			return nil, fmt.Errorf("cluster-name metadata was empty")
+		}
+
+		instance, err := gce.InstanceName()
+		if err != nil {
+			return nil, fmt.Errorf("error while getting instance name: %v", err)
+		}
+
+		gceConfig.Project = project
+		gceConfig.Zone = zone
+		gceConfig.Cluster = cluster
+		gceConfig.Instance = instance
+	} else {
+		gceConfig.Project = os.Getenv("PROJECT_ID")
+		if gceConfig.Project == "" {
+			return nil, fmt.Errorf("PROJECT_ID environment variable was empty")
+		}
+
+		gceConfig.Zone = os.Getenv("ZONE")
+		if gceConfig.Zone == "" {
+			return nil, fmt.Errorf("ZONE environment variable was empty")
+		}
+
+		gceConfig.Cluster = os.Getenv("CLUSTER_NAME")
+		if gceConfig.Cluster == "" {
+			return nil, fmt.Errorf("CLUSTER_NAME environment variable was empty")
+		}
+
+		gceConfig.Instance = os.Getenv("INSTANCE_NAME")
+		if gceConfig.Instance == "" {
+			return nil, fmt.Errorf("INSTANCE_NAME environment variable was empty")
+		}
+	}
+
+	return gceConfig, nil
 }
