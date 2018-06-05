@@ -260,9 +260,6 @@ func translateCPU(cpu *stats.CPUStats, tsFactory *timeSeriesFactory, startTime t
 	if cpu == nil {
 		return nil, fmt.Errorf("CPU information missing.")
 	}
-	if cpu.UsageNanoCores == nil {
-		return nil, fmt.Errorf("UsageNanoCores missing from CPUStats %v", cpu)
-	}
 	if cpu.UsageCoreNanoSeconds == nil {
 		return nil, fmt.Errorf("UsageCoreNanoSeconds missing from CPUStats %v", cpu)
 	}

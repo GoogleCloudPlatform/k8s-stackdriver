@@ -201,8 +201,8 @@ func TestTranslator(t *testing.T) {
 }
 
 func TestTranslateContainers(t *testing.T) {
-	aliceContainer := *getContainerStats()
-	bobContainer := *getContainerStats()
+	aliceContainer := *getContainerStats(false)
+	bobContainer := *getContainerStats(false)
 	tsPerContainer := 11
 	testCases := []struct {
 		name            string
@@ -226,6 +226,13 @@ func TestTranslateContainers(t *testing.T) {
 			ExpectedTSCount: tsPerContainer,
 			pods: []stats.PodStats{
 				getPodStats(aliceContainer),
+			},
+		},
+		{
+			name:            "single pod with one container without usageNanoCores",
+			ExpectedTSCount: tsPerContainer,
+			pods: []stats.PodStats{
+				getPodStats(*getContainerStats(true)),
 			},
 		},
 		{
@@ -286,10 +293,13 @@ func getPodStats(containers ...stats.ContainerStats) stats.PodStats {
 	}
 }
 
-func getContainerStats() *stats.ContainerStats {
+func getContainerStats(skipUsageNanoCores bool) *stats.ContainerStats {
 	f := fuzz.New().NilChance(0)
 	v := &stats.ContainerStats{}
 	f.Fuzz(v)
+	if skipUsageNanoCores {
+		v.CPU.UsageNanoCores = nil
+	}
 	return v
 }
 
