@@ -21,6 +21,9 @@ import (
 	"testing"
 	"time"
 
+	fuzz "github.com/google/gofuzz"
+
+	"k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/kubelet/api/v1alpha1/stats"
 )
 
@@ -195,4 +198,111 @@ func TestTranslator(t *testing.T) {
 			t.Errorf("Expected %d TimeSeries, got %d", tc.ExpectedTSCount, len(tsReq.TimeSeries))
 		}
 	}
+}
+
+func TestTranslateContainers(t *testing.T) {
+	aliceContainer := *getContainerStats()
+	bobContainer := *getContainerStats()
+	tsPerContainer := 11
+	testCases := []struct {
+		name            string
+		ExpectedTSCount int
+		pods            []stats.PodStats
+	}{
+		{
+			name:            "empty",
+			ExpectedTSCount: 0,
+			pods:            []stats.PodStats{},
+		},
+		{
+			name:            "pod without container",
+			ExpectedTSCount: 0,
+			pods: []stats.PodStats{
+				getPodStats(),
+			},
+		},
+		{
+			name:            "single pod with one container",
+			ExpectedTSCount: tsPerContainer,
+			pods: []stats.PodStats{
+				getPodStats(aliceContainer),
+			},
+		},
+		{
+			name:            "single pod with two containers",
+			ExpectedTSCount: tsPerContainer * 2,
+			pods: []stats.PodStats{
+				getPodStats(aliceContainer, bobContainer),
+			},
+		},
+		{
+			name:            "single pod with similar container",
+			ExpectedTSCount: tsPerContainer * 1,
+			pods: []stats.PodStats{
+				getPodStats(aliceContainer, aliceContainer),
+			},
+		},
+		{
+			name:            "two pods with one container each",
+			ExpectedTSCount: tsPerContainer * 2,
+			pods: []stats.PodStats{
+				getPodStats(aliceContainer),
+				getPodStats(bobContainer),
+			},
+		},
+		{
+			name:            "two pods with similar container",
+			ExpectedTSCount: tsPerContainer * 2,
+			pods: []stats.PodStats{
+				getPodStats(aliceContainer),
+				getPodStats(aliceContainer),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			translator := NewTranslator("us-central1-f", "test-project", "unit-test-clus", "this-instance", time.Second)
+			ts, err := translator.translateContainers(tc.pods)
+			if err != nil {
+				t.Errorf("Failed to translate to GCM. Pods: %v, Err: %s", tc.pods, err)
+			}
+
+			if tc.ExpectedTSCount != len(ts) {
+				t.Errorf("Expected %d TimeSeries, got %d", tc.ExpectedTSCount, len(ts))
+			}
+
+		})
+	}
+}
+
+func getPodStats(containers ...stats.ContainerStats) stats.PodStats {
+	return stats.PodStats{
+		PodRef:      stats.PodReference{Name: "test-pod", Namespace: "test-namespace", UID: "UID_test-pod"},
+		StartTime:   unversioned.NewTime(time.Now()),
+		Containers:  containers,
+		Network:     getNetworkStats(),
+		VolumeStats: []stats.VolumeStats{*getVolumeStats()},
+	}
+}
+
+func getContainerStats() *stats.ContainerStats {
+	f := fuzz.New().NilChance(0)
+	v := &stats.ContainerStats{}
+	f.Fuzz(v)
+	return v
+}
+
+func getVolumeStats() *stats.VolumeStats {
+	f := fuzz.New().NilChance(0)
+	v := &stats.VolumeStats{}
+	f.Fuzz(v)
+	return v
+}
+
+func getNetworkStats() *stats.NetworkStats {
+	f := fuzz.New().NilChance(0)
+	v := &stats.NetworkStats{}
+	f.Fuzz(v)
+	return v
 }

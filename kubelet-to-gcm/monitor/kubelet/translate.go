@@ -173,10 +173,9 @@ func (t *Translator) translateNode(node stats.NodeStats) ([]*v3.TimeSeries, erro
 
 func (t *Translator) translateContainers(pods []stats.PodStats) ([]*v3.TimeSeries, error) {
 	var timeSeries []*v3.TimeSeries
-	metricsSeen := make(map[string]time.Time)
-	metrics := make(map[string][]*v3.TimeSeries)
-
 	for _, pod := range pods {
+		metricsSeen := make(map[string]time.Time)
+		metrics := make(map[string][]*v3.TimeSeries)
 		namespace := pod.PodRef.Namespace
 		podID := pod.PodRef.Name
 		// There can be duplicate data points for containers, so only
@@ -244,11 +243,11 @@ func (t *Translator) translateContainers(pods []stats.PodStats) ([]*v3.TimeSerie
 
 			metrics[containerName] = containerSeries
 		}
-	}
 
-	// Flatten the deduplicated metrics.
-	for _, containerSeries := range metrics {
-		timeSeries = append(timeSeries, containerSeries...)
+		// Flatten the deduplicated metrics.
+		for _, containerSeries := range metrics {
+			timeSeries = append(timeSeries, containerSeries...)
+		}
 	}
 	return timeSeries, nil
 }
