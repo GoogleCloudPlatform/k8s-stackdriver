@@ -25,7 +25,7 @@
 OUT_DIR = build
 PACKAGE = github.com/GoogleCloudPlatform/k8s-stackdriver/kubelet-to-gcm
 PREFIX = gcr.io/google-containers
-TAG = 1.2.5
+TAG = 1.2.6
 
 # Rules for building the real image for deployment to gcr.io
 
