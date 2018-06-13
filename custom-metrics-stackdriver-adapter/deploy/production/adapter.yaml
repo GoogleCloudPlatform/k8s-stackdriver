@@ -115,7 +115,6 @@ spec:
   group: custom.metrics.k8s.io
   groupPriorityMinimum: 100
   versionPriority: 100
-  priority: 100
   service:
     name: custom-metrics-stackdriver-adapter
     namespace: custom-metrics
@@ -130,7 +129,6 @@ spec:
   group: external.metrics.k8s.io
   groupPriorityMinimum: 100
   versionPriority: 100
-  priority: 100
   service:
     name: custom-metrics-stackdriver-adapter
     namespace: custom-metrics
