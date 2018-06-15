@@ -26,6 +26,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+// NewNoSuchMetricError returns a StatusError indicating that the given metric could not be found.
+// It is similar to NewNotFound, but more specialized.
+func NewNoSuchMetricError(metricName string, err error) *apierr.StatusError {
+	return newMetricNotFoundWithMessageError(fmt.Sprintf("the server could not find the descriptor for metric %s: %s", metricName, err))
+}
+
 // NewMetricNotFoundError returns a StatusError indicating that the given metric could not be found.
 // It is similar to NewNotFound, but more specialized.
 func NewMetricNotFoundError(resource schema.GroupResource, metricName string) *apierr.StatusError {

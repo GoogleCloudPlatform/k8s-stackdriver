@@ -137,7 +137,10 @@ func (t *Translator) GetRespForSingleObject(response *stackdriver.ListTimeSeries
 	if err != nil {
 		return nil, err
 	}
-	if len(values) != 1 {
+	if len(values) == 0 {
+		return nil, provider.NewMetricNotFoundForError(groupResource, metricName, name)
+	}
+	if len(values) > 1 {
 		return nil, apierr.NewInternalError(fmt.Errorf("Expected exactly one value for resource %q in namespace %q, but received %v values", name, namespace, len(values)))
 	}
 	// Since len(values) = 1, this loop will execute only once.
@@ -164,9 +167,6 @@ func (t *Translator) GetRespForMultipleObjects(response *stackdriver.ListTimeSer
 
 // GetRespForExternalMetric translates Stackdriver response to list of External Metrics
 func (t *Translator) GetRespForExternalMetric(response *stackdriver.ListTimeSeriesResponse, metricName string) ([]external_metrics.ExternalMetricValue, error) {
-	if len(response.TimeSeries) < 1 {
-		return nil, provider.NewExternalMetricNotFoundError(metricName)
-	}
 	metricValues := []external_metrics.ExternalMetricValue{}
 	for _, series := range response.TimeSeries {
 		if len(series.Points) <= 0 {
@@ -233,7 +233,7 @@ func (t *Translator) GetMetricsFromSDDescriptorsResp(response *stackdriver.ListM
 func (t *Translator) GetMetricKind(metricName string) (string, error) {
 	response, err := t.service.Projects.MetricDescriptors.Get(fmt.Sprintf("projects/%s/metricDescriptors/%s", t.config.Project, metricName)).Do()
 	if err != nil {
-		return "", apierr.NewBadRequest(fmt.Sprintf("Failed to retrieve metricKind from Stackdriver for metric %s: %s", metricName, err))
+		return "", provider.NewNoSuchMetricError(metricName, err)
 	}
 	return response.MetricKind, nil
 }
@@ -459,9 +459,6 @@ func (t *Translator) createListTimeseriesRequest(filter string, metricKind strin
 }
 
 func (t *Translator) getMetricValuesFromResponse(groupResource schema.GroupResource, response *stackdriver.ListTimeSeriesResponse, metricName string) (map[string]resource.Quantity, error) {
-	if len(response.TimeSeries) < 1 {
-		return nil, provider.NewMetricNotFoundError(groupResource, metricName)
-	}
 	metricValues := make(map[string]resource.Quantity)
 	for _, series := range response.TimeSeries {
 		if len(series.Points) <= 0 {
