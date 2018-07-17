@@ -37,7 +37,7 @@ descriptor](https://cloud.google.com/logging/docs/api/v2/resource-list#resource-
 `project_id`, `cluster_name`, `instance_id` and `zone` are filled automatically by
 the prometheus-to-sd. Values of the `namespace_id` and `pod_id` can be passed to
 the component through the additional flags or omitted. `container_name` is
-always empty for now.
+always empty for now. Field `zone` is overridable via flag.
 
 ## Deployment
 
