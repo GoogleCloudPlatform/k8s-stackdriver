@@ -17,6 +17,8 @@ limitations under the License.
 package factory
 
 import (
+	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -30,6 +32,29 @@ import (
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 )
 
+func newETCD2HealthCheck(c storagebackend.Config) (func() error, error) {
+	tr, err := newTransportForETCD2(c.CertFile, c.KeyFile, c.CAFile)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := newETCD2Client(tr, c.ServerList)
+	if err != nil {
+		return nil, err
+	}
+
+	members := etcd2client.NewMembersAPI(client)
+
+	return func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if _, err := members.List(ctx); err != nil {
+			return fmt.Errorf("error listing etcd members: %v", err)
+		}
+		return nil
+	}, nil
+}
+
 func newETCD2Storage(c storagebackend.Config) (storage.Interface, DestroyFunc, error) {
 	tr, err := newTransportForETCD2(c.CertFile, c.KeyFile, c.CAFile)
 	if err != nil {
@@ -39,7 +64,7 @@ func newETCD2Storage(c storagebackend.Config) (storage.Interface, DestroyFunc, e
 	if err != nil {
 		return nil, nil, err
 	}
-	s := etcd.NewEtcdStorage(client, c.Codec, c.Prefix, c.Quorum, c.DeserializationCacheSize, c.Copier, etcd.IdentityTransformer)
+	s := etcd.NewEtcdStorage(client, c.Codec, c.Prefix, c.Quorum, c.DeserializationCacheSize, etcd.IdentityTransformer)
 	return s, tr.CloseIdleConnections, nil
 }
 
@@ -69,10 +94,10 @@ func newTransportForETCD2(certFile, keyFile, caFile string) (*http.Transport, er
 	// TODO: Determine if transport needs optimization
 	tr := utilnet.SetTransportDefaults(&http.Transport{
 		Proxy: http.ProxyFromEnvironment,
-		Dial: (&net.Dialer{
+		DialContext: (&net.Dialer{
 			Timeout:   30 * time.Second,
 			KeepAlive: 30 * time.Second,
-		}).Dial,
+		}).DialContext,
 		TLSHandshakeTimeout: 10 * time.Second,
 		MaxIdleConnsPerHost: 500,
 		TLSClientConfig:     cfg,
