@@ -17,7 +17,6 @@ limitations under the License.
 package apiserver
 
 import (
-	"k8s.io/apimachinery/pkg/apimachinery"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -28,41 +27,42 @@ import (
 	specificapi "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/apiserver/installer"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/provider"
 	metricstorage "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/registry/custom_metrics"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 )
 
 // InstallCustomMetricsAPI registers the api server in Kube Aggregator
 func (s *CustomMetricsAdapterServer) InstallCustomMetricsAPI() error {
 
-	groupMeta := registry.GroupOrDie(custom_metrics.GroupName)
+	groupInfo := genericapiserver.NewDefaultAPIGroupInfo(custom_metrics.GroupName, Scheme, metav1.ParameterCodec, Codecs)
 
+	mainGroupVer := groupInfo.PrioritizedVersions[0]
 	preferredVersionForDiscovery := metav1.GroupVersionForDiscovery{
-		GroupVersion: groupMeta.GroupVersion.String(),
-		Version:      groupMeta.GroupVersion.Version,
+		GroupVersion: mainGroupVer.String(),
+		Version:      mainGroupVer.Version,
 	}
 	groupVersion := metav1.GroupVersionForDiscovery{
-		GroupVersion: groupMeta.GroupVersion.String(),
-		Version:      groupMeta.GroupVersion.Version,
+		GroupVersion: mainGroupVer.String(),
+		Version:      mainGroupVer.Version,
 	}
 	apiGroup := metav1.APIGroup{
-		Name:             groupMeta.GroupVersion.Group,
+		Name:             mainGroupVer.Group,
 		Versions:         []metav1.GroupVersionForDiscovery{groupVersion},
 		PreferredVersion: preferredVersionForDiscovery,
 	}
 
-	cmAPI := s.cmAPI(groupMeta, &groupMeta.GroupVersion)
-
+	cmAPI := s.cmAPI(&groupInfo, &mainGroupVer)
 	if err := cmAPI.InstallREST(s.GenericAPIServer.Handler.GoRestfulContainer); err != nil {
 		return err
 	}
 
 	s.GenericAPIServer.DiscoveryGroupManager.AddGroup(apiGroup)
-	s.GenericAPIServer.Handler.GoRestfulContainer.Add(discovery.NewAPIGroupHandler(s.GenericAPIServer.Serializer, apiGroup, s.GenericAPIServer.RequestContextMapper()).WebService())
+	s.GenericAPIServer.Handler.GoRestfulContainer.Add(discovery.NewAPIGroupHandler(s.GenericAPIServer.Serializer, apiGroup).WebService())
 
 	return nil
 }
 
-func (s *CustomMetricsAdapterServer) cmAPI(groupMeta *apimachinery.GroupMeta, groupVersion *schema.GroupVersion) *specificapi.MetricsAPIGroupVersion {
+func (s *CustomMetricsAdapterServer) cmAPI(groupInfo *genericapiserver.APIGroupInfo, groupVersion *schema.GroupVersion) *specificapi.MetricsAPIGroupVersion {
 	resourceStorage := metricstorage.NewREST(s.customMetricsProvider)
 
 	return &specificapi.MetricsAPIGroupVersion{
@@ -76,14 +76,8 @@ func (s *CustomMetricsAdapterServer) cmAPI(groupMeta *apimachinery.GroupMeta, gr
 			Creater:         Scheme,
 			Convertor:       Scheme,
 			UnsafeConvertor: runtime.UnsafeObjectConvertor(Scheme),
-			Copier:          Scheme,
 			Typer:           Scheme,
-			Linker:          groupMeta.SelfLinker,
-			Mapper:          groupMeta.RESTMapper,
-
-			Context:                s.GenericAPIServer.RequestContextMapper(),
-			MinRequestTimeout:      s.GenericAPIServer.MinRequestTimeout(),
-			OptionsExternalVersion: &schema.GroupVersion{Version: "v1"},
+			Linker:          runtime.SelfLinker(meta.NewAccessor()),
 		},
 
 		ResourceLister: provider.NewCustomMetricResourceLister(s.customMetricsProvider),

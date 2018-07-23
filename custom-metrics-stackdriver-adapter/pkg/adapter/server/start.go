@@ -32,7 +32,6 @@ import (
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/dynamicmapper"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"time"
 )
 
@@ -112,7 +111,7 @@ func (o sampleAdapterServerOptions) RunCustomMetricsAdapterServer(stopCh <-chan 
 	if err != nil {
 		return fmt.Errorf("unable to construct discovery client for dynamic client: %v", err)
 	}
-	dynamicMapper, err := dynamicmapper.NewRESTMapper(discoveryClient, meta.InterfacesForUnstructured, time.Minute)
+	dynamicMapper, err := dynamicmapper.NewRESTMapper(discoveryClient, time.Minute)
 	if err != nil {
 		return fmt.Errorf("unable to construct dynamic mapper: %v", err)
 	}
