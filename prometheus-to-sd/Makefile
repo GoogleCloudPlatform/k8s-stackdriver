@@ -24,7 +24,7 @@ build:
 test:
 	$(ENVVAR) go test ./...
 
-container: build
+container:
 	docker build --pull -t ${PREFIX}/prometheus-to-sd:$(TAG) .
 
 push: container

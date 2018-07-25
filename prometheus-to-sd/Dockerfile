@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+FROM golang:1.9-alpine as builder
+WORKDIR ${GOPATH}/src/github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd
+COPY . ./
+RUN CGO_ENABLED=0 GOOS=linux go build -o /monitor
+
 FROM gcr.io/google-containers/debian-base-amd64:0.3
-
 RUN clean-install ca-certificates
-
 #   nobody:nobody
 USER 65534:65534
-COPY monitor /
+COPY --from=builder /monitor /
