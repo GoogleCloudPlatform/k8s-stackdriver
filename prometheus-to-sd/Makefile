@@ -19,10 +19,10 @@ PREFIX = gcr.io/google-containers
 TAG = v0.2.6
 
 build:
-	$(ENVVAR) godep go build -a -o monitor
+	$(ENVVAR) go build -a -o monitor
 
 test:
-	$(ENVVAR) godep go test ./...
+	$(ENVVAR) go test ./...
 
 container: build
 	docker build --pull -t ${PREFIX}/prometheus-to-sd:$(TAG) .
