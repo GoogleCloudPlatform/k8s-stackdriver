@@ -7,7 +7,7 @@ language: go
 
 matrix:
   include:
-    - go: 1.8
+    - go: 1.9
 
 install:
   - hack/install-verify-tools.sh
