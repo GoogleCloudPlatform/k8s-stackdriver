@@ -192,3 +192,4 @@ weak-stable-jobs
 whitelisted-metrics
 whitelist-override-label
 write-status-configmap
+zone-override

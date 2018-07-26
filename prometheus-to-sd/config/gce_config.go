@@ -33,7 +33,7 @@ type GceConfig struct {
 }
 
 // GetGceConfig builds GceConfig based on the provided prefix and metadata server available on GCE.
-func GetGceConfig(metricsPrefix string) (*GceConfig, error) {
+func GetGceConfig(metricsPrefix, zone string) (*GceConfig, error) {
 	if !gce.OnGCE() {
 		return nil, fmt.Errorf("Not running on GCE.")
 	}
@@ -43,9 +43,11 @@ func GetGceConfig(metricsPrefix string) (*GceConfig, error) {
 		return nil, fmt.Errorf("error while getting project id: %v", err)
 	}
 
-	zone, err := gce.Zone()
-	if err != nil {
-		return nil, fmt.Errorf("error while getting zone: %v", err)
+	if zone == "" {
+		zone, err = gce.Zone()
+		if err != nil {
+			return nil, fmt.Errorf("error while getting zone: %v", err)
+		}
 	}
 
 	cluster, err := gce.InstanceAttributeValue("cluster-name")
