@@ -26,37 +26,44 @@ import (
 )
 
 func TestNewSourceConfig(t *testing.T) {
+	podConfig := PodConfig{
+		PodId:       "podId",
+		NamespaceId: "namespaceId",
+	}
 	correct := [...]struct {
 		component   string
 		host        string
 		port        string
 		path        string
 		whitelisted string
+		podConfig   PodConfig
 		output      SourceConfig
 	}{
-		{"testComponent", "localhost", "1234", defaultMetricsPath, "a,b,c,d",
+		{"testComponent", "localhost", "1234", defaultMetricsPath, "a,b,c,d", podConfig,
 			SourceConfig{
 				Component:   "testComponent",
 				Host:        "localhost",
 				Port:        1234,
 				Path:        defaultMetricsPath,
 				Whitelisted: []string{"a", "b", "c", "d"},
+				PodConfig:   podConfig,
 			},
 		},
 
-		{"testComponent", "localhost", "1234", "/status/prometheus", "",
+		{"testComponent", "localhost", "1234", "/status/prometheus", "", PodConfig{},
 			SourceConfig{
 				Component:   "testComponent",
 				Host:        "localhost",
 				Port:        1234,
 				Path:        "/status/prometheus",
 				Whitelisted: nil,
+				PodConfig:   PodConfig{},
 			},
 		},
 	}
 
 	for _, c := range correct {
-		res, err := newSourceConfig(c.component, c.host, c.port, c.path, c.whitelisted)
+		res, err := newSourceConfig(c.component, c.host, c.port, c.path, c.whitelisted, c.podConfig)
 		if assert.NoError(t, err) {
 			assert.Equal(t, c.output, *res)
 		}
@@ -64,6 +71,10 @@ func TestNewSourceConfig(t *testing.T) {
 }
 
 func TestParseSourceConfig(t *testing.T) {
+	podConfig := PodConfig{
+		PodId:       "podId",
+		NamespaceId: "namespaceId",
+	}
 	correct := [...]struct {
 		in     flags.Uri
 		output SourceConfig
@@ -84,6 +95,7 @@ func TestParseSourceConfig(t *testing.T) {
 				Port:        1234,
 				Path:        defaultMetricsPath,
 				Whitelisted: []string{"a", "b", "c", "d"},
+				PodConfig:   podConfig,
 			},
 		},
 		{
@@ -102,12 +114,13 @@ func TestParseSourceConfig(t *testing.T) {
 				Port:        1234,
 				Path:        "/status/prometheus",
 				Whitelisted: []string{"a", "b", "c", "d"},
+				PodConfig:   podConfig,
 			},
 		},
 	}
 
 	for _, c := range correct {
-		res, err := parseSourceConfig(c.in)
+		res, err := parseSourceConfig(c.in, podConfig)
 		if assert.NoError(t, err) {
 			assert.Equal(t, c.output, *res)
 		}
@@ -133,7 +146,7 @@ func TestParseSourceConfig(t *testing.T) {
 	}
 
 	for _, c := range incorrect {
-		_, err := parseSourceConfig(c)
+		_, err := parseSourceConfig(c, podConfig)
 		assert.Error(t, err)
 	}
 }

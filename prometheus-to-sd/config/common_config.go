@@ -16,12 +16,6 @@ limitations under the License.
 
 package config
 
-// PodConfig describes pod in which current component is running.
-type PodConfig struct {
-	PodId       string
-	NamespaceId string
-}
-
 // CommonConfig contains all required information about environment in which
 // prometheus-to-sd running and which component is monitored.
 type CommonConfig struct {
