@@ -17,6 +17,7 @@ limitations under the License.
 package apiserver
 
 import (
+	"context"
 	"fmt"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/provider"
 	metainternalversion "k8s.io/apimachinery/pkg/apis/meta/internalversion"
@@ -59,7 +60,7 @@ func (r *REST) NewList() runtime.Object {
 }
 
 // List selects resources in the storage which match to the selector.
-func (r *REST) List(ctx genericapirequest.Context, options *metainternalversion.ListOptions) (runtime.Object, error) {
+func (r *REST) List(ctx context.Context, options *metainternalversion.ListOptions) (runtime.Object, error) {
 	// populate the label selector, defaulting to all
 	metricSelector := labels.Everything()
 	if options != nil && options.LabelSelector != nil {

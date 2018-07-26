@@ -573,7 +573,7 @@ func newFakeTranslator(reqWindow, alignmentPeriod time.Duration, project, cluste
 	if err != nil {
 		glog.Fatal("Unexpected error creating stackdriver Service client")
 	}
-	restMapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{}, meta.InterfacesForUnstructured)
+	restMapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{})
 	restMapper.Add(v1.SchemeGroupVersion.WithKind("Pod"), meta.RESTScopeNamespace)
 	restMapper.Add(v1.SchemeGroupVersion.WithKind("Node"), meta.RESTScopeRoot)
 	return &Translator{
