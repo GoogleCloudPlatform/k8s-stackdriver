@@ -1,4 +1,5 @@
 admin-port
+as-daemon-set
 alias-file
 allowed-shame-domains
 api-override
@@ -96,6 +97,7 @@ metric-name
 metrics-resolution
 min-pr-number
 min-replica-count
+namespace
 namespace-id
 netrc-dir
 network-config
