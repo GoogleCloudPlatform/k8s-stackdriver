@@ -63,6 +63,9 @@ var (
 		"If metric name starts with the component name then this substring is removed to keep metric name shorter.")
 	debugPort = flag.Uint("port", 6061, "Port on which debug information is exposed.")
 
+	asDaemonSet = flag.Bool("as-daemon-set", false, "Specifies if the component is deployed as daemon set or not")
+	namespace   = flag.String("namespace", "", "Namespace of the pods we are searching for")
+
 	customMetricsPrefix = "custom.googleapis.com"
 )
 
@@ -73,13 +76,13 @@ func main() {
 	defer glog.Flush()
 	flag.Parse()
 
-	sourceConfigs := config.SourceConfigsFromFlags(source, component, host, port, whitelisted, podId, namespaceId)
-
 	gceConf, err := config.GetGceConfig(*metricsPrefix, *zoneOverride)
 	if err != nil {
 		glog.Fatalf("Failed to get GCE config: %v", err)
 	}
 	glog.Infof("GCE config: %+v", gceConf)
+
+	sourceConfigs := getSourceConfigs(gceConf)
 
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
@@ -109,6 +112,23 @@ func main() {
 
 	// As worker goroutines work forever, block main thread as well.
 	<-make(chan int)
+}
+
+func getSourceConfigs(gceConfig *config.GceConfig) (sourceConfigs []config.SourceConfig) {
+	if *asDaemonSet {
+		glog.Info("Taking source configs from api-server")
+		var err error
+		sourceConfigs, err = config.GetConfigsFromApiServer(gceConfig, *namespace)
+		if err != nil {
+			glog.Fatalf(err.Error())
+		} else {
+			glog.Infof("Built the following source configs: %v", sourceConfigs)
+		}
+	} else {
+		glog.Info("Taking source configs and pod config from flags")
+		sourceConfigs = config.SourceConfigsFromFlags(source, component, host, port, whitelisted, podId, namespaceId)
+	}
+	return
 }
 
 func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *config.GceConfig, sourceConfig config.SourceConfig) {
