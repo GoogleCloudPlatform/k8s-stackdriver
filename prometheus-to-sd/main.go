@@ -73,13 +73,9 @@ func main() {
 	defer glog.Flush()
 	flag.Parse()
 
-	sourceConfigs := config.SourceConfigsFromFlags(source, component, host, port, whitelisted)
+	sourceConfigs := config.SourceConfigsFromFlags(source, component, host, port, whitelisted, podId, namespaceId)
 
 	gceConf, err := config.GetGceConfig(*metricsPrefix, *zoneOverride)
-	podConfig := &config.PodConfig{
-		PodId:       *podId,
-		NamespaceId: *namespaceId,
-	}
 	if err != nil {
 		glog.Fatalf("Failed to get GCE config: %v", err)
 	}
@@ -108,18 +104,18 @@ func main() {
 		glog.V(4).Infof("Starting goroutine for %+v", sourceConfig)
 
 		// Pass sourceConfig as a parameter to avoid using the last sourceConfig by all goroutines.
-		go readAndPushDataToStackdriver(stackdriverService, gceConf, podConfig, sourceConfig)
+		go readAndPushDataToStackdriver(stackdriverService, gceConf, sourceConfig)
 	}
 
 	// As worker goroutines work forever, block main thread as well.
 	<-make(chan int)
 }
 
-func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *config.GceConfig, podConfig *config.PodConfig, sourceConfig config.SourceConfig) {
+func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *config.GceConfig, sourceConfig config.SourceConfig) {
 	glog.Infof("Running prometheus-to-sd, monitored target is %s %v:%v", sourceConfig.Component, sourceConfig.Host, sourceConfig.Port)
 	commonConfig := &config.CommonConfig{
 		GceConfig:     gceConf,
-		PodConfig:     podConfig,
+		PodConfig:     &sourceConfig.PodConfig,
 		ComponentName: sourceConfig.Component,
 	}
 	metricDescriptorCache := translator.NewMetricDescriptorCache(stackdriverService, commonConfig, sourceConfig.Component)
