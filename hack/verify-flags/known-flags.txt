@@ -34,6 +34,7 @@ do-not-merge-milestones
 dont-require-e2e-label
 dry-run
 dump-nginx-configuration
+dynamic-source
 e2e-status-context
 election-namespace
 enable-md-yaml

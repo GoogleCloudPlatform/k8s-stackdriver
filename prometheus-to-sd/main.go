@@ -61,7 +61,8 @@ var (
 		"Name of the zone to override the default one (in which component is running).")
 	omitComponentName = flag.Bool("omit-component-name", true,
 		"If metric name starts with the component name then this substring is removed to keep metric name shorter.")
-	debugPort = flag.Uint("port", 6061, "Port on which debug information is exposed.")
+	debugPort      = flag.Uint("port", 6061, "Port on which debug information is exposed.")
+	dynamicSources = flags.Uris{}
 
 	customMetricsPrefix = "custom.googleapis.com"
 )
@@ -69,17 +70,21 @@ var (
 func main() {
 	flag.Set("logtostderr", "true")
 	flag.Var(&source, "source", "source(s) to watch in [component-name]:http://host:port?whitelisted=a,b,c format")
+	flag.Var(&dynamicSources, "dynamic-source",
+		`dynamic source(s) to watch in format: "[component-name]:http://:port?whitelisted=metric1,metric2". Dynamic sources are components (on the same node) discovered dynamically using the kubernetes api.`,
+	)
 
 	defer glog.Flush()
 	flag.Parse()
-
-	sourceConfigs := config.SourceConfigsFromFlags(source, component, host, port, whitelisted, podId, namespaceId)
 
 	gceConf, err := config.GetGceConfig(*metricsPrefix, *zoneOverride)
 	if err != nil {
 		glog.Fatalf("Failed to get GCE config: %v", err)
 	}
 	glog.Infof("GCE config: %+v", gceConf)
+
+	sourceConfigs := getSourceConfigs(gceConf)
+	glog.Infof("Built the following source configs: %v", sourceConfigs)
 
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
@@ -109,6 +114,17 @@ func main() {
 
 	// As worker goroutines work forever, block main thread as well.
 	<-make(chan int)
+}
+
+func getSourceConfigs(gceConfig *config.GceConfig) []config.SourceConfig {
+	glog.Info("Taking source configs from flags")
+	staticSourceConfigs := config.SourceConfigsFromFlags(source, component, host, port, whitelisted, podId, namespaceId)
+	glog.Info("Taking source configs from kubernetes api server")
+	dynamicSourceConfigs, err := config.SourceConfigsFromDynamicSources(gceConfig, []flags.Uri(dynamicSources))
+	if err != nil {
+		glog.Fatalf(err.Error())
+	}
+	return append(staticSourceConfigs, dynamicSourceConfigs...)
 }
 
 func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *config.GceConfig, sourceConfig config.SourceConfig) {
