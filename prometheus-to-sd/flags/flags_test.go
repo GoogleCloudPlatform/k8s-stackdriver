@@ -63,6 +63,17 @@ func TestUriSet(t *testing.T) {
 		{":", Uri{}, true},
 		{"key:incorrecturl/%gh&%ij", Uri{}, true},
 		{
+			"key:http://:80",
+			Uri{
+				Key: "key",
+				Val: url.URL{
+					Scheme: "http",
+					Host:   ":80",
+				},
+			},
+			false,
+		},
+		{
 			":http://localhost:100",
 			Uri{
 				Key: "",
