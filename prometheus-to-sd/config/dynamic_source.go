@@ -44,7 +44,7 @@ func validateSources(sources flags.Uris) (map[string]url.URL, error) {
 		if source.Val.Hostname() != "" {
 			return nil, errors.New("hostname should be empty for all dynamic sources")
 		}
-		if source.Key != "" {
+		if source.Key == "" {
 			return nil, errors.New("component name should NOT be empty for any dynamic source")
 		}
 		sourceMap[source.Key] = source.Val
@@ -96,5 +96,5 @@ func getConfigsFromPods(pods []core.Pod, sources map[string]url.URL) []SourceCon
 func mapToSourceConfig(componentName string, url url.URL, ip string, podConfig PodConfig) (*SourceConfig, error) {
 	port := url.Port()
 	whitelisted := url.Query().Get("whitelisted")
-	return newSourceConfig(componentName, ip, port, defaultMetricsPath, whitelisted, podConfig)
+	return newSourceConfig(componentName, ip, port, url.Path, whitelisted, podConfig)
 }

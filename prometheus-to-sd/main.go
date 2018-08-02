@@ -69,9 +69,9 @@ var (
 
 func main() {
 	flag.Set("logtostderr", "true")
-	flag.Var(&source, "source", "source(s) to watch in [component-name]:http://host:port?whitelisted=a,b,c format")
+	flag.Var(&source, "source", "source(s) to watch in [component-name]:http://host:port/path?whitelisted=a,b,c format")
 	flag.Var(&dynamicSources, "dynamic-source",
-		`dynamic source(s) to watch in format: "[component-name]:http://:port?whitelisted=metric1,metric2". Dynamic sources are components (on the same node) discovered dynamically using the kubernetes api.`,
+		`dynamic source(s) to watch in format: "[component-name]:http://:port/path?whitelisted=metric1,metric2". Dynamic sources are components (on the same node) discovered dynamically using the kubernetes api.`,
 	)
 
 	defer glog.Flush()

@@ -60,6 +60,26 @@ func TestNewSourceConfig(t *testing.T) {
 				PodConfig:   PodConfig{},
 			},
 		},
+		{"testComponent", "localhost", "1234", "/", "", PodConfig{},
+			SourceConfig{
+				Component:   "testComponent",
+				Host:        "localhost",
+				Port:        1234,
+				Path:        "/metrics",
+				Whitelisted: nil,
+				PodConfig:   PodConfig{},
+			},
+		},
+		{"testComponent", "localhost", "1234", "", "", PodConfig{},
+			SourceConfig{
+				Component:   "testComponent",
+				Host:        "localhost",
+				Port:        1234,
+				Path:        "/metrics",
+				Whitelisted: nil,
+				PodConfig:   PodConfig{},
+			},
+		},
 	}
 
 	for _, c := range correct {
