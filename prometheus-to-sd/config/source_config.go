@@ -50,6 +50,9 @@ func newSourceConfig(component string, host string, port string, path string, wh
 	if port == "" {
 		return nil, fmt.Errorf("No port provided.")
 	}
+	if path == "" || path == "/" {
+		path = defaultMetricsPath
+	}
 
 	portNum, err := strconv.ParseUint(port, 10, 32)
 	if err != nil {
