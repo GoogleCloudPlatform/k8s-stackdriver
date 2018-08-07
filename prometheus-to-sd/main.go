@@ -83,8 +83,16 @@ func main() {
 	}
 	glog.Infof("GCE config: %+v", gceConf)
 
-	sourceConfigs := getSourceConfigs(gceConf)
+	sourceConfigs := config.SourceConfigsFromFlags(source, component, host, port, whitelisted, podId, namespaceId)
 	glog.Infof("Built the following source configs: %v", sourceConfigs)
+	sourceConfigChangeCh, err := config.CreateDynamicSourcesStream(gceConf, []flags.Uri(dynamicSources))
+	if err != nil {
+		glog.Fatalf(err.Error())
+	}
+
+	if sourceConfigChangeCh == nil && len(sourceConfigs) == 0 {
+		glog.Fatalf("No sources defined. Please specify at least one --source or --dynamic-source flag.")
+	}
 
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
@@ -101,33 +109,22 @@ func main() {
 	}
 	glog.V(4).Infof("Successfully created Stackdriver client")
 
-	if len(sourceConfigs) == 0 {
-		glog.Fatalf("No sources defined. Please specify at least one --source flag.")
-	}
-
 	for _, sourceConfig := range sourceConfigs {
 		glog.V(4).Infof("Starting goroutine for %+v", sourceConfig)
 
 		// Pass sourceConfig as a parameter to avoid using the last sourceConfig by all goroutines.
-		go readAndPushDataToStackdriver(stackdriverService, gceConf, sourceConfig)
+		go readAndPushDataToStackdriver(stackdriverService, gceConf, sourceConfig, nil)
+	}
+
+	if sourceConfigChangeCh != nil {
+		go handleDynamicConfigurations(stackdriverService, gceConf, sourceConfigChangeCh)
 	}
 
 	// As worker goroutines work forever, block main thread as well.
 	<-make(chan int)
 }
 
-func getSourceConfigs(gceConfig *config.GceConfig) []config.SourceConfig {
-	glog.Info("Taking source configs from flags")
-	staticSourceConfigs := config.SourceConfigsFromFlags(source, component, host, port, whitelisted, podId, namespaceId)
-	glog.Info("Taking source configs from kubernetes api server")
-	dynamicSourceConfigs, err := config.SourceConfigsFromDynamicSources(gceConfig, []flags.Uri(dynamicSources))
-	if err != nil {
-		glog.Fatalf(err.Error())
-	}
-	return append(staticSourceConfigs, dynamicSourceConfigs...)
-}
-
-func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *config.GceConfig, sourceConfig config.SourceConfig) {
+func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *config.GceConfig, sourceConfig config.SourceConfig, done chan bool) {
 	glog.Infof("Running prometheus-to-sd, monitored target is %s %v:%v", sourceConfig.Component, sourceConfig.Host, sourceConfig.Port)
 	commonConfig := &config.CommonConfig{
 		GceConfig:     gceConf,
@@ -138,40 +135,66 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 	signal := time.After(0)
 	useWhitelistedMetricsAutodiscovery := *autoWhitelistMetrics && len(sourceConfig.Whitelisted) == 0
 
-	for range time.Tick(*resolution) {
-		// Mark cache at the beginning of each iteration as stale. Cache is considered refreshed only if during
-		// current iteration there was successful call to Refresh function.
-		metricDescriptorCache.MarkStale()
-		glog.V(4).Infof("Scraping metrics of component %v", sourceConfig.Component)
+	for {
 		select {
-		case <-signal:
-			glog.V(4).Infof("Updating metrics cache for component %v", sourceConfig.Component)
-			metricDescriptorCache.Refresh()
-			if useWhitelistedMetricsAutodiscovery {
-				sourceConfig.UpdateWhitelistedMetrics(metricDescriptorCache.GetMetricNames())
-				glog.V(2).Infof("Autodiscovered whitelisted metrics for component %v: %v", commonConfig.ComponentName, sourceConfig.Whitelisted)
+		case <-done:
+			return
+		case <-time.Tick(*resolution):
+			// Mark cache at the beginning of each iteration as stale. Cache is considered refreshed only if during
+			// current iteration there was successful call to Refresh function.
+			metricDescriptorCache.MarkStale()
+			glog.V(4).Infof("Scraping metrics of component %v", sourceConfig.Component)
+			select {
+			case <-signal:
+				glog.V(4).Infof("Updating metrics cache for component %v", sourceConfig.Component)
+				metricDescriptorCache.Refresh()
+				if useWhitelistedMetricsAutodiscovery {
+					sourceConfig.UpdateWhitelistedMetrics(metricDescriptorCache.GetMetricNames())
+					glog.V(2).Infof("Autodiscovered whitelisted metrics for component %v: %v", commonConfig.ComponentName, sourceConfig.Whitelisted)
+				}
+				signal = time.After(*metricDescriptorsResolution)
+			default:
 			}
-			signal = time.After(*metricDescriptorsResolution)
-		default:
+			if useWhitelistedMetricsAutodiscovery && len(sourceConfig.Whitelisted) == 0 {
+				glog.V(4).Infof("Skipping %v component as there are no metric to expose.", sourceConfig.Component)
+				continue
+			}
+			metrics, err := translator.GetPrometheusMetrics(&sourceConfig)
+			if err != nil {
+				glog.V(2).Infof("Error while getting Prometheus metrics %v for component %v", err, sourceConfig.Component)
+				continue
+			}
+			if *omitComponentName {
+				metrics = translator.OmitComponentName(metrics, sourceConfig.Component)
+			}
+			if strings.HasPrefix(commonConfig.GceConfig.MetricsPrefix, customMetricsPrefix) {
+				metricDescriptorCache.UpdateMetricDescriptors(metrics, sourceConfig.Whitelisted)
+			} else {
+				metricDescriptorCache.ValidateMetricDescriptors(metrics, sourceConfig.Whitelisted)
+			}
+			ts := translator.TranslatePrometheusToStackdriver(commonConfig, sourceConfig.Whitelisted, metrics, metricDescriptorCache)
+			translator.SendToStackdriver(stackdriverService, commonConfig, ts)
 		}
-		if useWhitelistedMetricsAutodiscovery && len(sourceConfig.Whitelisted) == 0 {
-			glog.V(4).Infof("Skipping %v component as there are no metric to expose.", sourceConfig.Component)
-			continue
+	}
+}
+
+func handleDynamicConfigurations(stackdriverService *v3.Service, gceConf *config.GceConfig, sourceConfigChangeCh <-chan config.SourceConfigChange) {
+	channels := make(map[string]chan bool)
+	for sourceConfigChange := range sourceConfigChangeCh {
+		sourceConfig := sourceConfigChange.SourceConfig
+		sourceConfigId := fmt.Sprintf("%s_%s_%s", sourceConfig.PodConfig.NamespaceId, sourceConfig.PodConfig.PodId, sourceConfig.Component)
+		switch sourceConfigChange.ChangeType {
+		case config.Added:
+			if _, found := channels[sourceConfigId]; !found {
+				channel := make(chan bool, 1)
+				go readAndPushDataToStackdriver(stackdriverService, gceConf, sourceConfig, channel)
+				channels[sourceConfigId] = channel
+			}
+		case config.Deleted:
+			channel := channels[sourceConfigId]
+			channel <- true
+			delete(channels, sourceConfigId)
 		}
-		metrics, err := translator.GetPrometheusMetrics(&sourceConfig)
-		if err != nil {
-			glog.V(2).Infof("Error while getting Prometheus metrics %v for component %v", err, sourceConfig.Component)
-			continue
-		}
-		if *omitComponentName {
-			metrics = translator.OmitComponentName(metrics, sourceConfig.Component)
-		}
-		if strings.HasPrefix(commonConfig.GceConfig.MetricsPrefix, customMetricsPrefix) {
-			metricDescriptorCache.UpdateMetricDescriptors(metrics, sourceConfig.Whitelisted)
-		} else {
-			metricDescriptorCache.ValidateMetricDescriptors(metrics, sourceConfig.Whitelisted)
-		}
-		ts := translator.TranslatePrometheusToStackdriver(commonConfig, sourceConfig.Whitelisted, metrics, metricDescriptorCache)
-		translator.SendToStackdriver(stackdriverService, commonConfig, ts)
+		glog.V(4).Infof("Got dynamic source config change with type %s and value %+v", sourceConfigChange.ChangeType, sourceConfigChange.SourceConfig)
 	}
 }
