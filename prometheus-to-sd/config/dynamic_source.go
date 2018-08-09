@@ -9,17 +9,36 @@ import (
 	"github.com/golang/glog"
 	core "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
 
 const (
-	podNamespace = "kube-system"
-	nameLabel    = "k8s-app"
+	podNamespace       = "kube-system"
+	componentNameLabel = "k8s-app"
 )
 
-// SourceConfigsFromDynamicSources takes pod specifications from the Kubernetes API and maps them to source configs.
-func SourceConfigsFromDynamicSources(gceConfig *GceConfig, sources []flags.Uri) ([]SourceConfig, error) {
+// ChangeType defines the possible types of events.
+type ChangeType string
+
+// Possible change types
+const (
+	Added   ChangeType = "ADDED"
+	Deleted ChangeType = "DELETED"
+	Unknown ChangeType = "UNKNOWN"
+)
+
+// SourceConfigChange describes how one of the dynamic sources have changed.
+// Is generated when watch generates a new event.
+type SourceConfigChange struct {
+	ChangeType   ChangeType
+	SourceConfig SourceConfig
+}
+
+// CreateDynamicSourcesStream takes source specifications and creates a watch for them.
+// Every time a new event comes, it is mapped to source configs and sent through the channel returned by this function
+func CreateDynamicSourcesStream(gceConfig *GceConfig, sources []flags.Uri) (<-chan SourceConfigChange, error) {
 	if len(sources) == 0 {
 		return nil, nil
 	}
@@ -31,11 +50,8 @@ func SourceConfigsFromDynamicSources(gceConfig *GceConfig, sources []flags.Uri) 
 	if err != nil {
 		return nil, err
 	}
-	podResponse, err := kubeApi.CoreV1().Pods(podNamespace).List(createOptionsForPodSelection(gceConfig.Instance, sourceMap))
-	if err != nil {
-		return nil, err
-	}
-	return getConfigsFromPods(podResponse.Items, sourceMap), nil
+	podOptions := createOptionsForPodSelection(gceConfig.Instance, sourceMap)
+	return getSourceConfigChangeChannel(kubeApi, sourceMap, podOptions)
 }
 
 func validateSources(sources flags.Uris) (map[string]url.URL, error) {
@@ -71,33 +87,83 @@ func createOptionsForPodSelection(nodeName string, sources map[string]url.URL) v
 	for key := range sources {
 		nameList += key + ","
 	}
-	labelSelector := fmt.Sprintf("%s in (%s)", nameLabel, nameList)
-	return v1.ListOptions{
+	labelSelector := fmt.Sprintf("%s in (%s)", componentNameLabel, nameList)
+	listOptions := v1.ListOptions{
 		FieldSelector: fmt.Sprintf("spec.nodeName=%s", nodeName),
 		LabelSelector: labelSelector,
 	}
+	glog.Infof("Filters for dynamic components: %+v", listOptions)
+	return listOptions
 }
 
-func getConfigsFromPods(pods []core.Pod, sources map[string]url.URL) []SourceConfig {
-	var sourceConfigs []SourceConfig
-	for _, pod := range pods {
-		componentName := pod.Labels[nameLabel]
-		source, _ := sources[componentName]
-		podConfig := PodConfig{
-			PodId:       pod.Name,
-			NamespaceId: pod.Namespace,
-		}
-		sourceConfig, err := mapToSourceConfig(componentName, source, pod.Status.PodIP, podConfig)
-		if err != nil {
-			glog.Warning("could not create source config for pod %s: %v", pod.Name, err)
-		}
-		sourceConfigs = append(sourceConfigs, *sourceConfig)
+func getConfigFromPod(pod core.Pod, sources map[string]url.URL) (*SourceConfig, error) {
+	componentName := pod.Labels[componentNameLabel]
+	source, _ := sources[componentName]
+	podConfig := PodConfig{
+		PodId:       pod.Name,
+		NamespaceId: pod.Namespace,
 	}
-	return sourceConfigs
+	return mapToSourceConfig(componentName, source, pod.Status.PodIP, podConfig)
 }
 
 func mapToSourceConfig(componentName string, url url.URL, ip string, podConfig PodConfig) (*SourceConfig, error) {
 	port := url.Port()
 	whitelisted := url.Query().Get("whitelisted")
 	return newSourceConfig(componentName, ip, port, url.Path, whitelisted, podConfig)
+}
+
+func getSourceConfigChangeChannel(kubeApi clientset.Interface, sources map[string]url.URL, podOptions v1.ListOptions) (<-chan SourceConfigChange, error) {
+	watchInterface, err := kubeApi.CoreV1().Pods(podNamespace).Watch(podOptions)
+	if err != nil {
+		return nil, err
+	}
+	sourceConfigChannel := make(chan SourceConfigChange)
+	go func() {
+		eventChannel := watchInterface.ResultChan()
+		defer watchInterface.Stop()
+		for event := range eventChannel {
+			sourceConfigChange, err := mapWatchEventToSourceConfigChange(event, sources)
+			if err != nil {
+				glog.Warningf("dropping event because %v", err)
+			}
+			if sourceConfigChange != nil {
+				sourceConfigChannel <- *sourceConfigChange
+			}
+		}
+	}()
+	return sourceConfigChannel, nil
+}
+
+func mapWatchEventToSourceConfigChange(event watch.Event, sources map[string]url.URL) (*SourceConfigChange, error) {
+	if event.Type == watch.Error {
+		return nil, fmt.Errorf("watch error with event object %+v", event.Object)
+	}
+	pod, ok := event.Object.(*core.Pod)
+	if !ok {
+		return nil, fmt.Errorf("not a pod object %+v", event.Object)
+	}
+	sourceConfig, err := getConfigFromPod(*pod, sources)
+	if err != nil {
+		return nil, fmt.Errorf("could not map pod %s to source config: %v", pod.Name, err)
+	}
+	if event.Type != watch.Deleted && pod.Status.PodIP == "" {
+		return nil, nil
+	}
+	sourceConfigChange := SourceConfigChange{
+		ChangeType:   getChangeType(event.Type),
+		SourceConfig: *sourceConfig,
+	}
+	return &sourceConfigChange, nil
+}
+
+func getChangeType(eType watch.EventType) ChangeType {
+	// In some cases ADDED events will not have ip address,
+	// so we will take MODIFIED events with ip address as ADDED changes when the pod was scheduled
+	if eType == watch.Added || eType == watch.Modified {
+		return Added
+	}
+	if eType == watch.Deleted {
+		return Deleted
+	}
+	return Unknown
 }
