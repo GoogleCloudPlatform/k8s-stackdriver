@@ -4,7 +4,6 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/flags"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -98,93 +97,5 @@ func TestCreateLabelSelector(t *testing.T) {
 	for _, testcase := range testcases {
 		output := createOptionsForPodSelection(testcase.nodeName, testcase.sources)
 		assert.Equal(t, testcase.want, output)
-	}
-}
-
-func TestValidateSources(t *testing.T) {
-	testcases := []struct {
-		sources   flags.Uris
-		want      map[string]url.URL
-		wantError bool
-	}{
-		{
-			sources: flags.Uris{
-				{},
-			},
-			want:      map[string]url.URL{},
-			wantError: true,
-		},
-		{
-			sources: flags.Uris{
-				{Key: "component-name"},
-			},
-			want:      map[string]url.URL{},
-			wantError: true,
-		},
-		{
-			sources: flags.Uris{
-				{Key: "component-name", Val: url.URL{Host: ":80"}},
-			},
-			want: map[string]url.URL{
-				"component-name": {Host: ":80"},
-			},
-			wantError: false,
-		},
-		{
-			sources: flags.Uris{
-				{Key: "component-name", Val: url.URL{Host: "hostname:80"}},
-			},
-			wantError: true,
-		},
-		{
-			sources: flags.Uris{
-				{Key: "component-name1", Val: url.URL{Host: ":80"}},
-				{Key: "component-name2", Val: url.URL{Host: "hostname:80"}},
-			},
-			wantError: true,
-		},
-		{
-			sources: flags.Uris{
-				{Key: "component-name1", Val: url.URL{Host: "10.67.86.43:80"}},
-				{Key: "component-name2", Val: url.URL{Host: ":80"}},
-			},
-			wantError: true,
-		},
-		{
-			sources: flags.Uris{
-				{Key: "component-name1", Val: url.URL{Host: ":80"}},
-				{Key: "component-name2", Val: url.URL{Host: ":81"}},
-			},
-			want: map[string]url.URL{
-				"component-name1": {Host: ":80"},
-				"component-name2": {Host: ":81"},
-			},
-			wantError: false,
-		},
-		{
-			sources: flags.Uris{
-				{Key: "component-name1", Val: url.URL{Host: ":80"}},
-				{Key: "component-name1", Val: url.URL{Host: ":81"}},
-			},
-			want:      map[string]url.URL{},
-			wantError: true,
-		},
-		{
-			sources: flags.Uris{
-				{Key: "component-name1", Val: url.URL{Host: ":80"}},
-				{Key: "component-name1", Val: url.URL{Host: ":80"}},
-			},
-			want:      map[string]url.URL{},
-			wantError: true,
-		},
-	}
-	for _, test := range testcases {
-		sourceMap, err := validateSources(test.sources)
-		if test.wantError {
-			assert.NotNil(t, err)
-		} else {
-			assert.Nil(t, err)
-			assert.Equal(t, test.want, sourceMap)
-		}
 	}
 }

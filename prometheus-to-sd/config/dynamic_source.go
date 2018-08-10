@@ -47,9 +47,6 @@ func validateSources(sources flags.Uris) (map[string]url.URL, error) {
 		if source.Key == "" {
 			return nil, errors.New("component name should NOT be empty for any dynamic source")
 		}
-		if source.Val.Port() == "" {
-			return nil, errors.New("port should NOT be empty for any dynamic source")
-		}
 		sourceMap[source.Key] = source.Val
 	}
 	if len(sourceMap) != len(sources) {
