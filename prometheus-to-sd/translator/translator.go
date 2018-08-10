@@ -42,27 +42,53 @@ var supportedMetricTypes = map[dto.MetricType]bool{
 
 const falseValueEpsilon = 0.001
 
-// TranslatePrometheusToStackdriver translates metrics in Prometheus format to Stackdriver format.
-func TranslatePrometheusToStackdriver(config *config.CommonConfig,
-	whitelisted []string,
-	metrics map[string]*dto.MetricFamily,
-	cache *MetricDescriptorCache) []*v3.TimeSeries {
+type timeSeriesBuilder struct {
+	config         *config.CommonConfig
+	whitelisted    []string
+	cache          *MetricDescriptorCache
+	metricFamilies map[string]*metricFamilyWithTimestamp
+}
 
-	startTime := getStartTime(metrics)
-	metrics = filterWhitelisted(metrics, whitelisted)
+type metricFamilyWithTimestamp struct {
+	metricFamily *dto.MetricFamily
+	timestamp    time.Time
+}
 
+// NewTimeSeriesBuilder creates new builder object that keeps intermediate state of metrics.
+func NewTimeSeriesBuilder(config *config.CommonConfig, whitelisted []string, cache *MetricDescriptorCache) *timeSeriesBuilder {
+	return &timeSeriesBuilder{
+		config:         config,
+		whitelisted:    whitelisted,
+		cache:          cache,
+		metricFamilies: make(map[string]*metricFamilyWithTimestamp),
+	}
+}
+
+// Update updates the internal state with current batch.
+func (t *timeSeriesBuilder) Update(metrics map[string]*dto.MetricFamily) {
+	for k, v := range metrics {
+		t.metricFamilies[k] = &metricFamilyWithTimestamp{v, time.Now()}
+	}
+}
+
+// Builds a new TimeSeries array and restarts the internal state.
+func (t *timeSeriesBuilder) Build() []*v3.TimeSeries {
 	var ts []*v3.TimeSeries
-	for name, metric := range metrics {
-		if cache.IsMetricBroken(name) {
+	startTime := getStartTime(t.metricFamilies)
+	t.metricFamilies = filterWhitelisted(t.metricFamilies, t.whitelisted)
+
+	for name, metric := range t.metricFamilies {
+		if t.cache.IsMetricBroken(name) {
 			continue
 		}
-		t, err := translateFamily(config, metric, startTime, cache)
+		f, err := translateFamily(t.config, metric, startTime, t.cache)
 		if err != nil {
 			glog.Warningf("Error while processing metric %s: %v", name, err)
 		} else {
-			ts = append(ts, t...)
+			ts = append(ts, f...)
 		}
 	}
+	t.metricFamilies = make(map[string]*metricFamilyWithTimestamp)
 	return ts
 }
 
@@ -77,14 +103,14 @@ func OmitComponentName(metricFamilies map[string]*dto.MetricFamily, componentNam
 	return result
 }
 
-func getStartTime(metrics map[string]*dto.MetricFamily) time.Time {
+func getStartTime(metrics map[string]*metricFamilyWithTimestamp) time.Time {
 	// For cumulative metrics we need to know process start time.
 	// If the process start time is not specified, assuming it's
 	// the unix 1 second, because Stackdriver can't handle
 	// unix zero or unix negative number.
 	startTime := time.Unix(1, 0)
-	if family, found := metrics[processStartTimeMetric]; found && family.GetType() == dto.MetricType_GAUGE && len(family.GetMetric()) == 1 {
-		startSec := family.Metric[0].Gauge.Value
+	if family, found := metrics[processStartTimeMetric]; found && family.metricFamily.GetType() == dto.MetricType_GAUGE && len(family.metricFamily.GetMetric()) == 1 {
+		startSec := family.metricFamily.Metric[0].Gauge.Value
 		startTime = time.Unix(int64(*startSec), 0)
 		glog.V(4).Infof("Monitored process start time: %v", startTime)
 	} else {
@@ -93,12 +119,12 @@ func getStartTime(metrics map[string]*dto.MetricFamily) time.Time {
 	return startTime
 }
 
-func filterWhitelisted(allMetrics map[string]*dto.MetricFamily, whitelisted []string) map[string]*dto.MetricFamily {
+func filterWhitelisted(allMetrics map[string]*metricFamilyWithTimestamp, whitelisted []string) map[string]*metricFamilyWithTimestamp {
 	if len(whitelisted) == 0 {
 		return allMetrics
 	}
 	glog.V(4).Infof("Exporting only whitelisted metrics: %v", whitelisted)
-	res := map[string]*dto.MetricFamily{}
+	res := map[string]*metricFamilyWithTimestamp{}
 	for _, w := range whitelisted {
 		if family, found := allMetrics[w]; found {
 			res[w] = family
@@ -110,17 +136,19 @@ func filterWhitelisted(allMetrics map[string]*dto.MetricFamily, whitelisted []st
 }
 
 func translateFamily(config *config.CommonConfig,
-	family *dto.MetricFamily,
+	familyWithTimestamp *metricFamilyWithTimestamp,
 	startTime time.Time,
 	cache *MetricDescriptorCache) ([]*v3.TimeSeries, error) {
 
-	glog.V(3).Infof("Translating metric family %v from component", family.GetName(), config.ComponentName)
+	family := familyWithTimestamp.metricFamily
+
+	glog.V(3).Infof("Translating metric family %v from component %v", family.GetName(), config.ComponentName)
 	var ts []*v3.TimeSeries
 	if _, found := supportedMetricTypes[family.GetType()]; !found {
 		return ts, fmt.Errorf("Metric type %v of family %s not supported", family.GetType(), family.GetName())
 	}
 	for _, metric := range family.GetMetric() {
-		t := translateOne(config, family.GetName(), family.GetType(), metric, startTime, cache)
+		t := translateOne(config, family.GetName(), family.GetType(), metric, startTime, familyWithTimestamp.timestamp, cache)
 		ts = append(ts, t)
 		glog.V(4).Infof("%+v\nMetric: %+v, Interval: %+v", *t, *(t.Metric), t.Points[0].Interval)
 	}
@@ -141,9 +169,10 @@ func translateOne(config *config.CommonConfig,
 	mType dto.MetricType,
 	metric *dto.Metric,
 	start time.Time,
+	end time.Time,
 	cache *MetricDescriptorCache) *v3.TimeSeries {
 	interval := &v3.TimeInterval{
-		EndTime: time.Now().UTC().Format(time.RFC3339),
+		EndTime: end.UTC().Format(time.RFC3339),
 	}
 	metricKind := extractMetricKind(mType)
 	if metricKind == "CUMULATIVE" {

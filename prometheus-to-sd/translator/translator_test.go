@@ -43,6 +43,8 @@ func (ts ByMetricTypeReversed) Less(i, j int) bool {
 	return ts[i].Metric.Type > ts[j].Metric.Type
 }
 
+const epsilon = float64(0.001)
+
 var commonConfig = &config.CommonConfig{
 	GceConfig: &config.GceConfig{
 		Project:       "test-proj",
@@ -226,11 +228,12 @@ var metricDescriptors = map[string]*v3.MetricDescriptor{
 }
 
 func TestTranslatePrometheusToStackdriver(t *testing.T) {
-	epsilon := float64(0.001)
 	cache := buildCacheForTesting()
 	whitelistedMetrics := []string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName}
 
-	ts := TranslatePrometheusToStackdriver(commonConfig, whitelistedMetrics, metrics, cache)
+	tsb := NewTimeSeriesBuilder(commonConfig, whitelistedMetrics, cache)
+	tsb.Update(metrics)
+	ts := tsb.Build()
 
 	assert.Equal(t, 6, len(ts))
 	// TranslatePrometheusToStackdriver uses maps to represent data, so order of output is randomized.
@@ -312,6 +315,132 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 			t.Errorf("Wrong label labelName value %s", labels["labelName"])
 		}
 	}
+}
+
+func TestMergeScrapes(t *testing.T) {
+	whitelistedMetrics := []string{testMetricName, floatMetricName}
+	tsb := NewTimeSeriesBuilder(commonConfig, whitelistedMetrics, buildCacheForTesting())
+	scrape := map[string]*dto.MetricFamily{
+		testMetricName: {
+			Name: &testMetricName,
+			Type: &metricTypeCounter,
+			Help: &testMetricDescription,
+			Metric: []*dto.Metric{
+				{
+					Label: []*dto.LabelPair{
+						{
+							Name:  stringPtr("labelName"),
+							Value: stringPtr("labelValue1"),
+						},
+					},
+					Counter: &dto.Counter{Value: floatPtr(42.0)},
+				},
+				{
+					Label: []*dto.LabelPair{
+						{
+							Name:  stringPtr("labelName"),
+							Value: stringPtr("labelValue2"),
+						},
+					},
+					Counter: &dto.Counter{Value: floatPtr(106.0)},
+				},
+			},
+		},
+		floatMetricName: {
+			Name: stringPtr(floatMetricName),
+			Type: &metricTypeCounter,
+			Metric: []*dto.Metric{
+				{
+					Counter: &dto.Counter{Value: floatPtr(123.17)},
+				},
+			},
+		},
+		processStartTimeMetric: {
+			Name: stringPtr(processStartTimeMetric),
+			Type: &metricTypeGauge,
+			Metric: []*dto.Metric{
+				{
+					Gauge: &dto.Gauge{Value: floatPtr(1234567890.0)},
+				},
+			},
+		},
+	}
+	tsb.Update(scrape)
+	scrape = map[string]*dto.MetricFamily{
+		testMetricName: {
+			Name: &testMetricName,
+			Type: &metricTypeCounter,
+			Help: &testMetricDescription,
+			Metric: []*dto.Metric{
+				{
+					Label: []*dto.LabelPair{
+						{
+							Name:  stringPtr("labelName"),
+							Value: stringPtr("labelValue1"),
+						},
+					},
+					Counter: &dto.Counter{Value: floatPtr(42.0)},
+				},
+				{
+					Label: []*dto.LabelPair{
+						{
+							Name:  stringPtr("labelName"),
+							Value: stringPtr("labelValue2"),
+						},
+					},
+					Counter: &dto.Counter{Value: floatPtr(601.0)},
+				},
+			},
+		},
+		processStartTimeMetric: {
+			Name: stringPtr(processStartTimeMetric),
+			Type: &metricTypeGauge,
+			Metric: []*dto.Metric{
+				{
+					Gauge: &dto.Gauge{Value: floatPtr(1234567890.0)},
+				},
+			},
+		},
+	}
+	tsb.Update(scrape)
+	ts := tsb.Build()
+
+	assert.Equal(t, 3, len(ts))
+	// TranslatePrometheusToStackdriver uses maps to represent data, so order of output is randomized.
+	sort.Sort(ByMetricTypeReversed(ts))
+
+	// First two int values.
+	for i := 0; i <= 1; i++ {
+		metric := ts[i]
+		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", metric.Metric.Type)
+		assert.Equal(t, "INT64", metric.ValueType)
+		assert.Equal(t, "CUMULATIVE", metric.MetricKind)
+
+		assert.Equal(t, 1, len(metric.Points))
+		assert.Equal(t, "2009-02-13T23:31:30Z", metric.Points[0].Interval.StartTime)
+
+		labels := metric.Metric.Labels
+		assert.Equal(t, 1, len(labels))
+
+		if labels["labelName"] == "labelValue1" {
+			// This one stays stale
+			assert.Equal(t, int64(42), *(metric.Points[0].Value.Int64Value))
+		} else if labels["labelName"] == "labelValue2" {
+			// This one gets updated
+			assert.Equal(t, int64(601), *(metric.Points[0].Value.Int64Value))
+		} else {
+			t.Errorf("Wrong label labelName value %s", labels["labelName"])
+		}
+	}
+
+	// Then float value.
+	metric := ts[2]
+	assert.Equal(t, "container.googleapis.com/master/testcomponent/float_metric", metric.Metric.Type)
+	assert.Equal(t, "DOUBLE", metric.ValueType)
+	assert.Equal(t, "CUMULATIVE", metric.MetricKind)
+	assert.InEpsilon(t, 123.17, *(metric.Points[0].Value.DoubleValue), epsilon)
+	assert.Equal(t, 1, len(metric.Points))
+	assert.Equal(t, "2009-02-13T23:31:30Z", metric.Points[0].Interval.StartTime)
 }
 
 func TestMetricFamilyToMetricDescriptor(t *testing.T) {
