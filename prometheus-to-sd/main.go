@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	dto "github.com/prometheus/client_model/go"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -40,8 +41,8 @@ var (
 	host       = flag.String("target-host", "localhost", "The monitored component's hostname. DEPRECATED: Use --source instead.")
 	port       = flag.Uint("target-port", 80, "The monitored component's port. DEPRECATED: Use --source instead.")
 	component  = flag.String("component", "", "The monitored target's name. DEPRECATED: Use --source instead.")
-	resolution = flag.Duration("metrics-resolution", 60*time.Second,
-		"The resolution at which prometheus-to-sd will scrape the component for metrics.")
+	resolution = flag.Duration("metrics-resolution", 0*time.Second,
+		"Deprecated: The resolution at which prometheus-to-sd will scrape the component for metrics.")
 	metricsPrefix = flag.String("stackdriver-prefix", "container.googleapis.com/master",
 		"Prefix that is appended to every metric.")
 	whitelisted = flag.String("whitelisted-metrics", "",
@@ -63,6 +64,10 @@ var (
 		"If metric name starts with the component name then this substring is removed to keep metric name shorter.")
 	debugPort      = flag.Uint("port", 6061, "Port on which debug information is exposed.")
 	dynamicSources = flags.Uris{}
+	scrapeInterval = flag.Duration("scrape-interval", 60*time.Second,
+		"The interval between metric scrapes. If there are multiple scrapes between two exports, the last present value is exported, even when missing from last scraping.")
+	exportInterval = flag.Duration("export-interval", 60*time.Second,
+		"The interval between metric exports. Can't be lower than --scrape-interval.")
 
 	customMetricsPrefix = "custom.googleapis.com"
 )
@@ -105,6 +110,16 @@ func main() {
 		glog.Fatalf("No sources defined. Please specify at least one --source flag.")
 	}
 
+	if *resolution > 0*time.Second {
+		glog.Warningf("--metrics-resolution flag specified. Ignoring --scrape-interval and --export-interval flags.")
+		*scrapeInterval = *resolution
+		*exportInterval = *resolution
+	}
+
+	if *scrapeInterval > *exportInterval {
+		glog.Fatalf("--scrape-interval cannot be bigger than --export-interval")
+	}
+
 	for _, sourceConfig := range sourceConfigs {
 		glog.V(4).Infof("Starting goroutine for %+v", sourceConfig)
 
@@ -127,6 +142,22 @@ func getSourceConfigs(gceConfig *config.GceConfig) []config.SourceConfig {
 	return append(staticSourceConfigs, dynamicSourceConfigs...)
 }
 
+func scrapeMetrics(commonConfig *config.CommonConfig, sourceConfig *config.SourceConfig, metricDescriptorCache *translator.MetricDescriptorCache) (map[string]*dto.MetricFamily, error) {
+	metrics, err := translator.GetPrometheusMetrics(sourceConfig)
+	if err != nil {
+		return nil, err
+	}
+	if *omitComponentName {
+		metrics = translator.OmitComponentName(metrics, sourceConfig.Component)
+	}
+	if strings.HasPrefix(commonConfig.GceConfig.MetricsPrefix, customMetricsPrefix) {
+		metricDescriptorCache.UpdateMetricDescriptors(metrics, sourceConfig.Whitelisted)
+	} else {
+		metricDescriptorCache.ValidateMetricDescriptors(metrics, sourceConfig.Whitelisted)
+	}
+	return metrics, nil
+}
+
 func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *config.GceConfig, sourceConfig config.SourceConfig) {
 	glog.Infof("Running prometheus-to-sd, monitored target is %s %v:%v", sourceConfig.Component, sourceConfig.Host, sourceConfig.Port)
 	commonConfig := &config.CommonConfig{
@@ -137,8 +168,10 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 	metricDescriptorCache := translator.NewMetricDescriptorCache(stackdriverService, commonConfig, sourceConfig.Component)
 	signal := time.After(0)
 	useWhitelistedMetricsAutodiscovery := *autoWhitelistMetrics && len(sourceConfig.Whitelisted) == 0
+	timeSeriesBuilder := translator.NewTimeSeriesBuilder(commonConfig, sourceConfig.Whitelisted, metricDescriptorCache)
+	exportTicker := time.Tick(*exportInterval)
 
-	for range time.Tick(*resolution) {
+	for range time.Tick(*scrapeInterval) {
 		// Mark cache at the beginning of each iteration as stale. Cache is considered refreshed only if during
 		// current iteration there was successful call to Refresh function.
 		metricDescriptorCache.MarkStale()
@@ -158,20 +191,17 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 			glog.V(4).Infof("Skipping %v component as there are no metric to expose.", sourceConfig.Component)
 			continue
 		}
-		metrics, err := translator.GetPrometheusMetrics(&sourceConfig)
+		metrics, err := scrapeMetrics(commonConfig, &sourceConfig, metricDescriptorCache)
 		if err != nil {
 			glog.V(2).Infof("Error while getting Prometheus metrics %v for component %v", err, sourceConfig.Component)
 			continue
 		}
-		if *omitComponentName {
-			metrics = translator.OmitComponentName(metrics, sourceConfig.Component)
+		timeSeriesBuilder.Update(metrics)
+		select {
+		case <-exportTicker:
+			ts := timeSeriesBuilder.Build()
+			translator.SendToStackdriver(stackdriverService, commonConfig, ts)
+		default:
 		}
-		if strings.HasPrefix(commonConfig.GceConfig.MetricsPrefix, customMetricsPrefix) {
-			metricDescriptorCache.UpdateMetricDescriptors(metrics, sourceConfig.Whitelisted)
-		} else {
-			metricDescriptorCache.ValidateMetricDescriptors(metrics, sourceConfig.Whitelisted)
-		}
-		ts := translator.TranslatePrometheusToStackdriver(commonConfig, sourceConfig.Whitelisted, metrics, metricDescriptorCache)
-		translator.SendToStackdriver(stackdriverService, commonConfig, ts)
 	}
 }

@@ -89,7 +89,7 @@ func getConfigsFromPods(pods []core.Pod, sources map[string]url.URL) []SourceCon
 		}
 		sourceConfig, err := mapToSourceConfig(componentName, source, pod.Status.PodIP, podConfig)
 		if err != nil {
-			glog.Warning("could not create source config for pod %s: %v", pod.Name, err)
+			glog.Warningf("could not create source config for pod %s: %v", pod.Name, err)
 		}
 		sourceConfigs = append(sourceConfigs, *sourceConfig)
 	}
