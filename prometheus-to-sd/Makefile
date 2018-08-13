@@ -16,7 +16,7 @@ all: build
 
 ENVVAR = GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 PREFIX = gcr.io/google-containers
-TAG = v0.2.6
+TAG = v0.3.0
 
 build:
 	$(ENVVAR) go build -a -o monitor
