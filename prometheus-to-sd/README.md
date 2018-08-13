@@ -7,7 +7,7 @@ k8s cluster should run on GCE or GKE.
 
 ## Container Image
 
-Look at the following link: https://gcr.io/google-containers/prometheus-to-sd and pick the latest image. 
+Look at the following link: https://gcr.io/google-containers/prometheus-to-sd and pick the latest image.
 
 # Usage
 
@@ -38,6 +38,16 @@ descriptor](https://cloud.google.com/logging/docs/api/v2/resource-list#resource-
 the prometheus-to-sd. Values of the `namespace_id` and `pod_id` can be passed to
 the component through the additional flags or omitted. `container_name` is
 always empty for now. Field `zone` is overridable via flag.
+
+## Scrape interval vs. export interval
+
+There are two flags: `scrape-interval` and `export-interval` that allow
+specifying how often metrics are read from the sources and how often they are
+exported to Stackdriver, respectively. By default both are set to 1m. The
+scrapes can be more frequent than exports, however, to achieve grater precision
+for metrics being exported. For example, if metrics are exported once every
+minute and a container dies between scrapes, up to 1 minutes of metrics can be
+lost. Frequent scrapes mitigate that, at the cost of elevated resource usage.
 
 ## Deployment
 
