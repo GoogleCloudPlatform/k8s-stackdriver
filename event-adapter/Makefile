@@ -1,6 +1,6 @@
 OUT_DIR = build
 PACKAGE = k8s.io/event-adapter
-PREFIX ?= gcr.io/google-containers
+PREFIX ?= staging-k8s.gcr.io
 TAG = 1.0
 
 PKG := $(shell find pkg/* -type f)

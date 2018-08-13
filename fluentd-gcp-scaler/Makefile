@@ -15,17 +15,9 @@
 # The build rule builds a Docker image that logs all Docker contains logs to
 # Google Compute Platform using the Cloud Logging API.
 
-# Procedure for change:
-# 1. Bump the tag number.
-# 2. Push to the private repo and test using newer version
-# 3. Issue PR.
-# 4. Assuming permissions to do so, when PR is approved
-#    make the gcr.io version of the image: make build push
-# 5. Issue PR with config files changes
-
 .PHONY:	build push
 
-PREFIX=gcr.io/google-containers
+PREFIX=staging-k8s.gcr.io
 TAG = 0.3
 
 build:

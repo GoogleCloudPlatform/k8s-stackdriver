@@ -1,5 +1,5 @@
 TAG = v0.2.0
-PREFIX = gcr.io/google-containers
+PREFIX = staging-k8s.gcr.io
 
 build: sd_dummy_exporter
 
