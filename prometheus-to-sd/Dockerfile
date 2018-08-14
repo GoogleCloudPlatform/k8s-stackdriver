@@ -19,6 +19,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /monitor
 
 FROM gcr.io/google-containers/debian-base-amd64:0.3.2
 RUN clean-install ca-certificates
+
 #   nobody:nobody
 USER 65534:65534
 COPY --from=builder /monitor /
