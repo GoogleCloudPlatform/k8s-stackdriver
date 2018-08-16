@@ -95,7 +95,7 @@ func (config *SourceConfig) UpdateWhitelistedMetrics(list []string) {
 }
 
 // SourceConfigsFromFlags creates a slice of SourceConfig's base on the provided flags.
-func SourceConfigsFromFlags(source flags.Uris, component *string, host *string, port *uint, whitelisted *string, podId *string, namespaceId *string) []SourceConfig {
+func SourceConfigsFromFlags(source flags.Uris, podId *string, namespaceId *string) []SourceConfig {
 	podConfig := PodConfig{
 		PodId:       *podId,
 		NamespaceId: *namespaceId,
@@ -105,18 +105,6 @@ func SourceConfigsFromFlags(source flags.Uris, component *string, host *string, 
 		if sourceConfig, err := parseSourceConfig(c, podConfig); err != nil {
 			glog.Fatalf("Error while parsing source config flag %v: %v", c, err)
 		} else {
-			sourceConfigs = append(sourceConfigs, *sourceConfig)
-		}
-	}
-
-	if len(source) == 0 && *component != "" {
-		glog.Warningf("--component, --host, --port and --whitelisted flags are deprecated. Please use --source instead.")
-		portStr := strconv.FormatUint(uint64(*port), 10)
-
-		if sourceConfig, err := newSourceConfig(*component, *host, portStr, defaultMetricsPath, *whitelisted, podConfig); err != nil {
-			glog.Fatalf("Error while parsing --component flag: %v", err)
-		} else {
-			glog.Infof("Created a new source instance from --component flag: %+v", sourceConfig)
 			sourceConfigs = append(sourceConfigs, *sourceConfig)
 		}
 	}
