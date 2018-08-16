@@ -26,10 +26,8 @@ import (
 )
 
 func TestNewSourceConfig(t *testing.T) {
-	podConfig := PodConfig{
-		PodId:       "podId",
-		NamespaceId: "namespaceId",
-	}
+	podConfig := NewPodConfig("podId", "namespaceId", "", "", "")
+	emptyPodConfig := NewPodConfig("", "", "", "", "")
 	correct := [...]struct {
 		component   string
 		host        string
@@ -50,34 +48,34 @@ func TestNewSourceConfig(t *testing.T) {
 			},
 		},
 
-		{"testComponent", "localhost", "1234", "/status/prometheus", "", PodConfig{},
+		{"testComponent", "localhost", "1234", "/status/prometheus", "", emptyPodConfig,
 			SourceConfig{
 				Component:   "testComponent",
 				Host:        "localhost",
 				Port:        1234,
 				Path:        "/status/prometheus",
 				Whitelisted: nil,
-				PodConfig:   PodConfig{},
+				PodConfig:   emptyPodConfig,
 			},
 		},
-		{"testComponent", "localhost", "1234", "/", "", PodConfig{},
+		{"testComponent", "localhost", "1234", "/", "", emptyPodConfig,
 			SourceConfig{
 				Component:   "testComponent",
 				Host:        "localhost",
 				Port:        1234,
 				Path:        "/metrics",
 				Whitelisted: nil,
-				PodConfig:   PodConfig{},
+				PodConfig:   emptyPodConfig,
 			},
 		},
-		{"testComponent", "localhost", "1234", "", "", PodConfig{},
+		{"testComponent", "localhost", "1234", "", "", emptyPodConfig,
 			SourceConfig{
 				Component:   "testComponent",
 				Host:        "localhost",
 				Port:        1234,
 				Path:        "/metrics",
 				Whitelisted: nil,
-				PodConfig:   PodConfig{},
+				PodConfig:   emptyPodConfig,
 			},
 		},
 	}
@@ -91,10 +89,8 @@ func TestNewSourceConfig(t *testing.T) {
 }
 
 func TestParseSourceConfig(t *testing.T) {
-	podConfig := PodConfig{
-		PodId:       "podId",
-		NamespaceId: "namespaceId",
-	}
+	podId := "podId"
+	namespaceId := "namespaceId"
 	correct := [...]struct {
 		in     flags.Uri
 		output SourceConfig
@@ -115,7 +111,7 @@ func TestParseSourceConfig(t *testing.T) {
 				Port:        1234,
 				Path:        defaultMetricsPath,
 				Whitelisted: []string{"a", "b", "c", "d"},
-				PodConfig:   podConfig,
+				PodConfig:   NewPodConfig(podId, namespaceId, "", "", ""),
 			},
 		},
 		{
@@ -134,13 +130,13 @@ func TestParseSourceConfig(t *testing.T) {
 				Port:        1234,
 				Path:        "/status/prometheus",
 				Whitelisted: []string{"a", "b", "c", "d"},
-				PodConfig:   podConfig,
+				PodConfig:   NewPodConfig(podId, namespaceId, "", "", ""),
 			},
 		},
 	}
 
 	for _, c := range correct {
-		res, err := parseSourceConfig(c.in, podConfig)
+		res, err := parseSourceConfig(c.in, podId, namespaceId)
 		if assert.NoError(t, err) {
 			assert.Equal(t, c.output, *res)
 		}
@@ -166,7 +162,7 @@ func TestParseSourceConfig(t *testing.T) {
 	}
 
 	for _, c := range incorrect {
-		_, err := parseSourceConfig(c, podConfig)
+		_, err := parseSourceConfig(c, podId, namespaceId)
 		assert.Error(t, err)
 	}
 }

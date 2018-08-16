@@ -67,9 +67,9 @@ var (
 
 func main() {
 	flag.Set("logtostderr", "true")
-	flag.Var(&source, "source", "source(s) to watch in [component-name]:http://host:port/path?whitelisted=a,b,c format")
+	flag.Var(&source, "source", "source(s) to watch in [component-name]:http://host:port/path?whitelisted=a,b,c&podIdLabel=d&namespaceIdLabel=e&containerNameLabel=f format")
 	flag.Var(&dynamicSources, "dynamic-source",
-		`dynamic source(s) to watch in format: "[component-name]:http://:port/path?whitelisted=metric1,metric2". Dynamic sources are components (on the same node) discovered dynamically using the kubernetes api.`,
+		`dynamic source(s) to watch in format: "[component-name]:http://:port/path?whitelisted=metric1,metric2&podIdLabel=label1&namespaceIdLabel=label2&containerNameLabel=label3". Dynamic sources are components (on the same node) discovered dynamically using the kubernetes api.`,
 	)
 
 	defer glog.Flush()
@@ -150,7 +150,7 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 	glog.Infof("Running prometheus-to-sd, monitored target is %s %v:%v", sourceConfig.Component, sourceConfig.Host, sourceConfig.Port)
 	commonConfig := &config.CommonConfig{
 		GceConfig:     gceConf,
-		PodConfig:     &sourceConfig.PodConfig,
+		PodConfig:     sourceConfig.PodConfig,
 		ComponentName: sourceConfig.Component,
 	}
 	metricDescriptorCache := translator.NewMetricDescriptorCache(stackdriverService, commonConfig, sourceConfig.Component)

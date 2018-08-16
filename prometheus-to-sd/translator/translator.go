@@ -189,11 +189,11 @@ func translateOne(config *config.CommonConfig,
 
 	return &v3.TimeSeries{
 		Metric: &v3.Metric{
-			Labels: getMetricLabels(metric.GetLabel()),
+			Labels: getMetricLabels(config, metric.GetLabel()),
 			Type:   getMetricType(config, name),
 		},
 		Resource: &v3.MonitoredResource{
-			Labels: getResourceLabels(config),
+			Labels: getResourceLabels(config, metric.GetLabel()),
 			Type:   "gke_container",
 		},
 		MetricKind: metricKind,
@@ -273,10 +273,12 @@ func convertToDistributionValue(h *dto.Histogram) *v3.Distribution {
 	}
 }
 
-func getMetricLabels(labels []*dto.LabelPair) map[string]string {
+func getMetricLabels(config *config.CommonConfig, labels []*dto.LabelPair) map[string]string {
 	metricLabels := map[string]string{}
 	for _, label := range labels {
-		metricLabels[label.GetName()] = label.GetValue()
+		if config.PodConfig.IsMetricLabel(label.GetName()) {
+			metricLabels[label.GetName()] = label.GetValue()
+		}
 	}
 	return metricLabels
 }
@@ -342,14 +344,15 @@ func createProjectName(config *config.GceConfig) string {
 	return fmt.Sprintf("projects/%s", config.Project)
 }
 
-func getResourceLabels(config *config.CommonConfig) map[string]string {
+func getResourceLabels(config *config.CommonConfig, labels []*dto.LabelPair) map[string]string {
+	container, pod, namespace := config.PodConfig.GetPodInfo(labels)
 	return map[string]string{
 		"project_id":     config.GceConfig.Project,
 		"cluster_name":   config.GceConfig.Cluster,
 		"zone":           config.GceConfig.Zone,
 		"instance_id":    config.GceConfig.Instance,
-		"namespace_id":   config.PodConfig.NamespaceId,
-		"pod_id":         config.PodConfig.PodId,
-		"container_name": "",
+		"namespace_id":   namespace,
+		"pod_id":         pod,
+		"container_name": container,
 	}
 }

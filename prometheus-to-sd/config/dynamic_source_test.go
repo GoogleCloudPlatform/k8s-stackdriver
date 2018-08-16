@@ -10,55 +10,63 @@ import (
 )
 
 func TestMapToSourceConfig(t *testing.T) {
+	podName := "pod-name"
+	podNamespace := "pod-namespace"
 	testcases := []struct {
 		componentName string
 		url           url.URL
 		ip            string
-		podConfig     PodConfig
+		podName       string
+		podNamespace  string
 		want          SourceConfig
 	}{
 		{
 			componentName: "kube-proxy",
 			url:           url.URL{Host: ":8080"},
 			ip:            "10.25.78.143",
-			podConfig: PodConfig{
-				NamespaceId: "kube-system",
-				PodId:       "something",
-			},
+			podName:       podName,
+			podNamespace:  podNamespace,
 			want: SourceConfig{
 				Component: "kube-proxy",
 				Host:      "10.25.78.143",
 				Port:      uint(8080),
 				Path:      defaultMetricsPath,
-				PodConfig: PodConfig{
-					NamespaceId: "kube-system",
-					PodId:       "something",
-				},
+				PodConfig: NewPodConfig(podName, podNamespace, "", "", ""),
 			},
 		},
 		{
 			componentName: "fluentd",
 			url:           url.URL{Host: ":80", RawQuery: "whitelisted=metric1,metric2"},
 			ip:            "very_important_ip",
-			podConfig: PodConfig{
-				NamespaceId: "kube-system",
-				PodId:       "something_else",
-			},
+			podName:       podName,
+			podNamespace:  podNamespace,
 			want: SourceConfig{
 				Component:   "fluentd",
 				Host:        "very_important_ip",
 				Port:        uint(80),
 				Path:        defaultMetricsPath,
 				Whitelisted: []string{"metric1", "metric2"},
-				PodConfig: PodConfig{
-					NamespaceId: "kube-system",
-					PodId:       "something_else",
-				},
+				PodConfig:   NewPodConfig(podName, podNamespace, "", "", ""),
+			},
+		},
+		{
+			componentName: "cadvisor",
+			url:           url.URL{Host: ":8080", RawQuery: "whitelisted=metric1,metric2&podIdLabel=pod-id&namespaceIdLabel=namespace-id&containerNamelabel=container-name"},
+			ip:            "very_important_ip",
+			podName:       podName,
+			podNamespace:  podNamespace,
+			want: SourceConfig{
+				Component:   "cadvisor",
+				Host:        "very_important_ip",
+				Port:        uint(8080),
+				Path:        defaultMetricsPath,
+				Whitelisted: []string{"metric1", "metric2"},
+				PodConfig:   NewPodConfig(podName, podNamespace, "pod-id", "namespace-id", "container-name"),
 			},
 		},
 	}
 	for _, testcase := range testcases {
-		output, err := mapToSourceConfig(testcase.componentName, testcase.url, testcase.ip, testcase.podConfig)
+		output, err := mapToSourceConfig(testcase.componentName, testcase.url, testcase.ip, testcase.podName, testcase.podNamespace)
 		if assert.NoError(t, err) {
 			assert.Equal(t, testcase.want, *output)
 		}
