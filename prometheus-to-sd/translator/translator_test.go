@@ -229,9 +229,11 @@ var metricDescriptors = map[string]*v3.MetricDescriptor{
 
 func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	cache := buildCacheForTesting()
-	whitelistedMetrics := []string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName}
+	sourceConfig := &config.SourceConfig{
+		Whitelisted: []string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName},
+	}
 
-	tsb := NewTimeSeriesBuilder(commonConfig, whitelistedMetrics, cache)
+	tsb := NewTimeSeriesBuilder(commonConfig, sourceConfig, cache)
 	tsb.Update(metrics)
 	ts := tsb.Build()
 
@@ -318,8 +320,10 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 }
 
 func TestMergeScrapes(t *testing.T) {
-	whitelistedMetrics := []string{testMetricName, floatMetricName}
-	tsb := NewTimeSeriesBuilder(commonConfig, whitelistedMetrics, buildCacheForTesting())
+	sourceConfig := &config.SourceConfig{
+		Whitelisted: []string{testMetricName, floatMetricName},
+	}
+	tsb := NewTimeSeriesBuilder(commonConfig, sourceConfig, buildCacheForTesting())
 	scrape := map[string]*dto.MetricFamily{
 		testMetricName: {
 			Name: &testMetricName,
