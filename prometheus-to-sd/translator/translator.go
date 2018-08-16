@@ -43,8 +43,8 @@ var supportedMetricTypes = map[dto.MetricType]bool{
 const falseValueEpsilon = 0.001
 
 type timeSeriesBuilder struct {
-	config         *config.CommonConfig
-	whitelisted    []string
+	commonConfig   *config.CommonConfig
+	sourceConfig   *config.SourceConfig
 	cache          *MetricDescriptorCache
 	metricFamilies map[string]*metricFamilyWithTimestamp
 }
@@ -55,10 +55,10 @@ type metricFamilyWithTimestamp struct {
 }
 
 // NewTimeSeriesBuilder creates new builder object that keeps intermediate state of metrics.
-func NewTimeSeriesBuilder(config *config.CommonConfig, whitelisted []string, cache *MetricDescriptorCache) *timeSeriesBuilder {
+func NewTimeSeriesBuilder(commonConfig *config.CommonConfig, sourceConfig *config.SourceConfig, cache *MetricDescriptorCache) *timeSeriesBuilder {
 	return &timeSeriesBuilder{
-		config:         config,
-		whitelisted:    whitelisted,
+		commonConfig:   commonConfig,
+		sourceConfig:   sourceConfig,
 		cache:          cache,
 		metricFamilies: make(map[string]*metricFamilyWithTimestamp),
 	}
@@ -75,13 +75,13 @@ func (t *timeSeriesBuilder) Update(metrics map[string]*dto.MetricFamily) {
 func (t *timeSeriesBuilder) Build() []*v3.TimeSeries {
 	var ts []*v3.TimeSeries
 	startTime := getStartTime(t.metricFamilies)
-	t.metricFamilies = filterWhitelisted(t.metricFamilies, t.whitelisted)
+	t.metricFamilies = filterWhitelisted(t.metricFamilies, t.sourceConfig.Whitelisted)
 
 	for name, metric := range t.metricFamilies {
 		if t.cache.IsMetricBroken(name) {
 			continue
 		}
-		f, err := translateFamily(t.config, metric, startTime, t.cache)
+		f, err := translateFamily(t.commonConfig, metric, startTime, t.cache)
 		if err != nil {
 			glog.Warningf("Error while processing metric %s: %v", name, err)
 		} else {

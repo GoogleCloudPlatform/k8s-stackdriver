@@ -142,6 +142,7 @@ func getSourceConfigs(gceConfig *config.GceConfig) []config.SourceConfig {
 	return append(staticSourceConfigs, dynamicSourceConfigs...)
 }
 
+// TODO(x13n): factor out all the logic below and add tests, this doesn't really belong in main.
 func scrapeMetrics(commonConfig *config.CommonConfig, sourceConfig *config.SourceConfig, metricDescriptorCache *translator.MetricDescriptorCache) (map[string]*dto.MetricFamily, error) {
 	metrics, err := translator.GetPrometheusMetrics(sourceConfig)
 	if err != nil {
@@ -168,7 +169,7 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 	metricDescriptorCache := translator.NewMetricDescriptorCache(stackdriverService, commonConfig, sourceConfig.Component)
 	signal := time.After(0)
 	useWhitelistedMetricsAutodiscovery := *autoWhitelistMetrics && len(sourceConfig.Whitelisted) == 0
-	timeSeriesBuilder := translator.NewTimeSeriesBuilder(commonConfig, sourceConfig.Whitelisted, metricDescriptorCache)
+	timeSeriesBuilder := translator.NewTimeSeriesBuilder(commonConfig, &sourceConfig, metricDescriptorCache)
 	exportTicker := time.Tick(*exportInterval)
 
 	for range time.Tick(*scrapeInterval) {
