@@ -1,7 +1,7 @@
 ARCH?=amd64
 OUT_DIR?=build
 PACKAGE=github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter
-PREFIX?=gcr.io/google-containers
+PREFIX?=staging-k8s.gcr.io
 TAG = v0.8.0
 PKG := $(shell find pkg/* -type f)
 

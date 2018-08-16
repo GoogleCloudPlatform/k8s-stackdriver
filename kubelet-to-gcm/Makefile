@@ -12,19 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Procedure for change:
-# 1. Bump the tag number.
-# 2. Create an image for the kubernetes user on Dockerhub and push there: make build push
-# 3. Temporarily adjust any config files etc. that reference gcr.io/google_containers/kubelet-to-gcm:$(TAG)
-#    to use kubernetes/addon-resizer:$(TAG) instead.
-# 4. Test etc.
-# 5. Issue PR.
-# 6. When PR is approved make the gcr.io version of the image: make build push
-# 7. Revert the references to kubernetes/kubelet-to-gcm:$(TAG) to gcr.io/google_containers/kubelet-to-gcm:$(TAG) 
-
 OUT_DIR = build
 PACKAGE = github.com/GoogleCloudPlatform/k8s-stackdriver/kubelet-to-gcm
-PREFIX = gcr.io/google-containers
+PREFIX = staging-k8s.gcr.io
 TAG = 1.2.6
 
 # Rules for building the real image for deployment to gcr.io

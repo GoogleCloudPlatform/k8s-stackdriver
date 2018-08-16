@@ -17,7 +17,7 @@ all: container
 ENVVAR = GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 BINARY_NAME = event-exporter
 
-PREFIX = gcr.io/google-containers
+PREFIX = staging-k8s.gcr.io
 IMAGE_NAME = event-exporter
 TAG = v0.2.2
 

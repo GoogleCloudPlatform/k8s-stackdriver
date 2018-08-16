@@ -15,7 +15,7 @@
 all: build
 
 ENVVAR = GOOS=linux GOARCH=amd64 CGO_ENABLED=0
-PREFIX = gcr.io/google-containers
+PREFIX = staging-k8s.gcr.io
 TAG = v0.3.0
 
 build:
