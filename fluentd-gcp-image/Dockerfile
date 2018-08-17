@@ -20,7 +20,7 @@
 # scope and that the Logging API has been enabled for the project
 # in the Google Developer Console.
 
-FROM k8s.gcr.io/debian-base-amd64:0.3
+FROM gcr.io/google-containers/debian-base-amd64:0.3.2
 
 COPY Gemfile /Gemfile
 

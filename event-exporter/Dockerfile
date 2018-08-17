@@ -12,12 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM alpine
+FROM gcr.io/google-containers/debian-base-amd64:0.3.2
 
-RUN apk --update upgrade && \
-    apk add curl ca-certificates && \
-    update-ca-certificates && \
-    rm -rf /var/cache/apk/*
+RUN clean-install ca-certificates
 
 EXPOSE 80
 
