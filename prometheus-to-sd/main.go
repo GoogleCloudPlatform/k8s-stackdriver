@@ -38,15 +38,8 @@ import (
 )
 
 var (
-	host       = flag.String("target-host", "localhost", "The monitored component's hostname. DEPRECATED: Use --source instead.")
-	port       = flag.Uint("target-port", 80, "The monitored component's port. DEPRECATED: Use --source instead.")
-	component  = flag.String("component", "", "The monitored target's name. DEPRECATED: Use --source instead.")
-	resolution = flag.Duration("metrics-resolution", 0*time.Second,
-		"Deprecated: The resolution at which prometheus-to-sd will scrape the component for metrics.")
 	metricsPrefix = flag.String("stackdriver-prefix", "container.googleapis.com/master",
 		"Prefix that is appended to every metric.")
-	whitelisted = flag.String("whitelisted-metrics", "",
-		"Comma-separated list of whitelisted metrics. If empty all metrics will be exported. DEPRECATED: Use --source instead.")
 	autoWhitelistMetrics = flag.Bool("auto-whitelist-metrics", false,
 		"If component has no whitelisted metrics, prometheus-to-sd will fetch them from Stackdriver.")
 	metricDescriptorsResolution = flag.Duration("metric-descriptors-resolution", 10*time.Minute,
@@ -110,12 +103,6 @@ func main() {
 		glog.Fatalf("No sources defined. Please specify at least one --source flag.")
 	}
 
-	if *resolution > 0*time.Second {
-		glog.Warningf("--metrics-resolution flag specified. Ignoring --scrape-interval and --export-interval flags.")
-		*scrapeInterval = *resolution
-		*exportInterval = *resolution
-	}
-
 	if *scrapeInterval > *exportInterval {
 		glog.Fatalf("--scrape-interval cannot be bigger than --export-interval")
 	}
@@ -133,7 +120,7 @@ func main() {
 
 func getSourceConfigs(gceConfig *config.GceConfig) []config.SourceConfig {
 	glog.Info("Taking source configs from flags")
-	staticSourceConfigs := config.SourceConfigsFromFlags(source, component, host, port, whitelisted, podId, namespaceId)
+	staticSourceConfigs := config.SourceConfigsFromFlags(source, podId, namespaceId)
 	glog.Info("Taking source configs from kubernetes api server")
 	dynamicSourceConfigs, err := config.SourceConfigsFromDynamicSources(gceConfig, []flags.Uri(dynamicSources))
 	if err != nil {
