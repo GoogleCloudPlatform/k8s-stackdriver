@@ -53,10 +53,7 @@ var commonConfig = &config.CommonConfig{
 		Instance:      "kubernetes-master.c.test-proj.internal",
 		MetricsPrefix: "container.googleapis.com/master",
 	},
-	PodConfig: &config.PodConfig{
-		NamespaceId: "",
-		PodId:       "machine",
-	},
+	PodConfig:     config.NewPodConfig("machine", "", "", "", ""),
 	ComponentName: "testcomponent",
 }
 

@@ -83,11 +83,7 @@ func getConfigsFromPods(pods []core.Pod, sources map[string]url.URL) []SourceCon
 	for _, pod := range pods {
 		componentName := pod.Labels[nameLabel]
 		source, _ := sources[componentName]
-		podConfig := PodConfig{
-			PodId:       pod.Name,
-			NamespaceId: pod.Namespace,
-		}
-		sourceConfig, err := mapToSourceConfig(componentName, source, pod.Status.PodIP, podConfig)
+		sourceConfig, err := mapToSourceConfig(componentName, source, pod.Status.PodIP, pod.Name, pod.Namespace)
 		if err != nil {
 			glog.Warningf("could not create source config for pod %s: %v", pod.Name, err)
 		}
@@ -96,8 +92,12 @@ func getConfigsFromPods(pods []core.Pod, sources map[string]url.URL) []SourceCon
 	return sourceConfigs
 }
 
-func mapToSourceConfig(componentName string, url url.URL, ip string, podConfig PodConfig) (*SourceConfig, error) {
+func mapToSourceConfig(componentName string, url url.URL, ip, podId, namespaceId string) (*SourceConfig, error) {
 	port := url.Port()
 	whitelisted := url.Query().Get("whitelisted")
+	podIdLabel := url.Query().Get("podIdLabel")
+	namespaceIdLabel := url.Query().Get("namespaceIdLabel")
+	containerNamelabel := url.Query().Get("containerNamelabel")
+	podConfig := NewPodConfig(podId, namespaceId, podIdLabel, namespaceIdLabel, containerNamelabel)
 	return newSourceConfig(componentName, ip, port, url.Path, whitelisted, podConfig)
 }

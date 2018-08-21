@@ -55,3 +55,18 @@ Example of [deployment](https://github.com/GoogleCloudPlatform/k8s-stackdriver/b
 used to monitor
 [kube-state-metrics](https://github.com/kubernetes/kube-state-metrics) component, that is used to collect
 different metrics about the state of k8s cluster.
+
+## Container monitoring agents
+
+Container monitoring agents, such as [cAdvisor](https://github.com/google/cadvisor#cadvisor), 
+collect metrics about containers other than itself.  Monitoring agents use prometheus
+labels for the namespace, pod, and container to differentiate metrics from different
+containers.  To use these prometheus labels as the monitored resource labels in
+stackdriver, include `namespaceIdLabel`, `podIdLabel`, and `containerNameLabel` in the 
+`source` flag in this format: 
+`component-name:http://host:port?whitelisted=a,b,c&namespaceIdLabel=d&podIdLabel=e&containerNameLabel=f`.
+Note that prometheus labels used for the monitored resource are not included as labels in stackdriver.
+
+For example, if prom-to-sd scraped the prometheus metric: 
+`container_cpu_usage_seconds{d="my-namespace",e="abc123",f="my-app",g="production"} 1.02030405e+09`
+It would be displayed in stackdriver with the namespace, `my-namespace`, the pod id, `abc123`, and the container name, `my-app`.  The only stackdriver label for this metric would be `g="production"`.
