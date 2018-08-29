@@ -22,7 +22,6 @@ import (
 	"time"
 
 	log "github.com/golang/glog"
-	"github.com/spf13/pflag"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2/google"
 
@@ -41,25 +40,23 @@ const (
 
 var (
 	// Flags to identify the Kubelet.
-	zone            = pflag.String("zone", "use-gce", "The zone where this kubelet lives.")
-	project         = pflag.String("project", "use-gce", "The project where this kubelet's host lives.")
-	cluster         = pflag.String("cluster", "use-gce", "The cluster where this kubelet holds membership.")
-	kubeletInstance = pflag.String("kubelet-instance", "use-gce", "The instance name the kubelet resides on.")
-	kubeletHost     = pflag.String("kubelet-host", "use-gce", "The kubelet's host name.")
-	kubeletPort     = pflag.Uint("kubelet-port", 10255, "The kubelet's port.")
-	ctrlPort        = pflag.Uint("controller-manager-port", 10252, "The kube-controller's port.")
+	zone            = flag.String("zone", "use-gce", "The zone where this kubelet lives.")
+	project         = flag.String("project", "use-gce", "The project where this kubelet's host lives.")
+	cluster         = flag.String("cluster", "use-gce", "The cluster where this kubelet holds membership.")
+	kubeletInstance = flag.String("kubelet-instance", "use-gce", "The instance name the kubelet resides on.")
+	kubeletHost     = flag.String("kubelet-host", "use-gce", "The kubelet's host name.")
+	kubeletPort     = flag.Uint("kubelet-port", 10255, "The kubelet's port.")
+	ctrlPort        = flag.Uint("controller-manager-port", 10252, "The kube-controller's port.")
 	// Flags to control runtime behavior.
-	res         = pflag.Uint("resolution", 10, "The time, in seconds, to poll the Kubelet.")
-	gcmEndpoint = pflag.String("gcm-endpoint", "", "The GCM endpoint to hit. Defaults to the default endpoint.")
+	res         = flag.Uint("resolution", 10, "The time, in seconds, to poll the Kubelet.")
+	gcmEndpoint = flag.String("gcm-endpoint", "", "The GCM endpoint to hit. Defaults to the default endpoint.")
 )
 
 func main() {
-	// First log our starting config, and then set up.
-	flag.CommandLine.Parse([]string{})
 	flag.Set("logtostderr", "true") // This spoofs glog into teeing logs to stderr.
 
 	defer log.Flush()
-	pflag.Parse()
+	flag.Parse()
 	log.Infof("Invoked by %v", os.Args)
 
 	resolution := time.Second * time.Duration(*res)
