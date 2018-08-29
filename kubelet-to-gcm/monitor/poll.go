@@ -23,6 +23,8 @@ import (
 	v3 "google.golang.org/api/monitoring/v3"
 )
 
+const maxTimeSeriesPerRequest = 200
+
 // SourceConfig is the set of data required to configure a kubernetes
 // data source (e.g., kubelet or kube-controller).
 type SourceConfig struct {
@@ -47,18 +49,41 @@ func Once(src MetricsSource, gcm *v3.Service) {
 		return
 	}
 
-	// Push that data to GCM's v3 API.
-	createCall := gcm.Projects.TimeSeries.Create(src.ProjectPath(), req)
-	if empty, err := createCall.Do(); err != nil {
-		log.Warningf("Failed to write time series data, empty: %v, err: %v", empty, err)
+	for _, subReq := range subRequests(req) {
+		// Push that data to GCM's v3 API.
+		createCall := gcm.Projects.TimeSeries.Create(src.ProjectPath(), subReq)
+		if empty, err := createCall.Do(); err != nil {
+			log.Warningf("Failed to write time series data, empty: %v, err: %v", empty, err)
 
-		jsonReq, err := req.MarshalJSON()
-		if err != nil {
-			log.Warningf("Failed to marshal time series as JSON")
+			jsonReq, err := subReq.MarshalJSON()
+			if err != nil {
+				log.Warningf("Failed to marshal time series as JSON")
+				return
+			}
+			log.Warningf("JSON GCM: %s", string(jsonReq[:]))
 			return
 		}
-		log.Warningf("JSON GCM: %s", string(jsonReq[:]))
-		return
+		log.V(4).Infof("Successfully wrote TimeSeries data for %s to GCM v3 API.", src.Name())
 	}
-	log.V(4).Infof("Successfully wrote TimeSeries data for %s to GCM v3 API.", src.Name())
+}
+
+func subRequests(req *v3.CreateTimeSeriesRequest) []*v3.CreateTimeSeriesRequest {
+	tsCount := len(req.TimeSeries)
+	if tsCount <= maxTimeSeriesPerRequest {
+		return []*v3.CreateTimeSeriesRequest{req}
+	}
+	subRequestsCount := (tsCount-1)/maxTimeSeriesPerRequest + 1
+	log.V(2).Infof("Splitting CreateTimeSeriesRequest into %v requests", subRequestsCount)
+	subReqs := make([]*v3.CreateTimeSeriesRequest, subRequestsCount)
+	for i := 0; i < subRequestsCount; i++ {
+		startIdx := i * maxTimeSeriesPerRequest
+		endIdx := (i + 1) * maxTimeSeriesPerRequest
+		if endIdx > tsCount {
+			endIdx = tsCount
+		}
+		subReqs[i] = &v3.CreateTimeSeriesRequest{
+			TimeSeries: req.TimeSeries[startIdx:endIdx],
+		}
+	}
+	return subReqs
 }
