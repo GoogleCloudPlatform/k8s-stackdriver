@@ -23,9 +23,8 @@ log() {
 apply_scaling() {
   # This is assuming there is a ScalingPolicy installed in the cluster.
   # See https://github.com/justinsb/scaler for more details.
-  if ! kubectl get scalingpolicies -n ${NAMESPACE} ${SCALING_POLICY}
+  if ! kubectl get scalingpolicies -n ${NAMESPACE} ${SCALING_POLICY} 2> /dev/null
   then
-    log "${SCALING_POLICY} not found in namespace ${NAMESPACE}, using defaults."
     return
   fi
   for resource_class in request limit
@@ -102,7 +101,6 @@ update_if_needed() {
   if needs_update limits.memory ${MEMORY_LIMIT}; then NEED_UPDATE=true; fi
   if ! ${NEED_UPDATE}
   then
-    log "Nothing to update."
     return
   fi
   if [ ${REQUESTS_FLAG} ] || [ ${LIMITS_FLAG} ]
