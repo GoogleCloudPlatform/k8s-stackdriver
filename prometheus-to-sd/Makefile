@@ -16,7 +16,7 @@ all: build
 
 ENVVAR = GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 PREFIX = staging-k8s.gcr.io
-TAG = v0.3.1
+TAG = v0.3.2
 
 build:
 	$(ENVVAR) go build -a -o monitor
