@@ -28,8 +28,15 @@ import (
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/config"
 )
 
+const customMetricsPrefix = "custom.googleapis.com"
+
+// PrometheusResponse represents unprocessed response from Prometheus endpoint.
+type PrometheusResponse struct {
+	rawResponse string
+}
+
 // GetPrometheusMetrics scrapes metrics from the given host and port using /metrics handler.
-func GetPrometheusMetrics(config *config.SourceConfig) (map[string]*dto.MetricFamily, error) {
+func GetPrometheusMetrics(config *config.SourceConfig) (*PrometheusResponse, error) {
 	res, err := getPrometheusMetrics(config)
 	if err != nil {
 		componentMetricsAvailable.WithLabelValues(config.Component).Set(0.0)
@@ -39,7 +46,7 @@ func GetPrometheusMetrics(config *config.SourceConfig) (map[string]*dto.MetricFa
 	return res, err
 }
 
-func getPrometheusMetrics(config *config.SourceConfig) (map[string]*dto.MetricFamily, error) {
+func getPrometheusMetrics(config *config.SourceConfig) (*PrometheusResponse, error) {
 	url := fmt.Sprintf("http://%s:%d%s", config.Host, config.Port, config.Path)
 	resp, err := http.Get(url)
 	if err != nil {
@@ -51,13 +58,26 @@ func getPrometheusMetrics(config *config.SourceConfig) (map[string]*dto.MetricFa
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body - %v", err)
 	}
-
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("request failed - %q, response: %q", resp.Status, string(body))
 	}
+	return &PrometheusResponse{rawResponse: string(body)}, nil
+}
 
-	data := string(body)
-
+// Build performs parsing and processing of the prometheus metrics response.
+func (p *PrometheusResponse) Build(commonConfig *config.CommonConfig, sourceConfig *config.SourceConfig, metricDescriptorCache *MetricDescriptorCache) (map[string]*dto.MetricFamily, error) {
 	parser := &expfmt.TextParser{}
-	return parser.TextToMetricFamilies(strings.NewReader(data))
+	metrics, err := parser.TextToMetricFamilies(strings.NewReader(p.rawResponse))
+	if err != nil {
+		return nil, err
+	}
+	if commonConfig.OmitComponentName {
+		metrics = OmitComponentName(metrics, sourceConfig.Component)
+	}
+	if strings.HasPrefix(commonConfig.GceConfig.MetricsPrefix, customMetricsPrefix) {
+		metricDescriptorCache.UpdateMetricDescriptors(metrics, sourceConfig.Whitelisted)
+	} else {
+		metricDescriptorCache.ValidateMetricDescriptors(metrics, sourceConfig.Whitelisted)
+	}
+	return metrics, nil
 }

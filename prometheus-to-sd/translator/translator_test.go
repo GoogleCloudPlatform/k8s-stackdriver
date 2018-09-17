@@ -69,6 +69,29 @@ var unrelatedMetric = "unrelated_metric"
 var testMetricDescription = "Description 1"
 var testMetricHistogramDescription = "Description 2"
 
+var metricsResponse = &PrometheusResponse{rawResponse: `
+# TYPE test_name counter
+test_name{labelName="labelValue1"} 42.0
+test_name{labelName="labelValue2"} 106.0
+# TYPE boolean_metric gauge
+boolean_metric{labelName="falseValue"} 0.00001
+boolean_metric{labelName="trueValue"} 1.2
+# TYPE float_metric counter
+float_metric 123.17
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1234567890.0
+# TYPE unrelated_metric gauge
+unrelated_metric 23.0
+# TYPE test_histogram histogram
+test_histogram_bucket{le="1.0"} 1
+test_histogram_bucket{le="3.0"} 4
+test_histogram_bucket{le="5.0"} 4
+test_histogram_bucket{le="+Inf"} 5
+test_histogram_sum 13.0
+test_histogram_count 5
+`,
+}
+
 var metrics = map[string]*dto.MetricFamily{
 	testMetricName: {
 		Name: &testMetricName,
@@ -231,8 +254,10 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	}
 
 	tsb := NewTimeSeriesBuilder(commonConfig, sourceConfig, cache)
-	tsb.Update(metrics)
-	ts := tsb.Build()
+	tsb.Update(metricsResponse)
+	ts, err := tsb.Build()
+
+	assert.Equal(t, err, nil)
 
 	assert.Equal(t, 6, len(ts))
 	// TranslatePrometheusToStackdriver uses maps to represent data, so order of output is randomized.
@@ -316,101 +341,38 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	}
 }
 
-func TestMergeScrapes(t *testing.T) {
+func TestUpdateScrapes(t *testing.T) {
 	sourceConfig := &config.SourceConfig{
 		Whitelisted: []string{testMetricName, floatMetricName},
 	}
 	tsb := NewTimeSeriesBuilder(commonConfig, sourceConfig, buildCacheForTesting())
-	scrape := map[string]*dto.MetricFamily{
-		testMetricName: {
-			Name: &testMetricName,
-			Type: &metricTypeCounter,
-			Help: &testMetricDescription,
-			Metric: []*dto.Metric{
-				{
-					Label: []*dto.LabelPair{
-						{
-							Name:  stringPtr("labelName"),
-							Value: stringPtr("labelValue1"),
-						},
-					},
-					Counter: &dto.Counter{Value: floatPtr(42.0)},
-				},
-				{
-					Label: []*dto.LabelPair{
-						{
-							Name:  stringPtr("labelName"),
-							Value: stringPtr("labelValue2"),
-						},
-					},
-					Counter: &dto.Counter{Value: floatPtr(106.0)},
-				},
-			},
-		},
-		floatMetricName: {
-			Name: stringPtr(floatMetricName),
-			Type: &metricTypeCounter,
-			Metric: []*dto.Metric{
-				{
-					Counter: &dto.Counter{Value: floatPtr(123.17)},
-				},
-			},
-		},
-		processStartTimeMetric: {
-			Name: stringPtr(processStartTimeMetric),
-			Type: &metricTypeGauge,
-			Metric: []*dto.Metric{
-				{
-					Gauge: &dto.Gauge{Value: floatPtr(1234567890.0)},
-				},
-			},
-		},
+	scrape := &PrometheusResponse{rawResponse: `
+# TYPE test_name counter
+test_name{labelName="labelValue1"} 42.0
+test_name{labelName="labelValue2"} 106.0
+# TYPE float_metric counter
+float_metric 123.17
+# TYPE test_name counter
+process_start_time_seconds 1234567890.0
+`,
 	}
 	tsb.Update(scrape)
-	scrape = map[string]*dto.MetricFamily{
-		testMetricName: {
-			Name: &testMetricName,
-			Type: &metricTypeCounter,
-			Help: &testMetricDescription,
-			Metric: []*dto.Metric{
-				{
-					Label: []*dto.LabelPair{
-						{
-							Name:  stringPtr("labelName"),
-							Value: stringPtr("labelValue1"),
-						},
-					},
-					Counter: &dto.Counter{Value: floatPtr(42.0)},
-				},
-				{
-					Label: []*dto.LabelPair{
-						{
-							Name:  stringPtr("labelName"),
-							Value: stringPtr("labelValue2"),
-						},
-					},
-					Counter: &dto.Counter{Value: floatPtr(601.0)},
-				},
-			},
-		},
-		processStartTimeMetric: {
-			Name: stringPtr(processStartTimeMetric),
-			Type: &metricTypeGauge,
-			Metric: []*dto.Metric{
-				{
-					Gauge: &dto.Gauge{Value: floatPtr(1234567890.0)},
-				},
-			},
-		},
+	scrape = &PrometheusResponse{rawResponse: `
+# TYPE test_name counter
+test_name{labelName="labelValue1"} 42.0
+test_name{labelName="labelValue2"} 601.0
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1234567890.0
+`,
 	}
 	tsb.Update(scrape)
-	ts := tsb.Build()
+	ts, err := tsb.Build()
 
-	assert.Equal(t, 3, len(ts))
+	assert.Equal(t, err, nil)
+	assert.Equal(t, 2, len(ts))
 	// TranslatePrometheusToStackdriver uses maps to represent data, so order of output is randomized.
 	sort.Sort(ByMetricTypeReversed(ts))
 
-	// First two int values.
 	for i := 0; i <= 1; i++ {
 		metric := ts[i]
 		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", metric.Metric.Type)
@@ -433,15 +395,6 @@ func TestMergeScrapes(t *testing.T) {
 			t.Errorf("Wrong label labelName value %s", labels["labelName"])
 		}
 	}
-
-	// Then float value.
-	metric := ts[2]
-	assert.Equal(t, "container.googleapis.com/master/testcomponent/float_metric", metric.Metric.Type)
-	assert.Equal(t, "DOUBLE", metric.ValueType)
-	assert.Equal(t, "CUMULATIVE", metric.MetricKind)
-	assert.InEpsilon(t, 123.17, *(metric.Points[0].Value.DoubleValue), epsilon)
-	assert.Equal(t, 1, len(metric.Points))
-	assert.Equal(t, "2009-02-13T23:31:30Z", metric.Points[0].Interval.StartTime)
 }
 
 func TestMetricFamilyToMetricDescriptor(t *testing.T) {
