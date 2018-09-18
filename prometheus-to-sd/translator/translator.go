@@ -42,54 +42,59 @@ var supportedMetricTypes = map[dto.MetricType]bool{
 
 const falseValueEpsilon = 0.001
 
-type timeSeriesBuilder struct {
-	commonConfig   *config.CommonConfig
-	sourceConfig   *config.SourceConfig
-	cache          *MetricDescriptorCache
-	metricFamilies map[string]*metricFamilyWithTimestamp
+// TimeSeriesBuilder keeps track of incoming prometheus updates and can convert
+// last received one to Stackdriver TimeSeries.
+type TimeSeriesBuilder struct {
+	commonConfig *config.CommonConfig
+	sourceConfig *config.SourceConfig
+	cache        *MetricDescriptorCache
+	batch        *batchWithTimestamp
 }
 
-type metricFamilyWithTimestamp struct {
-	metricFamily *dto.MetricFamily
-	timestamp    time.Time
+type batchWithTimestamp struct {
+	metrics   *PrometheusResponse
+	timestamp time.Time
 }
 
 // NewTimeSeriesBuilder creates new builder object that keeps intermediate state of metrics.
-func NewTimeSeriesBuilder(commonConfig *config.CommonConfig, sourceConfig *config.SourceConfig, cache *MetricDescriptorCache) *timeSeriesBuilder {
-	return &timeSeriesBuilder{
-		commonConfig:   commonConfig,
-		sourceConfig:   sourceConfig,
-		cache:          cache,
-		metricFamilies: make(map[string]*metricFamilyWithTimestamp),
+func NewTimeSeriesBuilder(commonConfig *config.CommonConfig, sourceConfig *config.SourceConfig, cache *MetricDescriptorCache) *TimeSeriesBuilder {
+	return &TimeSeriesBuilder{
+		commonConfig: commonConfig,
+		sourceConfig: sourceConfig,
+		cache:        cache,
 	}
 }
 
 // Update updates the internal state with current batch.
-func (t *timeSeriesBuilder) Update(metrics map[string]*dto.MetricFamily) {
-	for k, v := range metrics {
-		t.metricFamilies[k] = &metricFamilyWithTimestamp{v, time.Now()}
-	}
+func (t *TimeSeriesBuilder) Update(batch *PrometheusResponse) {
+	t.batch = &batchWithTimestamp{batch, time.Now()}
 }
 
-// Builds a new TimeSeries array and restarts the internal state.
-func (t *timeSeriesBuilder) Build() []*v3.TimeSeries {
+// Build returns a new TimeSeries array and restarts the internal state.
+func (t *TimeSeriesBuilder) Build() ([]*v3.TimeSeries, error) {
 	var ts []*v3.TimeSeries
-	startTime := getStartTime(t.metricFamilies)
-	t.metricFamilies = filterWhitelisted(t.metricFamilies, t.sourceConfig.Whitelisted)
+	defer func() { t.batch = nil }()
+	metricFamilies, err := t.batch.metrics.Build(t.commonConfig, t.sourceConfig, t.cache)
+	if err != nil {
+		return ts, err
+	}
+	// Get start time before whitelisting, because process start time
+	// metric is likely not to be whitelisted.
+	startTime := getStartTime(metricFamilies)
+	metricFamilies = filterWhitelisted(metricFamilies, t.sourceConfig.Whitelisted)
 
-	for name, metric := range t.metricFamilies {
+	for name, metric := range metricFamilies {
 		if t.cache.IsMetricBroken(name) {
 			continue
 		}
-		f, err := translateFamily(t.commonConfig, metric, startTime, t.cache)
+		f, err := translateFamily(t.commonConfig, metric, t.batch.timestamp, startTime, t.cache)
 		if err != nil {
 			glog.Warningf("Error while processing metric %s: %v", name, err)
 		} else {
 			ts = append(ts, f...)
 		}
 	}
-	t.metricFamilies = make(map[string]*metricFamilyWithTimestamp)
-	return ts
+	return ts, nil
 }
 
 // OmitComponentName removes from the metric names prefix that is equal to component name.
@@ -103,14 +108,14 @@ func OmitComponentName(metricFamilies map[string]*dto.MetricFamily, componentNam
 	return result
 }
 
-func getStartTime(metrics map[string]*metricFamilyWithTimestamp) time.Time {
+func getStartTime(metrics map[string]*dto.MetricFamily) time.Time {
 	// For cumulative metrics we need to know process start time.
 	// If the process start time is not specified, assuming it's
 	// the unix 1 second, because Stackdriver can't handle
 	// unix zero or unix negative number.
 	startTime := time.Unix(1, 0)
-	if family, found := metrics[processStartTimeMetric]; found && family.metricFamily.GetType() == dto.MetricType_GAUGE && len(family.metricFamily.GetMetric()) == 1 {
-		startSec := family.metricFamily.Metric[0].Gauge.Value
+	if family, found := metrics[processStartTimeMetric]; found && family.GetType() == dto.MetricType_GAUGE && len(family.GetMetric()) == 1 {
+		startSec := family.Metric[0].Gauge.Value
 		startTime = time.Unix(int64(*startSec), 0)
 		glog.V(4).Infof("Monitored process start time: %v", startTime)
 	} else {
@@ -119,12 +124,12 @@ func getStartTime(metrics map[string]*metricFamilyWithTimestamp) time.Time {
 	return startTime
 }
 
-func filterWhitelisted(allMetrics map[string]*metricFamilyWithTimestamp, whitelisted []string) map[string]*metricFamilyWithTimestamp {
+func filterWhitelisted(allMetrics map[string]*dto.MetricFamily, whitelisted []string) map[string]*dto.MetricFamily {
 	if len(whitelisted) == 0 {
 		return allMetrics
 	}
 	glog.V(4).Infof("Exporting only whitelisted metrics: %v", whitelisted)
-	res := map[string]*metricFamilyWithTimestamp{}
+	res := map[string]*dto.MetricFamily{}
 	for _, w := range whitelisted {
 		if family, found := allMetrics[w]; found {
 			res[w] = family
@@ -136,11 +141,10 @@ func filterWhitelisted(allMetrics map[string]*metricFamilyWithTimestamp, whiteli
 }
 
 func translateFamily(config *config.CommonConfig,
-	familyWithTimestamp *metricFamilyWithTimestamp,
+	family *dto.MetricFamily,
+	timestamp time.Time,
 	startTime time.Time,
 	cache *MetricDescriptorCache) ([]*v3.TimeSeries, error) {
-
-	family := familyWithTimestamp.metricFamily
 
 	glog.V(3).Infof("Translating metric family %v from component %v", family.GetName(), config.ComponentName)
 	var ts []*v3.TimeSeries
@@ -148,7 +152,7 @@ func translateFamily(config *config.CommonConfig,
 		return ts, fmt.Errorf("Metric type %v of family %s not supported", family.GetType(), family.GetName())
 	}
 	for _, metric := range family.GetMetric() {
-		t := translateOne(config, family.GetName(), family.GetType(), metric, startTime, familyWithTimestamp.timestamp, cache)
+		t := translateOne(config, family.GetName(), family.GetType(), metric, startTime, timestamp, cache)
 		ts = append(ts, t)
 		glog.V(4).Infof("%+v\nMetric: %+v, Interval: %+v", *t, *(t.Metric), t.Points[0].Interval)
 	}
