@@ -73,6 +73,9 @@ func (t *TimeSeriesBuilder) Update(batch *PrometheusResponse) {
 // Build returns a new TimeSeries array and restarts the internal state.
 func (t *TimeSeriesBuilder) Build() ([]*v3.TimeSeries, error) {
 	var ts []*v3.TimeSeries
+	if t.batch == nil {
+		return ts, nil
+	}
 	defer func() { t.batch = nil }()
 	metricFamilies, err := t.batch.metrics.Build(t.commonConfig, t.sourceConfig, t.cache)
 	if err != nil {
