@@ -432,6 +432,19 @@ func TestOmitComponentName(t *testing.T) {
 	}
 }
 
+func TestBuildWithoutUpdate(t *testing.T) {
+	cache := buildCacheForTesting()
+	sourceConfig := &config.SourceConfig{
+		Whitelisted: []string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName},
+	}
+
+	tsb := NewTimeSeriesBuilder(commonConfig, sourceConfig, cache)
+	ts, err := tsb.Build()
+
+	assert.Equal(t, err, nil)
+	assert.Equal(t, 0, len(ts))
+}
+
 func buildCacheForTesting() *MetricDescriptorCache {
 	cache := NewMetricDescriptorCache(nil, nil, commonConfig.ComponentName)
 	cache.descriptors[booleanMetricName] = metricDescriptors[booleanMetricName]
