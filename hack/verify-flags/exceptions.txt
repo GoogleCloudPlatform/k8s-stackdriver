@@ -1,9 +1,8 @@
-custom-metrics-stackdriver-adapter/README.md:               "namespace_id":   <your namespace>,
-custom-metrics-stackdriver-adapter/README.md:               "pod_id":         <your pod ID>,
-custom-metrics-stackdriver-adapter/README.md:               // namespace_id and instance_id labels don't matter for the custom
-custom-metrics-stackdriver-adapter/README.md:           - my-app --pod_id=$(POD_ID)
+custom-metrics-stackdriver-adapter/README.md:               "pod_name":       <your pod name>,
+custom-metrics-stackdriver-adapter/README.md:           - my-app --pod_id=$(POD_ID) --pod_name=$(POD_NAME) --namespace_name=$(NAMESPACE_NAME)
 custom-metrics-stackdriver-adapter/README.md:       podIdFlag := flag.String("pod_id", "", "a string")
-custom-metrics-stackdriver-adapter/README.md:     - `pod_id` - set this to pod UID obtained via downward API. Example configuration that passes POD_ID to your application as a flag:
+custom-metrics-stackdriver-adapter/README.md:     - `namespace_id` and `instance_id` (for **legacy resource model**) are not
+custom-metrics-stackdriver-adapter/README.md:     - `pod_id`, `pod_name`, `namespace_name` can be obtained via downward API.
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"namespace_id": "default",
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"pod_id":         podId,
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"pod_name":       name,

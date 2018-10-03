@@ -19,8 +19,8 @@ spec:
       - command:
         - /bin/sh
         - -c
-        - ./sd_dummy_exporter --metric-name=foo --metric-value=40 --pod-id=$(POD_ID)
-        image: gcr.io/google-containers/sd-dummy-exporter:v0.1.0
+        - ./sd_dummy_exporter --metric-name=foo --metric-value=40 --use-new-resource-model --use-old-resource-model --pod-id=$(POD_ID) --pod-name=$(POD_NAME) --namespace=$(NAMESPACE)
+        image: gcr.io/google-containers/sd-dummy-exporter:v0.2.0
         name: sd-dummy-exporter
         resources:
           requests:
@@ -31,6 +31,16 @@ spec:
               fieldRef:
                 apiVersion: v1
                 fieldPath: metadata.uid
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.name
+          - name: NAMESPACE
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
 ---
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler

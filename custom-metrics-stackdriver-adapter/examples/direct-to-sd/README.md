@@ -8,8 +8,13 @@ a [custom metrics setup] in your cluster.
 
 A simple sd-dummy-exporter container exports a metric of constant value 
 to Stackdriver in a loop. The metric name and value can be passed in via flags.
-Pod id is passed to the container via downward API (see [custom-metrics-sd deployment]
-for how it's done)
+Pod id, pod name and namespace are passed to the container via downward API (see
+[custom-metrics-sd deployment] for how it's done).
+
+Stackdriver dummy exporter can export metrics for **new Stackdriver resource model**,
+**legacy Stackdriver resource model** or both, specified by flags:
+`--use-new-resource-model` and `--use-old-resource-model`. The deployment used in this
+example exports metrics for both resource models at the same time.
 
 ## Horizontal Pod Autoscaling object
 
@@ -43,9 +48,10 @@ Check the Resources > Metrics Explorer page and search for custom/<metric-name>.
 can't find the metric or there is no data, sd-dummy-exporter is not pushing your metrics to Stackdriver.
 
 Make sure that:
-* Your metric is correctly labeled with your GCP project id, zone and cluster name
+* Your metric is correctly labeled with your GCP project id, zone or location and cluster name
 * Your metric's
-  * ```resource_type = "gke_container"```
+  * `resource_type` is one of: `k8s_pod`, `k8s_node` for **new resource model**
+    or `gke_container` for **legacy resource model**.
   * name starts with ```custom.googleapis.com/``` prefix
 * There are no errors when writing your metrics to Stackdriver.
 ```
@@ -73,7 +79,7 @@ You should see a similar list:
   "groupVersion": "custom.metrics.k8s.io/v1beta1",
   "resources": [
     {
-      "name": "pods/<metric-name>",
+      "name": "*/<metric-name>",
       "singularName": "",
       "namespaced": true,
       "kind": "MetricValueList",
@@ -90,9 +96,7 @@ If you do not see your metric in the list, custom-metrics-stackdriver-adapter
 can't find the metric in Stackdriver.
 
 Make sure that:
-* Your metric meets following requirements:
-  * `metricKind = GAUGE`
-  * `metricType = DOUBLE` or `INT64`
+* Your `metricType = DOUBLE` or `INT64`
 * Your metric name does not contain slashes after the ```custom.googleapis.com/``` prefix
 See [sd-dummy-exporter code] for an example of correctly labeled and exported metric.
 
@@ -114,9 +118,9 @@ This should return a MetricValueList object. If you get a 404, the metric timese
 custom-metrics-stackdriver-adapter.
 
 Make sure that:
-* your metric is correctly labeled with pod id. 
+* your metric is correctly labeled with pod details (id, name and namespace).
 For reference on correctly labeling your metric see [sd-dummy-exporter code] 
-and [custom-metrics-sd deployment] for how to pass pod id to the sd-dummy-exporter
+and [custom-metrics-sd deployment] for how to pass pod details to the sd-dummy-exporter
 via downward API.
 
 4. Check that the HPA object is configured correctly

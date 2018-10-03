@@ -3,7 +3,8 @@
 This is a minimal example showing how to export custom metrics using 
 [prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/) to Stackdriver
 in a k8s cluster running on GCE or GKE. This example assumes that you already have
-a [custom metrics setup] in your cluster.
+a [custom metrics setup] in your cluster and use legacy Stackdriver resource
+model (Prometheus to Stackdriver doesn't support new resource model).
 
 ## Prometheus dummy exporter
 
