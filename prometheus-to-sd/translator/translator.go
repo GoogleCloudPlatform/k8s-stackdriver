@@ -199,10 +199,7 @@ func translateOne(config *config.CommonConfig,
 			Labels: getMetricLabels(config, metric.GetLabel()),
 			Type:   getMetricType(config, name),
 		},
-		Resource: &v3.MonitoredResource{
-			Labels: getResourceLabels(config, metric.GetLabel()),
-			Type:   "gke_container",
-		},
+		Resource:   getMonitoredResourceFromLabels(config, metric.GetLabel()),
 		MetricKind: metricKind,
 		ValueType:  valueType,
 		Points:     []*v3.Point{point},
@@ -268,8 +265,8 @@ func convertToDistributionValue(h *dto.Histogram) *v3.Distribution {
 	}
 
 	return &v3.Distribution{
-		Count: count,
-		Mean:  mean,
+		Count:                 count,
+		Mean:                  mean,
 		SumOfSquaredDeviation: dev,
 		BucketOptions: &v3.BucketOptions{
 			ExplicitBuckets: &v3.Explicit{
@@ -351,15 +348,49 @@ func createProjectName(config *config.GceConfig) string {
 	return fmt.Sprintf("projects/%s", config.Project)
 }
 
-func getResourceLabels(config *config.CommonConfig, labels []*dto.LabelPair) map[string]string {
+func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.LabelPair) *v3.MonitoredResource {
+	if config == nil || config.PodConfig == nil || config.GceConfig == nil {
+		return nil
+	}
+
 	container, pod, namespace := config.PodConfig.GetPodInfo(labels)
-	return map[string]string{
-		"project_id":     config.GceConfig.Project,
-		"cluster_name":   config.GceConfig.Cluster,
-		"zone":           config.GceConfig.Zone,
-		"instance_id":    config.GceConfig.Instance,
-		"namespace_id":   namespace,
-		"pod_id":         pod,
-		"container_name": container,
+
+	if config.GceConfig.UseNewResources {
+		if namespace == "" && pod == "" && container == "machine" {
+			return &v3.MonitoredResource{
+				Type: "k8s_node",
+				Labels: map[string]string{
+					"project_id":       config.GceConfig.Project,
+					"cluster_name":     config.GceConfig.Cluster,
+					"cluster_location": config.GceConfig.ClusterLocation,
+					"node_name":        config.GceConfig.Instance,
+				},
+			}
+		}
+
+		return &v3.MonitoredResource{
+			Type: "k8s_container",
+			Labels: map[string]string{
+				"project_id":       config.GceConfig.Project,
+				"cluster_name":     config.GceConfig.Cluster,
+				"cluster_location": config.GceConfig.ClusterLocation,
+				"namespace_name":   namespace,
+				"pod_name":         pod,
+				"container_name":   container,
+			},
+		}
+	} else {
+		return &v3.MonitoredResource{
+			Type: "gke_container",
+			Labels: map[string]string{
+				"project_id":     config.GceConfig.Project,
+				"cluster_name":   config.GceConfig.Cluster,
+				"zone":           config.GceConfig.Zone,
+				"instance_id":    config.GceConfig.Instance,
+				"namespace_id":   namespace,
+				"pod_id":         pod,
+				"container_name": container,
+			},
+		}
 	}
 }

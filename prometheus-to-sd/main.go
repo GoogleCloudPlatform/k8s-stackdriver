@@ -51,6 +51,8 @@ var (
 		"Namespace name of the pod in which monitored component is running.")
 	zoneOverride = flag.String("zone-override", "",
 		"Name of the zone to override the default one (in which component is running).")
+	useNewResources = flag.Bool("use-new-resources", false,
+		"Use the new kubernetes monitored resource model.")
 	omitComponentName = flag.Bool("omit-component-name", true,
 		"If metric name starts with the component name then this substring is removed to keep metric name shorter.")
 	debugPort      = flag.Uint("port", 6061, "Port on which debug information is exposed.")
@@ -71,7 +73,7 @@ func main() {
 	defer glog.Flush()
 	flag.Parse()
 
-	gceConf, err := config.GetGceConfig(*metricsPrefix, *zoneOverride)
+	gceConf, err := config.GetGceConfig(*metricsPrefix, *zoneOverride, *useNewResources)
 	if err != nil {
 		glog.Fatalf("Failed to get GCE config: %v", err)
 	}

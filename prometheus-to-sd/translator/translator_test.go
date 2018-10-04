@@ -247,6 +247,60 @@ var metricDescriptors = map[string]*v3.MetricDescriptor{
 	},
 }
 
+func TestGetMonitoredResourceFromLabels(t *testing.T) {
+	var monitoredResource *v3.MonitoredResource
+
+	// Any nil config properties should not produce a monitored resource.
+	assert.Nil(t, getMonitoredResourceFromLabels(nil, nil))
+	assert.Nil(t, getMonitoredResourceFromLabels(&config.CommonConfig{
+		GceConfig: nil,
+		PodConfig: nil,
+	}, nil))
+
+	// Ensure that legacy resources return gke_container.
+	monitoredResource = getMonitoredResourceFromLabels(&config.CommonConfig{
+		GceConfig: &config.GceConfig{},
+		PodConfig: config.NewPodConfig("", "", "", "", ""),
+	}, nil)
+	assert.Equal(t, monitoredResource.Type, "gke_container")
+
+	// Ensure that new non-machine resources return k8s_container.
+	monitoredResource = getMonitoredResourceFromLabels(&config.CommonConfig{
+		GceConfig: &config.GceConfig{
+			UseNewResources: true,
+		},
+		PodConfig: config.NewPodConfig("", "", "", "", ""),
+	}, nil)
+	assert.Equal(t, monitoredResource.Type, "k8s_container")
+
+	monitoredResource = getMonitoredResourceFromLabels(&config.CommonConfig{
+		GceConfig: &config.GceConfig{
+			UseNewResources: true,
+		},
+		PodConfig: config.NewPodConfig("nonEmptyPodID", "", "", "", "containerNameLabel"),
+	}, []*dto.LabelPair{
+		{
+			Name:  stringPtr("containerNameLabel"),
+			Value: stringPtr("machine"),
+		},
+	})
+	assert.Equal(t, monitoredResource.Type, "k8s_container")
+
+	// Ensure that new machine resources return k8s_node.
+	monitoredResource = getMonitoredResourceFromLabels(&config.CommonConfig{
+		GceConfig: &config.GceConfig{
+			UseNewResources: true,
+		},
+		PodConfig: config.NewPodConfig("", "", "", "", "containerNameLabel"),
+	}, []*dto.LabelPair{
+		{
+			Name:  stringPtr("containerNameLabel"),
+			Value: stringPtr("machine"),
+		},
+	})
+	assert.Equal(t, monitoredResource.Type, "k8s_node")
+}
+
 func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	cache := buildCacheForTesting()
 	sourceConfig := &config.SourceConfig{
@@ -266,6 +320,7 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	// First two int values.
 	for i := 0; i <= 1; i++ {
 		metric := ts[i]
+		assert.Equal(t, "gke_container", metric.Resource.Type)
 		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", metric.Metric.Type)
 		assert.Equal(t, "INT64", metric.ValueType)
 		assert.Equal(t, "CUMULATIVE", metric.MetricKind)
@@ -287,6 +342,7 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 
 	// Histogram
 	metric := ts[2]
+	assert.Equal(t, "gke_container", metric.Resource.Type)
 	assert.Equal(t, "container.googleapis.com/master/testcomponent/test_histogram", metric.Metric.Type)
 	assert.Equal(t, "DISTRIBUTION", metric.ValueType)
 	assert.Equal(t, "CUMULATIVE", metric.MetricKind)
@@ -315,6 +371,7 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 
 	// Then float value.
 	metric = ts[3]
+	assert.Equal(t, "gke_container", metric.Resource.Type)
 	assert.Equal(t, "container.googleapis.com/master/testcomponent/float_metric", metric.Metric.Type)
 	assert.Equal(t, "DOUBLE", metric.ValueType)
 	assert.Equal(t, "CUMULATIVE", metric.MetricKind)
@@ -325,6 +382,7 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	// Then two boolean values.
 	for i := 4; i <= 5; i++ {
 		metric := ts[i]
+		assert.Equal(t, "gke_container", metric.Resource.Type)
 		assert.Equal(t, "container.googleapis.com/master/testcomponent/boolean_metric", metric.Metric.Type)
 		assert.Equal(t, "BOOL", metric.ValueType)
 		assert.Equal(t, "GAUGE", metric.MetricKind)
@@ -375,6 +433,7 @@ process_start_time_seconds 1234567890.0
 
 	for i := 0; i <= 1; i++ {
 		metric := ts[i]
+		assert.Equal(t, "gke_container", metric.Resource.Type)
 		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", metric.Metric.Type)
 		assert.Equal(t, "INT64", metric.ValueType)
 		assert.Equal(t, "CUMULATIVE", metric.MetricKind)
