@@ -464,6 +464,27 @@ func TestTranslator_GetExternalMetricRequest_CorrectSelector_Cumulative(t *testi
 	}
 }
 
+func TestTranslator_GetExternalMetricRequest_DifferentProject(t *testing.T) {
+	translator, sdService := newFakeTranslatorForExternalMetrics(2*time.Minute, time.Minute, "my-project", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC))
+	req1, _ := labels.NewRequirement("resource.type", selection.Equals, []string{"k8s_pod"})
+	req2, _ := labels.NewRequirement("resource.labels.project_id", selection.Equals, []string{"other-project"})
+	request, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "CUMULATIVE", labels.NewSelector().Add(*req1, *req2))
+	if err != nil {
+		t.Fatalf("Translation error: %s", err)
+	}
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/other-project").
+		Filter("metric.type = \"custom.googleapis.com/my/metric/name\" " +
+			"AND resource.labels.project_id = \"other-project\" " +
+			"AND resource.type = \"k8s_pod\"").
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:02:00Z").
+		AggregationPerSeriesAligner("ALIGN_RATE").
+		AggregationAlignmentPeriod("60s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected \n%s,\n received: \n%s", *expectedRequest, *request)
+	}
+}
+
 func TestTranslator_GetExternalMetricRequest_InvalidLabel(t *testing.T) {
 	translator, _ := newFakeTranslatorForExternalMetrics(2*time.Minute, time.Minute, "my-project", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC))
 	_, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "GAUGE", labels.SelectorFromSet(labels.Set{

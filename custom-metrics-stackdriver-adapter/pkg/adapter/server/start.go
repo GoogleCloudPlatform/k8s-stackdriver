@@ -116,7 +116,7 @@ func (o sampleAdapterServerOptions) RunCustomMetricsAdapterServer(stopCh <-chan 
 		return fmt.Errorf("unable to construct dynamic mapper: %v", err)
 	}
 
-	tokenSource, err := google.DefaultTokenSource(oauth2.NoContext, "")
+	tokenSource, err := google.DefaultTokenSource(oauth2.NoContext, "https://www.googleapis.com/auth/monitoring.read")
 	if err != nil {
 		return fmt.Errorf("unable to use default token source: %v", err)
 	}
