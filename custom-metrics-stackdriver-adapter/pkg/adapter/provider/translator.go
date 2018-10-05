@@ -245,10 +245,7 @@ func (t *Translator) GetMetricKind(metricName string) (string, error) {
 
 // GetExternalMetricProject If the metric has "resource.labels.project_id" as a selector, then use a different project
 func (t *Translator) GetExternalMetricProject(metricSelector labels.Selector) (string, error) {
-	requirements, selectable := metricSelector.Requirements()
-	if !selectable {
-		return "", apierr.NewBadRequest(fmt.Sprintf("Label selector is impossible to match: %s", metricSelector))
-	}
+	requirements, _ := metricSelector.Requirements()
 	for _, req := range requirements {
 		if req.Key() == "resource.labels.project_id" {
 			return req.Values().List()[0], nil
