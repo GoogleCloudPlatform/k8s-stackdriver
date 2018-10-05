@@ -243,7 +243,7 @@ func (t *Translator) GetMetricKind(metricName string) (string, error) {
 	return response.MetricKind, nil
 }
 
-// If the metric has "resource.labels.project_id" as a selector, then use a different project
+// GetExternalMetricProject If the metric has "resource.labels.project_id" as a selector, then use a different project
 func (t *Translator) GetExternalMetricProject(metricSelector labels.Selector) (string, error) {
 	requirements, selectable := metricSelector.Requirements()
 	if !selectable {
