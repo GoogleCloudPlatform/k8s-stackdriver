@@ -248,7 +248,7 @@ func (t *Translator) GetExternalMetricProject(metricSelector labels.Selector) (s
 	requirements, _ := metricSelector.Requirements()
 	for _, req := range requirements {
 		if req.Key() == "resource.labels.project_id" {
-			if (req.Operator() == selection.Equals || req.Operator() == selection.DoubleEquals) {
+			if req.Operator() == selection.Equals || req.Operator() == selection.DoubleEquals {
 				return req.Values().List()[0], nil
 			}
 			return "", provider.NewLabelNotAllowedError(fmt.Sprintf("Project selector must use '=' or '==': You used %s", req.Operator()))
