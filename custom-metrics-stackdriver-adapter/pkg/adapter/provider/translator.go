@@ -250,9 +250,8 @@ func (t *Translator) GetExternalMetricProject(metricSelector labels.Selector) (s
 		if req.Key() == "resource.labels.project_id" {
 			if (req.Operator() == selection.Equals || req.Operator() == selection.DoubleEquals) {
 				return req.Values().List()[0], nil
-			} else {
-				return "", provider.NewLabelNotAllowedError(fmt.Sprintf("Project selector must use '=' or '==': You used %s", req.Operator()))
 			}
+			return "", provider.NewLabelNotAllowedError(fmt.Sprintf("Project selector must use '=' or '==': You used %s", req.Operator()))
 		}
 	}
 	return t.config.Project, nil
