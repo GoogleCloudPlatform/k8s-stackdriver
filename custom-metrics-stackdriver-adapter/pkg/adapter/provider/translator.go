@@ -119,6 +119,11 @@ func (t *Translator) GetSDReqForNodes(nodeList *v1.NodeList, metricName string, 
 
 // GetExternalMetricRequest returns Stackdriver request for query for external metric.
 func (t *Translator) GetExternalMetricRequest(metricName string, metricKind string, metricSelector labels.Selector) (*stackdriver.ProjectsTimeSeriesListCall, error) {
+	metricProject, err := t.GetExternalMetricProject(metricSelector)
+	if err != nil {
+		return nil, err
+	}
+
 	filterForMetric := t.filterForMetric(metricName)
 	if metricSelector.Empty() {
 		return t.createListTimeseriesRequest(filterForMetric, metricKind), nil
@@ -127,7 +132,7 @@ func (t *Translator) GetExternalMetricRequest(metricName string, metricKind stri
 	if err != nil {
 		return nil, err
 	}
-	return t.createListTimeseriesRequest(joinFilters(filterForMetric, filterForSelector), metricKind), nil
+	return t.createListTimeseriesRequestProject(joinFilters(filterForMetric, filterForSelector), metricKind, metricProject), nil
 }
 
 // GetRespForSingleObject returns translates Stackdriver response to a Custom Metric associated with
@@ -236,6 +241,20 @@ func (t *Translator) GetMetricKind(metricName string) (string, error) {
 		return "", provider.NewNoSuchMetricError(metricName, err)
 	}
 	return response.MetricKind, nil
+}
+
+// GetExternalMetricProject If the metric has "resource.labels.project_id" as a selector, then use a different project
+func (t *Translator) GetExternalMetricProject(metricSelector labels.Selector) (string, error) {
+	requirements, _ := metricSelector.Requirements()
+	for _, req := range requirements {
+		if req.Key() == "resource.labels.project_id" {
+			if req.Operator() == selection.Equals || req.Operator() == selection.DoubleEquals {
+				return req.Values().List()[0], nil
+			}
+			return "", provider.NewLabelNotAllowedError(fmt.Sprintf("Project selector must use '=' or '==': You used %s", req.Operator()))
+		}
+	}
+	return t.config.Project, nil
 }
 
 func getPodNames(list *v1.PodList) []string {
@@ -441,7 +460,11 @@ func (t *Translator) getMetricLabels(series *stackdriver.TimeSeries) map[string]
 }
 
 func (t *Translator) createListTimeseriesRequest(filter string, metricKind string) *stackdriver.ProjectsTimeSeriesListCall {
-	project := fmt.Sprintf("projects/%s", t.config.Project)
+	return t.createListTimeseriesRequestProject(filter, metricKind, t.config.Project)
+}
+
+func (t *Translator) createListTimeseriesRequestProject(filter string, metricKind string, metricProject string) *stackdriver.ProjectsTimeSeriesListCall {
+	project := fmt.Sprintf("projects/%s", metricProject)
 	endTime := t.clock.Now()
 	startTime := endTime.Add(-t.reqWindow)
 	// use "ALIGN_NEXT_OLDER" by default, i.e. for metricKind "GAUGE"
