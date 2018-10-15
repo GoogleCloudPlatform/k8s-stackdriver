@@ -351,7 +351,8 @@ func createProjectName(config *config.GceConfig) string {
 func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.LabelPair) *v3.MonitoredResource {
 	container, pod, namespace := config.PodConfig.GetPodInfo(labels)
 
-	if config.GceConfig.UseNewResources {
+	switch config.GceConfig.MonitoredResourceTypes {
+	case "k8s":
 		if namespace == "" && pod == "" && container == "machine" {
 			return &v3.MonitoredResource{
 				Type: "k8s_node",
@@ -375,7 +376,7 @@ func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.L
 				"container_name":   container,
 			},
 		}
-	} else {
+	case "gke":
 		return &v3.MonitoredResource{
 			Type: "gke_container",
 			Labels: map[string]string{
@@ -389,4 +390,6 @@ func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.L
 			},
 		}
 	}
+
+	return nil
 }

@@ -25,17 +25,17 @@ import (
 
 // GceConfig aggregates all GCE related configuration parameters.
 type GceConfig struct {
-	Project         string
-	Zone            string
-	Cluster         string
-	ClusterLocation string
-	Instance        string
-	MetricsPrefix   string
-	UseNewResources bool
+	Project                string
+	Zone                   string
+	Cluster                string
+	ClusterLocation        string
+	Instance               string
+	MetricsPrefix          string
+	MonitoredResourceTypes string
 }
 
 // GetGceConfig builds GceConfig based on the provided prefix and metadata server available on GCE.
-func GetGceConfig(metricsPrefix, zone string, useNewResources bool) (*GceConfig, error) {
+func GetGceConfig(metricsPrefix, zone string, monitoredResourceTypes string) (*GceConfig, error) {
 	if !gce.OnGCE() {
 		return nil, fmt.Errorf("Not running on GCE.")
 	}
@@ -60,7 +60,8 @@ func GetGceConfig(metricsPrefix, zone string, useNewResources bool) (*GceConfig,
 	}
 
 	var clusterLocation string
-	if useNewResources {
+	switch monitoredResourceTypes {
+	case "k8s":
 		clusterLocation, err = gce.InstanceAttributeValue("cluster-location")
 		if err != nil {
 			return nil, fmt.Errorf("error while getting cluster location: %v", err)
@@ -69,22 +70,24 @@ func GetGceConfig(metricsPrefix, zone string, useNewResources bool) (*GceConfig,
 		if clusterLocation == "" {
 			return nil, fmt.Errorf("cluster-location metadata was empty")
 		}
-	} else {
+	case "gke":
 		if zone == "" {
 			zone, err = gce.Zone()
 			if err != nil {
 				return nil, fmt.Errorf("error while getting zone: %v", err)
 			}
 		}
+	default:
+		return nil, fmt.Errorf("Unsupported resource types used: '%s'", monitoredResourceTypes)
 	}
 
 	return &GceConfig{
-		Project:         project,
-		Zone:            zone,
-		Cluster:         cluster,
-		ClusterLocation: clusterLocation,
-		Instance:        instance,
-		MetricsPrefix:   metricsPrefix,
-		UseNewResources: useNewResources,
+		Project:                project,
+		Zone:                   zone,
+		Cluster:                cluster,
+		ClusterLocation:        clusterLocation,
+		Instance:               instance,
+		MetricsPrefix:          metricsPrefix,
+		MonitoredResourceTypes: monitoredResourceTypes,
 	}, nil
 }

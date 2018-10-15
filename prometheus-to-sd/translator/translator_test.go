@@ -47,11 +47,12 @@ const epsilon = float64(0.001)
 
 var commonConfig = &config.CommonConfig{
 	GceConfig: &config.GceConfig{
-		Project:       "test-proj",
-		Zone:          "us-central1-f",
-		Cluster:       "test-cluster",
-		Instance:      "kubernetes-master.c.test-proj.internal",
-		MetricsPrefix: "container.googleapis.com/master",
+		Project:                "test-proj",
+		Zone:                   "us-central1-f",
+		Cluster:                "test-cluster",
+		Instance:               "kubernetes-master.c.test-proj.internal",
+		MetricsPrefix:          "container.googleapis.com/master",
+		MonitoredResourceTypes: "gke",
 	},
 	PodConfig:     config.NewPodConfig("machine", "", "", "", ""),
 	ComponentName: "testcomponent",
@@ -248,28 +249,30 @@ var metricDescriptors = map[string]*v3.MetricDescriptor{
 }
 
 func TestGetMonitoredResourceFromLabels(t *testing.T) {
-	t.Run("Ensure that legacy resources return gke_container.", func(t *testing.T) {
+	t.Run("Ensure that gke resources return gke_container.", func(t *testing.T) {
 		monitoredResource := getMonitoredResourceFromLabels(&config.CommonConfig{
-			GceConfig: &config.GceConfig{},
+			GceConfig: &config.GceConfig{
+				MonitoredResourceTypes: "gke",
+			},
 			PodConfig: config.NewPodConfig("", "", "", "", ""),
 		}, nil)
 		assert.Equal(t, monitoredResource.Type, "gke_container")
 	})
 
-	t.Run("Ensure that empty resource labels return k8s_container.", func(t *testing.T) {
+	t.Run("Ensure that k8s resources with empty resource labels return k8s_container.", func(t *testing.T) {
 		monitoredResource := getMonitoredResourceFromLabels(&config.CommonConfig{
 			GceConfig: &config.GceConfig{
-				UseNewResources: true,
+				MonitoredResourceTypes: "k8s",
 			},
 			PodConfig: config.NewPodConfig("", "", "", "", ""),
 		}, nil)
 		assert.Equal(t, monitoredResource.Type, "k8s_container")
 	})
 
-	t.Run("Ensure that new non-machine resources return k8s_container.", func(t *testing.T) {
+	t.Run("Ensure that k8s resources with non-machine resources return k8s_container.", func(t *testing.T) {
 		monitoredResource := getMonitoredResourceFromLabels(&config.CommonConfig{
 			GceConfig: &config.GceConfig{
-				UseNewResources: true,
+				MonitoredResourceTypes: "k8s",
 			},
 			PodConfig: config.NewPodConfig("nonEmptyPodID", "", "", "", "containerNameLabel"),
 		}, []*dto.LabelPair{
@@ -281,10 +284,10 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 		assert.Equal(t, monitoredResource.Type, "k8s_container")
 	})
 
-	t.Run("Ensure that new machine resources return k8s_node.", func(t *testing.T) {
+	t.Run("Ensure that k8s resources with machine resources return k8s_node.", func(t *testing.T) {
 		monitoredResource := getMonitoredResourceFromLabels(&config.CommonConfig{
 			GceConfig: &config.GceConfig{
-				UseNewResources: true,
+				MonitoredResourceTypes: "k8s",
 			},
 			PodConfig: config.NewPodConfig("", "", "", "", "containerNameLabel"),
 		}, []*dto.LabelPair{
