@@ -349,10 +349,6 @@ func createProjectName(config *config.GceConfig) string {
 }
 
 func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.LabelPair) *v3.MonitoredResource {
-	if config == nil || config.PodConfig == nil || config.GceConfig == nil {
-		return nil
-	}
-
 	container, pod, namespace := config.PodConfig.GetPodInfo(labels)
 
 	if config.GceConfig.UseNewResources {
