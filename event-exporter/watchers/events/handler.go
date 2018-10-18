@@ -82,6 +82,6 @@ func (c *eventHandlerWrapper) convert(obj interface{}) (*api_v1.Event, bool) {
 	if event, ok := obj.(*api_v1.Event); ok {
 		return event, true
 	}
-	glog.V(2).Infof("Event watch handler recieved not event, but %+v", obj)
+	glog.V(2).Infof("Event watch handler received not an event, but %+v", obj)
 	return nil, false
 }

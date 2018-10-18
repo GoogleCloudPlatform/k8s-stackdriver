@@ -85,7 +85,7 @@ func (w sdWriterImpl) Write(entries []*sd.LogEntry, logName string, resource *sd
 			// TODO: Check response properly and return the actual number of
 			// successfully ingested entries, parsed out from the response body.
 			if apiErr.Code == http.StatusBadRequest {
-				glog.Warningf("Recieved bad request response from server, "+
+				glog.Warningf("Received bad request response from server, "+
 					"assuming some entries were rejected: %v", err)
 				break
 			}
