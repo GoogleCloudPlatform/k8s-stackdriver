@@ -31,7 +31,7 @@ var (
 	receivedEntryCount = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name:      "received_entry_count",
-			Help:      "Number of entries, recieved by the Stackdriver sink",
+			Help:      "Number of entries received by the Stackdriver sink",
 			Subsystem: "stackdriver_sink",
 		},
 		[]string{"component"},
@@ -40,7 +40,7 @@ var (
 	successfullySentEntryCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name:      "successfully_sent_entry_count",
-			Help:      "Number of entries, successfully ingested by Stackdriver",
+			Help:      "Number of entries successfully ingested by Stackdriver",
 			Subsystem: "stackdriver_sink",
 		},
 	)
@@ -143,7 +143,7 @@ func (s *sdSink) Run(stopCh <-chan struct{}) {
 			s.flushBuffer()
 			break
 		case <-stopCh:
-			glog.Info("Stackdriver sink recieved stop signal, waiting for all requests to finish")
+			glog.Info("Stackdriver sink received stop signal, waiting for all requests to finish")
 			for i := 0; i < s.config.MaxConcurrency; i++ {
 				s.concurrencyChannel <- struct{}{}
 			}
