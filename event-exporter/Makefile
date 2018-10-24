@@ -22,10 +22,10 @@ IMAGE_NAME = event-exporter
 TAG = v0.2.3
 
 build:
-	${ENVVAR} godep go build -a -o ${BINARY_NAME}
+	${ENVVAR} go build -a -o ${BINARY_NAME}
 
 test:
-	${ENVVAR} godep go test ./...
+	${ENVVAR} go test ./...
 
 container: build
 	docker build --pull -t ${PREFIX}/${IMAGE_NAME}:${TAG} .

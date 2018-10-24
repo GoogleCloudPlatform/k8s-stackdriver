@@ -19,14 +19,11 @@ TAG = 1.2.7
 
 # Rules for building the real image for deployment to gcr.io
 
-deps:
-		go get -u github.com/tools/godep
-
 compile: monitor/kubelet monitor/controller deps
-		GOOS=linux GOARCH=amd64 CGO_ENABLED=0 godep go build -a -o $(OUT_DIR)/monitor monitor/main/daemon.go
+		GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -a -o $(OUT_DIR)/monitor monitor/main/daemon.go
 
 test: monitor/kubelet monitor/controller
-		godep go test ${PACKAGE}/monitor ${PACKAGE}/monitor/kubelet ${PACKAGE}/monitor/controller ${PACKAGE}/monitor/config -v
+		go test ${PACKAGE}/monitor ${PACKAGE}/monitor/kubelet ${PACKAGE}/monitor/controller ${PACKAGE}/monitor/config -v
 
 go: compile test
 

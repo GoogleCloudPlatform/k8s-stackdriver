@@ -17,4 +17,4 @@
 // of sub-packages.
 //
 // This package documents how to authorize and authenticate the sub packages.
-package cloud
+package cloud // import "cloud.google.com/go"

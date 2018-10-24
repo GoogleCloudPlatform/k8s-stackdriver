@@ -20,8 +20,6 @@ set -o nounset
 
 CONTRIB_ROOT="$(dirname ${BASH_SOURCE})/.."
 
-godep_projects=$(find "${CONTRIB_ROOT}" -wholename '*Godeps/Godeps.json' -not -path "*/vendor/*")
-
 if [ $# -ne 1 ];then
   echo "missing subcommand: [build|install|test]"
   exit 1
@@ -42,11 +40,12 @@ case "${CMD}" in
     ;;
 esac
 
-for godep_file in ${godep_projects}; do
+dep_projects=$(find "${CONTRIB_ROOT}" -wholename '*Gopkg.toml' -not -path "*/vendor/*")
+for dep_file in ${dep_projects}; do
   (
-    project="${godep_file%Godeps/Godeps.json}"
-    echo "${CMD}ing ${project}"
+    project="${dep_file%Gopkg.toml}"
+    echo "go ${CMD}ing ${project}"
     cd "${project}"
-    godep go "${CMD}" ./...
+    go "${CMD}" ./...
   )
 done;
