@@ -72,7 +72,13 @@ spec:
         - '/event-exporter'
 ```
 
-Note, that this pod's service account should be authorized to get events, you
+## Notes
+### ClusterRoleBinding
+This pod's service account should be authorized to get events, you
 might need to set up ClusterRoleBinding in order to make it possible. Complete
 example with the service account and the cluster role binding you can find in
 the `example` directory.
+### "resourceVersion for the provided watch is too old"
+On a system with few/no events, you may see "The resourceVersion for the provided
+watch is too old" warnings. These can be ignored. This is due to compacted resource
+versions being referenced.
