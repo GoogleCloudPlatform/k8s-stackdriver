@@ -376,7 +376,7 @@ func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.L
 				"container_name":   container,
 			},
 		}
-	case "gke":
+	case "gke_container":
 		return &v3.MonitoredResource{
 			Type: "gke_container",
 			Labels: map[string]string{

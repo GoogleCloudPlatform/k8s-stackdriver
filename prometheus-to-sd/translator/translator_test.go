@@ -52,7 +52,7 @@ var commonConfig = &config.CommonConfig{
 		Cluster:                "test-cluster",
 		Instance:               "kubernetes-master.c.test-proj.internal",
 		MetricsPrefix:          "container.googleapis.com/master",
-		MonitoredResourceTypes: "gke",
+		MonitoredResourceTypes: "gke_container",
 	},
 	PodConfig:     config.NewPodConfig("machine", "", "", "", ""),
 	ComponentName: "testcomponent",
@@ -259,7 +259,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 			"Ensure that gke resources return gke_container.",
 			&config.CommonConfig{
 				GceConfig: &config.GceConfig{
-					MonitoredResourceTypes: "gke",
+					MonitoredResourceTypes: "gke_container",
 				},
 				PodConfig: config.NewPodConfig("", "", "", "", ""),
 			},
