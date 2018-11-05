@@ -249,55 +249,73 @@ var metricDescriptors = map[string]*v3.MetricDescriptor{
 }
 
 func TestGetMonitoredResourceFromLabels(t *testing.T) {
-	t.Run("Ensure that gke resources return gke_container.", func(t *testing.T) {
-		monitoredResource := getMonitoredResourceFromLabels(&config.CommonConfig{
-			GceConfig: &config.GceConfig{
-				MonitoredResourceTypes: "gke",
+	testCases := []struct {
+		name     string
+		config   *config.CommonConfig
+		labels   []*dto.LabelPair
+		expected string
+	}{
+		{
+			"Ensure that gke resources return gke_container.",
+			&config.CommonConfig{
+				GceConfig: &config.GceConfig{
+					MonitoredResourceTypes: "gke",
+				},
+				PodConfig: config.NewPodConfig("", "", "", "", ""),
 			},
-			PodConfig: config.NewPodConfig("", "", "", "", ""),
-		}, nil)
-		assert.Equal(t, monitoredResource.Type, "gke_container")
-	})
-
-	t.Run("Ensure that k8s resources with empty resource labels return k8s_container.", func(t *testing.T) {
-		monitoredResource := getMonitoredResourceFromLabels(&config.CommonConfig{
-			GceConfig: &config.GceConfig{
-				MonitoredResourceTypes: "k8s",
+			nil,
+			"gke_container",
+		},
+		{
+			"Ensure that k8s resources with empty resource labels return k8s_container.",
+			&config.CommonConfig{
+				GceConfig: &config.GceConfig{
+					MonitoredResourceTypes: "k8s",
+				},
+				PodConfig: config.NewPodConfig("", "", "", "", ""),
 			},
-			PodConfig: config.NewPodConfig("", "", "", "", ""),
-		}, nil)
-		assert.Equal(t, monitoredResource.Type, "k8s_container")
-	})
-
-	t.Run("Ensure that k8s resources with non-machine resources return k8s_container.", func(t *testing.T) {
-		monitoredResource := getMonitoredResourceFromLabels(&config.CommonConfig{
-			GceConfig: &config.GceConfig{
-				MonitoredResourceTypes: "k8s",
+			nil,
+			"k8s_container",
+		},
+		{
+			"Ensure that k8s resources with non-machine resources return k8s_container.",
+			&config.CommonConfig{
+				GceConfig: &config.GceConfig{
+					MonitoredResourceTypes: "k8s",
+				},
+				PodConfig: config.NewPodConfig("nonEmptyPodID", "", "", "", "containerNameLabel"),
 			},
-			PodConfig: config.NewPodConfig("nonEmptyPodID", "", "", "", "containerNameLabel"),
-		}, []*dto.LabelPair{
-			{
-				Name:  stringPtr("containerNameLabel"),
-				Value: stringPtr("machine"),
+			[]*dto.LabelPair{
+				{
+					Name:  stringPtr("containerNameLabel"),
+					Value: stringPtr("machine"),
+				},
 			},
+			"k8s_container",
+		},
+		{
+			"Ensure that k8s resources with machine resources return k8s_node.",
+			&config.CommonConfig{
+				GceConfig: &config.GceConfig{
+					MonitoredResourceTypes: "k8s",
+				},
+				PodConfig: config.NewPodConfig("", "", "", "", "containerNameLabel"),
+			},
+			[]*dto.LabelPair{
+				{
+					Name:  stringPtr("containerNameLabel"),
+					Value: stringPtr("machine"),
+				},
+			},
+			"k8s_node",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			monitoredResource := getMonitoredResourceFromLabels(tc.config, tc.labels)
+			assert.Equal(t, tc.expected, monitoredResource.Type)
 		})
-		assert.Equal(t, monitoredResource.Type, "k8s_container")
-	})
-
-	t.Run("Ensure that k8s resources with machine resources return k8s_node.", func(t *testing.T) {
-		monitoredResource := getMonitoredResourceFromLabels(&config.CommonConfig{
-			GceConfig: &config.GceConfig{
-				MonitoredResourceTypes: "k8s",
-			},
-			PodConfig: config.NewPodConfig("", "", "", "", "containerNameLabel"),
-		}, []*dto.LabelPair{
-			{
-				Name:  stringPtr("containerNameLabel"),
-				Value: stringPtr("machine"),
-			},
-		})
-		assert.Equal(t, monitoredResource.Type, "k8s_node")
-	})
+	}
 }
 
 func TestTranslatePrometheusToStackdriver(t *testing.T) {
