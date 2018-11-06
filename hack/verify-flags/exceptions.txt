@@ -37,3 +37,6 @@ prometheus-to-sd/README.md:the prometheus-to-sd. Values of the `namespace_id` an
 prometheus-to-sd/translator/metrics.go:		[]string{"component_name", "metric_name"},
 prometheus-to-sd/translator/translator.go:		"namespace_id":   namespace,
 prometheus-to-sd/translator/translator.go:		"pod_id":         pod,
+prometheus-to-sd/translator/translator.go:				"namespace_id":   namespace
+prometheus-to-sd/translator/translator.go:				"pod_id":         pod
+prometheus-to-sd/translator/translator.go:				"pod_name":         pod
