@@ -98,6 +98,7 @@ metric-name
 metrics-resolution
 min-pr-number
 min-replica-count
+monitored-resource-types
 namespace-id
 netrc-dir
 network-config

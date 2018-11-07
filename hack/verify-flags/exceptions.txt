@@ -15,12 +15,15 @@ custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	return "r
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	return fmt.Sprintf("resource.labels.namespace_name = %q AND resource.labels.pod_name = one_of(%s)", namespace, strings.Join(podNames, ","))
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	return fmt.Sprintf("resource.labels.pod_id = one_of(%s)", strings.Join(podIDs, ","))
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:				"resource.labels.pod_id": "my-pod-id",
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:				"resource.labels.pod_id": "my-pod-id",
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels : pod_name " +
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.container_name = \"\" AND resource.labels.pod_id != \"\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.pod_id != \"machine\"")
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.pod_id = one_of(\"my-pod-id-1\",\"my-pod-id-2\")").
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.pod_name = \"my-pod-name\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
@@ -35,5 +38,6 @@ kubelet-to-gcm/monitor/kubelet/translate.go:		"namespace_id":   "",
 kubelet-to-gcm/monitor/kubelet/translate.go:		"pod_id":         "machine",
 prometheus-to-sd/README.md:the prometheus-to-sd. Values of the `namespace_id` and `pod_id` can be passed to
 prometheus-to-sd/translator/metrics.go:		[]string{"component_name", "metric_name"},
-prometheus-to-sd/translator/translator.go:		"namespace_id":   namespace,
-prometheus-to-sd/translator/translator.go:		"pod_id":         pod,
+prometheus-to-sd/translator/translator.go:				"namespace_id":   namespace,
+prometheus-to-sd/translator/translator.go:				"pod_id":         pod,
+prometheus-to-sd/translator/translator.go:				"pod_name":         pod,

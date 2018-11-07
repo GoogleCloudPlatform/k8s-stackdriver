@@ -47,11 +47,12 @@ const epsilon = float64(0.001)
 
 var commonConfig = &config.CommonConfig{
 	GceConfig: &config.GceConfig{
-		Project:       "test-proj",
-		Zone:          "us-central1-f",
-		Cluster:       "test-cluster",
-		Instance:      "kubernetes-master.c.test-proj.internal",
-		MetricsPrefix: "container.googleapis.com/master",
+		Project:                "test-proj",
+		Zone:                   "us-central1-f",
+		Cluster:                "test-cluster",
+		Instance:               "kubernetes-master.c.test-proj.internal",
+		MetricsPrefix:          "container.googleapis.com/master",
+		MonitoredResourceTypes: "gke_container",
 	},
 	PodConfig:     config.NewPodConfig("machine", "", "", "", ""),
 	ComponentName: "testcomponent",
@@ -247,6 +248,76 @@ var metricDescriptors = map[string]*v3.MetricDescriptor{
 	},
 }
 
+func TestGetMonitoredResourceFromLabels(t *testing.T) {
+	testCases := []struct {
+		name     string
+		config   *config.CommonConfig
+		labels   []*dto.LabelPair
+		expected string
+	}{
+		{
+			"Ensure that gke resources return gke_container.",
+			&config.CommonConfig{
+				GceConfig: &config.GceConfig{
+					MonitoredResourceTypes: "gke_container",
+				},
+				PodConfig: config.NewPodConfig("", "", "", "", ""),
+			},
+			nil,
+			"gke_container",
+		},
+		{
+			"Ensure that k8s resources with empty resource labels return k8s_container.",
+			&config.CommonConfig{
+				GceConfig: &config.GceConfig{
+					MonitoredResourceTypes: "k8s",
+				},
+				PodConfig: config.NewPodConfig("", "", "", "", ""),
+			},
+			nil,
+			"k8s_container",
+		},
+		{
+			"Ensure that k8s resources with non-machine resources return k8s_container.",
+			&config.CommonConfig{
+				GceConfig: &config.GceConfig{
+					MonitoredResourceTypes: "k8s",
+				},
+				PodConfig: config.NewPodConfig("nonEmptyPodID", "", "", "", "containerNameLabel"),
+			},
+			[]*dto.LabelPair{
+				{
+					Name:  stringPtr("containerNameLabel"),
+					Value: stringPtr("machine"),
+				},
+			},
+			"k8s_container",
+		},
+		{
+			"Ensure that k8s resources with machine resources return k8s_node.",
+			&config.CommonConfig{
+				GceConfig: &config.GceConfig{
+					MonitoredResourceTypes: "k8s",
+				},
+				PodConfig: config.NewPodConfig("", "", "", "", "containerNameLabel"),
+			},
+			[]*dto.LabelPair{
+				{
+					Name:  stringPtr("containerNameLabel"),
+					Value: stringPtr("machine"),
+				},
+			},
+			"k8s_node",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			monitoredResource := getMonitoredResourceFromLabels(tc.config, tc.labels)
+			assert.Equal(t, tc.expected, monitoredResource.Type)
+		})
+	}
+}
+
 func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	cache := buildCacheForTesting()
 	sourceConfig := &config.SourceConfig{
@@ -266,6 +337,7 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	// First two int values.
 	for i := 0; i <= 1; i++ {
 		metric := ts[i]
+		assert.Equal(t, "gke_container", metric.Resource.Type)
 		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", metric.Metric.Type)
 		assert.Equal(t, "INT64", metric.ValueType)
 		assert.Equal(t, "CUMULATIVE", metric.MetricKind)
@@ -287,6 +359,7 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 
 	// Histogram
 	metric := ts[2]
+	assert.Equal(t, "gke_container", metric.Resource.Type)
 	assert.Equal(t, "container.googleapis.com/master/testcomponent/test_histogram", metric.Metric.Type)
 	assert.Equal(t, "DISTRIBUTION", metric.ValueType)
 	assert.Equal(t, "CUMULATIVE", metric.MetricKind)
@@ -315,6 +388,7 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 
 	// Then float value.
 	metric = ts[3]
+	assert.Equal(t, "gke_container", metric.Resource.Type)
 	assert.Equal(t, "container.googleapis.com/master/testcomponent/float_metric", metric.Metric.Type)
 	assert.Equal(t, "DOUBLE", metric.ValueType)
 	assert.Equal(t, "CUMULATIVE", metric.MetricKind)
@@ -325,6 +399,7 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	// Then two boolean values.
 	for i := 4; i <= 5; i++ {
 		metric := ts[i]
+		assert.Equal(t, "gke_container", metric.Resource.Type)
 		assert.Equal(t, "container.googleapis.com/master/testcomponent/boolean_metric", metric.Metric.Type)
 		assert.Equal(t, "BOOL", metric.ValueType)
 		assert.Equal(t, "GAUGE", metric.MetricKind)
@@ -375,6 +450,7 @@ process_start_time_seconds 1234567890.0
 
 	for i := 0; i <= 1; i++ {
 		metric := ts[i]
+		assert.Equal(t, "gke_container", metric.Resource.Type)
 		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", metric.Metric.Type)
 		assert.Equal(t, "INT64", metric.ValueType)
 		assert.Equal(t, "CUMULATIVE", metric.MetricKind)

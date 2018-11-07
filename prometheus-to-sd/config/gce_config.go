@@ -25,15 +25,17 @@ import (
 
 // GceConfig aggregates all GCE related configuration parameters.
 type GceConfig struct {
-	Project       string
-	Zone          string
-	Cluster       string
-	Instance      string
-	MetricsPrefix string
+	Project                string
+	Zone                   string
+	Cluster                string
+	ClusterLocation        string
+	Instance               string
+	MetricsPrefix          string
+	MonitoredResourceTypes string
 }
 
 // GetGceConfig builds GceConfig based on the provided prefix and metadata server available on GCE.
-func GetGceConfig(metricsPrefix, zone string) (*GceConfig, error) {
+func GetGceConfig(metricsPrefix, zone string, monitoredResourceTypes string) (*GceConfig, error) {
 	if !gce.OnGCE() {
 		return nil, fmt.Errorf("Not running on GCE.")
 	}
@@ -41,13 +43,6 @@ func GetGceConfig(metricsPrefix, zone string) (*GceConfig, error) {
 	project, err := gce.ProjectID()
 	if err != nil {
 		return nil, fmt.Errorf("error while getting project id: %v", err)
-	}
-
-	if zone == "" {
-		zone, err = gce.Zone()
-		if err != nil {
-			return nil, fmt.Errorf("error while getting zone: %v", err)
-		}
 	}
 
 	cluster, err := gce.InstanceAttributeValue("cluster-name")
@@ -64,11 +59,35 @@ func GetGceConfig(metricsPrefix, zone string) (*GceConfig, error) {
 		return nil, fmt.Errorf("error while getting instance name: %v", err)
 	}
 
+	var clusterLocation string
+	switch monitoredResourceTypes {
+	case "k8s":
+		clusterLocation, err = gce.InstanceAttributeValue("cluster-location")
+		if err != nil {
+			return nil, fmt.Errorf("error while getting cluster location: %v", err)
+		}
+		clusterLocation = strings.TrimSpace(clusterLocation)
+		if clusterLocation == "" {
+			return nil, fmt.Errorf("cluster-location metadata was empty")
+		}
+	case "gke":
+		if zone == "" {
+			zone, err = gce.Zone()
+			if err != nil {
+				return nil, fmt.Errorf("error while getting zone: %v", err)
+			}
+		}
+	default:
+		return nil, fmt.Errorf("Unsupported resource types used: '%s'", monitoredResourceTypes)
+	}
+
 	return &GceConfig{
-		Project:       project,
-		Zone:          zone,
-		Cluster:       cluster,
-		Instance:      instance,
-		MetricsPrefix: metricsPrefix,
+		Project:                project,
+		Zone:                   zone,
+		Cluster:                cluster,
+		ClusterLocation:        clusterLocation,
+		Instance:               instance,
+		MetricsPrefix:          metricsPrefix,
+		MonitoredResourceTypes: monitoredResourceTypes,
 	}, nil
 }
