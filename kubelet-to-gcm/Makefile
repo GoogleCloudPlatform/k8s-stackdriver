@@ -15,9 +15,12 @@
 OUT_DIR = build
 PACKAGE = github.com/GoogleCloudPlatform/k8s-stackdriver/kubelet-to-gcm
 PREFIX = staging-k8s.gcr.io
-TAG = 1.2.7
+TAG = 1.2.8
 
 # Rules for building the real image for deployment to gcr.io
+
+deps:
+	dep ensure
 
 compile: monitor/kubelet monitor/controller deps
 		GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -a -o $(OUT_DIR)/monitor monitor/main/daemon.go
