@@ -18,6 +18,8 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"net/http"
 	"os"
 	"time"
 
@@ -31,6 +33,7 @@ import (
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/kubelet-to-gcm/monitor/config"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/kubelet-to-gcm/monitor/controller"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/kubelet-to-gcm/monitor/kubelet"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -50,6 +53,7 @@ var (
 	// Flags to control runtime behavior.
 	res         = flag.Uint("resolution", 10, "The time, in seconds, to poll the Kubelet.")
 	gcmEndpoint = flag.String("gcm-endpoint", "", "The GCM endpoint to hit. Defaults to the default endpoint.")
+	port        = flag.Uint("port", 6062, "Port number used to expose metrics.")
 )
 
 func main() {
@@ -95,6 +99,11 @@ func main() {
 		service.BasePath = *gcmEndpoint
 	}
 	log.Infof("Using GCM endpoint %q", service.BasePath)
+
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		log.Error(http.ListenAndServe(fmt.Sprintf(":%d", *port), nil))
+	}()
 
 	for {
 		go monitor.Once(kubeletSrc, service)
