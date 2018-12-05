@@ -51,7 +51,7 @@ lost. Frequent scrapes mitigate that, at the cost of elevated resource usage.
 
 ## Deployment
 
-Example of [deployment](https://github.com/GoogleCloudPlatform/k8s-stackdriver/blob/master/prometheus-to-sd/kubernetes/prometheus-to-sd-kube-state-metrics.yaml)
+Example of [pod](https://github.com/GoogleCloudPlatform/k8s-stackdriver/blob/master/prometheus-to-sd/kubernetes/prometheus-to-sd-kube-state-metrics.yaml)
 used to monitor
 [kube-state-metrics](https://github.com/kubernetes/kube-state-metrics) component, that is used to collect
 different metrics about the state of k8s cluster.

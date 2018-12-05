@@ -6,7 +6,7 @@ spec:
   hostNetwork: true
   containers:
   - name: kube-state-metrics
-    image: gcr.io/google_containers/kube-state-metrics:v1.0.0-rc.1
+    image: gcr.io/google-containers/kube-state-metrics:v1.4.0
     ports:
       - name: http-metrics
         containerPort: 8080
@@ -24,7 +24,7 @@ spec:
         memory: 300Mi
         cpu: 200m
   - name: prometheus-to-sd
-    image: gcr.io/google-containers/prometheus-to-sd:v0.2.1
+    image: gcr.io/google-containers/prometheus-to-sd:v0.3.2
     ports:
       - name: profiler
         containerPort: 6060
