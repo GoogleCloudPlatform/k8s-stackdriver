@@ -550,3 +550,43 @@ func stringPtr(val string) *string {
 	ptr := val
 	return &ptr
 }
+
+func TestDowncaseMetricNames(t *testing.T) {
+	var normalMetric1 = "metric1"
+	var metricWithComponentPrefix = "testComponent_metric"
+	var metricWithIncorrectComponentPrefix = "testComponentMetric"
+
+	var metricFamiliesForWhitelistTest = map[string]*dto.MetricFamily{
+		normalMetric1: {
+			Name: stringPtr(normalMetric1),
+		},
+		metricWithComponentPrefix: {
+			Name: stringPtr(metricWithComponentPrefix),
+		},
+		metricWithIncorrectComponentPrefix: {
+			Name: stringPtr(metricWithIncorrectComponentPrefix),
+		},
+	}
+	tests := []struct {
+		name         string
+		inputMetrics map[string]*dto.MetricFamily
+	}{
+		{"Test downcase names",
+			metricFamiliesForWhitelistTest,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := DowncaseMetricNames(tt.inputMetrics)
+			for k, v := range got {
+				if k != strings.ToLower(k) {
+					t.Errorf("metric name key is not properly downcased, got %s, want %s", k, strings.ToLower(k))
+				}
+
+				if v.GetName() != strings.ToLower(v.GetName()) {
+					t.Errorf("metric name is not properly downcased, got %s, want %s", v.GetName(), strings.ToLower(v.GetName()))
+				}
+			}
+		})
+	}
+}

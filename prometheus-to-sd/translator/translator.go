@@ -111,6 +111,17 @@ func OmitComponentName(metricFamilies map[string]*dto.MetricFamily, componentNam
 	return result
 }
 
+// DowncaseMetricNames downcases metric names.
+func DowncaseMetricNames(metricFamilies map[string]*dto.MetricFamily) map[string]*dto.MetricFamily {
+	result := make(map[string]*dto.MetricFamily)
+	for metricName, metricFamily := range metricFamilies {
+		newMetricName := strings.ToLower(metricName)
+		metricFamily.Name = &newMetricName
+		result[newMetricName] = metricFamily
+	}
+	return result
+}
+
 func getStartTime(metrics map[string]*dto.MetricFamily) time.Time {
 	// For cumulative metrics we need to know process start time.
 	// If the process start time is not specified, assuming it's

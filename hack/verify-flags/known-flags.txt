@@ -32,6 +32,7 @@ dnsmasq-poll-interval-ms
 dnsmasq-port
 do-not-merge-milestones
 dont-require-e2e-label
+downcase-metric-names
 dry-run
 dump-nginx-configuration
 dynamic-source

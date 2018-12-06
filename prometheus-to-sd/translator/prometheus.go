@@ -74,6 +74,9 @@ func (p *PrometheusResponse) Build(commonConfig *config.CommonConfig, sourceConf
 	if commonConfig.OmitComponentName {
 		metrics = OmitComponentName(metrics, sourceConfig.Component)
 	}
+	if commonConfig.DowncaseMetricNames {
+		metrics = DowncaseMetricNames(metrics)
+	}
 	if strings.HasPrefix(commonConfig.GceConfig.MetricsPrefix, customMetricsPrefix) {
 		metricDescriptorCache.UpdateMetricDescriptors(metrics, sourceConfig.Whitelisted)
 	} else {
