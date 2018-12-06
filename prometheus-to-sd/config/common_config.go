@@ -70,8 +70,9 @@ func (p *podConfigImpl) GetPodInfo(labels []*dto.LabelPair) (containerName, podI
 // CommonConfig contains all required information about environment in which
 // prometheus-to-sd running and which component is monitored.
 type CommonConfig struct {
-	GceConfig         *GceConfig
-	PodConfig         PodConfig
-	ComponentName     string
-	OmitComponentName bool
+	GceConfig           *GceConfig
+	PodConfig           PodConfig
+	ComponentName       string
+	OmitComponentName   bool
+	DowncaseMetricNames bool
 }

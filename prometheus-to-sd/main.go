@@ -61,6 +61,8 @@ var (
 		"The interval between metric scrapes. If there are multiple scrapes between two exports, the last present value is exported, even when missing from last scraping.")
 	exportInterval = flag.Duration("export-interval", 60*time.Second,
 		"The interval between metric exports. Can't be lower than --scrape-interval.")
+	downcaseMetricNames = flag.Bool("downcase-metric-names", false,
+		"If enabled, will downcase all metric names.")
 )
 
 func main() {
@@ -130,10 +132,11 @@ func getSourceConfigs(gceConfig *config.GceConfig) []config.SourceConfig {
 func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *config.GceConfig, sourceConfig config.SourceConfig) {
 	glog.Infof("Running prometheus-to-sd, monitored target is %s %v:%v", sourceConfig.Component, sourceConfig.Host, sourceConfig.Port)
 	commonConfig := &config.CommonConfig{
-		GceConfig:         gceConf,
-		PodConfig:         sourceConfig.PodConfig,
-		ComponentName:     sourceConfig.Component,
-		OmitComponentName: *omitComponentName,
+		GceConfig:           gceConf,
+		PodConfig:           sourceConfig.PodConfig,
+		ComponentName:       sourceConfig.Component,
+		OmitComponentName:   *omitComponentName,
+		DowncaseMetricNames: *downcaseMetricNames,
 	}
 	metricDescriptorCache := translator.NewMetricDescriptorCache(stackdriverService, commonConfig, sourceConfig.Component)
 	signal := time.After(0)
