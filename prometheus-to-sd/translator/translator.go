@@ -66,8 +66,8 @@ func NewTimeSeriesBuilder(commonConfig *config.CommonConfig, sourceConfig *confi
 }
 
 // Update updates the internal state with current batch.
-func (t *TimeSeriesBuilder) Update(batch *PrometheusResponse) {
-	t.batch = &batchWithTimestamp{batch, time.Now()}
+func (t *TimeSeriesBuilder) Update(batch *PrometheusResponse, timestamp time.Time) {
+	t.batch = &batchWithTimestamp{batch, timestamp}
 }
 
 // Build returns a new TimeSeries array and restarts the internal state.
