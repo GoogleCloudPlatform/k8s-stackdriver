@@ -77,6 +77,9 @@ func (p *PrometheusResponse) Build(commonConfig *config.CommonConfig, sourceConf
 	if commonConfig.DowncaseMetricNames {
 		metrics = DowncaseMetricNames(metrics)
 	}
+	// Convert summary metrics into metric family types we can easily import, since summary types
+	// map to multiple stackdriver metrics.
+	metrics = FlattenSummaryMetricFamilies(metrics)
 	if strings.HasPrefix(commonConfig.GceConfig.MetricsPrefix, customMetricsPrefix) {
 		metricDescriptorCache.UpdateMetricDescriptors(metrics, sourceConfig.Whitelisted)
 	} else {

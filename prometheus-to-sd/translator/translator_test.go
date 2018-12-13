@@ -65,6 +65,8 @@ var metricTypeHistogram = dto.MetricType_HISTOGRAM
 var testMetricName = "test_name"
 var booleanMetricName = "boolean_metric"
 var floatMetricName = "float_metric"
+var intSummaryMetricName = "int_summary_metric"
+var floatSummaryMetricName = "float_summary_metric"
 var testMetricHistogram = "test_histogram"
 var unrelatedMetric = "unrelated_metric"
 var testMetricDescription = "Description 1"
@@ -246,6 +248,16 @@ var metricDescriptors = map[string]*v3.MetricDescriptor{
 		MetricKind:  "CUMULATIVE",
 		ValueType:   "DISTRIBUTION",
 	},
+	floatSummaryMetricName + "_sum": {
+		Type:       "container.googleapis.com/master/testcomponent/float_summary_metric_sum",
+		MetricKind: "CUMULATIVE",
+		ValueType:  "DOUBLE",
+	},
+	intSummaryMetricName + "_sum": {
+		Type:       "container.googleapis.com/master/testcomponent/int_summary_metric_sum",
+		MetricKind: "CUMULATIVE",
+		ValueType:  "INT64",
+	},
 }
 
 func TestGetMonitoredResourceFromLabels(t *testing.T) {
@@ -416,6 +428,136 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	}
 }
 
+func TestTranslateSummary(t *testing.T) {
+	var intSummaryMetricsResponse = &PrometheusResponse{rawResponse: `
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1234567890
+# TYPE int_summary_metric summary
+int_summary_metric{quantile="0.5"} 4
+int_summary_metric{quantile="0.9"} 8
+int_summary_metric{quantile="0.99"} 8
+int_summary_metric_sum 42
+int_summary_metric_count 101010
+`}
+	var floatSummaryMetricsResponse = &PrometheusResponse{rawResponse: `
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1234567890
+# TYPE float_summary_metric summary
+float_summary_metric{quantile="0.5"} 4.12
+float_summary_metric{quantile="0.9"} 8.123
+float_summary_metric{quantile="0.99"} 8.123
+float_summary_metric_sum 0.42
+float_summary_metric_count 50
+`}
+
+	type expectedMetricAttributes struct {
+		name         string
+		resourceType string
+		valueType    string
+		doubleValue  float64
+		intValue     int64
+		startTime    string
+		endTime      string
+	}
+	type summaryTest struct {
+		description        string
+		prometheusResponse *PrometheusResponse
+		summaryMetricName  string
+		expectedAttributes []expectedMetricAttributes
+	}
+
+	sts := []summaryTest{
+		{
+			description:        "Test summary metrics which accumulate integer values",
+			prometheusResponse: intSummaryMetricsResponse,
+			summaryMetricName:  intSummaryMetricName,
+			expectedAttributes: []expectedMetricAttributes{
+				{
+					name:         "container.googleapis.com/master/testcomponent/int_summary_metric_sum",
+					resourceType: "gke_container",
+					valueType:    "INT64",
+					intValue:     int64(42),
+					startTime:    "2009-02-13T23:31:30Z",
+				},
+				{
+					name:         "container.googleapis.com/master/testcomponent/int_summary_metric_count",
+					resourceType: "gke_container",
+					valueType:    "INT64",
+					intValue:     int64(101010),
+					startTime:    "2009-02-13T23:31:30Z",
+				},
+			},
+		},
+		{
+			description:        "Test summary metrics which accumulate float values",
+			prometheusResponse: floatSummaryMetricsResponse,
+			summaryMetricName:  floatSummaryMetricName,
+			expectedAttributes: []expectedMetricAttributes{
+				{
+					name:         "container.googleapis.com/master/testcomponent/float_summary_metric_sum",
+					resourceType: "gke_container",
+					valueType:    "DOUBLE",
+					doubleValue:  float64(0.42),
+					startTime:    "2009-02-13T23:31:30Z",
+				},
+				{
+					name:         "container.googleapis.com/master/testcomponent/float_summary_metric_count",
+					resourceType: "gke_container",
+					valueType:    "INT64",
+					intValue:     int64(50),
+					startTime:    "2009-02-13T23:31:30Z",
+				},
+			},
+		},
+	}
+
+	for _, tt := range sts {
+		t.Run(tt.description, func(t *testing.T) {
+			cache := buildCacheForTesting()
+			sourceConfig := &config.SourceConfig{
+				Whitelisted: []string{tt.summaryMetricName + "_sum", tt.summaryMetricName + "_count"},
+			}
+			tsb := NewTimeSeriesBuilder(commonConfig, sourceConfig, cache)
+			tsb.Update(tt.prometheusResponse)
+			ts, err := tsb.Build()
+			sort.Sort(ByMetricTypeReversed(ts))
+			if err != nil {
+				t.Errorf("Should not have an error parsing summary metric %v", err)
+			}
+			if len(ts) != 2 {
+				t.Errorf("Got %d items, Want: 2", len(ts))
+			}
+
+			for i, m := range ts {
+				e := tt.expectedAttributes[i]
+				// All summary metrics should be converted to cumulative metric types since we're not
+				// importing quantile data, and we make the assumption to treat everything as counters
+				if m.MetricKind != "CUMULATIVE" {
+					t.Errorf("Got %v, expecting only CUMULATIVE types from summary metrics", m.MetricKind)
+				}
+				if e.name != m.Metric.Type {
+					t.Errorf("Got %v as metric type, Want %v", m.Metric.Type, e.name)
+				}
+				if e.valueType != m.ValueType {
+					t.Errorf("Got %v as metric value type, Want %v", m.ValueType, e.valueType)
+				}
+				if e.valueType != m.ValueType {
+					t.Errorf("Got %v as metric value type, Want %v", m.ValueType, e.valueType)
+				}
+				if dv := m.Points[0].Value.DoubleValue; dv != nil && *dv != e.doubleValue {
+					t.Errorf("Got %v as metric double value, Want %v", *dv, e.doubleValue)
+				}
+				if iv := m.Points[0].Value.Int64Value; iv != nil && *iv != e.intValue {
+					t.Errorf("Got %v as metric int value, Want %v", *iv, e.intValue)
+				}
+				if e.startTime != m.Points[0].Interval.StartTime {
+					t.Errorf("Got %s as the start, Want %s", m.Points[0].Interval.StartTime, e.startTime)
+				}
+			}
+		})
+	}
+}
+
 func TestUpdateScrapes(t *testing.T) {
 	sourceConfig := &config.SourceConfig{
 		Whitelisted: []string{testMetricName, floatMetricName},
@@ -525,6 +667,9 @@ func buildCacheForTesting() *MetricDescriptorCache {
 	cache := NewMetricDescriptorCache(nil, nil, commonConfig.ComponentName)
 	cache.descriptors[booleanMetricName] = metricDescriptors[booleanMetricName]
 	cache.descriptors[floatMetricName] = metricDescriptors[floatMetricName]
+	cache.descriptors[unrelatedMetric] = metricDescriptors[unrelatedMetric]
+	cache.descriptors[intSummaryMetricName+"_sum"] = metricDescriptors[intSummaryMetricName+"_sum"]
+	cache.descriptors[floatSummaryMetricName+"_sum"] = metricDescriptors[floatSummaryMetricName+"_sum"]
 	return cache
 }
 
