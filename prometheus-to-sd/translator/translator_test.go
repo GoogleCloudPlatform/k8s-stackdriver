@@ -18,6 +18,7 @@ package translator
 
 import (
 	"math"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -449,6 +450,21 @@ float_summary_metric{quantile="0.99"} 8.123
 float_summary_metric_sum 0.42
 float_summary_metric_count 50
 `}
+	var labelIntSummaryMetricsResponse = &PrometheusResponse{rawResponse: `
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1234567890
+# TYPE int_summary_metric summary
+int_summary_metric{quantile="0.5",label="l1"} 1
+int_summary_metric{quantile="0.5",label="l2"} 2
+int_summary_metric{quantile="0.9",label="l1"} 3
+int_summary_metric{quantile="0.9",label="l2"} 4
+int_summary_metric{quantile="0.99",label="l1"} 5
+int_summary_metric{quantile="0.99",label="l2"} 6
+int_summary_metric_sum{label="l1"} 7
+int_summary_metric_sum{label="l2"} 8
+int_summary_metric_count{label="l1"} 9
+int_summary_metric_count{label="l2"} 10
+`}
 
 	type expectedMetricAttributes struct {
 		name         string
@@ -458,6 +474,7 @@ float_summary_metric_count 50
 		intValue     int64
 		startTime    string
 		endTime      string
+		labels       map[string]string
 	}
 	type summaryTest struct {
 		description        string
@@ -478,6 +495,7 @@ float_summary_metric_count 50
 					valueType:    "INT64",
 					intValue:     int64(42),
 					startTime:    "2009-02-13T23:31:30Z",
+					labels:       map[string]string{},
 				},
 				{
 					name:         "container.googleapis.com/master/testcomponent/int_summary_metric_count",
@@ -485,6 +503,7 @@ float_summary_metric_count 50
 					valueType:    "INT64",
 					intValue:     int64(101010),
 					startTime:    "2009-02-13T23:31:30Z",
+					labels:       map[string]string{},
 				},
 			},
 		},
@@ -499,6 +518,7 @@ float_summary_metric_count 50
 					valueType:    "DOUBLE",
 					doubleValue:  float64(0.42),
 					startTime:    "2009-02-13T23:31:30Z",
+					labels:       map[string]string{},
 				},
 				{
 					name:         "container.googleapis.com/master/testcomponent/float_summary_metric_count",
@@ -506,6 +526,46 @@ float_summary_metric_count 50
 					valueType:    "INT64",
 					intValue:     int64(50),
 					startTime:    "2009-02-13T23:31:30Z",
+					labels:       map[string]string{},
+				},
+			},
+		},
+		{
+			description:        "Test summary metrics which are labeled",
+			prometheusResponse: labelIntSummaryMetricsResponse,
+			summaryMetricName:  intSummaryMetricName,
+			expectedAttributes: []expectedMetricAttributes{
+				{
+					name:         "container.googleapis.com/master/testcomponent/int_summary_metric_sum",
+					resourceType: "gke_container",
+					valueType:    "INT64",
+					intValue:     int64(7),
+					startTime:    "2009-02-13T23:31:30Z",
+					labels:       map[string]string{"label": "l1"},
+				},
+				{
+					name:         "container.googleapis.com/master/testcomponent/int_summary_metric_sum",
+					resourceType: "gke_container",
+					valueType:    "INT64",
+					intValue:     int64(8),
+					startTime:    "2009-02-13T23:31:30Z",
+					labels:       map[string]string{"label": "l2"},
+				},
+				{
+					name:         "container.googleapis.com/master/testcomponent/int_summary_metric_count",
+					resourceType: "gke_container",
+					valueType:    "INT64",
+					intValue:     int64(9),
+					startTime:    "2009-02-13T23:31:30Z",
+					labels:       map[string]string{"label": "l1"},
+				},
+				{
+					name:         "container.googleapis.com/master/testcomponent/int_summary_metric_count",
+					resourceType: "gke_container",
+					valueType:    "INT64",
+					intValue:     int64(10),
+					startTime:    "2009-02-13T23:31:30Z",
+					labels:       map[string]string{"label": "l2"},
 				},
 			},
 		},
@@ -524,8 +584,8 @@ float_summary_metric_count 50
 			if err != nil {
 				t.Errorf("Should not have an error parsing summary metric %v", err)
 			}
-			if len(ts) != 2 {
-				t.Errorf("Got %d items, Want: 2", len(ts))
+			if len(ts) != len(tt.expectedAttributes) {
+				t.Errorf("Got %d items, Want: %d", len(ts), len(tt.expectedAttributes))
 			}
 
 			for i, m := range ts {
@@ -552,6 +612,9 @@ float_summary_metric_count 50
 				}
 				if e.startTime != m.Points[0].Interval.StartTime {
 					t.Errorf("Got %s as the start, Want %s", m.Points[0].Interval.StartTime, e.startTime)
+				}
+				if !reflect.DeepEqual(e.labels, m.Metric.Labels) {
+					t.Errorf("Got %v as labels, Want %v", m.Metric.Labels, e.labels)
 				}
 			}
 		})

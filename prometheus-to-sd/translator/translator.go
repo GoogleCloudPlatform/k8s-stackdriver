@@ -130,8 +130,7 @@ func FlattenSummaryMetricFamilies(metricFamilies map[string]*dto.MetricFamily) m
 		switch family.GetType() {
 		case dto.MetricType_SUMMARY:
 			if len(family.Metric) < 1 {
-				glog.V(2).Infof(
-					"Summary metric %v does not have metric data associated, ignoring", family.Name)
+				glog.V(2).Infof("Summary metric %v does not have metric data associated, ignoring", family.Name)
 				continue
 			}
 			result[metricName+"_sum"] = sumMetricFromSummary(family.GetName(), family.Metric)
