@@ -18,9 +18,11 @@ package translator
 
 import (
 	"math"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
@@ -65,6 +67,8 @@ var metricTypeHistogram = dto.MetricType_HISTOGRAM
 var testMetricName = "test_name"
 var booleanMetricName = "boolean_metric"
 var floatMetricName = "float_metric"
+var intSummaryMetricName = "int_summary_metric"
+var floatSummaryMetricName = "float_summary_metric"
 var testMetricHistogram = "test_histogram"
 var unrelatedMetric = "unrelated_metric"
 var testMetricDescription = "Description 1"
@@ -246,6 +250,16 @@ var metricDescriptors = map[string]*v3.MetricDescriptor{
 		MetricKind:  "CUMULATIVE",
 		ValueType:   "DISTRIBUTION",
 	},
+	floatSummaryMetricName + "_sum": {
+		Type:       "container.googleapis.com/master/testcomponent/float_summary_metric_sum",
+		MetricKind: "CUMULATIVE",
+		ValueType:  "DOUBLE",
+	},
+	intSummaryMetricName + "_sum": {
+		Type:       "container.googleapis.com/master/testcomponent/int_summary_metric_sum",
+		MetricKind: "CUMULATIVE",
+		ValueType:  "INT64",
+	},
 }
 
 func TestGetMonitoredResourceFromLabels(t *testing.T) {
@@ -325,7 +339,7 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	}
 
 	tsb := NewTimeSeriesBuilder(commonConfig, sourceConfig, cache)
-	tsb.Update(metricsResponse)
+	tsb.Update(metricsResponse, time.Now())
 	ts, err := tsb.Build()
 
 	assert.Equal(t, err, nil)
@@ -416,6 +430,230 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	}
 }
 
+func TestTranslateSummary(t *testing.T) {
+	var intSummaryMetricsResponse = &PrometheusResponse{rawResponse: `
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1234567890
+# TYPE int_summary_metric summary
+int_summary_metric{quantile="0.5"} 4
+int_summary_metric{quantile="0.9"} 8
+int_summary_metric{quantile="0.99"} 8
+int_summary_metric_sum 42
+int_summary_metric_count 101010
+`}
+	var floatSummaryMetricsResponse = &PrometheusResponse{rawResponse: `
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1234567890
+# TYPE float_summary_metric summary
+float_summary_metric{quantile="0.5"} 4.12
+float_summary_metric{quantile="0.9"} 8.123
+float_summary_metric{quantile="0.99"} 8.123
+float_summary_metric_sum 0.42
+float_summary_metric_count 50
+`}
+	var labelIntSummaryMetricsResponse = &PrometheusResponse{rawResponse: `
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1234567890
+# TYPE int_summary_metric summary
+int_summary_metric{quantile="0.5",label="l1"} 1
+int_summary_metric{quantile="0.5",label="l2"} 2
+int_summary_metric{quantile="0.9",label="l1"} 3
+int_summary_metric{quantile="0.9",label="l2"} 4
+int_summary_metric{quantile="0.99",label="l1"} 5
+int_summary_metric{quantile="0.99",label="l2"} 6
+int_summary_metric_sum{label="l1"} 7
+int_summary_metric_sum{label="l2"} 8
+int_summary_metric_count{label="l1"} 9
+int_summary_metric_count{label="l2"} 10
+`}
+
+	type summaryTest struct {
+		description        string
+		prometheusResponse *PrometheusResponse
+		summaryMetricName  string
+		expectedTimeSeries []*v3.TimeSeries
+	}
+
+	end := time.Now()
+	start := time.Unix(1234567890, 0)
+
+	sts := []summaryTest{
+		{
+			description:        "Test summary metrics which accumulate integer values",
+			prometheusResponse: intSummaryMetricsResponse,
+			summaryMetricName:  intSummaryMetricName,
+			expectedTimeSeries: []*v3.TimeSeries{
+				{
+					Metric: &v3.Metric{
+						Labels: map[string]string{},
+						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric_sum",
+					},
+					MetricKind: "CUMULATIVE",
+					Points: []*v3.Point{
+						createIntPoint(42, start, end),
+					},
+				},
+				{
+					Metric: &v3.Metric{
+						Labels: map[string]string{},
+						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric_count",
+					},
+					MetricKind: "CUMULATIVE",
+					Points: []*v3.Point{
+						createIntPoint(101010, start, end),
+					},
+				},
+			},
+		},
+		{
+			description:        "Test summary metrics which accumulate float values",
+			prometheusResponse: floatSummaryMetricsResponse,
+			summaryMetricName:  floatSummaryMetricName,
+			expectedTimeSeries: []*v3.TimeSeries{
+				{
+					Metric: &v3.Metric{
+						Labels: map[string]string{},
+						Type:   "container.googleapis.com/master/testcomponent/float_summary_metric_sum",
+					},
+					MetricKind: "CUMULATIVE",
+					Points: []*v3.Point{
+						createDoublePoint(0.42, start, end),
+					},
+				},
+				{
+					Metric: &v3.Metric{
+						Labels: map[string]string{},
+						Type:   "container.googleapis.com/master/testcomponent/float_summary_metric_count",
+					},
+					MetricKind: "CUMULATIVE",
+					Points: []*v3.Point{
+						createIntPoint(50, start, end),
+					},
+				},
+			},
+		},
+		{
+			description:        "Test summary metrics which are labeled",
+			prometheusResponse: labelIntSummaryMetricsResponse,
+			summaryMetricName:  intSummaryMetricName,
+			expectedTimeSeries: []*v3.TimeSeries{
+				{
+					Metric: &v3.Metric{
+						Labels: map[string]string{"label": "l1"},
+						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric_sum",
+					},
+					MetricKind: "CUMULATIVE",
+					Points: []*v3.Point{
+						createIntPoint(7, start, end),
+					},
+				},
+				{
+					Metric: &v3.Metric{
+						Labels: map[string]string{"label": "l2"},
+						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric_sum",
+					},
+					MetricKind: "CUMULATIVE",
+					Points: []*v3.Point{
+						createIntPoint(8, start, end),
+					},
+				},
+				{
+					Metric: &v3.Metric{
+						Labels: map[string]string{"label": "l1"},
+						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric_count",
+					},
+					MetricKind: "CUMULATIVE",
+					Points: []*v3.Point{
+						createIntPoint(9, start, end),
+					},
+				},
+				{
+					Metric: &v3.Metric{
+						Labels: map[string]string{"label": "l2"},
+						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric_count",
+					},
+					MetricKind: "CUMULATIVE",
+					Points: []*v3.Point{
+						createIntPoint(10, start, end),
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range sts {
+		t.Run(tt.description, func(t *testing.T) {
+			cache := buildCacheForTesting()
+			sourceConfig := &config.SourceConfig{
+				Whitelisted: []string{tt.summaryMetricName + "_sum", tt.summaryMetricName + "_count"},
+			}
+
+			tsb := NewTimeSeriesBuilder(commonConfig, sourceConfig, cache)
+			tsb.Update(tt.prometheusResponse, end)
+			tss, err := tsb.Build()
+			sort.Sort(ByMetricTypeReversed(tss))
+			if err != nil {
+				t.Errorf("Should not have an error parsing summary metric %v", err)
+			}
+			if len(tss) != len(tt.expectedTimeSeries) {
+				t.Errorf("Got %d items, Want: %d", len(tss), len(tt.expectedTimeSeries))
+			}
+
+			for i, ts := range tss {
+				expectedTs := tt.expectedTimeSeries[i]
+				if expectedTs.MetricKind != ts.MetricKind {
+					t.Errorf("Got %v, expecting %v", ts.MetricKind, expectedTs.MetricKind)
+				}
+				if !reflect.DeepEqual(expectedTs.Metric, ts.Metric) {
+					t.Errorf("Got %v, wanted %v as our metric", ts.Metric, expectedTs.Metric)
+				}
+				if !reflect.DeepEqual(ts.Points, expectedTs.Points) {
+					t.Errorf("Got %v, wanted %v as our points", ts.Points, expectedTs.Points)
+				}
+			}
+		})
+	}
+}
+
+func createInterval(start time.Time, end time.Time) *v3.TimeInterval {
+	return &v3.TimeInterval{
+		StartTime: start.UTC().Format(time.RFC3339),
+		EndTime:   end.UTC().Format(time.RFC3339),
+	}
+}
+
+func createIntValue(num int) *v3.TypedValue {
+	n := int64(num)
+	return &v3.TypedValue{
+		Int64Value:      &n,
+		ForceSendFields: []string{},
+	}
+}
+
+func createDoubleValue(double float64) *v3.TypedValue {
+	d := float64(double)
+	return &v3.TypedValue{
+		DoubleValue:     &d,
+		ForceSendFields: []string{},
+	}
+}
+
+func createPoint(value *v3.TypedValue, valueTypeString string, start time.Time, end time.Time) *v3.Point {
+	return &v3.Point{
+		Interval:        createInterval(start, end),
+		Value:           value,
+		ForceSendFields: []string{valueTypeString},
+	}
+}
+
+func createIntPoint(num int, start time.Time, end time.Time) *v3.Point {
+	return createPoint(createIntValue(num), "Int64Value", start, end)
+}
+
+func createDoublePoint(d float64, start time.Time, end time.Time) *v3.Point {
+	return createPoint(createDoubleValue(d), "DoubleValue", start, end)
+}
+
 func TestUpdateScrapes(t *testing.T) {
 	sourceConfig := &config.SourceConfig{
 		Whitelisted: []string{testMetricName, floatMetricName},
@@ -431,7 +669,7 @@ float_metric 123.17
 process_start_time_seconds 1234567890.0
 `,
 	}
-	tsb.Update(scrape)
+	tsb.Update(scrape, time.Now())
 	scrape = &PrometheusResponse{rawResponse: `
 # TYPE test_name counter
 test_name{labelName="labelValue1"} 42.0
@@ -440,7 +678,7 @@ test_name{labelName="labelValue2"} 601.0
 process_start_time_seconds 1234567890.0
 `,
 	}
-	tsb.Update(scrape)
+	tsb.Update(scrape, time.Now())
 	ts, err := tsb.Build()
 
 	assert.Equal(t, err, nil)
@@ -525,6 +763,9 @@ func buildCacheForTesting() *MetricDescriptorCache {
 	cache := NewMetricDescriptorCache(nil, nil, commonConfig.ComponentName)
 	cache.descriptors[booleanMetricName] = metricDescriptors[booleanMetricName]
 	cache.descriptors[floatMetricName] = metricDescriptors[floatMetricName]
+	cache.descriptors[unrelatedMetric] = metricDescriptors[unrelatedMetric]
+	cache.descriptors[intSummaryMetricName+"_sum"] = metricDescriptors[intSummaryMetricName+"_sum"]
+	cache.descriptors[floatSummaryMetricName+"_sum"] = metricDescriptors[floatSummaryMetricName+"_sum"]
 	return cache
 }
 

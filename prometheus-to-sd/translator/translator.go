@@ -66,8 +66,8 @@ func NewTimeSeriesBuilder(commonConfig *config.CommonConfig, sourceConfig *confi
 }
 
 // Update updates the internal state with current batch.
-func (t *TimeSeriesBuilder) Update(batch *PrometheusResponse) {
-	t.batch = &batchWithTimestamp{batch, time.Now()}
+func (t *TimeSeriesBuilder) Update(batch *PrometheusResponse, timestamp time.Time) {
+	t.batch = &batchWithTimestamp{batch, timestamp}
 }
 
 // Build returns a new TimeSeries array and restarts the internal state.
@@ -122,6 +122,71 @@ func DowncaseMetricNames(metricFamilies map[string]*dto.MetricFamily) map[string
 	return result
 }
 
+// FlattenSummaryMetricFamilies flattens summary metric families into two counter metrics,
+// one for the running sum and count, respectively
+func FlattenSummaryMetricFamilies(metricFamilies map[string]*dto.MetricFamily) map[string]*dto.MetricFamily {
+	result := make(map[string]*dto.MetricFamily)
+	for metricName, family := range metricFamilies {
+		switch family.GetType() {
+		case dto.MetricType_SUMMARY:
+			if len(family.Metric) < 1 {
+				glog.V(2).Infof("Summary metric %v does not have metric data associated, ignoring", family.Name)
+				continue
+			}
+			result[metricName+"_sum"] = sumMetricFromSummary(family.GetName(), family.Metric)
+			result[metricName+"_count"] = countMetricFromSummary(family.GetName(), family.Metric)
+		default:
+			result[metricName] = family
+		}
+	}
+	return result
+}
+
+// sumMetricFromSummary manipulates a Summary to extract out a specific sum MetricType_COUNTER metric
+func sumMetricFromSummary(name string, metrics []*dto.Metric) *dto.MetricFamily {
+	n := name + "_sum"
+	t := dto.MetricType_COUNTER
+	newMetrics := make([]*dto.Metric, 0, len(metrics))
+	for _, m := range metrics {
+		s := m.Summary.GetSampleSum()
+		newMetric := &dto.Metric{
+			Label: m.Label,
+			Counter: &dto.Counter{
+				Value: &s,
+			},
+		}
+		newMetrics = append(newMetrics, newMetric)
+	}
+	return &dto.MetricFamily{
+		Type:   &t,
+		Name:   &n,
+		Metric: newMetrics,
+	}
+}
+
+// countMetricFromSummary manipulates a Summary to extract out a specific count MetricType_COUNTER metric
+func countMetricFromSummary(name string, metrics []*dto.Metric) *dto.MetricFamily {
+	n := name + "_count"
+	t := dto.MetricType_COUNTER
+
+	newMetrics := make([]*dto.Metric, 0, len(metrics))
+	for _, m := range metrics {
+		c := float64(m.Summary.GetSampleCount())
+		newMetric := &dto.Metric{
+			Label: m.Label,
+			Counter: &dto.Counter{
+				Value: &c,
+			},
+		}
+		newMetrics = append(newMetrics, newMetric)
+	}
+	return &dto.MetricFamily{
+		Type:   &t,
+		Name:   &n,
+		Metric: newMetrics,
+	}
+}
+
 func getStartTime(metrics map[string]*dto.MetricFamily) time.Time {
 	// For cumulative metrics we need to know process start time.
 	// If the process start time is not specified, assuming it's
@@ -163,7 +228,7 @@ func translateFamily(config *config.CommonConfig,
 	glog.V(3).Infof("Translating metric family %v from component %v", family.GetName(), config.ComponentName)
 	var ts []*v3.TimeSeries
 	if _, found := supportedMetricTypes[family.GetType()]; !found {
-		return ts, fmt.Errorf("Metric type %v of family %s not supported", family.GetType(), family.GetName())
+		return ts, fmt.Errorf("metric type %v of family %s not supported", family.GetType(), family.GetName())
 	}
 	for _, metric := range family.GetMetric() {
 		t := translateOne(config, family.GetName(), family.GetType(), metric, startTime, timestamp, cache)

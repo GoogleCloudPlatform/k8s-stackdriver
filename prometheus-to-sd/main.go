@@ -182,6 +182,6 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 			glog.V(2).Infof("Error while getting Prometheus metrics %v for component %v", err, sourceConfig.Component)
 			continue
 		}
-		timeSeriesBuilder.Update(metrics)
+		timeSeriesBuilder.Update(metrics, time.Now())
 	}
 }
