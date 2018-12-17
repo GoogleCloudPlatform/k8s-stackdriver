@@ -433,10 +433,10 @@ func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.L
 			return &v3.MonitoredResource{
 				Type: "k8s_node",
 				Labels: map[string]string{
-					"project_id":       config.GceConfig.Project,
-					"cluster_name":     config.GceConfig.Cluster,
-					"cluster_location": config.GceConfig.ClusterLocation,
-					"node_name":        config.GceConfig.Instance,
+					"project_id":   config.GceConfig.Project,
+					"location":     config.GceConfig.ClusterLocation,
+					"cluster_name": config.GceConfig.Cluster,
+					"node_name":    config.GceConfig.Instance,
 				},
 			}
 		}
@@ -444,12 +444,12 @@ func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.L
 		return &v3.MonitoredResource{
 			Type: "k8s_container",
 			Labels: map[string]string{
-				"project_id":       config.GceConfig.Project,
-				"cluster_name":     config.GceConfig.Cluster,
-				"cluster_location": config.GceConfig.ClusterLocation,
-				"namespace_name":   namespace,
-				"pod_name":         pod,
-				"container_name":   container,
+				"project_id":     config.GceConfig.Project,
+				"location":       config.GceConfig.ClusterLocation,
+				"cluster_name":   config.GceConfig.Cluster,
+				"namespace_name": namespace,
+				"pod_name":       pod,
+				"container_name": container,
 			},
 		}
 	case "gke_container":
