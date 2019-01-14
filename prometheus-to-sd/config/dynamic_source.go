@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"sort"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/flags"
 	"github.com/golang/glog"
@@ -68,7 +69,12 @@ func createKubernetesApiClient() (clientset.Interface, error) {
 
 func createOptionsForPodSelection(nodeName string, sources map[string]url.URL) v1.ListOptions {
 	var nameList string
+	var keys []string
 	for key := range sources {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
 		nameList += key + ","
 	}
 	labelSelector := fmt.Sprintf("%s in (%s)", nameLabel, nameList)
