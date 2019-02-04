@@ -70,7 +70,7 @@ func GetGceConfig(metricsPrefix, zone string, monitoredResourceTypes string) (*G
 		if clusterLocation == "" {
 			return nil, fmt.Errorf("cluster-location metadata was empty")
 		}
-	case "gke":
+	case "gke_container":
 		if zone == "" {
 			zone, err = gce.Zone()
 			if err != nil {
