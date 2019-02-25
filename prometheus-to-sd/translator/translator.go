@@ -45,10 +45,9 @@ const falseValueEpsilon = 0.001
 // TimeSeriesBuilder keeps track of incoming prometheus updates and can convert
 // last received one to Stackdriver TimeSeries.
 type TimeSeriesBuilder struct {
-	commonConfig *config.CommonConfig
-	sourceConfig *config.SourceConfig
-	cache        *MetricDescriptorCache
-	batch        *batchWithTimestamp
+	config *config.CommonConfig
+	cache  *MetricDescriptorCache
+	batch  *batchWithTimestamp
 }
 
 type batchWithTimestamp struct {
@@ -57,11 +56,10 @@ type batchWithTimestamp struct {
 }
 
 // NewTimeSeriesBuilder creates new builder object that keeps intermediate state of metrics.
-func NewTimeSeriesBuilder(commonConfig *config.CommonConfig, sourceConfig *config.SourceConfig, cache *MetricDescriptorCache) *TimeSeriesBuilder {
+func NewTimeSeriesBuilder(commonConfig *config.CommonConfig, cache *MetricDescriptorCache) *TimeSeriesBuilder {
 	return &TimeSeriesBuilder{
-		commonConfig: commonConfig,
-		sourceConfig: sourceConfig,
-		cache:        cache,
+		config: commonConfig,
+		cache:  cache,
 	}
 }
 
@@ -77,20 +75,20 @@ func (t *TimeSeriesBuilder) Build() ([]*v3.TimeSeries, error) {
 		return ts, nil
 	}
 	defer func() { t.batch = nil }()
-	metricFamilies, err := t.batch.metrics.Build(t.commonConfig, t.sourceConfig, t.cache)
+	metricFamilies, err := t.batch.metrics.Build(t.config, t.cache)
 	if err != nil {
 		return ts, err
 	}
 	// Get start time before whitelisting, because process start time
 	// metric is likely not to be whitelisted.
 	startTime := getStartTime(metricFamilies)
-	metricFamilies = filterWhitelisted(metricFamilies, t.sourceConfig.Whitelisted)
+	metricFamilies = filterWhitelisted(metricFamilies, t.config.SourceConfig.Whitelisted)
 
 	for name, metric := range metricFamilies {
 		if t.cache.IsMetricBroken(name) {
 			continue
 		}
-		f, err := translateFamily(t.commonConfig, metric, t.batch.timestamp, startTime, t.cache)
+		f, err := translateFamily(t.config, metric, t.batch.timestamp, startTime, t.cache)
 		if err != nil {
 			glog.Warningf("Error while processing metric %s: %v", name, err)
 		} else {
@@ -225,7 +223,7 @@ func translateFamily(config *config.CommonConfig,
 	startTime time.Time,
 	cache *MetricDescriptorCache) ([]*v3.TimeSeries, error) {
 
-	glog.V(3).Infof("Translating metric family %v from component %v", family.GetName(), config.ComponentName)
+	glog.V(3).Infof("Translating metric family %v from component %v", family.GetName(), config.SourceConfig.Component)
 	var ts []*v3.TimeSeries
 	if _, found := supportedMetricTypes[family.GetType()]; !found {
 		return ts, fmt.Errorf("metric type %v of family %s not supported", family.GetType(), family.GetName())
@@ -240,10 +238,10 @@ func translateFamily(config *config.CommonConfig,
 
 // getMetricType creates metric type name base on the metric prefix, component name and metric name.
 func getMetricType(config *config.CommonConfig, name string) string {
-	if config.ComponentName == "" {
-		return fmt.Sprintf("%s/%s", config.GceConfig.MetricsPrefix, name)
+	if config.SourceConfig.Component == "" {
+		return fmt.Sprintf("%s/%s", config.SourceConfig.MetricsPrefix, name)
 	}
-	return fmt.Sprintf("%s/%s/%s", config.GceConfig.MetricsPrefix, config.ComponentName, name)
+	return fmt.Sprintf("%s/%s/%s", config.SourceConfig.MetricsPrefix, config.SourceConfig.Component, name)
 }
 
 // assumes that mType is Counter, Gauge or Histogram
@@ -314,8 +312,8 @@ func convertToDistributionValue(h *dto.Histogram) *v3.Distribution {
 	count := int64(h.GetSampleCount())
 	mean := float64(0)
 	dev := float64(0)
-	bounds := []float64{}
-	values := []int64{}
+	var bounds []float64
+	var values []int64
 
 	if count > 0 {
 		mean = h.GetSampleSum() / float64(count)
@@ -356,7 +354,7 @@ func convertToDistributionValue(h *dto.Histogram) *v3.Distribution {
 func getMetricLabels(config *config.CommonConfig, labels []*dto.LabelPair) map[string]string {
 	metricLabels := map[string]string{}
 	for _, label := range labels {
-		if config.PodConfig.IsMetricLabel(label.GetName()) {
+		if config.SourceConfig.PodConfig.IsMetricLabel(label.GetName()) {
 			metricLabels[label.GetName()] = label.GetValue()
 		}
 	}
@@ -425,7 +423,7 @@ func createProjectName(config *config.GceConfig) string {
 }
 
 func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.LabelPair) *v3.MonitoredResource {
-	container, pod, namespace := config.PodConfig.GetPodInfo(labels)
+	container, pod, namespace := config.SourceConfig.PodConfig.GetPodInfo(labels)
 
 	switch config.GceConfig.MonitoredResourceTypes {
 	case "k8s":

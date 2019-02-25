@@ -35,13 +35,12 @@ type MetricDescriptorCache struct {
 }
 
 // NewMetricDescriptorCache creates empty metric descriptor cache for the given component.
-func NewMetricDescriptorCache(service *v3.Service, config *config.CommonConfig, component string) *MetricDescriptorCache {
+func NewMetricDescriptorCache(service *v3.Service, config *config.CommonConfig) *MetricDescriptorCache {
 	return &MetricDescriptorCache{
 		descriptors: make(map[string]*v3.MetricDescriptor),
 		broken:      make(map[string]bool),
 		service:     service,
 		config:      config,
-		component:   component,
 		fresh:       false,
 	}
 }
@@ -175,7 +174,7 @@ func descriptorLabelSetChanged(original *v3.MetricDescriptor, checked *v3.Metric
 // Refresh function fetches all metric descriptors of all metrics defined for given component with a defined prefix
 // and puts them into cache.
 func (cache *MetricDescriptorCache) Refresh() {
-	metricDescriptors, err := getMetricDescriptors(cache.service, cache.config.GceConfig, cache.component)
+	metricDescriptors, err := getMetricDescriptors(cache.service, cache.config)
 	if err == nil {
 		cache.descriptors = metricDescriptors
 		cache.broken = make(map[string]bool)

@@ -20,7 +20,7 @@ const (
 )
 
 // SourceConfigsFromDynamicSources takes pod specifications from the Kubernetes API and maps them to source configs.
-func SourceConfigsFromDynamicSources(gceConfig *GceConfig, sources []flags.Uri) ([]SourceConfig, error) {
+func SourceConfigsFromDynamicSources(gceConfig *GceConfig, sources []flags.Uri) ([]*SourceConfig, error) {
 	if len(sources) == 0 {
 		return nil, nil
 	}
@@ -84,8 +84,8 @@ func createOptionsForPodSelection(nodeName string, sources map[string]url.URL) v
 	}
 }
 
-func getConfigsFromPods(pods []core.Pod, sources map[string]url.URL) []SourceConfig {
-	var sourceConfigs []SourceConfig
+func getConfigsFromPods(pods []core.Pod, sources map[string]url.URL) []*SourceConfig {
+	var sourceConfigs []*SourceConfig
 	for _, pod := range pods {
 		componentName := pod.Labels[nameLabel]
 		source, _ := sources[componentName]
@@ -93,7 +93,7 @@ func getConfigsFromPods(pods []core.Pod, sources map[string]url.URL) []SourceCon
 		if err != nil {
 			glog.Warningf("could not create source config for pod %s: %v", pod.Name, err)
 		}
-		sourceConfigs = append(sourceConfigs, *sourceConfig)
+		sourceConfigs = append(sourceConfigs, sourceConfig)
 	}
 	return sourceConfigs
 }
@@ -104,6 +104,7 @@ func mapToSourceConfig(componentName string, url url.URL, ip, podId, namespaceId
 	podIdLabel := url.Query().Get("podIdLabel")
 	namespaceIdLabel := url.Query().Get("namespaceIdLabel")
 	containerNamelabel := url.Query().Get("containerNamelabel")
+	metricsPrefix := url.Query().Get("metricsPrefix")
 	podConfig := NewPodConfig(podId, namespaceId, podIdLabel, namespaceIdLabel, containerNamelabel)
-	return newSourceConfig(componentName, ip, port, url.Path, whitelisted, podConfig)
+	return newSourceConfig(componentName, ip, port, url.Path, whitelisted, metricsPrefix, podConfig)
 }

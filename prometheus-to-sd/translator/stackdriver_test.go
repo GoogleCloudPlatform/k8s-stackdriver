@@ -32,20 +32,20 @@ func TestGetMetricType(t *testing.T) {
 	}{
 		{
 			&config.CommonConfig{
-				GceConfig: &config.GceConfig{
+				SourceConfig: &config.SourceConfig{
 					MetricsPrefix: "container.googleapis.com/master",
+					Component:     "component",
 				},
-				ComponentName: "component",
 			},
 			"name",
 			"container.googleapis.com/master/component/name",
 		},
 		{
 			&config.CommonConfig{
-				GceConfig: &config.GceConfig{
+				SourceConfig: &config.SourceConfig{
 					MetricsPrefix: "container.googleapis.com",
+					Component:     "",
 				},
-				ComponentName: "",
 			},
 			"name",
 			"container.googleapis.com/name",
@@ -57,7 +57,9 @@ func TestGetMetricType(t *testing.T) {
 }
 
 func TestParseMetricType(t *testing.T) {
-	testConfig := &config.GceConfig{MetricsPrefix: "container.googleapis.com/master"}
+	testConfig := &config.CommonConfig{
+		SourceConfig: &config.SourceConfig{MetricsPrefix: "container.googleapis.com/master"},
+	}
 	testCases := []struct {
 		metricType string
 		correct    bool

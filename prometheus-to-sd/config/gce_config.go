@@ -30,12 +30,11 @@ type GceConfig struct {
 	Cluster                string
 	ClusterLocation        string
 	Instance               string
-	MetricsPrefix          string
 	MonitoredResourceTypes string
 }
 
 // GetGceConfig builds GceConfig based on the provided prefix and metadata server available on GCE.
-func GetGceConfig(metricsPrefix, zone string, monitoredResourceTypes string) (*GceConfig, error) {
+func GetGceConfig(zone string, monitoredResourceTypes string) (*GceConfig, error) {
 	if !gce.OnGCE() {
 		return nil, fmt.Errorf("Not running on GCE.")
 	}
@@ -87,7 +86,6 @@ func GetGceConfig(metricsPrefix, zone string, monitoredResourceTypes string) (*G
 		Cluster:                cluster,
 		ClusterLocation:        clusterLocation,
 		Instance:               instance,
-		MetricsPrefix:          metricsPrefix,
 		MonitoredResourceTypes: monitoredResourceTypes,
 	}, nil
 }

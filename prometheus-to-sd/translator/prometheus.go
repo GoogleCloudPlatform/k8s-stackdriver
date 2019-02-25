@@ -65,25 +65,25 @@ func getPrometheusMetrics(config *config.SourceConfig) (*PrometheusResponse, err
 }
 
 // Build performs parsing and processing of the prometheus metrics response.
-func (p *PrometheusResponse) Build(commonConfig *config.CommonConfig, sourceConfig *config.SourceConfig, metricDescriptorCache *MetricDescriptorCache) (map[string]*dto.MetricFamily, error) {
+func (p *PrometheusResponse) Build(config *config.CommonConfig, metricDescriptorCache *MetricDescriptorCache) (map[string]*dto.MetricFamily, error) {
 	parser := &expfmt.TextParser{}
 	metrics, err := parser.TextToMetricFamilies(strings.NewReader(p.rawResponse))
 	if err != nil {
 		return nil, err
 	}
-	if commonConfig.OmitComponentName {
-		metrics = OmitComponentName(metrics, sourceConfig.Component)
+	if config.OmitComponentName {
+		metrics = OmitComponentName(metrics, config.SourceConfig.Component)
 	}
-	if commonConfig.DowncaseMetricNames {
+	if config.DowncaseMetricNames {
 		metrics = DowncaseMetricNames(metrics)
 	}
 	// Convert summary metrics into metric family types we can easily import, since summary types
 	// map to multiple stackdriver metrics.
 	metrics = FlattenSummaryMetricFamilies(metrics)
-	if strings.HasPrefix(commonConfig.GceConfig.MetricsPrefix, customMetricsPrefix) {
-		metricDescriptorCache.UpdateMetricDescriptors(metrics, sourceConfig.Whitelisted)
+	if strings.HasPrefix(config.SourceConfig.MetricsPrefix, customMetricsPrefix) {
+		metricDescriptorCache.UpdateMetricDescriptors(metrics, config.SourceConfig.Whitelisted)
 	} else {
-		metricDescriptorCache.ValidateMetricDescriptors(metrics, sourceConfig.Whitelisted)
+		metricDescriptorCache.ValidateMetricDescriptors(metrics, config.SourceConfig.Whitelisted)
 	}
 	return metrics, nil
 }

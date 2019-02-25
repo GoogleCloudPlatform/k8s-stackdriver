@@ -177,8 +177,8 @@ func TestValidateMetricDescriptors(t *testing.T) {
 			descriptors: make(map[string]*v3.MetricDescriptor),
 			broken:      make(map[string]bool),
 			config: &config.CommonConfig{
-				ComponentName: "test-component",
-				GceConfig: &config.GceConfig{
+				SourceConfig: &config.SourceConfig{
+					Component:     "test-component",
 					MetricsPrefix: "container.googleapis.com",
 				},
 			},
