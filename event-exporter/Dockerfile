@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM gcr.io/google-containers/debian-base-amd64:0.3.2
+FROM golang:1.9-alpine as builder
+WORKDIR ${GOPATH}/src/github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter
+COPY . ./
+RUN CGO_ENABLED=0 GOOS=linux go build -o /event-exporter
 
-RUN clean-install ca-certificates
-
-EXPOSE 80
-
-COPY event-exporter /
+FROM gcr.io/distroless/static
+COPY --from=builder event-exporter /
