@@ -29,18 +29,19 @@ import (
 
 // SourceConfig contains data specific for scraping one component.
 type SourceConfig struct {
-	Component   string
-	Host        string
-	Port        uint
-	Path        string
-	Whitelisted []string
-	PodConfig   PodConfig
+	Component     string
+	Host          string
+	Port          uint
+	Path          string
+	Whitelisted   []string
+	PodConfig     PodConfig
+	MetricsPrefix string
 }
 
 const defaultMetricsPath = "/metrics"
 
 // newSourceConfig creates a new SourceConfig based on string representation of fields.
-func newSourceConfig(component string, host string, port string, path string, whitelisted string, podConfig PodConfig) (*SourceConfig, error) {
+func newSourceConfig(component, host, port, path, whitelisted, metricsPrefix string, podConfig PodConfig) (*SourceConfig, error) {
 	if port == "" {
 		return nil, fmt.Errorf("No port provided.")
 	}
@@ -59,12 +60,13 @@ func newSourceConfig(component string, host string, port string, path string, wh
 	}
 
 	return &SourceConfig{
-		Component:   component,
-		Host:        host,
-		Port:        uint(portNum),
-		Path:        path,
-		Whitelisted: whitelistedList,
-		PodConfig:   podConfig,
+		Component:     component,
+		Host:          host,
+		Port:          uint(portNum),
+		Path:          path,
+		Whitelisted:   whitelistedList,
+		PodConfig:     podConfig,
+		MetricsPrefix: metricsPrefix,
 	}, nil
 }
 
@@ -82,9 +84,10 @@ func parseSourceConfig(uri flags.Uri, podId, namespaceId string) (*SourceConfig,
 	podIdLabel := values.Get("podIdLabel")
 	namespaceIdLabel := values.Get("namespaceIdLabel")
 	containerNamelabel := values.Get("containerNamelabel")
+	metricsPrefix := values.Get("metricsPrefix")
 	podConfig := NewPodConfig(podId, namespaceId, podIdLabel, namespaceIdLabel, containerNamelabel)
 
-	return newSourceConfig(component, host, port, path, whitelisted, podConfig)
+	return newSourceConfig(component, host, port, path, whitelisted, metricsPrefix, podConfig)
 }
 
 // UpdateWhitelistedMetrics sets passed list as a list of whitelisted metrics.
@@ -93,13 +96,16 @@ func (config *SourceConfig) UpdateWhitelistedMetrics(list []string) {
 }
 
 // SourceConfigsFromFlags creates a slice of SourceConfig's base on the provided flags.
-func SourceConfigsFromFlags(source flags.Uris, podId *string, namespaceId *string) []SourceConfig {
-	var sourceConfigs []SourceConfig
+func SourceConfigsFromFlags(source flags.Uris, podId *string, namespaceId *string, defaultMetricsPrefix string) []*SourceConfig {
+	var sourceConfigs []*SourceConfig
 	for _, c := range source {
 		if sourceConfig, err := parseSourceConfig(c, *podId, *namespaceId); err != nil {
 			glog.Fatalf("Error while parsing source config flag %v: %v", c, err)
 		} else {
-			sourceConfigs = append(sourceConfigs, *sourceConfig)
+			if sourceConfig.MetricsPrefix == "" {
+				sourceConfig.MetricsPrefix = defaultMetricsPrefix
+			}
+			sourceConfigs = append(sourceConfigs, sourceConfig)
 		}
 	}
 	return sourceConfigs

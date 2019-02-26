@@ -29,13 +29,13 @@ import (
 )
 
 const (
-	maxTimeseriesesPerRequest = 200
+	maxTimeseriesPerRequest = 200
 )
 
-// SendToStackdriver sends http request to Stackdriver to create the given timeserieses.
+// SendToStackdriver sends http request to Stackdriver to create the given timeseries.
 func SendToStackdriver(service *v3.Service, config *config.CommonConfig, ts []*v3.TimeSeries) {
 	if len(ts) == 0 {
-		glog.V(3).Infof("No metrics to send to Stackdriver for component %v", config.ComponentName)
+		glog.V(3).Infof("No metrics to send to Stackdriver for component %v", config.SourceConfig.Component)
 		return
 	}
 
@@ -43,8 +43,8 @@ func SendToStackdriver(service *v3.Service, config *config.CommonConfig, ts []*v
 
 	var wg sync.WaitGroup
 	var failedTs uint32
-	for i := 0; i < len(ts); i += maxTimeseriesesPerRequest {
-		end := i + maxTimeseriesesPerRequest
+	for i := 0; i < len(ts); i += maxTimeseriesPerRequest {
+		end := i + maxTimeseriesPerRequest
 		if end > len(ts) {
 			end = len(ts)
 		}
@@ -61,14 +61,14 @@ func SendToStackdriver(service *v3.Service, config *config.CommonConfig, ts []*v
 	}
 	wg.Wait()
 	sentTs := uint32(len(ts)) - failedTs
-	glog.V(4).Infof("Successfully sent %v timeseries to Stackdriver for component %v", sentTs, config.ComponentName)
-	timeseriesPushed.WithLabelValues(config.ComponentName).Add(float64(sentTs))
-	timeseriesDropped.WithLabelValues(config.ComponentName).Add(float64(failedTs))
+	glog.V(4).Infof("Successfully sent %v timeseries to Stackdriver for component %v", sentTs, config.SourceConfig.Component)
+	timeseriesPushed.WithLabelValues(config.SourceConfig.Component).Add(float64(sentTs))
+	timeseriesDropped.WithLabelValues(config.SourceConfig.Component).Add(float64(failedTs))
 }
 
-func getMetricDescriptors(service *v3.Service, config *config.GceConfig, component string) (map[string]*v3.MetricDescriptor, error) {
-	proj := createProjectName(config)
-	filter := fmt.Sprintf("metric.type = starts_with(\"%s/%s\")", config.MetricsPrefix, component)
+func getMetricDescriptors(service *v3.Service, config *config.CommonConfig) (map[string]*v3.MetricDescriptor, error) {
+	proj := createProjectName(config.GceConfig)
+	filter := fmt.Sprintf("metric.type = starts_with(\"%s/%s\")", config.SourceConfig.MetricsPrefix, config.SourceConfig.Component)
 	metrics := make(map[string]*v3.MetricDescriptor)
 	fn := func(page *v3.ListMetricDescriptorsResponse) error {
 		for _, metricDescriptor := range page.MetricDescriptors {
@@ -82,7 +82,7 @@ func getMetricDescriptors(service *v3.Service, config *config.GceConfig, compone
 	}
 	err := service.Projects.MetricDescriptors.List(proj).Filter(filter).Pages(nil, fn)
 	if err != nil {
-		glog.Warningf("Error while fetching metric descriptors for %v: %v", component, err)
+		glog.Warningf("Error while fetching metric descriptors for %v: %v", config.SourceConfig.Component, err)
 	}
 	return metrics, err
 }
@@ -101,16 +101,16 @@ func updateMetricDescriptorInStackdriver(service *v3.Service, config *config.Gce
 }
 
 // parseMetricType extracts component and metricName from Metric.Type (e.g. output of getMetricType).
-func parseMetricType(config *config.GceConfig, metricType string) (component, metricName string, err error) {
-	if !strings.HasPrefix(metricType, fmt.Sprintf("%s/", config.MetricsPrefix)) {
-		return "", "", fmt.Errorf("MetricType is expected to have prefix: %v. Got %v instead.", config.MetricsPrefix, metricType)
+func parseMetricType(config *config.CommonConfig, metricType string) (component, metricName string, err error) {
+	if !strings.HasPrefix(metricType, fmt.Sprintf("%s/", config.SourceConfig.MetricsPrefix)) {
+		return "", "", fmt.Errorf("MetricType is expected to have prefix: %v. Got %v instead.", config.SourceConfig.MetricsPrefix, metricType)
 	}
 
-	componentMetricName := strings.TrimPrefix(metricType, fmt.Sprintf("%s/", config.MetricsPrefix))
+	componentMetricName := strings.TrimPrefix(metricType, fmt.Sprintf("%s/", config.SourceConfig.MetricsPrefix))
 	split := strings.SplitN(componentMetricName, "/", 2)
 
 	if len(split) < 1 || len(split) > 2 {
-		return "", "", fmt.Errorf("MetricType should be in format %v/<component>/<name> or %v/<name>. Got %v instead.", config.MetricsPrefix, metricType, componentMetricName)
+		return "", "", fmt.Errorf("MetricType should be in format %v/<component>/<name> or %v/<name>. Got %v instead.", config.SourceConfig.MetricsPrefix, metricType, componentMetricName)
 	}
 	if len(split) == 1 {
 		return "", split[0], nil

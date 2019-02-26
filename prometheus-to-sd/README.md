@@ -15,13 +15,15 @@ For scraping metrics from the component it's name, host, port and metrics should
 through the flag `source` in the next format:
 `component-name:http://host:port?whitelisted=a,b,c`. If whitelisted part is
 omitted, then all metrics that are scraped from the component will be pushed
-to the Stackdriver.
+to the Stackdriver, unless flag `auto-whitelist-metrics=true` was passed.
 
 ## Custom metrics
 
 To be able to push custom metrics to the Stackdriver flag `stackdriver-prefix=custom.googleapis.com`
 has to be specified. In such case metric `bar` from the component
-`foo` is going to be pushed to the Stackdriver as `custom.googleapis.com/foo/bar`.
+`foo` is going to be pushed to the Stackdriver as `custom.googleapis.com/foo/bar`. Prefix can be
+also configured per component by `metricsPrefix` parameter in `source` flag, for example: 
+`source=foo:http://localhost:1000?metricsPrefix=custom.googleapis.com&whitelisted=bar`
 
 ## Metrics autodiscovery
 

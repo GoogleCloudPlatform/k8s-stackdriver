@@ -29,7 +29,7 @@ type PodConfig interface {
 	GetPodInfo(labels []*dto.LabelPair) (containerName, podId, namespaceId string)
 }
 
-// NewPodConfig returns a PodConfig which uses for the provided pod, namespace, and container label values,
+// NewPodConfig returns a PodConfig which uses for the provided pod, namespace and container label values,
 // if found, and falls back to the podId and namespaceId.
 func NewPodConfig(podId, namespaceId, podIdLabel, namespaceIdLabel, containerNameLabel string) PodConfig {
 	return &podConfigImpl{
@@ -71,8 +71,7 @@ func (p *podConfigImpl) GetPodInfo(labels []*dto.LabelPair) (containerName, podI
 // prometheus-to-sd running and which component is monitored.
 type CommonConfig struct {
 	GceConfig           *GceConfig
-	PodConfig           PodConfig
-	ComponentName       string
+	SourceConfig        *SourceConfig
 	OmitComponentName   bool
 	DowncaseMetricNames bool
 }

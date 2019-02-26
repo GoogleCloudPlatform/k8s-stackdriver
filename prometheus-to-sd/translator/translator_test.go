@@ -53,11 +53,13 @@ var commonConfig = &config.CommonConfig{
 		Zone:                   "us-central1-f",
 		Cluster:                "test-cluster",
 		Instance:               "kubernetes-master.c.test-proj.internal",
-		MetricsPrefix:          "container.googleapis.com/master",
 		MonitoredResourceTypes: "gke_container",
 	},
-	PodConfig:     config.NewPodConfig("machine", "", "", "", ""),
-	ComponentName: "testcomponent",
+	SourceConfig: &config.SourceConfig{
+		PodConfig:     config.NewPodConfig("machine", "", "", "", ""),
+		Component:     "testcomponent",
+		MetricsPrefix: "container.googleapis.com/master",
+	},
 }
 
 var metricTypeGauge = dto.MetricType_GAUGE
@@ -275,7 +277,9 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 				GceConfig: &config.GceConfig{
 					MonitoredResourceTypes: "gke_container",
 				},
-				PodConfig: config.NewPodConfig("", "", "", "", ""),
+				SourceConfig: &config.SourceConfig{
+					PodConfig: config.NewPodConfig("", "", "", "", ""),
+				},
 			},
 			nil,
 			"gke_container",
@@ -286,7 +290,9 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 				GceConfig: &config.GceConfig{
 					MonitoredResourceTypes: "k8s",
 				},
-				PodConfig: config.NewPodConfig("", "", "", "", ""),
+				SourceConfig: &config.SourceConfig{
+					PodConfig: config.NewPodConfig("", "", "", "", ""),
+				},
 			},
 			nil,
 			"k8s_container",
@@ -297,7 +303,9 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 				GceConfig: &config.GceConfig{
 					MonitoredResourceTypes: "k8s",
 				},
-				PodConfig: config.NewPodConfig("nonEmptyPodID", "", "", "", "containerNameLabel"),
+				SourceConfig: &config.SourceConfig{
+					PodConfig: config.NewPodConfig("nonEmptyPodID", "", "", "", "containerNameLabel"),
+				},
 			},
 			[]*dto.LabelPair{
 				{
@@ -313,7 +321,9 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 				GceConfig: &config.GceConfig{
 					MonitoredResourceTypes: "k8s",
 				},
-				PodConfig: config.NewPodConfig("", "", "", "", "containerNameLabel"),
+				SourceConfig: &config.SourceConfig{
+					PodConfig: config.NewPodConfig("", "", "", "", "containerNameLabel"),
+				},
 			},
 			[]*dto.LabelPair{
 				{
@@ -334,11 +344,8 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 
 func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	cache := buildCacheForTesting()
-	sourceConfig := &config.SourceConfig{
-		Whitelisted: []string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName},
-	}
 
-	tsb := NewTimeSeriesBuilder(commonConfig, sourceConfig, cache)
+	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName}), cache)
 	tsb.Update(metricsResponse, time.Now())
 	ts, err := tsb.Build()
 
@@ -584,11 +591,8 @@ int_summary_metric_count{label="l2"} 10
 	for _, tt := range sts {
 		t.Run(tt.description, func(t *testing.T) {
 			cache := buildCacheForTesting()
-			sourceConfig := &config.SourceConfig{
-				Whitelisted: []string{tt.summaryMetricName + "_sum", tt.summaryMetricName + "_count"},
-			}
 
-			tsb := NewTimeSeriesBuilder(commonConfig, sourceConfig, cache)
+			tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{tt.summaryMetricName + "_sum", tt.summaryMetricName + "_count"}), cache)
 			tsb.Update(tt.prometheusResponse, end)
 			tss, err := tsb.Build()
 			sort.Sort(ByMetricTypeReversed(tss))
@@ -655,10 +659,7 @@ func createDoublePoint(d float64, start time.Time, end time.Time) *v3.Point {
 }
 
 func TestUpdateScrapes(t *testing.T) {
-	sourceConfig := &config.SourceConfig{
-		Whitelisted: []string{testMetricName, floatMetricName},
-	}
-	tsb := NewTimeSeriesBuilder(commonConfig, sourceConfig, buildCacheForTesting())
+	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{testMetricName, floatMetricName}), buildCacheForTesting())
 	scrape := &PrometheusResponse{rawResponse: `
 # TYPE test_name counter
 test_name{labelName="labelValue1"} 42.0
@@ -748,19 +749,22 @@ func TestOmitComponentName(t *testing.T) {
 
 func TestBuildWithoutUpdate(t *testing.T) {
 	cache := buildCacheForTesting()
-	sourceConfig := &config.SourceConfig{
-		Whitelisted: []string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName},
-	}
 
-	tsb := NewTimeSeriesBuilder(commonConfig, sourceConfig, cache)
+	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName}), cache)
 	ts, err := tsb.Build()
 
 	assert.Equal(t, err, nil)
 	assert.Equal(t, 0, len(ts))
 }
 
+func CommonConfigWithMetrics(whitelisted []string) *config.CommonConfig {
+	commonConfigCopy := *commonConfig
+	commonConfigCopy.SourceConfig.Whitelisted = whitelisted
+	return &commonConfigCopy
+}
+
 func buildCacheForTesting() *MetricDescriptorCache {
-	cache := NewMetricDescriptorCache(nil, nil, commonConfig.ComponentName)
+	cache := NewMetricDescriptorCache(nil, commonConfig)
 	cache.descriptors[booleanMetricName] = metricDescriptors[booleanMetricName]
 	cache.descriptors[floatMetricName] = metricDescriptors[floatMetricName]
 	cache.descriptors[unrelatedMetric] = metricDescriptors[unrelatedMetric]

@@ -81,7 +81,7 @@ func TestNewSourceConfig(t *testing.T) {
 	}
 
 	for _, c := range correct {
-		res, err := newSourceConfig(c.component, c.host, c.port, c.path, c.whitelisted, c.podConfig)
+		res, err := newSourceConfig(c.component, c.host, c.port, c.path, c.whitelisted, "", c.podConfig)
 		if assert.NoError(t, err) {
 			assert.Equal(t, c.output, *res)
 		}
@@ -131,6 +131,25 @@ func TestParseSourceConfig(t *testing.T) {
 				Path:        "/status/prometheus",
 				Whitelisted: []string{"a", "b", "c", "d"},
 				PodConfig:   NewPodConfig(podId, namespaceId, "", "", ""),
+			},
+		},
+		{
+			flags.Uri{
+				Key: "testComponent",
+				Val: url.URL{
+					Scheme:   "http",
+					Host:     "localhost:8080",
+					Path:     defaultMetricsPath,
+					RawQuery: "metricsPrefix=container.googleapis.com/newPrefix",
+				},
+			},
+			SourceConfig{
+				Component:     "testComponent",
+				Host:          "localhost",
+				Port:          8080,
+				Path:          defaultMetricsPath,
+				MetricsPrefix: "container.googleapis.com/newPrefix",
+				PodConfig:     NewPodConfig(podId, namespaceId, "", "", ""),
 			},
 		},
 	}

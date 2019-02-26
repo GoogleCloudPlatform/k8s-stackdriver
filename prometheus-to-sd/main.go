@@ -37,7 +37,8 @@ import (
 
 var (
 	metricsPrefix = flag.String("stackdriver-prefix", "container.googleapis.com/master",
-		"Prefix that is appended to every metric.")
+		"Prefix that is appended to every metric. Could be rewritten by metricsPrefix in per "+
+			"component configuration.")
 	autoWhitelistMetrics = flag.Bool("auto-whitelist-metrics", false,
 		"If component has no whitelisted metrics, prometheus-to-sd will fetch them from Stackdriver.")
 	metricDescriptorsResolution = flag.Duration("metric-descriptors-resolution", 10*time.Minute,
@@ -67,21 +68,21 @@ var (
 
 func main() {
 	flag.Set("logtostderr", "true")
-	flag.Var(&source, "source", "source(s) to watch in [component-name]:http://host:port/path?whitelisted=a,b,c&podIdLabel=d&namespaceIdLabel=e&containerNameLabel=f format")
+	flag.Var(&source, "source", "source(s) to watch in [component-name]:http://host:port/path?whitelisted=a,b,c&podIdLabel=d&namespaceIdLabel=e&containerNameLabel=f&metricsPrefix=prefix format")
 	flag.Var(&dynamicSources, "dynamic-source",
-		`dynamic source(s) to watch in format: "[component-name]:http://:port/path?whitelisted=metric1,metric2&podIdLabel=label1&namespaceIdLabel=label2&containerNameLabel=label3". Dynamic sources are components (on the same node) discovered dynamically using the kubernetes api.`,
+		`dynamic source(s) to watch in format: "[component-name]:http://:port/path?whitelisted=metric1,metric2&podIdLabel=label1&namespaceIdLabel=label2&containerNameLabel=label3&metricsPrefix=prefix". Dynamic sources are components (on the same node) discovered dynamically using the kubernetes api.`,
 	)
 
 	defer glog.Flush()
 	flag.Parse()
 
-	gceConf, err := config.GetGceConfig(*metricsPrefix, *zoneOverride, *monitoredResourceTypes)
+	gceConf, err := config.GetGceConfig(*zoneOverride, *monitoredResourceTypes)
 	if err != nil {
 		glog.Fatalf("Failed to get GCE config: %v", err)
 	}
 	glog.Infof("GCE config: %+v", gceConf)
 
-	sourceConfigs := getSourceConfigs(gceConf)
+	sourceConfigs := getSourceConfigs(*metricsPrefix, gceConf)
 	glog.Infof("Built the following source configs: %v", sourceConfigs)
 
 	go func() {
@@ -118,9 +119,9 @@ func main() {
 	<-make(chan int)
 }
 
-func getSourceConfigs(gceConfig *config.GceConfig) []config.SourceConfig {
+func getSourceConfigs(defaultMetricsPrefix string, gceConfig *config.GceConfig) []*config.SourceConfig {
 	glog.Info("Taking source configs from flags")
-	staticSourceConfigs := config.SourceConfigsFromFlags(source, podId, namespaceId)
+	staticSourceConfigs := config.SourceConfigsFromFlags(source, podId, namespaceId, defaultMetricsPrefix)
 	glog.Info("Taking source configs from kubernetes api server")
 	dynamicSourceConfigs, err := config.SourceConfigsFromDynamicSources(gceConfig, []flags.Uri(dynamicSources))
 	if err != nil {
@@ -129,19 +130,18 @@ func getSourceConfigs(gceConfig *config.GceConfig) []config.SourceConfig {
 	return append(staticSourceConfigs, dynamicSourceConfigs...)
 }
 
-func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *config.GceConfig, sourceConfig config.SourceConfig) {
+func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *config.GceConfig, sourceConfig *config.SourceConfig) {
 	glog.Infof("Running prometheus-to-sd, monitored target is %s %v:%v", sourceConfig.Component, sourceConfig.Host, sourceConfig.Port)
 	commonConfig := &config.CommonConfig{
 		GceConfig:           gceConf,
-		PodConfig:           sourceConfig.PodConfig,
-		ComponentName:       sourceConfig.Component,
+		SourceConfig:        sourceConfig,
 		OmitComponentName:   *omitComponentName,
 		DowncaseMetricNames: *downcaseMetricNames,
 	}
-	metricDescriptorCache := translator.NewMetricDescriptorCache(stackdriverService, commonConfig, sourceConfig.Component)
+	metricDescriptorCache := translator.NewMetricDescriptorCache(stackdriverService, commonConfig)
 	signal := time.After(0)
 	useWhitelistedMetricsAutodiscovery := *autoWhitelistMetrics && len(sourceConfig.Whitelisted) == 0
-	timeSeriesBuilder := translator.NewTimeSeriesBuilder(commonConfig, &sourceConfig, metricDescriptorCache)
+	timeSeriesBuilder := translator.NewTimeSeriesBuilder(commonConfig, metricDescriptorCache)
 	exportTicker := time.Tick(*exportInterval)
 
 	for range time.Tick(*scrapeInterval) {
@@ -168,7 +168,7 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 			metricDescriptorCache.Refresh()
 			if useWhitelistedMetricsAutodiscovery {
 				sourceConfig.UpdateWhitelistedMetrics(metricDescriptorCache.GetMetricNames())
-				glog.V(2).Infof("Autodiscovered whitelisted metrics for component %v: %v", commonConfig.ComponentName, sourceConfig.Whitelisted)
+				glog.V(2).Infof("Autodiscovered whitelisted metrics for component %v: %v", sourceConfig.Component, sourceConfig.Whitelisted)
 			}
 			signal = time.After(*metricDescriptorsResolution)
 		default:
@@ -177,7 +177,7 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 			glog.V(4).Infof("Skipping %v component as there are no metric to expose.", sourceConfig.Component)
 			continue
 		}
-		metrics, err := translator.GetPrometheusMetrics(&sourceConfig)
+		metrics, err := translator.GetPrometheusMetrics(sourceConfig)
 		if err != nil {
 			glog.V(2).Infof("Error while getting Prometheus metrics %v for component %v", err, sourceConfig.Component)
 			continue
