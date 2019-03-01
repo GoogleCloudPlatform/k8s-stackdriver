@@ -444,7 +444,6 @@ process_start_time_seconds 1234567890
 # TYPE int_summary_metric summary
 int_summary_metric{quantile="0.5"} 4
 int_summary_metric{quantile="0.9"} 8
-int_summary_metric{quantile="0.99"} 8
 int_summary_metric_sum 42
 int_summary_metric_count 101010
 `}
@@ -453,8 +452,6 @@ int_summary_metric_count 101010
 process_start_time_seconds 1234567890
 # TYPE float_summary_metric summary
 float_summary_metric{quantile="0.5"} 4.12
-float_summary_metric{quantile="0.9"} 8.123
-float_summary_metric{quantile="0.99"} 8.123
 float_summary_metric_sum 0.42
 float_summary_metric_count 50
 `}
@@ -464,10 +461,6 @@ process_start_time_seconds 1234567890
 # TYPE int_summary_metric summary
 int_summary_metric{quantile="0.5",label="l1"} 1
 int_summary_metric{quantile="0.5",label="l2"} 2
-int_summary_metric{quantile="0.9",label="l1"} 3
-int_summary_metric{quantile="0.9",label="l2"} 4
-int_summary_metric{quantile="0.99",label="l1"} 5
-int_summary_metric{quantile="0.99",label="l2"} 6
 int_summary_metric_sum{label="l1"} 7
 int_summary_metric_sum{label="l2"} 8
 int_summary_metric_count{label="l1"} 9
@@ -510,6 +503,26 @@ int_summary_metric_count{label="l2"} 10
 						createIntPoint(101010, start, end),
 					},
 				},
+				{
+					Metric: &v3.Metric{
+						Labels:  map[string]string{"quantile": "0.500000",},
+						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric",
+					},
+					MetricKind: "GAUGE",
+					Points: []*v3.Point{
+						createIntPointGauge(4, end),
+					},
+				},
+				{
+					Metric: &v3.Metric{
+						Labels:  map[string]string{"quantile": "0.900000",},
+						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric",
+					},
+					MetricKind: "GAUGE",
+					Points: []*v3.Point{
+						createIntPointGauge(8, end),
+					},
+				},
 			},
 		},
 		{
@@ -535,6 +548,17 @@ int_summary_metric_count{label="l2"} 10
 					MetricKind: "CUMULATIVE",
 					Points: []*v3.Point{
 						createIntPoint(50, start, end),
+					},
+				},
+				{
+					Metric: &v3.Metric{
+						Labels:  map[string]string{"quantile": "0.500000",},
+						Type:   "container.googleapis.com/master/testcomponent/float_summary_metric",
+					},
+					MetricKind: "GAUGE",
+					Points: []*v3.Point{
+						// Like all gauges the translater assumes it is an integer, unfortunately :(
+						createIntPointGauge(4, end),
 					},
 				},
 			},
@@ -584,6 +608,26 @@ int_summary_metric_count{label="l2"} 10
 						createIntPoint(10, start, end),
 					},
 				},
+				{
+					Metric: &v3.Metric{
+						Labels: map[string]string{"label": "l1","quantile": "0.500000",},
+						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric",
+					},
+					MetricKind: "GAUGE",
+					Points: []*v3.Point{
+						createIntPointGauge(1, end),
+					},
+				},
+				{
+					Metric: &v3.Metric{
+						Labels: map[string]string{"label": "l2","quantile": "0.500000",},
+						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric",
+					},
+					MetricKind: "GAUGE",
+					Points: []*v3.Point{
+						createIntPointGauge(2, end),
+					},
+				},
 			},
 		},
 	}
@@ -591,8 +635,7 @@ int_summary_metric_count{label="l2"} 10
 	for _, tt := range sts {
 		t.Run(tt.description, func(t *testing.T) {
 			cache := buildCacheForTesting()
-
-			tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{tt.summaryMetricName + "_sum", tt.summaryMetricName + "_count"}), cache)
+			tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{tt.summaryMetricName + "_sum", tt.summaryMetricName + "_count", tt.summaryMetricName}), cache)
 			tsb.Update(tt.prometheusResponse, end)
 			tss, err := tsb.Build()
 			sort.Sort(ByMetricTypeReversed(tss))
@@ -607,12 +650,27 @@ int_summary_metric_count{label="l2"} 10
 				expectedTs := tt.expectedTimeSeries[i]
 				if expectedTs.MetricKind != ts.MetricKind {
 					t.Errorf("Got %v, expecting %v", ts.MetricKind, expectedTs.MetricKind)
+					continue
 				}
 				if !reflect.DeepEqual(expectedTs.Metric, ts.Metric) {
-					t.Errorf("Got %v, wanted %v as our metric", ts.Metric, expectedTs.Metric)
+					t.Errorf("Got %+v, wanted %v as our metric", ts.Metric, expectedTs.Metric)
+					continue
 				}
-				if !reflect.DeepEqual(ts.Points, expectedTs.Points) {
-					t.Errorf("Got %v, wanted %v as our points", ts.Points, expectedTs.Points)
+				if len(ts.Points) != 1 || 1 != len(expectedTs.Points) {
+					t.Errorf("Got %v, wanted %v as our points' lengths", len(ts.Points), len(expectedTs.Points))
+					continue
+				}
+				if !reflect.DeepEqual(ts.Points[0].Value, expectedTs.Points[0].Value) {
+					t.Errorf("Got %+v, wanted %+v as our points' values", ts.Points[0].Value, expectedTs.Points[0].Value)
+					continue
+				}
+				if !reflect.DeepEqual(ts.Points[0].Interval, expectedTs.Points[0].Interval) {
+					t.Errorf("Got %+v, wanted %+v as our points' intervals", ts.Points[0].Interval, expectedTs.Points[0].Interval)
+					continue
+				}
+				if !reflect.DeepEqual(ts.Points[0].ForceSendFields, expectedTs.Points[0].ForceSendFields) {
+					t.Errorf("Got %+v, wanted %+v as our points' force send fields", ts.Points[0].ForceSendFields, expectedTs.Points[0].ForceSendFields)
+					continue
 				}
 			}
 		})
@@ -642,6 +700,16 @@ func createDoubleValue(double float64) *v3.TypedValue {
 	}
 }
 
+func createPointGauge(value *v3.TypedValue, valueTypeString string, end time.Time) *v3.Point {
+	return &v3.Point{
+		Interval:        &v3.TimeInterval{
+			EndTime:   end.UTC().Format(time.RFC3339),
+		},
+		Value:           value,
+		ForceSendFields: []string{valueTypeString},
+	}
+}
+
 func createPoint(value *v3.TypedValue, valueTypeString string, start time.Time, end time.Time) *v3.Point {
 	return &v3.Point{
 		Interval:        createInterval(start, end),
@@ -650,8 +718,16 @@ func createPoint(value *v3.TypedValue, valueTypeString string, start time.Time, 
 	}
 }
 
+func createIntPointGauge(num int, end time.Time) *v3.Point {
+	return createPointGauge(createIntValue(num), "Int64Value", end)
+}
+
 func createIntPoint(num int, start time.Time, end time.Time) *v3.Point {
 	return createPoint(createIntValue(num), "Int64Value", start, end)
+}
+
+func createDoublePointGauge(d float64, end time.Time) *v3.Point {
+	return createPointGauge(createDoubleValue(d), "DoubleValue", end)
 }
 
 func createDoublePoint(d float64, start time.Time, end time.Time) *v3.Point {

@@ -120,9 +120,7 @@ func DowncaseMetricNames(metricFamilies map[string]*dto.MetricFamily) map[string
 	return result
 }
 
-// FlattenSummaryMetricFamilies flattens summary metric families into two counter metrics,
-// one for the running sum and count, respectively
-func FlattenSummaryMetricFamilies(metricFamilies map[string]*dto.MetricFamily) map[string]*dto.MetricFamily {
+func SummaryMetricFamilies(metricFamilies map[string]*dto.MetricFamily) map[string]*dto.MetricFamily {
 	result := make(map[string]*dto.MetricFamily)
 	for metricName, family := range metricFamilies {
 		switch family.GetType() {
@@ -133,6 +131,7 @@ func FlattenSummaryMetricFamilies(metricFamilies map[string]*dto.MetricFamily) m
 			}
 			result[metricName+"_sum"] = sumMetricFromSummary(family.GetName(), family.Metric)
 			result[metricName+"_count"] = countMetricFromSummary(family.GetName(), family.Metric)
+			result[metricName] = quantilesFromSummary(family.GetName(), family.Metric)
 		default:
 			result[metricName] = family
 		}
@@ -140,6 +139,40 @@ func FlattenSummaryMetricFamilies(metricFamilies map[string]*dto.MetricFamily) m
 	return result
 }
 
+func stringPointer(val string) *string {
+	ptr := val
+	return &ptr
+}
+
+func quantilesFromSummary(name string, metrics []*dto.Metric) *dto.MetricFamily {
+	n := name
+	t := dto.MetricType_GAUGE
+	newMetrics := make([]*dto.Metric, 0, len(metrics))
+	for _, m := range metrics {
+		for _, quintile := range m.Summary.Quantile {
+			newLabelPair := dto.LabelPair{
+				Name: stringPointer("quantile"),
+				Value: stringPointer(fmt.Sprintf("%f", *quintile.Quantile)),
+			}
+			labelsCopy := append(m.Label, &newLabelPair)
+			newMetric := &dto.Metric{
+				Label: labelsCopy,
+				Gauge: &dto.Gauge{
+					Value: quintile.Value,
+				},
+			}
+			newMetrics = append(newMetrics, newMetric)
+		}
+	}
+	return &dto.MetricFamily{
+		Type:   &t,
+		Name:   &n,
+		Metric: newMetrics,
+	}
+}
+
+
+// this is a single metric passed in with lots of quantiles
 // sumMetricFromSummary manipulates a Summary to extract out a specific sum MetricType_COUNTER metric
 func sumMetricFromSummary(name string, metrics []*dto.Metric) *dto.MetricFamily {
 	n := name + "_sum"
