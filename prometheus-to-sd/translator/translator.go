@@ -153,7 +153,7 @@ func quantilesFromSummary(name string, metrics []*dto.Metric) *dto.MetricFamily 
 	for _, m := range metrics {
 		for _, quintile := range m.Summary.Quantile {
 			newLabelPair := dto.LabelPair{
-				Name: stringPointer("quantile"),
+				Name:  stringPointer("quantile"),
 				Value: stringPointer(fmt.Sprintf("%f", *quintile.Quantile)),
 			}
 			labelsCopy := append(m.Label, &newLabelPair)
@@ -172,7 +172,6 @@ func quantilesFromSummary(name string, metrics []*dto.Metric) *dto.MetricFamily 
 		Metric: newMetrics,
 	}
 }
-
 
 // this is a single metric passed in with lots of quantiles
 // sumMetricFromSummary manipulates a Summary to extract out a specific sum MetricType_COUNTER metric
@@ -374,8 +373,8 @@ func convertToDistributionValue(h *dto.Histogram) *v3.Distribution {
 	}
 
 	return &v3.Distribution{
-		Count: count,
-		Mean:  mean,
+		Count:                 count,
+		Mean:                  mean,
 		SumOfSquaredDeviation: dev,
 		BucketOptions: &v3.BucketOptions{
 			ExplicitBuckets: &v3.Explicit{
@@ -426,7 +425,7 @@ func extractValueType(mType dto.MetricType, originalDescriptor *v3.MetricDescrip
 	if mType == dto.MetricType_HISTOGRAM {
 		return "DISTRIBUTION"
 	}
-	return "DOUBLE"
+	return "INT64"
 }
 
 func extractAllLabels(family *dto.MetricFamily, originalDescriptor *v3.MetricDescriptor) []*v3.LabelDescriptor {

@@ -505,7 +505,7 @@ int_summary_metric_count{label="l2"} 10
 				},
 				{
 					Metric: &v3.Metric{
-						Labels:  map[string]string{"quantile": "0.500000",},
+						Labels: map[string]string{"quantile": "0.500000"},
 						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric",
 					},
 					MetricKind: "GAUGE",
@@ -515,7 +515,7 @@ int_summary_metric_count{label="l2"} 10
 				},
 				{
 					Metric: &v3.Metric{
-						Labels:  map[string]string{"quantile": "0.900000",},
+						Labels: map[string]string{"quantile": "0.900000"},
 						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric",
 					},
 					MetricKind: "GAUGE",
@@ -552,7 +552,7 @@ int_summary_metric_count{label="l2"} 10
 				},
 				{
 					Metric: &v3.Metric{
-						Labels:  map[string]string{"quantile": "0.500000",},
+						Labels: map[string]string{"quantile": "0.500000"},
 						Type:   "container.googleapis.com/master/testcomponent/float_summary_metric",
 					},
 					MetricKind: "GAUGE",
@@ -610,7 +610,7 @@ int_summary_metric_count{label="l2"} 10
 				},
 				{
 					Metric: &v3.Metric{
-						Labels: map[string]string{"label": "l1","quantile": "0.500000",},
+						Labels: map[string]string{"label": "l1", "quantile": "0.500000"},
 						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric",
 					},
 					MetricKind: "GAUGE",
@@ -620,7 +620,7 @@ int_summary_metric_count{label="l2"} 10
 				},
 				{
 					Metric: &v3.Metric{
-						Labels: map[string]string{"label": "l2","quantile": "0.500000",},
+						Labels: map[string]string{"label": "l2", "quantile": "0.500000"},
 						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric",
 					},
 					MetricKind: "GAUGE",
@@ -702,8 +702,8 @@ func createDoubleValue(double float64) *v3.TypedValue {
 
 func createPointGauge(value *v3.TypedValue, valueTypeString string, end time.Time) *v3.Point {
 	return &v3.Point{
-		Interval:        &v3.TimeInterval{
-			EndTime:   end.UTC().Format(time.RFC3339),
+		Interval: &v3.TimeInterval{
+			EndTime: end.UTC().Format(time.RFC3339),
 		},
 		Value:           value,
 		ForceSendFields: []string{valueTypeString},
