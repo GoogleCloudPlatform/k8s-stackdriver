@@ -120,6 +120,8 @@ func DowncaseMetricNames(metricFamilies map[string]*dto.MetricFamily) map[string
 	return result
 }
 
+// SummaryMetricFamilies exports summary metric families into two counter metrics,
+// one for the running sum and count, and a gauge metric labelled with different quantiles.
 func SummaryMetricFamilies(metricFamilies map[string]*dto.MetricFamily) map[string]*dto.MetricFamily {
 	result := make(map[string]*dto.MetricFamily)
 	for metricName, family := range metricFamilies {
@@ -424,7 +426,7 @@ func extractValueType(mType dto.MetricType, originalDescriptor *v3.MetricDescrip
 	if mType == dto.MetricType_HISTOGRAM {
 		return "DISTRIBUTION"
 	}
-	return "INT64"
+	return "DOUBLE"
 }
 
 func extractAllLabels(family *dto.MetricFamily, originalDescriptor *v3.MetricDescriptor) []*v3.LabelDescriptor {
