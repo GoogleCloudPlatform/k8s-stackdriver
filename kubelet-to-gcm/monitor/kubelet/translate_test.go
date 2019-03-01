@@ -203,6 +203,14 @@ func TestTranslator(t *testing.T) {
 func TestTranslateContainers(t *testing.T) {
 	aliceContainer := *getContainerStats(false)
 	bobContainer := *getContainerStats(false)
+	noMemStatsContainer := *getContainerStats(false)
+	noMemStatsContainer.Memory = nil
+	noCPUStatsContainer := *getContainerStats(false)
+	noCPUStatsContainer.CPU = nil
+	noLogStatsContainer := *getContainerStats(false)
+	noLogStatsContainer.Logs = nil
+	noRootfsStatsContainer := *getContainerStats(false)
+	noRootfsStatsContainer.Rootfs = nil
 	tsPerContainer := 11
 	testCases := []struct {
 		name            string
@@ -263,6 +271,19 @@ func TestTranslateContainers(t *testing.T) {
 			pods: []stats.PodStats{
 				getPodStats(aliceContainer),
 				getPodStats(aliceContainer),
+			},
+		},
+		{
+			name:            "single pod with empty stats container",
+			ExpectedTSCount: tsPerContainer * 1,
+			pods: []stats.PodStats{
+				getPodStats(
+					aliceContainer,
+					noMemStatsContainer,
+					noCPUStatsContainer,
+					noLogStatsContainer,
+					noRootfsStatsContainer,
+				),
 			},
 		},
 	}
