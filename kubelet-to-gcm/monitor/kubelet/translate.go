@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/golang/glog"
 	v3 "google.golang.org/api/monitoring/v3"
 	"k8s.io/kubernetes/pkg/kubelet/api/v1alpha1/stats"
 
@@ -217,27 +218,35 @@ func (t *Translator) translateContainers(pods []stats.PodStats) ([]*v3.TimeSerie
 			// Memory stats.
 			memTS, err := translateMemory(container.Memory, tsFactory, container.StartTime.Time)
 			if err != nil {
-				return nil, err
+				glog.Warningf("Failed to translate memory stats for container %q in pod %q(%q): %v",
+					containerName, podID, namespace, err)
+				continue
 			}
 			containerSeries = append(containerSeries, memTS...)
 
 			// File-system stats.
 			rootfsTS, err := translateFS("/", container.Rootfs, tsFactory, container.StartTime.Time)
 			if err != nil {
-				return nil, err
+				glog.Warningf("Failed to translate rootfs stats for container %q in pod %q(%q): %v",
+					containerName, podID, namespace, err)
+				continue
 			}
 			containerSeries = append(containerSeries, rootfsTS...)
 
 			logfsTS, err := translateFS("logs", container.Logs, tsFactory, container.StartTime.Time)
 			if err != nil {
-				return nil, err
+				glog.Warningf("Failed to translate log stats for container %q in pod %q(%q): %v",
+					containerName, podID, namespace, err)
+				continue
 			}
 			containerSeries = append(containerSeries, logfsTS...)
 
 			// CPU stats.
 			cpuTS, err := translateCPU(container.CPU, tsFactory, container.StartTime.Time)
 			if err != nil {
-				return nil, err
+				glog.Warningf("Failed to translate cpu stats for container %q in pod %q(%q): %v",
+					containerName, podID, namespace, err)
+				continue
 			}
 			containerSeries = append(containerSeries, cpuTS...)
 
