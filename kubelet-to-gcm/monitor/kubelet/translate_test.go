@@ -64,10 +64,6 @@ const (
                     "usageCoreNanoSeconds": 10000000000,
                     "usageNanoCores": 1000000000
                 },
-                "logs": {
-                    "availableBytes": 5000,
-                    "capacityBytes": 10000
-                },
                 "memory": {
                     "majorPageFaults": 5,
                     "pageFaults": 10,
@@ -77,11 +73,7 @@ const (
                     "workingSetBytes": 2700
                 },
                 "name": "misc",
-                "rootfs": {
-                    "availableBytes": 6000,
-                    "capacityBytes": 10000
-                },
-                "startTime": "2016-06-08T00:26:41Z",
+		"startTime": "2016-06-08T00:26:41Z",
                 "userDefinedMetrics": null
             }
         ]
@@ -178,7 +170,7 @@ func TestTranslator(t *testing.T) {
 			InstanceID:      "this-instance",
 			Resolution:      time.Second * time.Duration(10),
 			Summary:         summaryJSON,
-			ExpectedTSCount: 28,
+			ExpectedTSCount: 34,
 		},
 	}
 
