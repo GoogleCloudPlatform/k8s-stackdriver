@@ -169,6 +169,21 @@ func (t *Translator) translateNode(node stats.NodeStats) ([]*v3.TimeSeries, erro
 	}
 	timeSeries = append(timeSeries, cpuTS...)
 
+	// System containers
+	for _, container := range node.SystemContainers {
+		// For system containers:
+		// * There won't be duplication;
+		// * There aren't pod id and namespace;
+		// * There is no fs stats.
+		// Pod ID and namespace for system containers are empty.
+		containerSeries, err := t.translateContainer("", "", container, false /* requireFsStats */)
+		if err != nil {
+			glog.Warningf("Failed to translate system container stats for %q: %v", container.Name, err)
+			continue
+		}
+		timeSeries = append(timeSeries, containerSeries...)
+	}
+
 	return timeSeries, nil
 }
 
@@ -188,68 +203,13 @@ func (t *Translator) translateContainers(pods []stats.PodStats) ([]*v3.TimeSerie
 				continue
 			}
 			metricsSeen[containerName] = container.StartTime.Time
-			var containerSeries []*v3.TimeSeries
 
-			monitoredLabels := map[string]string{
-				"project_id":     t.project,
-				"cluster_name":   t.cluster,
-				"zone":           t.zone,
-				"instance_id":    t.instanceID,
-				"namespace_id":   namespace,
-				"pod_id":         podID,
-				"container_name": containerName,
-			}
-			tsFactory := newTimeSeriesFactory(monitoredLabels, t.resolution)
-
-			// Uptime. This is embedded: there's no nil check.
-			now := time.Now()
-			uptimePoint := &v3.Point{
-				Interval: &v3.TimeInterval{
-					EndTime:   now.Format(time.RFC3339),
-					StartTime: container.StartTime.Time.Format(time.RFC3339),
-				},
-				Value: &v3.TypedValue{
-					DoubleValue:     monitor.Float64Ptr(float64(time.Since(container.StartTime.Time).Seconds())),
-					ForceSendFields: []string{"DoubleValue"},
-				},
-			}
-			containerSeries = append(containerSeries, tsFactory.newTimeSeries(noLabels, uptimeMD, uptimePoint))
-
-			// Memory stats.
-			memTS, err := translateMemory(container.Memory, tsFactory, container.StartTime.Time)
+			containerSeries, err := t.translateContainer(podID, namespace, container, true /* requireFsStats */)
 			if err != nil {
-				glog.Warningf("Failed to translate memory stats for container %q in pod %q(%q): %v",
+				glog.Warningf("Failed to translate container stats for container %q in pod %q(%q): %v",
 					containerName, podID, namespace, err)
 				continue
 			}
-			containerSeries = append(containerSeries, memTS...)
-
-			// File-system stats.
-			rootfsTS, err := translateFS("/", container.Rootfs, tsFactory, container.StartTime.Time)
-			if err != nil {
-				glog.Warningf("Failed to translate rootfs stats for container %q in pod %q(%q): %v",
-					containerName, podID, namespace, err)
-				continue
-			}
-			containerSeries = append(containerSeries, rootfsTS...)
-
-			logfsTS, err := translateFS("logs", container.Logs, tsFactory, container.StartTime.Time)
-			if err != nil {
-				glog.Warningf("Failed to translate log stats for container %q in pod %q(%q): %v",
-					containerName, podID, namespace, err)
-				continue
-			}
-			containerSeries = append(containerSeries, logfsTS...)
-
-			// CPU stats.
-			cpuTS, err := translateCPU(container.CPU, tsFactory, container.StartTime.Time)
-			if err != nil {
-				glog.Warningf("Failed to translate cpu stats for container %q in pod %q(%q): %v",
-					containerName, podID, namespace, err)
-				continue
-			}
-			containerSeries = append(containerSeries, cpuTS...)
-
 			metrics[containerName] = containerSeries
 		}
 
@@ -259,6 +219,73 @@ func (t *Translator) translateContainers(pods []stats.PodStats) ([]*v3.TimeSerie
 		}
 	}
 	return timeSeries, nil
+}
+
+func (t *Translator) translateContainer(podID, namespace string, container stats.ContainerStats, requireFsStats bool) ([]*v3.TimeSeries, error) {
+	var (
+		containerSeries []*v3.TimeSeries
+		containerName   = container.Name
+	)
+
+	monitoredLabels := map[string]string{
+		"project_id":     t.project,
+		"cluster_name":   t.cluster,
+		"zone":           t.zone,
+		"instance_id":    t.instanceID,
+		"namespace_id":   namespace,
+		"pod_id":         podID,
+		"container_name": containerName,
+	}
+	tsFactory := newTimeSeriesFactory(monitoredLabels, t.resolution)
+
+	// Uptime. This is embedded: there's no nil check.
+	now := time.Now()
+	uptimePoint := &v3.Point{
+		Interval: &v3.TimeInterval{
+			EndTime:   now.Format(time.RFC3339),
+			StartTime: container.StartTime.Time.Format(time.RFC3339),
+		},
+		Value: &v3.TypedValue{
+			DoubleValue:     monitor.Float64Ptr(float64(time.Since(container.StartTime.Time).Seconds())),
+			ForceSendFields: []string{"DoubleValue"},
+		},
+	}
+	containerSeries = append(containerSeries, tsFactory.newTimeSeries(noLabels, uptimeMD, uptimePoint))
+
+	// Memory stats.
+	memTS, err := translateMemory(container.Memory, tsFactory, container.StartTime.Time)
+	if err != nil {
+		return nil, fmt.Errorf("failed to translate memory stats: %v", err)
+	}
+	containerSeries = append(containerSeries, memTS...)
+
+	// File-system stats.
+	rootfsTS, err := translateFS("/", container.Rootfs, tsFactory, container.StartTime.Time)
+	if err != nil {
+		if requireFsStats {
+			return nil, fmt.Errorf("failed to translate rootfs stats: %v", err)
+		}
+	} else {
+		containerSeries = append(containerSeries, rootfsTS...)
+	}
+
+	logfsTS, err := translateFS("logs", container.Logs, tsFactory, container.StartTime.Time)
+	if err != nil {
+		if requireFsStats {
+			return nil, fmt.Errorf("failed to translate log stats: %v", err)
+		}
+	} else {
+		containerSeries = append(containerSeries, logfsTS...)
+	}
+
+	// CPU stats.
+	cpuTS, err := translateCPU(container.CPU, tsFactory, container.StartTime.Time)
+	if err != nil {
+		return nil, fmt.Errorf("failed to translate cpu stats: %v", err)
+	}
+	containerSeries = append(containerSeries, cpuTS...)
+
+	return containerSeries, nil
 }
 
 // translateCPU creates all the TimeSeries for a give CPUStat.
