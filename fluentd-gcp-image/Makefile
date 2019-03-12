@@ -18,7 +18,7 @@
 .PHONY:	build push
 
 PREFIX=staging-k8s.gcr.io
-TAG = 2.0.18
+TAG = 2.0.19
 
 build:
 	docker build --pull -t $(PREFIX)/fluentd-gcp:$(TAG) .
