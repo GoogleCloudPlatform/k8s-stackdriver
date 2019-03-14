@@ -19,6 +19,7 @@
 
 PREFIX=staging-k8s.gcr.io
 TAG = 2.0.19
+BUILD_DEPS="make gcc g++ libc6-dev ruby-dev libffi-dev"
 
 build:
 	docker build --pull -t $(PREFIX)/fluentd-gcp:$(TAG) .
@@ -26,3 +27,9 @@ build:
 
 push:
 	gcloud docker -- push $(PREFIX)/fluentd-gcp:$(TAG)
+
+
+update-dependencies: build
+	docker run -it --name fluentd-gcp-refreeze $(PREFIX)/fluentd-gcp:$(TAG) /bin/sh -c 'clean-install "$(BUILD_DEPS)" && rm /Gemfile.lock && gem install --file Gemfile'
+	docker cp fluentd-gcp-refreeze:/Gemfile.lock .
+	docker rm fluentd-gcp-refreeze
