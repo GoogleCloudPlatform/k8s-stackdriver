@@ -22,7 +22,7 @@
 
 FROM gcr.io/google-containers/debian-base-amd64:0.4.1
 
-COPY Gemfile /Gemfile
+COPY Gemfile* /
 
 # 1. Install & configure dependencies.
 # 2. Install fluentd via ruby.
@@ -30,6 +30,7 @@ COPY Gemfile /Gemfile
 # 4. Cleanup leftover caches & files.
 RUN BUILD_DEPS="make gcc g++ libc6-dev ruby-dev libffi-dev" \
     && clean-install $BUILD_DEPS \
+                     libsystemd-dev \
                      ca-certificates \
                      libjemalloc1 \
                      liblz4-1 \
