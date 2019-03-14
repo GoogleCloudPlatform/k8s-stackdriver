@@ -30,6 +30,7 @@ COPY Gemfile* /
 # 4. Cleanup leftover caches & files.
 RUN BUILD_DEPS="make gcc g++ libc6-dev ruby-dev libffi-dev" \
     && clean-install $BUILD_DEPS \
+                     libsystemd-dev \
                      ca-certificates \
                      libjemalloc1 \
                      liblz4-1 \
