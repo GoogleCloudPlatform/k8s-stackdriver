@@ -28,3 +28,12 @@ variable `FLUENTD_ARGS`.
 [stackdriverLogging]: https://cloud.google.com/logging
 [image]: https://gcr.io/google-containers/fluentd-gcp
 [fluentdDocs]: http://docs.fluentd.org/articles/config-file
+
+# Development guide
+
+Current dependencies are frozen to allow for better control and stability of images build. Exact
+gem versions are stored within `Gemfile.lock`. To add new / change dependencies edit `Gemfile` file
+and update dependencies by running:
+```bash
+make update-dependencies
+```
