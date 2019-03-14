@@ -22,7 +22,7 @@
 
 FROM gcr.io/google-containers/debian-base-amd64:0.4.1
 
-COPY Gemfile /Gemfile
+COPY Gemfile* /
 
 # 1. Install & configure dependencies.
 # 2. Install fluentd via ruby.
