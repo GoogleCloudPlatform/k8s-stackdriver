@@ -17,7 +17,12 @@ WORKDIR ${GOPATH}/src/github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-
 COPY . ./
 RUN CGO_ENABLED=0 GOOS=linux go build -o /monitor
 
+RUN apk update \
+    && apk add --no-cache govendor \
+    && govendor license +vendor > /NOTICES
+
 FROM gcr.io/distroless/static
 # nobody:nobody
 USER 65534:65534
 COPY --from=builder /monitor /
+COPY --from=builder /NOTICES /
