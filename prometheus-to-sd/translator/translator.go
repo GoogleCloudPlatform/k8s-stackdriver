@@ -81,7 +81,7 @@ func (t *TimeSeriesBuilder) Build() ([]*v3.TimeSeries, error) {
 	}
 	// Get start time before whitelisting, because process start time
 	// metric is likely not to be whitelisted.
-	startTime := getStartTime(metricFamilies)
+	startTime := t.getStartTime(metricFamilies)
 	metricFamilies = filterWhitelisted(metricFamilies, t.config.SourceConfig.Whitelisted)
 
 	for name, metric := range metricFamilies {
@@ -185,7 +185,7 @@ func countMetricFromSummary(name string, metrics []*dto.Metric) *dto.MetricFamil
 	}
 }
 
-func getStartTime(metrics map[string]*dto.MetricFamily) time.Time {
+func (t *TimeSeriesBuilder) getStartTime(metrics map[string]*dto.MetricFamily) time.Time {
 	// For cumulative metrics we need to know process start time.
 	// If the process start time is not specified, assuming it's
 	// the unix 1 second, because Stackdriver can't handle
@@ -196,7 +196,7 @@ func getStartTime(metrics map[string]*dto.MetricFamily) time.Time {
 		startTime = time.Unix(int64(*startSec), 0)
 		glog.V(4).Infof("Monitored process start time: %v", startTime)
 	} else {
-		glog.Warningf("Metric %s invalid or not defined. Using %v instead. Cumulative metrics might be inaccurate.", processStartTimeMetric, startTime)
+		glog.Warningf("Metric %s invalid or not defined for component %s. Using %v instead. Cumulative metrics might be inaccurate.", processStartTimeMetric, t.config.SourceConfig.Component, startTime)
 	}
 	return startTime
 }
