@@ -17,5 +17,5 @@ WORKDIR ${GOPATH}/src/github.com/GoogleCloudPlatform/k8s-stackdriver/event-expor
 COPY . ./
 RUN CGO_ENABLED=0 GOOS=linux go build -o /event-exporter
 
-FROM gcr.io/distroless/static
+FROM gcr.io/distroless/static:latest
 COPY --from=builder event-exporter /
