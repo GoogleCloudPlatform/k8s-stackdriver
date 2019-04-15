@@ -15,7 +15,7 @@
 # This Dockerfile will build an image of a manual fluent-gcp scaler, allowing
 # customers to override our resource request/limit defaults.
 
-FROM gcr.io/google-containers/debian-base-amd64:0.4.1
+FROM gcr.io/google-containers/debian-base-amd64:1.0.0
 
 # Download latest stable version of kubectl
 RUN \
