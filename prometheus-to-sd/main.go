@@ -68,7 +68,7 @@ var (
 
 func main() {
 	flag.Set("logtostderr", "true")
-	flag.Var(&source, "source", "source(s) to watch in [component-name]:http://host:port/path?whitelisted=a,b,c&podIdLabel=d&namespaceIdLabel=e&containerNameLabel=f&metricsPrefix=prefix format")
+	flag.Var(&source, "source", "source(s) to watch in [component-name]:http://host:port/path?whitelisted=a,b,c&podIdLabel=d&namespaceIdLabel=e&containerNameLabel=f&metricsPrefix=prefix format. Can be specified multiple times")
 	flag.Var(&dynamicSources, "dynamic-source",
 		`dynamic source(s) to watch in format: "[component-name]:http://:port/path?whitelisted=metric1,metric2&podIdLabel=label1&namespaceIdLabel=label2&containerNameLabel=label3&metricsPrefix=prefix". Dynamic sources are components (on the same node) discovered dynamically using the kubernetes api.`,
 	)

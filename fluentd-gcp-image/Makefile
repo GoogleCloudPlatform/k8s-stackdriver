@@ -18,7 +18,9 @@
 .PHONY:	build push
 
 PREFIX=staging-k8s.gcr.io
+
 TAG = 3.0.0
+
 BUILD_DEPS="make gcc g++ libc6-dev ruby-dev libffi-dev"
 
 build:
