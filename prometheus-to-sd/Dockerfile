@@ -21,7 +21,7 @@ RUN apk update \
     && apk add --no-cache govendor \
     && govendor license +vendor > /NOTICES
 
-FROM gcr.io/distroless/static
+FROM gcr.io/distroless/static:latest
 # nobody:nobody
 USER 65534:65534
 COPY --from=builder /monitor /
