@@ -23,7 +23,7 @@ log() {
 apply_scaling() {
   # This is assuming there is a ScalingPolicy installed in the cluster.
   # See https://github.com/justinsb/scaler for more details.
-  if ! kubectl get scalingpolicies -n ${NAMESPACE} ${SCALING_POLICY} 2> /dev/null
+  if ! kubectl get scalingpolicies -n ${NAMESPACE} ${SCALING_POLICY} >/dev/null 2>&1
   then
     return
   fi
