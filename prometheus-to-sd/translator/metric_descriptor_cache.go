@@ -41,6 +41,7 @@ func NewMetricDescriptorCache(service *v3.Service, config *config.CommonConfig) 
 		broken:      make(map[string]bool),
 		service:     service,
 		config:      config,
+		component:   config.SourceConfig.Component,
 		fresh:       false,
 	}
 }

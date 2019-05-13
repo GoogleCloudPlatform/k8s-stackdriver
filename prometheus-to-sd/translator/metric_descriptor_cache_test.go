@@ -172,17 +172,13 @@ func TestValidateMetricDescriptors(t *testing.T) {
 
 	for _, tc := range testCases {
 		// Init cache
-		cache := &MetricDescriptorCache{
-			fresh:       true,
-			descriptors: make(map[string]*v3.MetricDescriptor),
-			broken:      make(map[string]bool),
-			config: &config.CommonConfig{
-				SourceConfig: &config.SourceConfig{
-					Component:     "test-component",
-					MetricsPrefix: "container.googleapis.com",
-				},
+		cache := NewMetricDescriptorCache(nil, &config.CommonConfig{
+			SourceConfig: &config.SourceConfig{
+				Component:     "test-component",
+				MetricsPrefix: "container.googleapis.com",
 			},
-		}
+		})
+		cache.fresh = true
 		var whitelisted []string
 		for _, descriptor := range tc.descriptors {
 			cache.descriptors[descriptor.Name] = descriptor
@@ -201,6 +197,7 @@ func TestValidateMetricDescriptors(t *testing.T) {
 				assert.True(t, ok, fmt.Sprintf("Metric was not found in the cache %s", metricName))
 				assert.Equal(t, res, tc.broken, fmt.Sprintf("Broken state of metric %s expected to be %v", metricName, tc.broken))
 			}
+			assert.Equal(t, cache.component, "test-component", fmt.Sprintf("Component name doesn't match. Want \"test-component\", got %s", cache.component))
 		}
 	}
 }
