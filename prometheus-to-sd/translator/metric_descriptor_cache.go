@@ -30,7 +30,6 @@ type MetricDescriptorCache struct {
 	broken      map[string]bool
 	service     *v3.Service
 	config      *config.CommonConfig
-	component   string
 	fresh       bool
 }
 
@@ -85,10 +84,10 @@ func (cache *MetricDescriptorCache) ValidateMetricDescriptors(metrics map[string
 		updatedMetricDescriptor := MetricFamilyToMetricDescriptor(cache.config, metricFamily, metricDescriptor)
 		if descriptorLabelSetChanged(metricDescriptor, updatedMetricDescriptor) {
 			cache.broken[metricFamily.GetName()] = true
-			metricFamilyDropped.WithLabelValues(cache.component, metricFamily.GetName()).Set(1.0)
+			metricFamilyDropped.WithLabelValues(cache.config.SourceConfig.Component, metricFamily.GetName()).Set(1.0)
 			glog.Warningf("Definition of the metric %s was changed and metric is not going to be pushed", metricFamily.GetName())
 		} else {
-			metricFamilyDropped.WithLabelValues(cache.component, metricFamily.GetName()).Set(0.0)
+			metricFamilyDropped.WithLabelValues(cache.config.SourceConfig.Component, metricFamily.GetName()).Set(0.0)
 		}
 	}
 }
@@ -137,7 +136,7 @@ func (cache *MetricDescriptorCache) updateMetricDescriptorIfStale(metricFamily *
 func (cache *MetricDescriptorCache) getMetricDescriptor(metric string) *v3.MetricDescriptor {
 	value, ok := cache.descriptors[metric]
 	if !ok {
-		glog.V(4).Infof("Metric %s was not found in the cache for component %v", metric, cache.component)
+		glog.V(4).Infof("Metric %s was not found in the cache for component %v", metric, cache.config.SourceConfig.Component)
 	}
 	return value
 }

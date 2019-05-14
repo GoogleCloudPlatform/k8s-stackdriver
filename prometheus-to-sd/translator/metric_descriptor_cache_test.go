@@ -172,17 +172,13 @@ func TestValidateMetricDescriptors(t *testing.T) {
 
 	for _, tc := range testCases {
 		// Init cache
-		cache := &MetricDescriptorCache{
-			fresh:       true,
-			descriptors: make(map[string]*v3.MetricDescriptor),
-			broken:      make(map[string]bool),
-			config: &config.CommonConfig{
-				SourceConfig: &config.SourceConfig{
-					Component:     "test-component",
-					MetricsPrefix: "container.googleapis.com",
-				},
+		cache := NewMetricDescriptorCache(nil, &config.CommonConfig{
+			SourceConfig: &config.SourceConfig{
+				Component:     "test-component",
+				MetricsPrefix: "container.googleapis.com",
 			},
-		}
+		})
+		cache.fresh = true
 		var whitelisted []string
 		for _, descriptor := range tc.descriptors {
 			cache.descriptors[descriptor.Name] = descriptor
