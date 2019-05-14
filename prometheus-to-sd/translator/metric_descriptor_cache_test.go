@@ -197,7 +197,6 @@ func TestValidateMetricDescriptors(t *testing.T) {
 				assert.True(t, ok, fmt.Sprintf("Metric was not found in the cache %s", metricName))
 				assert.Equal(t, res, tc.broken, fmt.Sprintf("Broken state of metric %s expected to be %v", metricName, tc.broken))
 			}
-			assert.Equal(t, cache.component, "test-component", fmt.Sprintf("Component name doesn't match. Want \"test-component\", got %s", cache.component))
 		}
 	}
 }
