@@ -287,6 +287,8 @@ func setValue(mType dto.MetricType, valueType string, metric *dto.Metric, point 
 	} else if mType == dto.MetricType_HISTOGRAM {
 		point.Value.DistributionValue = convertToDistributionValue(metric.GetHistogram())
 		point.ForceSendFields = append(point.ForceSendFields, "DistributionValue")
+	} else if mType == dto.MetricType_UNTYPED {
+		setValueBaseOnSimpleType(metric.GetUntyped().GetValue(), valueType, point)
 	} else {
 		setValueBaseOnSimpleType(metric.GetCounter().GetValue(), valueType, point)
 	}
