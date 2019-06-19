@@ -65,6 +65,7 @@ var commonConfig = &config.CommonConfig{
 var metricTypeGauge = dto.MetricType_GAUGE
 var metricTypeCounter = dto.MetricType_COUNTER
 var metricTypeHistogram = dto.MetricType_HISTOGRAM
+var metricTypeUntyped = dto.MetricType_UNTYPED
 
 var testMetricName = "test_name"
 var booleanMetricName = "boolean_metric"
@@ -75,6 +76,7 @@ var testMetricHistogram = "test_histogram"
 var unrelatedMetric = "unrelated_metric"
 var testMetricDescription = "Description 1"
 var testMetricHistogramDescription = "Description 2"
+var untypedMetricName = "untyped_metric"
 
 var metricsResponse = &PrometheusResponse{rawResponse: `
 # TYPE test_name counter
@@ -96,6 +98,8 @@ test_histogram_bucket{le="5.0"} 4
 test_histogram_bucket{le="+Inf"} 5
 test_histogram_sum 13.0
 test_histogram_count 5
+# TYPE untyped_metric untyped
+untyped_metric 98.6
 `,
 }
 
@@ -207,6 +211,17 @@ var metrics = map[string]*dto.MetricFamily{
 			},
 		},
 	},
+	untypedMetricName: {
+		Name: &untypedMetricName,
+		Type: &metricTypeUntyped,
+		Metric: []*dto.Metric{
+			{
+				Untyped: &dto.Untyped{
+					Value: floatPtr(98.6),
+				},
+			},
+		},
+	},
 }
 
 var metricDescriptors = map[string]*v3.MetricDescriptor{
@@ -261,6 +276,11 @@ var metricDescriptors = map[string]*v3.MetricDescriptor{
 		Type:       "container.googleapis.com/master/testcomponent/int_summary_metric_sum",
 		MetricKind: "CUMULATIVE",
 		ValueType:  "INT64",
+	},
+	untypedMetricName: {
+		Type:       "container.googleapis.com/master/testcomponent/untyped_metric",
+		MetricKind: "GAUGE",
+		ValueType:  "DOUBLE",
 	},
 }
 
@@ -770,6 +790,8 @@ func buildCacheForTesting() *MetricDescriptorCache {
 	cache.descriptors[unrelatedMetric] = metricDescriptors[unrelatedMetric]
 	cache.descriptors[intSummaryMetricName+"_sum"] = metricDescriptors[intSummaryMetricName+"_sum"]
 	cache.descriptors[floatSummaryMetricName+"_sum"] = metricDescriptors[floatSummaryMetricName+"_sum"]
+	cache.descriptors[untypedMetricName] = metricDescriptors[untypedMetricName]
+
 	return cache
 }
 

@@ -38,6 +38,7 @@ var supportedMetricTypes = map[dto.MetricType]bool{
 	dto.MetricType_COUNTER:   true,
 	dto.MetricType_GAUGE:     true,
 	dto.MetricType_HISTOGRAM: true,
+	dto.MetricType_UNTYPED:   true,
 }
 
 const falseValueEpsilon = 0.001
@@ -286,6 +287,8 @@ func setValue(mType dto.MetricType, valueType string, metric *dto.Metric, point 
 	} else if mType == dto.MetricType_HISTOGRAM {
 		point.Value.DistributionValue = convertToDistributionValue(metric.GetHistogram())
 		point.ForceSendFields = append(point.ForceSendFields, "DistributionValue")
+	} else if mType == dto.MetricType_UNTYPED {
+		setValueBaseOnSimpleType(metric.GetUntyped().GetValue(), valueType, point)
 	} else {
 		setValueBaseOnSimpleType(metric.GetCounter().GetValue(), valueType, point)
 	}
@@ -390,6 +393,9 @@ func extractValueType(mType dto.MetricType, originalDescriptor *v3.MetricDescrip
 	}
 	if mType == dto.MetricType_HISTOGRAM {
 		return "DISTRIBUTION"
+	}
+	if mType == dto.MetricType_UNTYPED {
+		return "DOUBLE"
 	}
 	return "INT64"
 }
