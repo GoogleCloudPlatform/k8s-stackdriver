@@ -44,8 +44,12 @@ dep_projects=$(find "${CONTRIB_ROOT}" -wholename '*Gopkg.toml' -not -path "*/ven
 for dep_file in ${dep_projects}; do
   (
     project="${dep_file%Gopkg.toml}"
-    echo "go ${CMD}ing ${project}"
-    cd "${project}"
-    go "${CMD}" ./...
+
+    if [[ ( $TRAVIS_GO_VERSION =~ ^1\.9 && ! $project =~ 'custom-metrics-stackdriver-adapter' ) ||
+          ( $TRAVIS_GO_VERSION =~ ^1\.10 && $project =~ 'custom-metrics-stackdriver-adapter' ) ]]; then
+      echo "go ${CMD}ing ${project}"
+      cd "${project}"
+      go "${CMD}" ./...
+    fi
   )
 done;

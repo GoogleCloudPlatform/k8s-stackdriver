@@ -21,9 +21,6 @@ set -o pipefail
 KUBE_ROOT=$(dirname "${BASH_SOURCE}")/..
 GO_VERSION=($(go version))
 
-# golint only works for golang 1.5+
-if [[ -z $(echo "${GO_VERSION[2]}" | grep -E 'go1.1|go1.2|go1.3|go1.4') ]]; then
-  go get -u golang.org/x/lint/golint
-fi
+go get -u golang.org/x/lint/golint
 
 # ex: ts=2 sw=2 et filetype=sh
