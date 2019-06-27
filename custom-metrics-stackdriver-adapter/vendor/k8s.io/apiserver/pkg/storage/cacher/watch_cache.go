@@ -29,8 +29,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/storage"
-	utiltrace "k8s.io/apiserver/pkg/util/trace"
 	"k8s.io/client-go/tools/cache"
+	utiltrace "k8s.io/utils/trace"
 )
 
 const (
@@ -46,30 +46,27 @@ const (
 // the previous value of the object to enable proper filtering in the
 // upper layers.
 type watchCacheEvent struct {
-	Type                 watch.EventType
-	Object               runtime.Object
-	ObjLabels            labels.Set
-	ObjFields            fields.Set
-	ObjUninitialized     bool
-	PrevObject           runtime.Object
-	PrevObjLabels        labels.Set
-	PrevObjFields        fields.Set
-	PrevObjUninitialized bool
-	Key                  string
-	ResourceVersion      uint64
+	Type            watch.EventType
+	Object          runtime.Object
+	ObjLabels       labels.Set
+	ObjFields       fields.Set
+	PrevObject      runtime.Object
+	PrevObjLabels   labels.Set
+	PrevObjFields   fields.Set
+	Key             string
+	ResourceVersion uint64
 }
 
 // Computing a key of an object is generally non-trivial (it performs
 // e.g. validation underneath). Similarly computing object fields and
 // labels. To avoid computing them multiple times (to serve the event
 // in different List/Watch requests), in the underlying store we are
-// keeping structs (key, object, labels, fields, uninitialized).
+// keeping structs (key, object, labels, fields).
 type storeElement struct {
-	Key           string
-	Object        runtime.Object
-	Labels        labels.Set
-	Fields        fields.Set
-	Uninitialized bool
+	Key    string
+	Object runtime.Object
+	Labels labels.Set
+	Fields fields.Set
 }
 
 func storeElementKey(obj interface{}) (string, error) {
@@ -107,7 +104,7 @@ type watchCache struct {
 	keyFunc func(runtime.Object) (string, error)
 
 	// getAttrsFunc is used to get labels and fields of an object.
-	getAttrsFunc func(runtime.Object) (labels.Set, fields.Set, bool, error)
+	getAttrsFunc func(runtime.Object) (labels.Set, fields.Set, error)
 
 	// cache is used a cyclic buffer - its first element (with the smallest
 	// resourceVersion) is defined by startIndex, its last element is defined
@@ -127,6 +124,9 @@ type watchCache struct {
 	// ResourceVersion up to which the watchCache is propagated.
 	resourceVersion uint64
 
+	// ResourceVersion of the last list result (populated via Replace() method).
+	listResourceVersion uint64
+
 	// This handler is run at the end of every successful Replace() method.
 	onReplace func()
 
@@ -144,19 +144,20 @@ type watchCache struct {
 func newWatchCache(
 	capacity int,
 	keyFunc func(runtime.Object) (string, error),
-	getAttrsFunc func(runtime.Object) (labels.Set, fields.Set, bool, error),
+	getAttrsFunc func(runtime.Object) (labels.Set, fields.Set, error),
 	versioner storage.Versioner) *watchCache {
 	wc := &watchCache{
-		capacity:        capacity,
-		keyFunc:         keyFunc,
-		getAttrsFunc:    getAttrsFunc,
-		cache:           make([]watchCacheElement, capacity),
-		startIndex:      0,
-		endIndex:        0,
-		store:           cache.NewStore(storeElementKey),
-		resourceVersion: 0,
-		clock:           clock.RealClock{},
-		versioner:       versioner,
+		capacity:            capacity,
+		keyFunc:             keyFunc,
+		getAttrsFunc:        getAttrsFunc,
+		cache:               make([]watchCacheElement, capacity),
+		startIndex:          0,
+		endIndex:            0,
+		store:               cache.NewStore(storeElementKey),
+		resourceVersion:     0,
+		listResourceVersion: 0,
+		clock:               clock.RealClock{},
+		versioner:           versioner,
 	}
 	wc.cond = sync.NewCond(wc.RLocker())
 	return wc
@@ -216,19 +217,18 @@ func (w *watchCache) processEvent(event watch.Event, resourceVersion uint64, upd
 		return fmt.Errorf("couldn't compute key: %v", err)
 	}
 	elem := &storeElement{Key: key, Object: event.Object}
-	elem.Labels, elem.Fields, elem.Uninitialized, err = w.getAttrsFunc(event.Object)
+	elem.Labels, elem.Fields, err = w.getAttrsFunc(event.Object)
 	if err != nil {
 		return err
 	}
 
 	watchCacheEvent := &watchCacheEvent{
-		Type:             event.Type,
-		Object:           elem.Object,
-		ObjLabels:        elem.Labels,
-		ObjFields:        elem.Fields,
-		ObjUninitialized: elem.Uninitialized,
-		Key:              key,
-		ResourceVersion:  resourceVersion,
+		Type:            event.Type,
+		Object:          elem.Object,
+		ObjLabels:       elem.Labels,
+		ObjFields:       elem.Fields,
+		Key:             key,
+		ResourceVersion: resourceVersion,
 	}
 
 	// TODO: We should consider moving this lock below after the watchCacheEvent
@@ -246,7 +246,6 @@ func (w *watchCache) processEvent(event watch.Event, resourceVersion uint64, upd
 		watchCacheEvent.PrevObject = previousElem.Object
 		watchCacheEvent.PrevObjLabels = previousElem.Labels
 		watchCacheEvent.PrevObjFields = previousElem.Fields
-		watchCacheEvent.PrevObjUninitialized = previousElem.Uninitialized
 	}
 
 	if w.onEvent != nil {
@@ -369,16 +368,15 @@ func (w *watchCache) Replace(objs []interface{}, resourceVersion string) error {
 		if err != nil {
 			return fmt.Errorf("couldn't compute key: %v", err)
 		}
-		objLabels, objFields, objUninitialized, err := w.getAttrsFunc(object)
+		objLabels, objFields, err := w.getAttrsFunc(object)
 		if err != nil {
 			return err
 		}
 		toReplace = append(toReplace, &storeElement{
-			Key:           key,
-			Object:        object,
-			Labels:        objLabels,
-			Fields:        objFields,
-			Uninitialized: objUninitialized,
+			Key:    key,
+			Object: object,
+			Labels: objLabels,
+			Fields: objFields,
 		})
 	}
 
@@ -390,6 +388,7 @@ func (w *watchCache) Replace(objs []interface{}, resourceVersion string) error {
 	if err := w.store.Replace(toReplace, resourceVersion); err != nil {
 		return err
 	}
+	w.listResourceVersion = version
 	w.resourceVersion = version
 	if w.onReplace != nil {
 		w.onReplace()
@@ -412,12 +411,26 @@ func (w *watchCache) SetOnEvent(onEvent func(*watchCacheEvent)) {
 
 func (w *watchCache) GetAllEventsSinceThreadUnsafe(resourceVersion uint64) ([]*watchCacheEvent, error) {
 	size := w.endIndex - w.startIndex
-	// if we have no watch events in our cache, the oldest one we can successfully deliver to a watcher
-	// is the *next* event we'll receive, which will be at least one greater than our current resourceVersion
-	oldest := w.resourceVersion + 1
-	if size > 0 {
+	var oldest uint64
+	switch {
+	case size >= w.capacity:
+		// Once the watch event buffer is full, the oldest watch event we can deliver
+		// is the first one in the buffer.
 		oldest = w.cache[w.startIndex%w.capacity].resourceVersion
+	case w.listResourceVersion > 0:
+		// If the watch event buffer isn't full, the oldest watch event we can deliver
+		// is one greater than the resource version of the last full list.
+		oldest = w.listResourceVersion + 1
+	case size > 0:
+		// If we've never completed a list, use the resourceVersion of the oldest event
+		// in the buffer.
+		// This should only happen in unit tests that populate the buffer without
+		// performing list/replace operations.
+		oldest = w.cache[w.startIndex%w.capacity].resourceVersion
+	default:
+		return nil, fmt.Errorf("watch cache isn't correctly initialized")
 	}
+
 	if resourceVersion == 0 {
 		// resourceVersion = 0 means that we don't require any specific starting point
 		// and we would like to start watching from ~now.
@@ -432,18 +445,17 @@ func (w *watchCache) GetAllEventsSinceThreadUnsafe(resourceVersion uint64) ([]*w
 			if !ok {
 				return nil, fmt.Errorf("not a storeElement: %v", elem)
 			}
-			objLabels, objFields, objUninitialized, err := w.getAttrsFunc(elem.Object)
+			objLabels, objFields, err := w.getAttrsFunc(elem.Object)
 			if err != nil {
 				return nil, err
 			}
 			result[i] = &watchCacheEvent{
-				Type:             watch.Added,
-				Object:           elem.Object,
-				ObjLabels:        objLabels,
-				ObjFields:        objFields,
-				ObjUninitialized: objUninitialized,
-				Key:              elem.Key,
-				ResourceVersion:  w.resourceVersion,
+				Type:            watch.Added,
+				Object:          elem.Object,
+				ObjLabels:       objLabels,
+				ObjFields:       objFields,
+				Key:             elem.Key,
+				ResourceVersion: w.resourceVersion,
 			}
 		}
 		return result, nil

@@ -18,10 +18,10 @@ package config
 
 import (
 	"fmt"
+	"strings"
 
 	gce "cloud.google.com/go/compute/metadata"
-	"github.com/golang/glog"
-	"strings"
+	"k8s.io/klog"
 )
 
 // GceConfig aggregates all GCE related configuration parameters.
@@ -45,7 +45,7 @@ func GetGceConfig() (*GceConfig, error) {
 
 	location, err := gce.InstanceAttributeValue("cluster-location")
 	if err != nil {
-		glog.Warningf("Failed to retrieve cluster location, falling back to local zone: %s", err)
+		klog.Warningf("Failed to retrieve cluster location, falling back to local zone: %s", err)
 		location, err = gce.Zone()
 		if err != nil {
 			return nil, fmt.Errorf("error while getting cluster location: %v", err)

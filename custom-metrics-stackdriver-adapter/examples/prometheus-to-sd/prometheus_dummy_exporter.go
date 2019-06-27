@@ -46,5 +46,5 @@ func main() {
 	http.Handle("/metrics", prometheus.Handler())
 	log.Printf("Starting to listen on :%d", *port)
 	err := http.ListenAndServe(fmt.Sprintf(":%d", *port), nil)
-	log.Fatal("Failed to start serving metrics: %v", err)
+	log.Fatalf("Failed to start serving metrics: %v", err)
 }

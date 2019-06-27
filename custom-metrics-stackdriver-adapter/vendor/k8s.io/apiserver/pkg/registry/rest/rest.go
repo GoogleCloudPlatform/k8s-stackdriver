@@ -176,8 +176,7 @@ type Creater interface {
 	// This object must be a pointer type for use with Codec.DecodeInto([]byte, runtime.Object)
 	New() runtime.Object
 
-	// Create creates a new version of a resource. If includeUninitialized is set, the object may be returned
-	// without completing initialization.
+	// Create creates a new version of a resource.
 	Create(ctx context.Context, obj runtime.Object, createValidation ValidateObjectFunc, options *metav1.CreateOptions) (runtime.Object, error)
 }
 
@@ -189,8 +188,7 @@ type NamedCreater interface {
 
 	// Create creates a new version of a resource. It expects a name parameter from the path.
 	// This is needed for create operations on subresources which include the name of the parent
-	// resource in the path. If includeUninitialized is set, the object may be returned without
-	// completing initialization.
+	// resource in the path.
 	Create(ctx context.Context, name string, obj runtime.Object, createValidation ValidateObjectFunc, options *metav1.CreateOptions) (runtime.Object, error)
 }
 
@@ -320,7 +318,7 @@ type ResourceStreamer interface {
 	// the caller may return a flag indicating whether the result should be flushed as writes occur
 	// and a content type string that indicates the type of the stream.
 	// If a null stream is returned, a StatusNoContent response wil be generated.
-	InputStream(apiVersion, acceptHeader string) (stream io.ReadCloser, flush bool, mimeType string, err error)
+	InputStream(ctx context.Context, apiVersion, acceptHeader string) (stream io.ReadCloser, flush bool, mimeType string, err error)
 }
 
 // StorageMetadata is an optional interface that callers can implement to provide additional
@@ -335,18 +333,11 @@ type StorageMetadata interface {
 	ProducesObject(verb string) interface{}
 }
 
-// +k8s:deepcopy-gen=true
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// ConnectRequest is an object passed to admission control for Connect operations
-type ConnectRequest struct {
-	// Name is the name of the object on which the connect request was made
-	Name string
-
-	// Options is the options object passed to the connect request. See the NewConnectOptions method on Connecter
-	Options runtime.Object
-
-	// ResourcePath is the path for the resource in the REST server (ie. "pods/proxy")
-	ResourcePath string
+// StorageVersionProvider is an optional interface that a storage object can
+// implement if it wishes to disclose its storage version.
+type StorageVersionProvider interface {
+	// StorageVersion returns a group versioner, which will outputs the gvk
+	// an object will be converted to before persisted in etcd, given a
+	// list of kinds the object might belong to.
+	StorageVersion() runtime.GroupVersioner
 }
-
-func (obj *ConnectRequest) GetObjectKind() schema.ObjectKind { return schema.EmptyObjectKind }
