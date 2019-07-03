@@ -76,4 +76,4 @@
 
 [[constraint]]
   name = "github.com/kubernetes-incubator/custom-metrics-apiserver"
-  revision = "9caf012348a4a8350048dcfd2bd8ef59d4b8c4bb"
+  revision = "abe433176c52a9320484af4aa62ce087f1970d3e"

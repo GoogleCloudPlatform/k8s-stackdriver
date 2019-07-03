@@ -53,7 +53,7 @@ subjects:
   name: custom-metrics-stackdriver-adapter
   namespace: custom-metrics
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: custom-metrics-stackdriver-adapter
@@ -76,7 +76,7 @@ spec:
     spec:
       serviceAccountName: custom-metrics-stackdriver-adapter
       containers:
-      - image: gcr.io/google-containers/custom-metrics-stackdriver-adapter:v0.9.0
+      - image: gcr.io/google-containers/custom-metrics-stackdriver-adapter:v0.10.0
         imagePullPolicy: Always
         name: pod-custom-metrics-stackdriver-adapter
         command:
@@ -110,7 +110,7 @@ spec:
     k8s-app: custom-metrics-stackdriver-adapter
   type: ClusterIP
 ---
-apiVersion: apiregistration.k8s.io/v1beta1
+apiVersion: apiregistration.k8s.io/v1
 kind: APIService
 metadata:
   name: v1beta1.custom.metrics.k8s.io
@@ -124,7 +124,21 @@ spec:
     namespace: custom-metrics
   version: v1beta1
 ---
-apiVersion: apiregistration.k8s.io/v1beta1
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  name: v1beta2.custom.metrics.k8s.io
+spec:
+  insecureSkipTLSVerify: true
+  group: custom.metrics.k8s.io
+  groupPriorityMinimum: 100
+  versionPriority: 200
+  service:
+    name: custom-metrics-stackdriver-adapter
+    namespace: custom-metrics
+  version: v1beta2
+---
+apiVersion: apiregistration.k8s.io/v1
 kind: APIService
 metadata:
   name: v1beta1.external.metrics.k8s.io
