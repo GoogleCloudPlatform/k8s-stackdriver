@@ -43,6 +43,7 @@ func main() {
 	podName := flag.String("pod-name", "", "pod name")
 	metricName := flag.String("metric-name", "foo", "custom metric name")
 	metricValue := flag.Int64("metric-value", 0, "custom metric value")
+	metricLabelsArg := flag.String("metric-labels", "bar=1", "custom metric labels")
 	// Whether to use old Stackdriver resource model - use monitored resource "gke_container"
 	// For old resource model, podId flag has to be set.
 	useOldResourceModel := flag.Bool("use-old-resource-model", true, "use old stackdriver resource model")
@@ -68,11 +69,17 @@ func main() {
 		log.Fatalf("Error getting Stackdriver service: %v", err)
 	}
 
+	metricLabels := make(map[string]string)
+	for _, label := range strings.Split(*metricLabelsArg, ",") {
+		labelParts := strings.Split(label, "=")
+		metricLabels[labelParts[0]] = labelParts[1]
+	}
+
 	oldModelLabels := getResourceLabelsForOldModel(*podId)
 	newModelLabels := getResourceLabelsForNewModel(*namespace, *podName)
 	for {
 		if *useOldResourceModel {
-			err := exportMetric(stackdriverService, *metricName, *metricValue, "gke_container", oldModelLabels)
+			err := exportMetric(stackdriverService, *metricName, *metricValue, metricLabels, "gke_container", oldModelLabels)
 			if err != nil {
 				log.Printf("Failed to write time series data for old resource model: %v\n", err)
 			} else {
@@ -80,7 +87,7 @@ func main() {
 			}
 		}
 		if *useNewResourceModel {
-			err := exportMetric(stackdriverService, *metricName, *metricValue, "k8s_pod", newModelLabels)
+			err := exportMetric(stackdriverService, *metricName, *metricValue, metricLabels, "k8s_pod", newModelLabels)
 			if err != nil {
 				log.Printf("Failed to write time series data for new resource model: %v\n", err)
 			} else {
@@ -137,7 +144,7 @@ func getResourceLabelsForNewModel(namespace, name string) map[string]string {
 }
 
 func exportMetric(stackdriverService *monitoring.Service, metricName string,
-	metricValue int64, monitoredResource string, resourceLabels map[string]string) error {
+	metricValue int64, metricLabels map[string]string, monitoredResource string, resourceLabels map[string]string) error {
 	dataPoint := &monitoring.Point{
 		Interval: &monitoring.TimeInterval{
 			EndTime: time.Now().Format(time.RFC3339),
@@ -151,7 +158,8 @@ func exportMetric(stackdriverService *monitoring.Service, metricName string,
 		TimeSeries: []*monitoring.TimeSeries{
 			{
 				Metric: &monitoring.Metric{
-					Type: "custom.googleapis.com/" + metricName,
+					Type:   "custom.googleapis.com/" + metricName,
+					Labels: metricLabels,
 				},
 				Resource: &monitoring.MonitoredResource{
 					Type:   monitoredResource,

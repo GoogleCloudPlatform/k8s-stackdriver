@@ -232,11 +232,13 @@
   version = "v1.1.6"
 
 [[projects]]
-  digest = "1:d65ece5a78b3c0597d63bdea4a869aeb4b7ce77df5a420cb96897083b13f8188"
+  digest = "1:c96c4ce0e3c98de8dba5b8b2ba96fab12d1614e9be3f509312a62e7d6ae761b2"
   name = "github.com/kubernetes-incubator/custom-metrics-apiserver"
   packages = [
     "pkg/apiserver",
+    "pkg/apiserver/endpoints/handlers",
     "pkg/apiserver/installer",
+    "pkg/apiserver/registry/rest",
     "pkg/cmd",
     "pkg/cmd/server",
     "pkg/dynamicmapper",
@@ -245,7 +247,7 @@
     "pkg/registry/external_metrics",
   ]
   pruneopts = "UT"
-  revision = "9caf012348a4a8350048dcfd2bd8ef59d4b8c4bb"
+  revision = "abe433176c52a9320484af4aa62ce087f1970d3e"
 
 [[projects]]
   branch = "master"

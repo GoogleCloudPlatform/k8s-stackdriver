@@ -40,10 +40,13 @@ import (
 )
 
 var (
-	// allowedLabelPrefixes and allowedFullLabelNames specify all metric labels allowed for querying
+	// allowedExternalMetricsLabelPrefixes and allowedExternalMetricsFullLabelNames specify all metric labels allowed for querying
 	// External Metrics API.
-	allowedLabelPrefixes  = []string{"metric.labels", "resource.labels", "metadata.system_labels", "metadata.user_labels"}
-	allowedFullLabelNames = []string{"resource.type"}
+	allowedExternalMetricsLabelPrefixes  = []string{"metric.labels", "resource.labels", "metadata.system_labels", "metadata.user_labels"}
+	allowedExternalMetricsFullLabelNames = []string{"resource.type"}
+	// allowedCustomMetricsLabelPrefixes and allowedCustomMetricsFullLabelNames specify all metric labels allowed for querying
+	allowedCustomMetricsLabelPrefixes  = []string{"metric.labels"}
+	allowedCustomMetricsFullLabelNames = []string{}
 )
 
 const (
@@ -68,7 +71,7 @@ type Translator struct {
 // podList is required to be no longer than oneOfMax items. This is enforced by limitation of
 // "one_of()" operator in Stackdriver filters, see documentation:
 // https://cloud.google.com/monitoring/api/v3/filters
-func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName string, metricKind, namespace string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
+func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName string, metricKind string, metricSelector labels.Selector, namespace string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
 	if len(podList.Items) == 0 {
 		return nil, apierr.NewBadRequest("No objects matched provided selector")
 	}
@@ -90,14 +93,21 @@ func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName string, met
 			t.legacyFilterForCluster(),
 			t.legacyFilterForPods(resourceIDs))
 	}
-	return t.createListTimeseriesRequest(filter, metricKind), nil
+	if metricSelector.Empty() {
+		return t.createListTimeseriesRequest(filter, metricKind), nil
+	}
+	filterForSelector, err := t.filterForSelector(metricSelector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
+	if err != nil {
+		return nil, err
+	}
+	return t.createListTimeseriesRequest(joinFilters(filterForSelector, filter), metricKind), nil
 }
 
 // GetSDReqForNodes returns Stackdriver request for query for multiple nodes.
 // nodeList is required to be no longer than oneOfMax items. This is enforced by limitation of
 // "one_of()" operator in Stackdriver filters, see documentation:
 // https://cloud.google.com/monitoring/api/v3/filters
-func (t *Translator) GetSDReqForNodes(nodeList *v1.NodeList, metricName string, metricKind string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
+func (t *Translator) GetSDReqForNodes(nodeList *v1.NodeList, metricName string, metricKind string, metricSelector labels.Selector) (*stackdriver.ProjectsTimeSeriesListCall, error) {
 	if len(nodeList.Items) == 0 {
 		return nil, apierr.NewBadRequest("No objects matched provided selector")
 	}
@@ -114,7 +124,14 @@ func (t *Translator) GetSDReqForNodes(nodeList *v1.NodeList, metricName string, 
 		t.filterForCluster(),
 		t.filterForNodes(resourceNames),
 		t.filterForAnyNode())
-	return t.createListTimeseriesRequest(filter, metricKind), nil
+	if metricSelector.Empty() {
+		return t.createListTimeseriesRequest(filter, metricKind), nil
+	}
+	filterForSelector, err := t.filterForSelector(metricSelector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
+	if err != nil {
+		return nil, err
+	}
+	return t.createListTimeseriesRequest(joinFilters(filterForSelector, filter), metricKind), nil
 }
 
 // GetExternalMetricRequest returns Stackdriver request for query for external metric.
@@ -128,7 +145,7 @@ func (t *Translator) GetExternalMetricRequest(metricName string, metricKind stri
 	if metricSelector.Empty() {
 		return t.createListTimeseriesRequest(filterForMetric, metricKind), nil
 	}
-	filterForSelector, err := t.filterForSelector(metricSelector)
+	filterForSelector, err := t.filterForSelector(metricSelector, allowedExternalMetricsLabelPrefixes, allowedExternalMetricsFullLabelNames)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +154,7 @@ func (t *Translator) GetExternalMetricRequest(metricName string, metricKind stri
 
 // GetRespForSingleObject returns translates Stackdriver response to a Custom Metric associated with
 // a single object.
-func (t *Translator) GetRespForSingleObject(response *stackdriver.ListTimeSeriesResponse, groupResource schema.GroupResource, metricName string, namespace string, name string) (*custom_metrics.MetricValue, error) {
+func (t *Translator) GetRespForSingleObject(response *stackdriver.ListTimeSeriesResponse, groupResource schema.GroupResource, metricName string, metricSelector labels.Selector, namespace string, name string) (*custom_metrics.MetricValue, error) {
 	values, err := t.getMetricValuesFromResponse(groupResource, response, metricName)
 	if err != nil {
 		return nil, err
@@ -150,7 +167,7 @@ func (t *Translator) GetRespForSingleObject(response *stackdriver.ListTimeSeries
 	}
 	// Since len(values) = 1, this loop will execute only once.
 	for _, value := range values {
-		metricValue, err := t.metricFor(value, groupResource, namespace, name, metricName)
+		metricValue, err := t.metricFor(value, groupResource, namespace, name, metricName, metricSelector)
 		if err != nil {
 			return nil, err
 		}
@@ -162,12 +179,12 @@ func (t *Translator) GetRespForSingleObject(response *stackdriver.ListTimeSeries
 
 // GetRespForMultipleObjects translates Stackdriver response to a Custom Metric associated
 // with multiple pods.
-func (t *Translator) GetRespForMultipleObjects(response *stackdriver.ListTimeSeriesResponse, list []metav1.ObjectMeta, groupResource schema.GroupResource, metricName string) ([]custom_metrics.MetricValue, error) {
+func (t *Translator) GetRespForMultipleObjects(response *stackdriver.ListTimeSeriesResponse, list []metav1.ObjectMeta, groupResource schema.GroupResource, metricName string, metricSelector labels.Selector) ([]custom_metrics.MetricValue, error) {
 	values, err := t.getMetricValuesFromResponse(groupResource, response, metricName)
 	if err != nil {
 		return nil, err
 	}
-	return t.metricsFor(values, groupResource, metricName, list)
+	return t.metricsFor(values, groupResource, metricName, metricSelector, list)
 }
 
 // GetRespForExternalMetric translates Stackdriver response to list of External Metrics
@@ -273,7 +290,7 @@ func getNodeNames(list *v1.NodeList) []string {
 	return resourceNames
 }
 
-func isAllowedLabelName(labelName string) bool {
+func isAllowedLabelName(labelName string, allowedLabelPrefixes []string, allowedFullLabelNames []string) bool {
 	for _, prefix := range allowedLabelPrefixes {
 		if strings.HasPrefix(labelName, prefix+".") {
 			return true
@@ -287,7 +304,7 @@ func isAllowedLabelName(labelName string) bool {
 	return false
 }
 
-func splitMetricLabel(labelName string) (string, string, error) {
+func splitMetricLabel(labelName string, allowedLabelPrefixes []string) (string, string, error) {
 	for _, prefix := range allowedLabelPrefixes {
 		if strings.HasPrefix(labelName, prefix+".") {
 			return prefix, strings.TrimPrefix(labelName, prefix+"."), nil
@@ -378,7 +395,7 @@ func (t *Translator) legacyFilterForPods(podIDs []string) string {
 	return fmt.Sprintf("resource.labels.pod_id = one_of(%s)", strings.Join(podIDs, ","))
 }
 
-func (t *Translator) filterForSelector(metricSelector labels.Selector) (string, error) {
+func (t *Translator) filterForSelector(metricSelector labels.Selector, allowedLabelPrefixes []string, allowedFullLabelNames []string) (string, error) {
 	requirements, selectable := metricSelector.Requirements()
 	if !selectable {
 		return "", apierr.NewBadRequest(fmt.Sprintf("Label selector is impossible to match: %s", metricSelector))
@@ -387,31 +404,31 @@ func (t *Translator) filterForSelector(metricSelector labels.Selector) (string, 
 	for _, req := range requirements {
 		switch req.Operator() {
 		case selection.Equals, selection.DoubleEquals:
-			if isAllowedLabelName(req.Key()) {
+			if isAllowedLabelName(req.Key(), allowedLabelPrefixes, allowedFullLabelNames) {
 				filters = append(filters, fmt.Sprintf("%s = %q", req.Key(), req.Values().List()[0]))
 			} else {
 				return "", NewLabelNotAllowedError(req.Key())
 			}
 		case selection.NotEquals:
-			if isAllowedLabelName(req.Key()) {
+			if isAllowedLabelName(req.Key(), allowedLabelPrefixes, allowedFullLabelNames) {
 				filters = append(filters, fmt.Sprintf("%s != %q", req.Key(), req.Values().List()[0]))
 			} else {
 				return "", NewLabelNotAllowedError(req.Key())
 			}
 		case selection.In:
-			if isAllowedLabelName(req.Key()) {
+			if isAllowedLabelName(req.Key(), allowedLabelPrefixes, allowedFullLabelNames) {
 				filters = append(filters, fmt.Sprintf("%s = one_of(%s)", req.Key(), strings.Join(quoteAll(req.Values().List()), ",")))
 			} else {
 				return "", NewLabelNotAllowedError(req.Key())
 			}
 		case selection.NotIn:
-			if isAllowedLabelName(req.Key()) {
+			if isAllowedLabelName(req.Key(), allowedLabelPrefixes, allowedFullLabelNames) {
 				filters = append(filters, fmt.Sprintf("NOT %s = one_of(%s)", req.Key(), strings.Join(quoteAll(req.Values().List()), ",")))
 			} else {
 				return "", NewLabelNotAllowedError(req.Key())
 			}
 		case selection.Exists:
-			prefix, suffix, err := splitMetricLabel(req.Key())
+			prefix, suffix, err := splitMetricLabel(req.Key(), allowedLabelPrefixes)
 			if err == nil {
 				filters = append(filters, fmt.Sprintf("%s : %s", prefix, suffix))
 			} else {
@@ -421,7 +438,7 @@ func (t *Translator) filterForSelector(metricSelector labels.Selector) (string, 
 			// DoesNotExist is not allowed due to Stackdriver filtering syntax limitation
 			return "", apierr.NewBadRequest("Label selector with operator DoesNotExist is not allowed")
 		case selection.GreaterThan:
-			if isAllowedLabelName(req.Key()) {
+			if isAllowedLabelName(req.Key(), allowedLabelPrefixes, allowedFullLabelNames) {
 				value, err := strconv.ParseInt(req.Values().List()[0], 10, 64)
 				if err != nil {
 					return "", apierr.NewInternalError(fmt.Errorf("Unexpected error: value %s could not be parsed to integer", req.Values().List()[0]))
@@ -431,7 +448,7 @@ func (t *Translator) filterForSelector(metricSelector labels.Selector) (string, 
 				return "", NewLabelNotAllowedError(req.Key())
 			}
 		case selection.LessThan:
-			if isAllowedLabelName(req.Key()) {
+			if isAllowedLabelName(req.Key(), allowedLabelPrefixes, allowedFullLabelNames) {
 				value, err := strconv.ParseInt(req.Values().List()[0], 10, 64)
 				if err != nil {
 					return "", apierr.NewInternalError(fmt.Errorf("Unexpected error: value %s could not be parsed to integer", req.Values().List()[0]))
@@ -515,10 +532,17 @@ func (t *Translator) getMetricValuesFromResponse(groupResource schema.GroupResou
 	return metricValues, nil
 }
 
-func (t *Translator) metricFor(value resource.Quantity, groupResource schema.GroupResource, namespace string, name string, metricName string) (*custom_metrics.MetricValue, error) {
+func (t *Translator) metricFor(value resource.Quantity, groupResource schema.GroupResource, namespace string, name string, metricName string, metricSelector labels.Selector) (*custom_metrics.MetricValue, error) {
 	kind, err := t.mapper.KindFor(groupResource.WithVersion(""))
 	if err != nil {
 		return nil, err
+	}
+	var metricLabelSelector *metav1.LabelSelector
+	if !metricSelector.Empty() {
+		metricLabelSelector, err = metav1.ParseToLabelSelector(metricSelector.String())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &custom_metrics.MetricValue{
@@ -529,7 +553,8 @@ func (t *Translator) metricFor(value resource.Quantity, groupResource schema.Gro
 			Namespace:  namespace,
 		},
 		Metric: custom_metrics.MetricIdentifier{
-			Name: metricName,
+			Name:     metricName,
+			Selector: metricLabelSelector,
 		},
 		// TODO(kawych): metric timestamp should be retrieved from Stackdriver response instead
 		Timestamp: metav1.Time{t.clock.Now()},
@@ -537,7 +562,7 @@ func (t *Translator) metricFor(value resource.Quantity, groupResource schema.Gro
 	}, nil
 }
 
-func (t *Translator) metricsFor(values map[string]resource.Quantity, groupResource schema.GroupResource, metricName string, list []metav1.ObjectMeta) ([]custom_metrics.MetricValue, error) {
+func (t *Translator) metricsFor(values map[string]resource.Quantity, groupResource schema.GroupResource, metricName string, metricSelector labels.Selector, list []metav1.ObjectMeta) ([]custom_metrics.MetricValue, error) {
 	res := make([]custom_metrics.MetricValue, 0)
 
 	for _, item := range list {
@@ -545,7 +570,7 @@ func (t *Translator) metricsFor(values map[string]resource.Quantity, groupResour
 			klog.V(4).Infof("Metric '%s' not found for pod '%s'", metricName, item.GetName())
 			continue
 		}
-		value, err := t.metricFor(values[t.resourceKey(item)], groupResource, item.GetNamespace(), item.GetName(), metricName)
+		value, err := t.metricFor(values[t.resourceKey(item)], groupResource, item.GetNamespace(), item.GetName(), metricName, metricSelector)
 		if err != nil {
 			return nil, err
 		}
