@@ -24,6 +24,7 @@ datasource
 default-backend-service
 default-return-code
 default-ssl-certificate
+delayed-shutdown-timeout
 delete-all-on-quit
 dest-file
 discovery-interval
