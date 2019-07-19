@@ -41,7 +41,7 @@ import (
 var (
 	metricsPrefix = flag.String("stackdriver-prefix", "container.googleapis.com/master",
 		"Prefix that is appended to every metric. Could be rewritten by metricsPrefix in per "+
-				"component configuration.")
+			"component configuration.")
 	autoWhitelistMetrics = flag.Bool("auto-whitelist-metrics", false,
 		"If component has no whitelisted metrics, prometheus-to-sd will fetch them from Stackdriver.")
 	metricDescriptorsResolution = flag.Duration("metric-descriptors-resolution", 10*time.Minute,
@@ -69,7 +69,7 @@ var (
 		"If enabled, will downcase all metric names.")
 	delayedShutdownTimeout = flag.Duration("delayed-shutdown-timeout", 120*time.Second,
 		"Time to wait for the shutdown after receiving SIGTERM. 0 value means shutdown immediately, negative value results in ignoring signal."+
-				" Default value is 120 seconds.")
+			" Default value is 120 seconds.")
 )
 
 func main() {
