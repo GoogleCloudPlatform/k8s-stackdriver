@@ -29,10 +29,11 @@ import (
 	"golang.org/x/oauth2/google"
 	v3 "google.golang.org/api/monitoring/v3"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/config"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/flags"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/translator"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
@@ -68,9 +69,9 @@ var (
 
 func main() {
 	flag.Set("logtostderr", "true")
-	flag.Var(&source, "source", "source(s) to watch in [component-name]:http://host:port/path?whitelisted=a,b,c&podIdLabel=d&namespaceIdLabel=e&containerNameLabel=f&metricsPrefix=prefix format. Can be specified multiple times")
+	flag.Var(&source, "source", "source(s) to watch in [component-name]:[http|https]://host:port/path?whitelisted=a,b,c&podIdLabel=d&namespaceIdLabel=e&containerNameLabel=f&metricsPrefix=prefix&authToken=token&authUsername=user&authPassword=password format. Can be specified multiple times")
 	flag.Var(&dynamicSources, "dynamic-source",
-		`dynamic source(s) to watch in format: "[component-name]:http://:port/path?whitelisted=metric1,metric2&podIdLabel=label1&namespaceIdLabel=label2&containerNameLabel=label3&metricsPrefix=prefix". Dynamic sources are components (on the same node) discovered dynamically using the kubernetes api.`,
+		`dynamic source(s) to watch in format: "[component-name]:[http|https]://:port/path?whitelisted=metric1,metric2&podIdLabel=label1&namespaceIdLabel=label2&containerNameLabel=label3&metricsPrefix=prefix&authToken=token&authUsername=user&authPassword=password". Dynamic sources are components (on the same node) discovered dynamically using the kubernetes api.`,
 	)
 
 	defer glog.Flush()
@@ -120,7 +121,7 @@ func main() {
 }
 
 func getSourceConfigs(defaultMetricsPrefix string, gceConfig *config.GceConfig) []*config.SourceConfig {
-	glog.Info("Taking source configs from flags")
+	glog.Infof("Taking source configs from flags")
 	staticSourceConfigs := config.SourceConfigsFromFlags(source, podId, namespaceId, defaultMetricsPrefix)
 	glog.Info("Taking source configs from kubernetes api server")
 	dynamicSourceConfigs, err := config.SourceConfigsFromDynamicSources(gceConfig, []flags.Uri(dynamicSources))
@@ -131,7 +132,7 @@ func getSourceConfigs(defaultMetricsPrefix string, gceConfig *config.GceConfig) 
 }
 
 func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *config.GceConfig, sourceConfig *config.SourceConfig) {
-	glog.Infof("Running prometheus-to-sd, monitored target is %s %v:%v", sourceConfig.Component, sourceConfig.Host, sourceConfig.Port)
+	glog.Infof("Running prometheus-to-sd, monitored target is %s %s://%v:%v", sourceConfig.Component, sourceConfig.Protocol, sourceConfig.Host, sourceConfig.Port)
 	commonConfig := &config.CommonConfig{
 		GceConfig:           gceConf,
 		SourceConfig:        sourceConfig,

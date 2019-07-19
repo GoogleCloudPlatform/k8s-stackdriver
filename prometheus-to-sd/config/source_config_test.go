@@ -28,8 +28,10 @@ import (
 func TestNewSourceConfig(t *testing.T) {
 	podConfig := NewPodConfig("podId", "namespaceId", "", "", "")
 	emptyPodConfig := NewPodConfig("", "", "", "", "")
+	authConfig := AuthConfig{Token: "token"}
 	correct := [...]struct {
 		component   string
+		protocol    string
 		host        string
 		port        string
 		path        string
@@ -37,43 +39,51 @@ func TestNewSourceConfig(t *testing.T) {
 		podConfig   PodConfig
 		output      SourceConfig
 	}{
-		{"testComponent", "localhost", "1234", defaultMetricsPath, "a,b,c,d", podConfig,
+		{"testComponent", "https", "localhost", "1234", defaultMetricsPath, "a,b,c,d", podConfig,
 			SourceConfig{
 				Component:   "testComponent",
+				Protocol:    "https",
 				Host:        "localhost",
 				Port:        1234,
 				Path:        defaultMetricsPath,
+				AuthConfig:  authConfig,
 				Whitelisted: []string{"a", "b", "c", "d"},
 				PodConfig:   podConfig,
 			},
 		},
 
-		{"testComponent", "localhost", "1234", "/status/prometheus", "", emptyPodConfig,
+		{"testComponent", "http", "localhost", "1234", "/status/prometheus", "", emptyPodConfig,
 			SourceConfig{
 				Component:   "testComponent",
+				Protocol:    "http",
 				Host:        "localhost",
 				Port:        1234,
 				Path:        "/status/prometheus",
+				AuthConfig:  authConfig,
 				Whitelisted: nil,
 				PodConfig:   emptyPodConfig,
 			},
 		},
-		{"testComponent", "localhost", "1234", "/", "", emptyPodConfig,
+		{"testComponent", "http", "localhost", "1234", "/", "", emptyPodConfig,
 			SourceConfig{
 				Component:   "testComponent",
+				Protocol:    "http",
 				Host:        "localhost",
 				Port:        1234,
 				Path:        "/metrics",
+				AuthConfig:  authConfig,
 				Whitelisted: nil,
 				PodConfig:   emptyPodConfig,
 			},
 		},
-		{"testComponent", "localhost", "1234", "", "", emptyPodConfig,
+		{"testComponent", "http", "localhost", "1234", "", "", emptyPodConfig,
 			SourceConfig{
 				Component:   "testComponent",
+				Protocol:    "http",
 				Host:        "localhost",
 				Port:        1234,
 				Path:        "/metrics",
+				AuthConfig:  authConfig,
 				Whitelisted: nil,
 				PodConfig:   emptyPodConfig,
 			},
@@ -81,7 +91,7 @@ func TestNewSourceConfig(t *testing.T) {
 	}
 
 	for _, c := range correct {
-		res, err := newSourceConfig(c.component, c.host, c.port, c.path, c.whitelisted, "", c.podConfig)
+		res, err := newSourceConfig(c.component, c.protocol, c.host, c.port, c.path, authConfig, c.whitelisted, "", c.podConfig)
 		if assert.NoError(t, err) {
 			assert.Equal(t, c.output, *res)
 		}
@@ -91,6 +101,8 @@ func TestNewSourceConfig(t *testing.T) {
 func TestParseSourceConfig(t *testing.T) {
 	podId := "podId"
 	namespaceId := "namespaceId"
+	tokenAuthConfig := AuthConfig{Token: "token"}
+	userAuthConfig := AuthConfig{Username: "user", Password: "password"}
 	correct := [...]struct {
 		in     flags.Uri
 		output SourceConfig
@@ -99,17 +111,19 @@ func TestParseSourceConfig(t *testing.T) {
 			flags.Uri{
 				Key: "testComponent",
 				Val: url.URL{
-					Scheme:   "http",
+					Scheme:   "https",
 					Host:     "hostname:1234",
 					Path:     defaultMetricsPath,
-					RawQuery: "whitelisted=a,b,c,d",
+					RawQuery: "whitelisted=a,b,c,d&authToken=token",
 				},
 			},
 			SourceConfig{
 				Component:   "testComponent",
+				Protocol:    "https",
 				Host:        "hostname",
 				Port:        1234,
 				Path:        defaultMetricsPath,
+				AuthConfig:  tokenAuthConfig,
 				Whitelisted: []string{"a", "b", "c", "d"},
 				PodConfig:   NewPodConfig(podId, namespaceId, "", "", ""),
 			},
@@ -121,14 +135,16 @@ func TestParseSourceConfig(t *testing.T) {
 					Scheme:   "http",
 					Host:     "hostname:1234",
 					Path:     "/status/prometheus",
-					RawQuery: "whitelisted=a,b,c,d",
+					RawQuery: "whitelisted=a,b,c,d&authUsername=user&authPassword=password",
 				},
 			},
 			SourceConfig{
 				Component:   "testComponent",
+				Protocol:    "http",
 				Host:        "hostname",
 				Port:        1234,
 				Path:        "/status/prometheus",
+				AuthConfig:  userAuthConfig,
 				Whitelisted: []string{"a", "b", "c", "d"},
 				PodConfig:   NewPodConfig(podId, namespaceId, "", "", ""),
 			},
@@ -145,6 +161,7 @@ func TestParseSourceConfig(t *testing.T) {
 			},
 			SourceConfig{
 				Component:     "testComponent",
+				Protocol:      "http",
 				Host:          "localhost",
 				Port:          8080,
 				Path:          defaultMetricsPath,

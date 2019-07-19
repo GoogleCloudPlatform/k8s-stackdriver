@@ -17,6 +17,7 @@ limitations under the License.
 package translator
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -47,8 +48,8 @@ func GetPrometheusMetrics(config *config.SourceConfig) (*PrometheusResponse, err
 }
 
 func getPrometheusMetrics(config *config.SourceConfig) (*PrometheusResponse, error) {
-	url := fmt.Sprintf("http://%s:%d%s", config.Host, config.Port, config.Path)
-	resp, err := http.Get(url)
+	url := fmt.Sprintf("%s://%s:%d%s", config.Protocol, config.Host, config.Port, config.Path)
+	resp, err := doPrometheusRequest(url, config.AuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("request %s failed: %v", url, err)
 	}
@@ -62,6 +63,27 @@ func getPrometheusMetrics(config *config.SourceConfig) (*PrometheusResponse, err
 		return nil, fmt.Errorf("request failed - %q, response: %q", resp.Status, string(body))
 	}
 	return &PrometheusResponse{rawResponse: string(body)}, nil
+}
+
+func doPrometheusRequest(url string, auth config.AuthConfig) (resp *http.Response, err error) {
+	// Allow insecure https connections
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+	request, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(auth.Username) > 0 {
+		request.SetBasicAuth(auth.Username, auth.Password)
+	} else if len(auth.Token) > 0 {
+		request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", auth.Token))
+	}
+	return client.Do(request)
 }
 
 // Build performs parsing and processing of the prometheus metrics response.

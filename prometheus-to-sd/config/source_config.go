@@ -30,9 +30,11 @@ import (
 // SourceConfig contains data specific for scraping one component.
 type SourceConfig struct {
 	Component     string
+	Protocol      string
 	Host          string
 	Port          uint
 	Path          string
+	AuthConfig    AuthConfig
 	Whitelisted   []string
 	PodConfig     PodConfig
 	MetricsPrefix string
@@ -41,7 +43,7 @@ type SourceConfig struct {
 const defaultMetricsPath = "/metrics"
 
 // newSourceConfig creates a new SourceConfig based on string representation of fields.
-func newSourceConfig(component, host, port, path, whitelisted, metricsPrefix string, podConfig PodConfig) (*SourceConfig, error) {
+func newSourceConfig(component, protocol, host, port, path string, auth AuthConfig, whitelisted, metricsPrefix string, podConfig PodConfig) (*SourceConfig, error) {
 	if port == "" {
 		return nil, fmt.Errorf("No port provided.")
 	}
@@ -54,6 +56,14 @@ func newSourceConfig(component, host, port, path, whitelisted, metricsPrefix str
 		return nil, err
 	}
 
+	if len(protocol) == 0 {
+		if portNum == 443 {
+			protocol = "https"
+		} else {
+			protocol = "http"
+		}
+	}
+
 	var whitelistedList []string
 	if whitelisted != "" {
 		whitelistedList = strings.Split(whitelisted, ",")
@@ -61,9 +71,11 @@ func newSourceConfig(component, host, port, path, whitelisted, metricsPrefix str
 
 	return &SourceConfig{
 		Component:     component,
+		Protocol:      protocol,
 		Host:          host,
 		Port:          uint(portNum),
 		Path:          path,
+		AuthConfig:    auth,
 		Whitelisted:   whitelistedList,
 		PodConfig:     podConfig,
 		MetricsPrefix: metricsPrefix,
@@ -79,15 +91,20 @@ func parseSourceConfig(uri flags.Uri, podId, namespaceId string) (*SourceConfig,
 
 	component := uri.Key
 	values := uri.Val.Query()
+	protocol := uri.Val.Scheme
 	path := uri.Val.Path
 	whitelisted := values.Get("whitelisted")
 	podIdLabel := values.Get("podIdLabel")
 	namespaceIdLabel := values.Get("namespaceIdLabel")
 	containerNamelabel := values.Get("containerNamelabel")
 	metricsPrefix := values.Get("metricsPrefix")
+	auth, err := parseAuthConfig(uri.Val)
+	if err != nil {
+		return nil, err
+	}
 	podConfig := NewPodConfig(podId, namespaceId, podIdLabel, namespaceIdLabel, containerNamelabel)
 
-	return newSourceConfig(component, host, port, path, whitelisted, metricsPrefix, podConfig)
+	return newSourceConfig(component, protocol, host, port, path, *auth, whitelisted, metricsPrefix, podConfig)
 }
 
 // UpdateWhitelistedMetrics sets passed list as a list of whitelisted metrics.
