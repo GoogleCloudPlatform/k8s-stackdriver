@@ -67,7 +67,7 @@ var (
 		"The interval between metric exports. Can't be lower than --scrape-interval.")
 	downcaseMetricNames = flag.Bool("downcase-metric-names", false,
 		"If enabled, will downcase all metric names.")
-	gracefulShutdownTimeout = flag.Duration("graceful-shutdown-timeout", 120*time.Second,
+	delayedShutdownTimeout = flag.Duration("delayed-shutdown-timeout", 120*time.Second,
 		"Time to wait for the shutdown after receiving SIGTERM. 0 value means shutdown immediately, negative value results in ignoring signal." +
 		" Default value is 120 seconds.")
 )
@@ -82,17 +82,17 @@ func main() {
 	defer glog.Flush()
 	flag.Parse()
 
-	if *gracefulShutdownTimeout < 0 {
+	if *delayedShutdownTimeout < 0 {
 		signal.Ignore(syscall.SIGTERM)
 	} else {
 		sigTermChannel := make(chan os.Signal, 1)
 		signal.Notify(sigTermChannel, syscall.SIGTERM)
 
 		go func() {
-			<-sigTermChannel
-			glog.Infof("SIGTERM has been received, Waiting %s before the shutdown.", gracefulShutdownTimeout.String())
+			<- sigTermChannel
+			glog.Infof("SIGTERM has been received, Waiting %s before the shutdown.", delayedShutdownTimeout.String())
 
-			time.Sleep(*gracefulShutdownTimeout)
+			time.Sleep(*delayedShutdownTimeout)
 			glog.Info("Shutting down after receiving SIGTERM.")
 			os.Exit(0)
 		} ()
