@@ -25,46 +25,80 @@ import (
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/flags"
 )
 
+var (
+	emptyWhitelistedLabelsMap = make(map[string]map[string]bool)
+)
+
 func TestNewSourceConfig(t *testing.T) {
 	podConfig := NewPodConfig("podId", "namespaceId", "", "", "")
 	emptyPodConfig := NewPodConfig("", "", "", "", "")
 	authConfig := AuthConfig{Token: "token"}
 	correct := [...]struct {
-		component   string
-		protocol    string
-		host        string
-		port        string
-		path        string
-		whitelisted string
-		podConfig   PodConfig
-		output      SourceConfig
+		component            string
+		protocol             string
+		host                 string
+		port                 string
+		path                 string
+		whitelisted          string
+		podConfig            PodConfig
+		whitelistedLabelsMap map[string]map[string]bool
+		output               SourceConfig
 	}{
-		{"testComponent", "https", "localhost", "1234", defaultMetricsPath, "a,b,c,d", podConfig,
+		{"testComponent", "https", "localhost", "1234", defaultMetricsPath, "a,b,c,d", podConfig, emptyWhitelistedLabelsMap,
 			SourceConfig{
-				Component:   "testComponent",
-				Protocol:    "https",
-				Host:        "localhost",
-				Port:        1234,
-				Path:        defaultMetricsPath,
-				AuthConfig:  authConfig,
-				Whitelisted: []string{"a", "b", "c", "d"},
-				PodConfig:   podConfig,
+				Component:            "testComponent",
+				Protocol:             "https",
+				Host:                 "localhost",
+				Port:                 1234,
+				Path:                 defaultMetricsPath,
+				AuthConfig:           authConfig,
+				Whitelisted:          []string{"a", "b", "c", "d"},
+				PodConfig:            podConfig,
+				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
 			},
 		},
 
-		{"testComponent", "http", "localhost", "1234", "/status/prometheus", "", emptyPodConfig,
+		{"testComponent", "http", "localhost", "1234", "/status/prometheus", "", emptyPodConfig, emptyWhitelistedLabelsMap,
 			SourceConfig{
-				Component:   "testComponent",
-				Protocol:    "http",
-				Host:        "localhost",
-				Port:        1234,
-				Path:        "/status/prometheus",
-				AuthConfig:  authConfig,
-				Whitelisted: nil,
-				PodConfig:   emptyPodConfig,
+				Component:            "testComponent",
+				Protocol:             "http",
+				Host:                 "localhost",
+				Port:                 1234,
+				Path:                 "/status/prometheus",
+				AuthConfig:           authConfig,
+				Whitelisted:          nil,
+				PodConfig:            emptyPodConfig,
+				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
 			},
 		},
-		{"testComponent", "http", "localhost", "1234", "/", "", emptyPodConfig,
+		{"testComponent", "http", "localhost", "1234", "/", "", emptyPodConfig, emptyWhitelistedLabelsMap,
+			SourceConfig{
+				Component:            "testComponent",
+				Protocol:             "http",
+				Host:                 "localhost",
+				Port:                 1234,
+				Path:                 "/metrics",
+				AuthConfig:           authConfig,
+				Whitelisted:          nil,
+				PodConfig:            emptyPodConfig,
+				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
+			},
+		},
+		{"testComponent", "http", "localhost", "1234", "", "", emptyPodConfig, emptyWhitelistedLabelsMap,
+			SourceConfig{
+				Component:            "testComponent",
+				Protocol:             "http",
+				Host:                 "localhost",
+				Port:                 1234,
+				Path:                 "/metrics",
+				AuthConfig:           authConfig,
+				Whitelisted:          nil,
+				PodConfig:            emptyPodConfig,
+				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
+			},
+		},
+		{"testComponent", "http", "localhost", "1234", defaultMetricsPath, "", emptyPodConfig,
+			map[string]map[string]bool{"containerNameLabel": {"prometheus-to-sd": true}},
 			SourceConfig{
 				Component:   "testComponent",
 				Protocol:    "http",
@@ -74,24 +108,15 @@ func TestNewSourceConfig(t *testing.T) {
 				AuthConfig:  authConfig,
 				Whitelisted: nil,
 				PodConfig:   emptyPodConfig,
-			},
-		},
-		{"testComponent", "http", "localhost", "1234", "", "", emptyPodConfig,
-			SourceConfig{
-				Component:   "testComponent",
-				Protocol:    "http",
-				Host:        "localhost",
-				Port:        1234,
-				Path:        "/metrics",
-				AuthConfig:  authConfig,
-				Whitelisted: nil,
-				PodConfig:   emptyPodConfig,
+				WhitelistedLabelsMap: map[string]map[string]bool{
+					"containerNameLabel": {"prometheus-to-sd": true},
+				},
 			},
 		},
 	}
 
 	for _, c := range correct {
-		res, err := newSourceConfig(c.component, c.protocol, c.host, c.port, c.path, authConfig, c.whitelisted, "", c.podConfig)
+		res, err := newSourceConfig(c.component, c.protocol, c.host, c.port, c.path, authConfig, c.whitelisted, "", c.podConfig, c.whitelistedLabelsMap)
 		if assert.NoError(t, err) {
 			assert.Equal(t, c.output, *res)
 		}
@@ -118,14 +143,16 @@ func TestParseSourceConfig(t *testing.T) {
 				},
 			},
 			SourceConfig{
-				Component:   "testComponent",
-				Protocol:    "https",
-				Host:        "hostname",
-				Port:        1234,
-				Path:        defaultMetricsPath,
-				AuthConfig:  tokenAuthConfig,
-				Whitelisted: []string{"a", "b", "c", "d"},
-				PodConfig:   NewPodConfig(podId, namespaceId, "", "", ""),
+
+				Component:            "testComponent",
+				Protocol:             "https",
+				Host:                 "hostname",
+				Port:                 1234,
+				Path:                 defaultMetricsPath,
+				AuthConfig:           tokenAuthConfig,
+				Whitelisted:          []string{"a", "b", "c", "d"},
+				PodConfig:            NewPodConfig(podId, namespaceId, "", "", ""),
+				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
 			},
 		},
 		{
@@ -139,14 +166,15 @@ func TestParseSourceConfig(t *testing.T) {
 				},
 			},
 			SourceConfig{
-				Component:   "testComponent",
-				Protocol:    "http",
-				Host:        "hostname",
-				Port:        1234,
-				Path:        "/status/prometheus",
-				AuthConfig:  userAuthConfig,
-				Whitelisted: []string{"a", "b", "c", "d"},
-				PodConfig:   NewPodConfig(podId, namespaceId, "", "", ""),
+				Component:            "testComponent",
+				Protocol:             "http",
+				Host:                 "hostname",
+				Port:                 1234,
+				Path:                 "/status/prometheus",
+				AuthConfig:           userAuthConfig,
+				Whitelisted:          []string{"a", "b", "c", "d"},
+				PodConfig:            NewPodConfig(podId, namespaceId, "", "", ""),
+				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
 			},
 		},
 		{
@@ -160,13 +188,59 @@ func TestParseSourceConfig(t *testing.T) {
 				},
 			},
 			SourceConfig{
-				Component:     "testComponent",
-				Protocol:      "http",
-				Host:          "localhost",
-				Port:          8080,
-				Path:          defaultMetricsPath,
-				MetricsPrefix: "container.googleapis.com/newPrefix",
-				PodConfig:     NewPodConfig(podId, namespaceId, "", "", ""),
+				Component:            "testComponent",
+				Protocol:             "http",
+				Host:                 "localhost",
+				Port:                 8080,
+				Path:                 defaultMetricsPath,
+				MetricsPrefix:        "container.googleapis.com/newPrefix",
+				PodConfig:            NewPodConfig(podId, namespaceId, "", "", ""),
+				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
+			},
+		},
+		{
+			flags.Uri{
+				Key: "testComponent",
+				Val: url.URL{
+					Scheme:   "http",
+					Host:     "hostname:1234",
+					Path:     defaultMetricsPath,
+					RawQuery: "whitelistedLabels=containerNameLabel:testContainer|podIdLabel:pod1",
+				},
+			},
+			SourceConfig{
+				Component: "testComponent",
+				Protocol:  "http",
+				Host:      "hostname",
+				Port:      1234,
+				Path:      defaultMetricsPath,
+				WhitelistedLabelsMap: map[string]map[string]bool{
+					"containerNameLabel": {"testContainer": true},
+					"podIdLabel":         {"pod1": true},
+				},
+				PodConfig: NewPodConfig(podId, namespaceId, "", "", ""),
+			},
+		},
+		{
+			flags.Uri{
+				Key: "testComponent",
+				Val: url.URL{
+					Scheme:   "http",
+					Host:     "hostname:1234",
+					Path:     defaultMetricsPath,
+					RawQuery: "whitelistedLabels=containerNameLabel:testContainer1,testContainer2",
+				},
+			},
+			SourceConfig{
+				Component: "testComponent",
+				Protocol:  "http",
+				Host:      "hostname",
+				Port:      1234,
+				Path:      defaultMetricsPath,
+				WhitelistedLabelsMap: map[string]map[string]bool{
+					"containerNameLabel": {"testContainer1": true, "testContainer2": true},
+				},
+				PodConfig: NewPodConfig(podId, namespaceId, "", "", ""),
 			},
 		},
 	}
@@ -193,6 +267,15 @@ func TestParseSourceConfig(t *testing.T) {
 				Scheme:   "http",
 				Host:     "hostname",
 				RawQuery: "whitelisted=a,b,c,d",
+			},
+		},
+		{
+			Key: "unsupportedWhitelistedLabel",
+			Val: url.URL{
+				Scheme:   "http",
+				Host:     "hostname:1234",
+				Path:     defaultMetricsPath,
+				RawQuery: "whitelistedLabels=unsupportedLabel:val1",
 			},
 		},
 	}

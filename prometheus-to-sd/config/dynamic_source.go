@@ -9,7 +9,7 @@ import (
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/flags"
 	"github.com/golang/glog"
 	core "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -111,5 +111,9 @@ func mapToSourceConfig(componentName string, url url.URL, ip string, podId, name
 		return nil, err
 	}
 	podConfig := NewPodConfig(podId, namespaceId, podIdLabel, namespaceIdLabel, containerNamelabel)
-	return newSourceConfig(componentName, protocol, ip, port, url.Path, *auth, whitelisted, metricsPrefix, podConfig)
+	whitelistedLabelsMap, err := parseWhitelistedLabels(url.Query().Get("whitelistedLabels"))
+	if err != nil {
+		return nil, err
+	}
+	return newSourceConfig(componentName, protocol, ip, port, url.Path, *auth, whitelisted, metricsPrefix, podConfig, whitelistedLabelsMap)
 }
