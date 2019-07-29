@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net/http"
@@ -27,7 +28,6 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	v3 "google.golang.org/api/monitoring/v3"
@@ -52,10 +52,18 @@ var (
 	source = flags.Uris{}
 	podId  = flag.String("pod-id", "machine",
 		"Name of the pod in which monitored component is running.")
+	nodeOverride = flag.String("node-name", "",
+		"Node name to use. If not set, defaults to value from GCE Metadata Server.")
 	namespaceId = flag.String("namespace-id", "",
 		"Namespace name of the pod in which monitored component is running.")
 	zoneOverride = flag.String("zone-override", "",
 		"Name of the zone to override the default one (in which component is running).")
+	clusterNameOverride = flag.String("cluster-name", "",
+		"Cluster name to use. If not set, defaults to value from GCE Metadata Server.")
+	clusterLocationOverride = flag.String("cluster-location", "",
+		"Cluster location to use. If not set, defaults to value from GCE Metadata Server.")
+	projectOverride = flag.String("project-id", "",
+		"GCP project to send metrics to. If not set, defaults to value from GCE Metadata Server.")
 	monitoredResourceTypes = flag.String("monitored-resource-types", "gke_container",
 		"The monitored resource types to use, either the legacy 'gke_container', or the new 'k8s'")
 	omitComponentName = flag.Bool("omit-component-name", true,
@@ -99,7 +107,7 @@ func main() {
 		}()
 	}
 
-	gceConf, err := config.GetGceConfig(*zoneOverride, *monitoredResourceTypes)
+	gceConf, err := config.GetGceConfig(*projectOverride, *clusterNameOverride, *clusterLocationOverride, *zoneOverride, *nodeOverride, *monitoredResourceTypes)
 	if err != nil {
 		glog.Fatalf("Failed to get GCE config: %v", err)
 	}
@@ -113,7 +121,18 @@ func main() {
 		glog.Error(http.ListenAndServe(fmt.Sprintf(":%d", *debugPort), nil))
 	}()
 
-	client := oauth2.NewClient(context.Background(), google.ComputeTokenSource(""))
+	var client *http.Client
+
+	if *projectOverride != "" {
+		client, err = google.DefaultClient(context.Background(), "https://www.googleapis.com/auth/cloud-platform")
+		if err != nil {
+			glog.Fatalf("Error getting default credentials: %v", err)
+		}
+		glog.Infof("Created a client with the default credentials")
+	} else {
+		client = oauth2.NewClient(context.Background(), google.ComputeTokenSource(""))
+	}
+
 	stackdriverService, err := v3.New(client)
 	if *apioverride != "" {
 		stackdriverService.BasePath = *apioverride
