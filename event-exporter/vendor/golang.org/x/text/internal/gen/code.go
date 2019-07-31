@@ -48,25 +48,47 @@ func NewCodeWriter() *CodeWriter {
 }
 
 // WriteGoFile appends the buffer with the total size of all created structures
-// and writes it as a Go file to the the given file with the given package name.
+// and writes it as a Go file to the given file with the given package name.
 func (w *CodeWriter) WriteGoFile(filename, pkg string) {
 	f, err := os.Create(filename)
 	if err != nil {
 		log.Fatalf("Could not create file %s: %v", filename, err)
 	}
 	defer f.Close()
-	if _, err = w.WriteGo(f, pkg); err != nil {
+	if _, err = w.WriteGo(f, pkg, ""); err != nil {
+		log.Fatalf("Error writing file %s: %v", filename, err)
+	}
+}
+
+// WriteVersionedGoFile appends the buffer with the total size of all created
+// structures and writes it as a Go file to the given file with the given
+// package name and build tags for the current Unicode version,
+func (w *CodeWriter) WriteVersionedGoFile(filename, pkg string) {
+	tags := buildTags()
+	if tags != "" {
+		pattern := fileToPattern(filename)
+		updateBuildTags(pattern)
+		filename = fmt.Sprintf(pattern, UnicodeVersion())
+	}
+	f, err := os.Create(filename)
+	if err != nil {
+		log.Fatalf("Could not create file %s: %v", filename, err)
+	}
+	defer f.Close()
+	if _, err = w.WriteGo(f, pkg, tags); err != nil {
 		log.Fatalf("Error writing file %s: %v", filename, err)
 	}
 }
 
 // WriteGo appends the buffer with the total size of all created structures and
-// writes it as a Go file to the the given writer with the given package name.
-func (w *CodeWriter) WriteGo(out io.Writer, pkg string) (n int, err error) {
+// writes it as a Go file to the given writer with the given package name.
+func (w *CodeWriter) WriteGo(out io.Writer, pkg, tags string) (n int, err error) {
 	sz := w.Size
-	w.WriteComment("Total table size %d bytes (%dKiB); checksum: %X\n", sz, sz/1024, w.Hash.Sum32())
+	if sz > 0 {
+		w.WriteComment("Total table size %d bytes (%dKiB); checksum: %X\n", sz, sz/1024, w.Hash.Sum32())
+	}
 	defer w.buf.Reset()
-	return WriteGo(out, pkg, w.buf.Bytes())
+	return WriteGo(out, pkg, tags, w.buf.Bytes())
 }
 
 func (w *CodeWriter) printf(f string, x ...interface{}) {
@@ -117,13 +139,7 @@ func (w *CodeWriter) WriteConst(name string, x interface{}) {
 
 	switch v.Type().Kind() {
 	case reflect.String:
-		// See golang.org/issue/13145.
-		const arbitraryCutoff = 16
-		if v.Len() > arbitraryCutoff {
-			w.printf("var %s %s = ", name, typeName(x))
-		} else {
-			w.printf("const %s %s = ", name, typeName(x))
-		}
+		w.printf("const %s %s = ", name, typeName(x))
 		w.WriteString(v.String())
 		w.printf("\n")
 	default:
@@ -202,16 +218,27 @@ func (w *CodeWriter) WriteString(s string) {
 	// When starting on its own line, go fmt indents line 2+ an extra level.
 	n, max := maxWidth, maxWidth-4
 
+	// As per https://golang.org/issue/18078, the compiler has trouble
+	// compiling the concatenation of many strings, s0 + s1 + s2 + ... + sN,
+	// for large N. We insert redundant, explicit parentheses to work around
+	// that, lowering the N at any given step: (s0 + s1 + ... + s63) + (s64 +
+	// ... + s127) + etc + (etc + ... + sN).
+	explicitParens, extraComment := len(s) > 128*1024, ""
+	if explicitParens {
+		w.printf(`(`)
+		extraComment = "; the redundant, explicit parens are for https://golang.org/issue/18078"
+	}
+
 	// Print "" +\n, if a string does not start on its own line.
 	b := w.buf.Bytes()
 	if p := len(bytes.TrimRight(b, " \t")); p > 0 && b[p-1] != '\n' {
-		w.printf("\"\" + // Size: %d bytes\n", len(s))
+		w.printf("\"\" + // Size: %d bytes%s\n", len(s), extraComment)
 		n, max = maxWidth, maxWidth
 	}
 
 	w.printf(`"`)
 
-	for sz, p := 0, 0; p < len(s); {
+	for sz, p, nLines := 0, 0, 0; p < len(s); {
 		var r rune
 		r, sz = utf8.DecodeRuneInString(s[p:])
 		out := s[p : p+sz]
@@ -226,8 +253,15 @@ func (w *CodeWriter) WriteString(s string) {
 				out = fmt.Sprintf("\\U%08x", r)
 			}
 			chars = len(out)
+		} else if r == '\\' {
+			out = "\\" + string(r)
+			chars = 2
 		}
 		if n -= chars; n < 0 {
+			nLines++
+			if explicitParens && nLines&63 == 63 {
+				w.printf("\") + (\"")
+			}
 			w.printf("\" +\n\"")
 			n = max - len(out)
 		}
@@ -235,6 +269,9 @@ func (w *CodeWriter) WriteString(s string) {
 		p += sz
 	}
 	w.printf(`"`)
+	if explicitParens {
+		w.printf(`)`)
+	}
 }
 
 // WriteSlice writes a slice value.

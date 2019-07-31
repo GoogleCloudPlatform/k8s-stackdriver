@@ -28,6 +28,7 @@ const (
 	defaultFlushDelay     = 5 * time.Second
 	defaultMaxBufferSize  = 100
 	defaultMaxConcurrency = 10
+	defaultEndpoint       = ""
 
 	eventsLogName = "events"
 )
@@ -37,6 +38,7 @@ type sdSinkConfig struct {
 	MaxBufferSize  int
 	MaxConcurrency int
 	LogName        string
+	Endpoint       string
 }
 
 func newGceSdSinkConfig() (*sdSinkConfig, error) {
@@ -56,5 +58,6 @@ func newGceSdSinkConfig() (*sdSinkConfig, error) {
 		MaxBufferSize:  defaultMaxBufferSize,
 		MaxConcurrency: defaultMaxConcurrency,
 		LogName:        logName,
+		Endpoint:       defaultEndpoint,
 	}, nil
 }

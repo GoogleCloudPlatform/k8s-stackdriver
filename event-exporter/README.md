@@ -47,6 +47,8 @@ Usage of stackdriver:
       Maximum number of events in the request to Stackdriver (default 100)
   -max-concurrency int
       Maximum number of concurrent requests to Stackdriver (default 10)
+  -endpoint string
+      Base path for Stackdriver API (default "https://logging.googleapis.com/")
 ```
 
 ## Deploy

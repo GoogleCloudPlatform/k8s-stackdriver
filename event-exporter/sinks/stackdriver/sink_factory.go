@@ -22,8 +22,8 @@ import (
 	"time"
 
 	"golang.org/x/net/context"
-	"golang.org/x/oauth2/google"
 	sd "google.golang.org/api/logging/v2"
+	"google.golang.org/api/option"
 
 	"k8s.io/apimachinery/pkg/util/clock"
 
@@ -36,6 +36,7 @@ type sdSinkFactory struct {
 	maxBufferSize        *int
 	maxConcurrency       *int
 	resourceModelVersion *string
+	endpoint             *string
 }
 
 // NewSdSinkFactory creates a new Stackdriver sink factory
@@ -52,6 +53,7 @@ func NewSdSinkFactory() sinks.SinkFactory {
 			"concurrent requests to Stackdriver"),
 		resourceModelVersion: fs.String("stackdriver-resource-model", "", "Stackdriver resource model "+
 			"to be used for exports"),
+		endpoint: fs.String("endpoint", defaultEndpoint, "Base path for Stackdriver API"),
 	}
 }
 
@@ -72,12 +74,7 @@ func (f *sdSinkFactory) CreateNew(opts []string) (sinks.Sink, error) {
 	}
 
 	ctx := context.Background()
-	client, err := google.DefaultClient(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create google client: %v", err)
-	}
-
-	service, err := sd.New(client)
+	service, err := sd.NewService(ctx, option.WithEndpoint(config.Endpoint))
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize Stackdriver service: %v", err)
 	}
@@ -105,5 +102,6 @@ func (f *sdSinkFactory) createSinkConfig() (*sdSinkConfig, error) {
 	config.FlushDelay = *f.flushDelay
 	config.MaxBufferSize = *f.maxBufferSize
 	config.MaxConcurrency = *f.maxConcurrency
+	config.Endpoint = *f.endpoint
 	return config, nil
 }

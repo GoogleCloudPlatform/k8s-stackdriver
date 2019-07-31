@@ -76,7 +76,7 @@ type breakCategory int
 const (
 	breakBreak breakCategory = iota
 	breakLetter
-	breakIgnored
+	breakMid
 )
 
 // mapping returns the case mapping for the given case type.
@@ -162,9 +162,14 @@ func parseUCD() []runeInfo {
 
 		// We collapse the word breaking properties onto the categories we need.
 		switch p.String(1) { // TODO: officially we need to canonicalize.
-		case "Format", "MidLetter", "MidNumLet", "Single_Quote":
-			ri.BreakCat = breakIgnored
-		case "ALetter", "Hebrew_Letter", "Numeric", "Extend", "ExtendNumLet":
+		case "MidLetter", "MidNumLet", "Single_Quote":
+			ri.BreakCat = breakMid
+			if !ri.CaseIgnorable {
+				// finalSigma relies on the fact that all breakMid runes are
+				// also a Case_Ignorable. Revisit this code when this changes.
+				log.Fatalf("Rune %U, which has a break category mid, is not a case ignorable", ri)
+			}
+		case "ALetter", "Hebrew_Letter", "Numeric", "Extend", "ExtendNumLet", "Format", "ZWJ":
 			ri.BreakCat = breakLetter
 		}
 	})
@@ -202,7 +207,7 @@ func genTables() {
 	}
 
 	w := gen.NewCodeWriter()
-	defer w.WriteGoFile("tables.go", "cases")
+	defer w.WriteVersionedGoFile("tables.go", "cases")
 
 	gen.WriteUnicodeVersion(w)
 
@@ -240,8 +245,11 @@ func makeEntry(ri *runeInfo) {
 	case above: // Above
 		ccc = cccAbove
 	}
-	if ri.BreakCat == breakBreak {
+	switch ri.BreakCat {
+	case breakBreak:
 		ccc = cccBreak
+	case breakMid:
+		ri.entry |= isMidBit
 	}
 
 	ri.entry |= ccc
@@ -327,7 +335,7 @@ func makeException(ri *runeInfo) {
 	ri.entry |= exceptionBit
 
 	if len(exceptionData) >= 1<<numExceptionBits {
-		log.Fatalf("%U:exceptionData too large %x > %d bits", ri.Rune, len(exceptionData), numExceptionBits)
+		log.Fatalf("%U:exceptionData too large %#x > %d bits", ri.Rune, len(exceptionData), numExceptionBits)
 	}
 
 	// Set the offset in the exceptionData array.
@@ -347,7 +355,7 @@ func makeException(ri *runeInfo) {
 			log.Fatalf("%U: has zero-length mapping.", ri.Rune)
 		}
 		*b <<= 3
-		if s != orig {
+		if s != orig || ri.CaseMode == cLower {
 			n := len(s)
 			if n > 7 {
 				log.Fatalf("%U: mapping larger than 7 (%d)", ri.Rune, n)
@@ -376,12 +384,6 @@ func makeException(ri *runeInfo) {
 		addString(uc, &exceptionData[p])
 	}
 	if ct != cTitle {
-		// If title is the same as upper, we set it to the original string so
-		// that it will be marked as not present. This implies title case is
-		// the same as upper case.
-		if tc == uc {
-			tc = orig
-		}
 		addString(tc, &exceptionData[p])
 	}
 }
@@ -588,7 +590,7 @@ func verifyProperties(chars []runeInfo) {
 				// decomposition is greater than U+00FF, the rune is always
 				// great and not a modifier.
 				if f := runes[0]; unicode.IsMark(f) || f > 0xFF && !unicode.Is(unicode.Greek, f) {
-					log.Fatalf("%U: expeced first rune of Greek decomposition to be letter, found %U", r, f)
+					log.Fatalf("%U: expected first rune of Greek decomposition to be letter, found %U", r, f)
 				}
 				// A.6.2: Any follow-up rune in a Greek decomposition is a
 				// modifier of which the first should be gobbled in
@@ -597,7 +599,7 @@ func verifyProperties(chars []runeInfo) {
 					switch m {
 					case 0x0313, 0x0314, 0x0301, 0x0300, 0x0306, 0x0342, 0x0308, 0x0304, 0x345:
 					default:
-						log.Fatalf("%U: modifier %U is outside of expeced Greek modifier set", r, m)
+						log.Fatalf("%U: modifier %U is outside of expected Greek modifier set", r, m)
 					}
 				}
 			}
@@ -690,7 +692,7 @@ func genTablesTest() {
 	parse("auxiliary/WordBreakProperty.txt", func(p *ucd.Parser) {
 		switch p.String(1) {
 		case "Extend", "Format", "MidLetter", "MidNumLet", "Single_Quote",
-			"ALetter", "Hebrew_Letter", "Numeric", "ExtendNumLet":
+			"ALetter", "Hebrew_Letter", "Numeric", "ExtendNumLet", "ZWJ":
 			notBreak[p.Rune(0)] = true
 		}
 	})
@@ -753,7 +755,7 @@ func genTablesTest() {
 
 	fmt.Fprintln(w, ")")
 
-	gen.WriteGoFile("tables_test.go", "cases", w.Bytes())
+	gen.WriteVersionedGoFile("tables_test.go", "cases", w.Bytes())
 }
 
 // These functions are just used for verification that their definition have not
