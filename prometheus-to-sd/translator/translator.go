@@ -83,7 +83,8 @@ func (t *TimeSeriesBuilder) Build() ([]*v3.TimeSeries, error) {
 	// Get start time before whitelisting, because process start time
 	// metric is likely not to be whitelisted.
 	startTime := t.getStartTime(metricFamilies)
-	metricFamilies = filterWhitelisted(metricFamilies, t.config.SourceConfig.Whitelisted)
+	metricFamilies = filterWhitelistedMetrics(metricFamilies, t.config.SourceConfig.Whitelisted)
+	metricFamilies = filterWhitelistedLabels(metricFamilies, t.config.SourceConfig.WhitelistedLabelsMap)
 
 	for name, metric := range metricFamilies {
 		if t.cache.IsMetricBroken(name) {
@@ -202,7 +203,7 @@ func (t *TimeSeriesBuilder) getStartTime(metrics map[string]*dto.MetricFamily) t
 	return startTime
 }
 
-func filterWhitelisted(allMetrics map[string]*dto.MetricFamily, whitelisted []string) map[string]*dto.MetricFamily {
+func filterWhitelistedMetrics(allMetrics map[string]*dto.MetricFamily, whitelisted []string) map[string]*dto.MetricFamily {
 	if len(whitelisted) == 0 {
 		return allMetrics
 	}
@@ -213,6 +214,37 @@ func filterWhitelisted(allMetrics map[string]*dto.MetricFamily, whitelisted []st
 			res[w] = family
 		} else {
 			glog.V(3).Infof("Whitelisted metric %s not present in Prometheus endpoint.", w)
+		}
+	}
+	return res
+}
+
+func filterWhitelistedLabels(allMetrics map[string]*dto.MetricFamily, whitelistedLabelsMap map[string]map[string]bool) map[string]*dto.MetricFamily {
+	if len(whitelistedLabelsMap) == 0 {
+		return allMetrics
+	}
+	glog.V(4).Infof("Exporting only whitelisted label values: %v", whitelistedLabelsMap)
+	res := map[string]*dto.MetricFamily{}
+	for metricName, metricFamily := range allMetrics {
+		var filteredMetrics []*dto.Metric
+		for _, metric := range metricFamily.Metric {
+			labels := metric.GetLabel()
+			for _, label := range labels {
+				if whitelistedLabelValues, found := whitelistedLabelsMap[*label.Name]; found && whitelistedLabelValues[*label.Value] {
+					filteredMetrics = append(filteredMetrics, metric)
+				}
+			}
+		}
+
+		if len(filteredMetrics) > 0 {
+			res[metricName] = &dto.MetricFamily{
+				Name:   metricFamily.Name,
+				Help:   metricFamily.Help,
+				Type:   metricFamily.Type,
+				Metric: filteredMetrics,
+			}
+		} else {
+			glog.V(3).Infof("Whitelisted label values for metric %s not found in Prometheus endpoint.", metricFamily)
 		}
 	}
 	return res

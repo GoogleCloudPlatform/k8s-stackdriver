@@ -77,11 +77,15 @@ var unrelatedMetric = "unrelated_metric"
 var testMetricDescription = "Description 1"
 var testMetricHistogramDescription = "Description 2"
 var untypedMetricName = "untyped_metric"
+var testLabelName = "labelName"
+var testLabelValue1 = "labelValue1"
+var testLabelValue2 = "labelValue2"
 
 var metricsResponse = &PrometheusResponse{rawResponse: `
 # TYPE test_name counter
 test_name{labelName="labelValue1"} 42.0
 test_name{labelName="labelValue2"} 106.0
+test_name{labelName="labelValue3"} 136.0
 # TYPE boolean_metric gauge
 boolean_metric{labelName="falseValue"} 0.00001
 boolean_metric{labelName="trueValue"} 1.2
@@ -126,6 +130,15 @@ var metrics = map[string]*dto.MetricFamily{
 					},
 				},
 				Counter: &dto.Counter{Value: floatPtr(106.0)},
+			},
+			{
+				Label: []*dto.LabelPair{
+					{
+						Name:  stringPtr("labelName"),
+						Value: stringPtr("labelValue3"),
+					},
+				},
+				Counter: &dto.Counter{Value: floatPtr(136.0)},
 			},
 		},
 	},
@@ -371,12 +384,12 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 
 	assert.Equal(t, err, nil)
 
-	assert.Equal(t, 6, len(ts))
+	assert.Equal(t, 7, len(ts))
 	// TranslatePrometheusToStackdriver uses maps to represent data, so order of output is randomized.
 	sort.Sort(ByMetricTypeReversed(ts))
 
-	// First two int values.
-	for i := 0; i <= 1; i++ {
+	// First three int values.
+	for i := 0; i <= 2; i++ {
 		metric := ts[i]
 		assert.Equal(t, "gke_container", metric.Resource.Type)
 		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", metric.Metric.Type)
@@ -393,13 +406,15 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 			assert.Equal(t, int64(42), *(metric.Points[0].Value.Int64Value))
 		} else if labels["labelName"] == "labelValue2" {
 			assert.Equal(t, int64(106), *(metric.Points[0].Value.Int64Value))
+		} else if labels["labelName"] == "labelValue3" {
+			assert.Equal(t, int64(136), *(metric.Points[0].Value.Int64Value))
 		} else {
 			t.Errorf("Wrong label labelName value %s", labels["labelName"])
 		}
 	}
 
 	// Histogram
-	metric := ts[2]
+	metric := ts[3]
 	assert.Equal(t, "gke_container", metric.Resource.Type)
 	assert.Equal(t, "container.googleapis.com/master/testcomponent/test_histogram", metric.Metric.Type)
 	assert.Equal(t, "DISTRIBUTION", metric.ValueType)
@@ -428,7 +443,7 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	assert.Equal(t, int64(1), counts[3])
 
 	// Then float value.
-	metric = ts[3]
+	metric = ts[4]
 	assert.Equal(t, "gke_container", metric.Resource.Type)
 	assert.Equal(t, "container.googleapis.com/master/testcomponent/float_metric", metric.Metric.Type)
 	assert.Equal(t, "DOUBLE", metric.ValueType)
@@ -438,7 +453,7 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	assert.Equal(t, "2009-02-13T23:31:30Z", metric.Points[0].Interval.StartTime)
 
 	// Then two boolean values.
-	for i := 4; i <= 5; i++ {
+	for i := 5; i <= 6; i++ {
 		metric := ts[i]
 		assert.Equal(t, "gke_container", metric.Resource.Type)
 		assert.Equal(t, "container.googleapis.com/master/testcomponent/boolean_metric", metric.Metric.Type)
@@ -451,6 +466,60 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 			assert.Equal(t, false, *(metric.Points[0].Value.BoolValue))
 		} else if labels["labelName"] == "trueValue" {
 			assert.Equal(t, true, *(metric.Points[0].Value.BoolValue))
+		} else {
+			t.Errorf("Wrong label labelName value %s", labels["labelName"])
+		}
+	}
+}
+
+func TestTranslatePrometheusToStackdriverWithLabelFiltering(t *testing.T) {
+	cache := buildCacheForTesting()
+
+	whitelistedLabelsMap := map[string]map[string]bool{testLabelName: {testLabelValue1: true, testLabelValue2: true}}
+	commonConfigWithFiltering := &config.CommonConfig{
+		GceConfig: &config.GceConfig{
+			Project:                "test-proj",
+			Zone:                   "us-central1-f",
+			Cluster:                "test-cluster",
+			Instance:               "kubernetes-master.c.test-proj.internal",
+			MonitoredResourceTypes: "gke_container",
+		},
+		SourceConfig: &config.SourceConfig{
+			PodConfig:            config.NewPodConfig("machine", "", "", "", ""),
+			Component:            "testcomponent",
+			MetricsPrefix:        "container.googleapis.com/master",
+			Whitelisted:          []string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName},
+			WhitelistedLabelsMap: whitelistedLabelsMap,
+		},
+	}
+	tsb := NewTimeSeriesBuilder(commonConfigWithFiltering, cache)
+	tsb.Update(metricsResponse, time.Now())
+	ts, err := tsb.Build()
+
+	assert.Equal(t, err, nil)
+	assert.Equal(t, 2, len(ts))
+
+	// TranslatePrometheusToStackdriver uses maps to represent data, so order of output is randomized.
+	sort.Sort(ByMetricTypeReversed(ts))
+
+	// First two int values.
+	for i := 0; i <= 1; i++ {
+		metric := ts[i]
+		assert.Equal(t, "gke_container", metric.Resource.Type)
+		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", metric.Metric.Type)
+		assert.Equal(t, "INT64", metric.ValueType)
+		assert.Equal(t, "CUMULATIVE", metric.MetricKind)
+
+		assert.Equal(t, 1, len(metric.Points))
+		assert.Equal(t, "2009-02-13T23:31:30Z", metric.Points[0].Interval.StartTime)
+
+		labels := metric.Metric.Labels
+		assert.Equal(t, 1, len(labels))
+
+		if labels["labelName"] == "labelValue1" {
+			assert.Equal(t, int64(42), *(metric.Points[0].Value.Int64Value))
+		} else if labels["labelName"] == "labelValue2" {
+			assert.Equal(t, int64(106), *(metric.Points[0].Value.Int64Value))
 		} else {
 			t.Errorf("Wrong label labelName value %s", labels["labelName"])
 		}

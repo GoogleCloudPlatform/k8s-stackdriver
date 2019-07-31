@@ -1,5 +1,4 @@
 # Overview
-
 prometheus-to-sd is a simple component that can scrape metrics stored in
 [prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/)
 from one or multiple components and push them to the Stackdriver. Main requirement:
@@ -13,9 +12,13 @@ Look at the following link: https://gcr.io/google-containers/prometheus-to-sd an
 
 For scraping metrics from the component it's name, host, port and metrics should passed
 through the flag `source` in the next format:
-`component-name:http://host:port?whitelisted=a,b,c`. If whitelisted part is
-omitted, then all metrics that are scraped from the component will be pushed
-to the Stackdriver, unless flag `auto-whitelist-metrics=true` was passed.
+`component-name:http://host:port?whitelisted=a,b,c&whitelistedLabels=podIdLabel:podId1,podId2|containerLabelName:containerName1,containerName2`.
+If whitelisted part is omitted, then all metrics that are scraped from the component will be pushed
+to the Stackdriver, unless flag `auto-whitelist-metrics=true` was passed. If whitelistedLabels part is omitted,
+then all metrics that are scraped from the component will be pushed to Stackdriver.
+Otherwise, only metrics with labels with all label values included in the whitelistedLabel values will be pushed.
+In the above example, only metrics with podIdLabel in [podId1, podId2] and containerLabelName in [containerName1, containerName2] will be pushed.
+Valid labels to filter against are containerLabelName, namespaceIdLabel, and podIdLabel.
 
 ## Custom metrics
 

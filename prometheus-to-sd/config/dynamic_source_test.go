@@ -6,7 +6,7 @@ import (
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/flags"
 	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestMapToSourceConfig(t *testing.T) {
@@ -15,6 +15,8 @@ func TestMapToSourceConfig(t *testing.T) {
 	emptyAuthConfig := AuthConfig{}
 	tokenAuthConfig := AuthConfig{Token: "token"}
 	userAuthConfig := AuthConfig{Username: "user", Password: "password"}
+	emptyWhitelistedLabelsMap := make(map[string]map[string]bool)
+
 	testcases := []struct {
 		componentName string
 		url           url.URL
@@ -30,13 +32,14 @@ func TestMapToSourceConfig(t *testing.T) {
 			podName:       podName,
 			podNamespace:  podNamespace,
 			want: SourceConfig{
-				Component:  "kube-proxy",
-				Protocol:   "https",
-				Host:       "10.25.78.143",
-				Port:       uint(8080),
-				Path:       defaultMetricsPath,
-				AuthConfig: emptyAuthConfig,
-				PodConfig:  NewPodConfig(podName, podNamespace, "", "", ""),
+				Component:            "kube-proxy",
+				Protocol:             "https",
+				Host:                 "10.25.78.143",
+				Port:                 uint(8080),
+				Path:                 defaultMetricsPath,
+				AuthConfig:           emptyAuthConfig,
+				PodConfig:            NewPodConfig(podName, podNamespace, "", "", ""),
+				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
 			},
 		},
 		{
@@ -46,14 +49,15 @@ func TestMapToSourceConfig(t *testing.T) {
 			podName:       podName,
 			podNamespace:  podNamespace,
 			want: SourceConfig{
-				Component:   "fluentd",
-				Protocol:    "http",
-				Host:        "very_important_ip",
-				Port:        uint(80),
-				Path:        defaultMetricsPath,
-				AuthConfig:  tokenAuthConfig,
-				Whitelisted: []string{"metric1", "metric2"},
-				PodConfig:   NewPodConfig(podName, podNamespace, "", "", ""),
+				Component:            "fluentd",
+				Protocol:             "http",
+				Host:                 "very_important_ip",
+				Port:                 uint(80),
+				Path:                 defaultMetricsPath,
+				AuthConfig:           tokenAuthConfig,
+				Whitelisted:          []string{"metric1", "metric2"},
+				PodConfig:            NewPodConfig(podName, podNamespace, "", "", ""),
+				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
 			},
 		},
 		{
@@ -63,14 +67,34 @@ func TestMapToSourceConfig(t *testing.T) {
 			podName:       podName,
 			podNamespace:  podNamespace,
 			want: SourceConfig{
+				Component:            "cadvisor",
+				Protocol:             "http",
+				Host:                 "very_important_ip",
+				Port:                 uint(8080),
+				Path:                 defaultMetricsPath,
+				AuthConfig:           userAuthConfig,
+				Whitelisted:          []string{"metric1", "metric2"},
+				PodConfig:            NewPodConfig(podName, podNamespace, "pod-id", "namespace-id", "container-name"),
+				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
+			},
+		},
+		{
+			componentName: "cadvisor",
+			url:           url.URL{Host: ":8080", RawQuery: "whitelisted=metric1,metric2&podIdLabel=pod-id&namespaceIdLabel=namespace-id&containerNamelabel=id&whitelistedLabels=containerNameLabel:/system.slice/node-problem-detector.service"},
+			ip:            "very_important_ip",
+			podName:       podName,
+			podNamespace:  podNamespace,
+			want: SourceConfig{
 				Component:   "cadvisor",
 				Protocol:    "http",
 				Host:        "very_important_ip",
 				Port:        uint(8080),
 				Path:        defaultMetricsPath,
-				AuthConfig:  userAuthConfig,
 				Whitelisted: []string{"metric1", "metric2"},
-				PodConfig:   NewPodConfig(podName, podNamespace, "pod-id", "namespace-id", "container-name"),
+				PodConfig:   NewPodConfig(podName, podNamespace, "pod-id", "namespace-id", "id"),
+				WhitelistedLabelsMap: map[string]map[string]bool{
+					"containerNameLabel": {"/system.slice/node-problem-detector.service": true},
+				},
 			},
 		},
 	}
