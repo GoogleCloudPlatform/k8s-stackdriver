@@ -53,7 +53,7 @@ func NewSdSinkFactory() sinks.SinkFactory {
 			"concurrent requests to Stackdriver"),
 		resourceModelVersion: fs.String("stackdriver-resource-model", "", "Stackdriver resource model "+
 			"to be used for exports"),
-		endpoint: fs.String("endpoint", defaultEndpoint, "Stackdriver base url"),
+		endpoint: fs.String("endpoint", defaultEndpoint, "Base path for Stackdriver API"),
 	}
 }
 
