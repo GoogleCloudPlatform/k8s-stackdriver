@@ -19,7 +19,7 @@ BINARY_NAME = event-exporter
 
 PREFIX = staging-k8s.gcr.io
 IMAGE_NAME = event-exporter
-TAG = v0.2.5
+TAG = v0.3.0
 
 build:
 	${ENVVAR} go build -a -o ${BINARY_NAME}
