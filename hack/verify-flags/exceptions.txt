@@ -1,43 +1,107 @@
+custom-metrics-stackdriver-adapter/README.md:               "cluster_name":   <your cluster name>,
 custom-metrics-stackdriver-adapter/README.md:               "pod_name":       <your pod name>,
+custom-metrics-stackdriver-adapter/README.md:               "project_id":     <your project ID>,
 custom-metrics-stackdriver-adapter/README.md:           - my-app --pod_id=$(POD_ID) --pod_name=$(POD_NAME) --namespace_name=$(NAMESPACE_NAME)
+custom-metrics-stackdriver-adapter/README.md:       cluster_name, err := gce.InstanceAttributeValue("cluster-name")
 custom-metrics-stackdriver-adapter/README.md:       podIdFlag := flag.String("pod_id", "", "a string")
+custom-metrics-stackdriver-adapter/README.md:       project_id, err := gce.ProjectID()
 custom-metrics-stackdriver-adapter/README.md:     - `namespace_id` and `instance_id` (for **legacy resource model**) are not
 custom-metrics-stackdriver-adapter/README.md:     - `pod_id`, `pod_name`, `namespace_name` can be obtained via downward API.
+custom-metrics-stackdriver-adapter/README.md:     - `project_id`, `zone`, `location`, `cluster_name` - can be obtained by your
+custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"cluster_name":   clusterName,
+custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"cluster_name": clusterName,
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"namespace_id": "default",
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"pod_id":         podId,
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"pod_name":       name,
+custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"project_id":     projectId,
+custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"project_id":   projectId,
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		// namespace_id and instance_id don't matter
+custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:	projectName := fmt.Sprintf("projects/%s", resourceLabels["project_id"])
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:			return ":" + timeSeries.Resource.Labels["node_name"], nil
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:			return timeSeries.Resource.Labels["namespace_name"] + ":" + timeSeries.Resource.Labels["pod_name"], nil
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:		if req.Key() == "resource.labels.project_id" {
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:		return fmt.Sprintf("resource.labels.namespace_name = %q AND resource.labels.pod_name = %s", namespace, podNames[0])
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:		return fmt.Sprintf("resource.labels.node_name = %s", nodeNames[0])
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:		return fmt.Sprintf("resource.labels.pod_id = %s", podIDs[0])
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:		return timeSeries.Resource.Labels["pod_id"], nil
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	clusterFilter := fmt.Sprintf("resource.labels.cluster_name = %q", t.config.Cluster)
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	clusterFilter := fmt.Sprintf("resource.labels.cluster_name = %q", t.config.Cluster)
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	projectFilter := fmt.Sprintf("resource.labels.project_id = %q", t.config.Project)
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	projectFilter := fmt.Sprintf("resource.labels.project_id = %q", t.config.Project)
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	return "resource.labels.pod_id != \"\" AND resource.labels.pod_id != \"machine\""
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	return fmt.Sprintf("resource.labels.namespace_name = %q AND resource.labels.pod_name = one_of(%s)", namespace, strings.Join(podNames, ","))
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	return fmt.Sprintf("resource.labels.node_name = one_of(%s)", strings.Join(nodeNames, ","))
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:	return fmt.Sprintf("resource.labels.pod_id = one_of(%s)", strings.Join(podIDs, ","))
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator.go:// GetExternalMetricProject If the metric has "resource.labels.project_id" as a selector, then use a different project
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:				"resource.labels.pod_id": "my-pod-id",
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:				"resource.labels.pod_id": "my-pod-id",
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:				Resource:   &sd.MonitoredResource{Type: "k8s_node", Labels: map[string]string{"node_name": "my-node-name"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:				Resource:   &sd.MonitoredResource{Type: "k8s_node", Labels: map[string]string{"node_name": "my-node-name"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels : pod_name " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.container_name = \"\" AND resource.labels.pod_id != \"\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.node_name = \"my-node-name-1\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.node_name = \"my-node-name-1\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.pod_id != \"machine\"")
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.pod_id = one_of(\"my-pod-id-1\",\"my-pod-id-2\")").
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.pod_name = \"my-pod-name\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.pod_name = \"my-pod-name\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.project_id = \"my-project\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.project_id = \"my-project\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.project_id = \"my-project\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.project_id = \"my-project\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.project_id = \"my-project\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.project_id = \"my-project\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.project_id = \"my-project\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.project_id = \"my-project\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			"AND resource.labels.project_id = \"other-project\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:		Filter("resource.labels.project_id = \"my-project\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:		Filter("resource.labels.project_id = \"my-project\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:	req2, _ := labels.NewRequirement("resource.labels.pod_name", selection.Exists, []string{})
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:	req2, _ := labels.NewRequirement("resource.labels.project_id", selection.Equals, []string{"my-project"})
+custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:	req2, _ := labels.NewRequirement("resource.labels.project_id", selection.Equals, []string{"other-project"})
 custom-metrics-stackdriver-adapter/pkg/adapter/provider/translator_test.go:	req3, _ := labels.NewRequirement("resource.labels.pod_name", selection.Exists, []string{})
+event-exporter/sinks/stackdriver/monitored_resource_factory.go:	clusterName   = "cluster_name"
+event-exporter/sinks/stackdriver/monitored_resource_factory.go:	nodeName      = "node_name"
 event-exporter/sinks/stackdriver/monitored_resource_factory.go:	podName       = "pod_name"
+event-exporter/sinks/stackdriver/monitored_resource_factory.go:	projectID     = "project_id"
+kubelet-to-gcm/monitor/controller/translator.go:		"cluster_name":   t.cluster,
 kubelet-to-gcm/monitor/controller/translator.go:		"namespace_id":   "",
 kubelet-to-gcm/monitor/controller/translator.go:		"pod_id":         "machine",
+kubelet-to-gcm/monitor/controller/translator.go:		"project_id":     t.project,
+kubelet-to-gcm/monitor/kubelet/translate.go:		"cluster_name":   t.cluster,
+kubelet-to-gcm/monitor/kubelet/translate.go:		"cluster_name":   t.cluster,
 kubelet-to-gcm/monitor/kubelet/translate.go:		"namespace_id":   "",
 kubelet-to-gcm/monitor/kubelet/translate.go:		"namespace_id":   namespace,
 kubelet-to-gcm/monitor/kubelet/translate.go:		"pod_id":         "machine",
 kubelet-to-gcm/monitor/kubelet/translate.go:		"pod_id":         podID,
+kubelet-to-gcm/monitor/kubelet/translate.go:		"project_id":     t.project,
+kubelet-to-gcm/monitor/kubelet/translate.go:		"project_id":     t.project,
+prometheus-to-sd/README.md:`project_id`, `cluster_name`, `instance_id` and `zone` are filled automatically by
 prometheus-to-sd/README.md:the prometheus-to-sd. Values of the `namespace_id` and `pod_id` can be passed to
 prometheus-to-sd/translator/metrics.go:		[]string{"component_name", "metric_name"},
+prometheus-to-sd/translator/translator.go:					"cluster_name": config.GceConfig.Cluster,
+prometheus-to-sd/translator/translator.go:					"node_name":    config.GceConfig.Instance,
+prometheus-to-sd/translator/translator.go:					"project_id":   config.GceConfig.Project,
+prometheus-to-sd/translator/translator.go:				"cluster_name":   config.GceConfig.Cluster,
+prometheus-to-sd/translator/translator.go:				"cluster_name":   config.GceConfig.Cluster,
 prometheus-to-sd/translator/translator.go:				"namespace_id":   namespace,
 prometheus-to-sd/translator/translator.go:				"pod_id":         pod,
 prometheus-to-sd/translator/translator.go:				"pod_name":       pod,
+prometheus-to-sd/translator/translator.go:				"project_id":     config.GceConfig.Project,
+prometheus-to-sd/translator/translator.go:				"project_id":     config.GceConfig.Project,

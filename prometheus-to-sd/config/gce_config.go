@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	gce "cloud.google.com/go/compute/metadata"
+	"github.com/golang/glog"
 )
 
 // GceConfig aggregates all GCE related configuration parameters.
@@ -34,40 +35,74 @@ type GceConfig struct {
 }
 
 // GetGceConfig builds GceConfig based on the provided prefix and metadata server available on GCE.
-func GetGceConfig(zone string, monitoredResourceTypes string) (*GceConfig, error) {
+func GetGceConfig(project, cluster, clusterLocation, zone, node string, monitoredResourceTypes string) (*GceConfig, error) {
+	if project != "" {
+		glog.Infof("Using metadata all from flags")
+		if cluster == "" {
+			glog.Warning("Cluster name was not set. This can be set with --cluster-name")
+		}
+		if clusterLocation == "" {
+			glog.Warning("Cluster location was not set. This can be set with --cluster-location")
+		}
+		if zone == "" {
+			// zone is only used by the older gke_container
+			glog.Info("Zone was not set. This can be set with --zone-override")
+		}
+		if node == "" {
+			glog.Warning("Node was not set. This can be set with --node-name")
+		}
+		return &GceConfig{
+			Project: project,
+			Zone:    zone,
+			Cluster: cluster,
+			// Location is normally set for 'k8s' monitored resources, but not for the 'gke_container' ones.
+			ClusterLocation:        clusterLocation,
+			Instance:               node,
+			MonitoredResourceTypes: monitoredResourceTypes,
+		}, nil
+	}
+
 	if !gce.OnGCE() {
 		return nil, fmt.Errorf("Not running on GCE.")
 	}
 
-	project, err := gce.ProjectID()
-	if err != nil {
-		return nil, fmt.Errorf("error while getting project id: %v", err)
+	var err error
+	if project == "" {
+		project, err = gce.ProjectID()
+		if err != nil {
+			return nil, fmt.Errorf("error while getting project id: %v", err)
+		}
 	}
 
-	cluster, err := gce.InstanceAttributeValue("cluster-name")
-	if err != nil {
-		return nil, fmt.Errorf("error while getting cluster name: %v", err)
-	}
-	cluster = strings.TrimSpace(cluster)
 	if cluster == "" {
-		return nil, fmt.Errorf("cluster-name metadata was empty")
+		cluster, err = gce.InstanceAttributeValue("cluster-name")
+		if err != nil {
+			return nil, fmt.Errorf("error while getting cluster name: %v", err)
+		}
+		cluster = strings.TrimSpace(cluster)
+		if cluster == "" {
+			return nil, fmt.Errorf("cluster-name metadata was empty")
+		}
 	}
 
-	instance, err := gce.InstanceName()
-	if err != nil {
-		return nil, fmt.Errorf("error while getting instance name: %v", err)
+	if node == "" {
+		node, err = gce.InstanceName()
+		if err != nil {
+			return nil, fmt.Errorf("error while getting instance (node) name: %v", err)
+		}
 	}
 
-	var clusterLocation string
 	switch monitoredResourceTypes {
 	case "k8s":
-		clusterLocation, err = gce.InstanceAttributeValue("cluster-location")
-		if err != nil {
-			return nil, fmt.Errorf("error while getting cluster location: %v", err)
-		}
-		clusterLocation = strings.TrimSpace(clusterLocation)
 		if clusterLocation == "" {
-			return nil, fmt.Errorf("cluster-location metadata was empty")
+			clusterLocation, err = gce.InstanceAttributeValue("cluster-location")
+			if err != nil {
+				return nil, fmt.Errorf("error while getting cluster location: %v", err)
+			}
+			clusterLocation = strings.TrimSpace(clusterLocation)
+			if clusterLocation == "" {
+				return nil, fmt.Errorf("cluster-location metadata was empty")
+			}
 		}
 	case "gke_container":
 		if zone == "" {
@@ -85,7 +120,7 @@ func GetGceConfig(zone string, monitoredResourceTypes string) (*GceConfig, error
 		Zone:                   zone,
 		Cluster:                cluster,
 		ClusterLocation:        clusterLocation,
-		Instance:               instance,
+		Instance:               node,
 		MonitoredResourceTypes: monitoredResourceTypes,
 	}, nil
 }
