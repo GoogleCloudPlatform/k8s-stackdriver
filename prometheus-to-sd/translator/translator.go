@@ -70,15 +70,15 @@ func (t *TimeSeriesBuilder) Update(batch *PrometheusResponse, timestamp time.Tim
 }
 
 // Build returns a new TimeSeries array and restarts the internal state.
-func (t *TimeSeriesBuilder) Build() ([]*v3.TimeSeries, error) {
+func (t *TimeSeriesBuilder) Build() ([]*v3.TimeSeries, time.Time, error) {
 	var ts []*v3.TimeSeries
 	if t.batch == nil {
-		return ts, nil
+		return ts, time.Now(), nil
 	}
 	defer func() { t.batch = nil }()
 	metricFamilies, err := t.batch.metrics.Build(t.config, t.cache)
 	if err != nil {
-		return ts, err
+		return ts, time.Now(), err
 	}
 	// Get start time before whitelisting, because process start time
 	// metric is likely not to be whitelisted.
@@ -97,7 +97,7 @@ func (t *TimeSeriesBuilder) Build() ([]*v3.TimeSeries, error) {
 			ts = append(ts, f...)
 		}
 	}
-	return ts, nil
+	return ts, t.batch.timestamp, nil
 }
 
 // OmitComponentName removes from the metric names prefix that is equal to component name.

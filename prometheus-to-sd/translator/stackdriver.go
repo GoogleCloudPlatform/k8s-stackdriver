@@ -21,6 +21,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/golang/glog"
 	v3 "google.golang.org/api/monitoring/v3"
@@ -33,7 +34,7 @@ const (
 )
 
 // SendToStackdriver sends http request to Stackdriver to create the given timeseries.
-func SendToStackdriver(service *v3.Service, config *config.CommonConfig, ts []*v3.TimeSeries) {
+func SendToStackdriver(service *v3.Service, config *config.CommonConfig, ts []*v3.TimeSeries, scrapeTimestamp time.Time) {
 	if len(ts) == 0 {
 		glog.V(3).Infof("No metrics to send to Stackdriver for component %v", config.SourceConfig.Component)
 		return
@@ -53,9 +54,14 @@ func SendToStackdriver(service *v3.Service, config *config.CommonConfig, ts []*v
 			defer wg.Done()
 			req := &v3.CreateTimeSeriesRequest{TimeSeries: ts[begin:end]}
 			_, err := service.Projects.TimeSeries.Create(proj, req).Do()
+			now := time.Now()
 			if err != nil {
 				atomic.AddUint32(&failedTs, uint32(end-begin))
 				glog.Errorf("Error while sending request to Stackdriver %v", err)
+				return
+			}
+			for i := begin; i < end; i++ {
+				metricIngestionLatency.WithLabelValues(config.SourceConfig.Component).Observe(now.Sub(scrapeTimestamp).Seconds())
 			}
 		}(i, end)
 	}

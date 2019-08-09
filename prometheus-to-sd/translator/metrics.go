@@ -52,6 +52,15 @@ var (
 		},
 		[]string{"component_name", "metric_name"},
 	)
+
+	metricIngestionLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "metric_ingestion_latency_seconds",
+			Help:    "Time passed from the moment, when metric was scraped from the monitored component till it was pushed to the Stackdriver",
+			Buckets: prometheus.ExponentialBuckets(1.0, 1.5, 12),
+		},
+		[]string{"component_name"},
+	)
 )
 
 func init() {
@@ -59,4 +68,5 @@ func init() {
 	prometheus.MustRegister(timeseriesPushed)
 	prometheus.MustRegister(timeseriesDropped)
 	prometheus.MustRegister(metricFamilyDropped)
+	prometheus.MustRegister(metricIngestionLatency)
 }
