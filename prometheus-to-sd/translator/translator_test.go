@@ -81,6 +81,8 @@ var testLabelName = "labelName"
 var testLabelValue1 = "labelValue1"
 var testLabelValue2 = "labelValue2"
 
+var now = time.Now()
+
 var metricsResponse = &PrometheusResponse{rawResponse: `
 # TYPE test_name counter
 test_name{labelName="labelValue1"} 42.0
@@ -379,8 +381,9 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	cache := buildCacheForTesting()
 
 	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName}), cache)
-	tsb.Update(metricsResponse, time.Now())
-	ts, err := tsb.Build()
+	tsb.Update(metricsResponse, now)
+	ts, timestamp, err := tsb.Build()
+	assert.Equal(t, timestamp, now)
 
 	assert.Equal(t, err, nil)
 
@@ -492,10 +495,12 @@ func TestTranslatePrometheusToStackdriverWithLabelFiltering(t *testing.T) {
 			WhitelistedLabelsMap: whitelistedLabelsMap,
 		},
 	}
-	tsb := NewTimeSeriesBuilder(commonConfigWithFiltering, cache)
-	tsb.Update(metricsResponse, time.Now())
-	ts, err := tsb.Build()
 
+	tsb := NewTimeSeriesBuilder(commonConfigWithFiltering, cache)
+	tsb.Update(metricsResponse, now)
+	ts, timestamp, err := tsb.Build()
+
+	assert.Equal(t, timestamp, now)
 	assert.Equal(t, err, nil)
 	assert.Equal(t, 2, len(ts))
 
@@ -683,7 +688,9 @@ int_summary_metric_count{label="l2"} 10
 
 			tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{tt.summaryMetricName + "_sum", tt.summaryMetricName + "_count"}), cache)
 			tsb.Update(tt.prometheusResponse, end)
-			tss, err := tsb.Build()
+			tss, timestamp, err := tsb.Build()
+			assert.Equal(t, timestamp, end)
+
 			sort.Sort(ByMetricTypeReversed(tss))
 			if err != nil {
 				t.Errorf("Should not have an error parsing summary metric %v", err)
@@ -759,7 +766,7 @@ float_metric 123.17
 process_start_time_seconds 1234567890.0
 `,
 	}
-	tsb.Update(scrape, time.Now())
+	tsb.Update(scrape, now)
 	scrape = &PrometheusResponse{rawResponse: `
 # TYPE test_name counter
 test_name{labelName="labelValue1"} 42.0
@@ -768,9 +775,9 @@ test_name{labelName="labelValue2"} 601.0
 process_start_time_seconds 1234567890.0
 `,
 	}
-	tsb.Update(scrape, time.Now())
-	ts, err := tsb.Build()
-
+	tsb.Update(scrape, now)
+	ts, timestamp, err := tsb.Build()
+	assert.Equal(t, timestamp, now)
 	assert.Equal(t, err, nil)
 	assert.Equal(t, 2, len(ts))
 	// TranslatePrometheusToStackdriver uses maps to represent data, so order of output is randomized.
@@ -840,7 +847,7 @@ func TestBuildWithoutUpdate(t *testing.T) {
 	cache := buildCacheForTesting()
 
 	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName}), cache)
-	ts, err := tsb.Build()
+	ts, _, err := tsb.Build()
 
 	assert.Equal(t, err, nil)
 	assert.Equal(t, 0, len(ts))

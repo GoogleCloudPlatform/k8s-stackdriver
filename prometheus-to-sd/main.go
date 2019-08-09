@@ -191,11 +191,11 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 		// road will jump to next iteration of the loop.
 		select {
 		case <-exportTicker:
-			ts, err := timeSeriesBuilder.Build()
+			ts, scrapeTimestamp, err := timeSeriesBuilder.Build()
 			if err != nil {
 				glog.Errorf("Could not build time series for component %v: %v", sourceConfig.Component, err)
 			} else {
-				translator.SendToStackdriver(stackdriverService, commonConfig, ts)
+				translator.SendToStackdriver(stackdriverService, commonConfig, ts, scrapeTimestamp)
 			}
 		default:
 		}
@@ -219,11 +219,12 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 			glog.V(4).Infof("Skipping %v component as there are no metric to expose.", sourceConfig.Component)
 			continue
 		}
+		scrapeTimestamp := time.Now()
 		metrics, err := translator.GetPrometheusMetrics(sourceConfig)
 		if err != nil {
 			glog.V(2).Infof("Error while getting Prometheus metrics %v for component %v", err, sourceConfig.Component)
 			continue
 		}
-		timeSeriesBuilder.Update(metrics, time.Now())
+		timeSeriesBuilder.Update(metrics, scrapeTimestamp)
 	}
 }
