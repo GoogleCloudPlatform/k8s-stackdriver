@@ -100,13 +100,13 @@ func parseSourceConfig(uri flags.Uri, podId, namespaceId string) (*SourceConfig,
 	whitelisted := values.Get("whitelisted")
 	podIdLabel := values.Get("podIdLabel")
 	namespaceIdLabel := values.Get("namespaceIdLabel")
-	containerNamelabel := values.Get("containerNamelabel")
+	containerNameLabel := values.Get("containerNameLabel")
 	metricsPrefix := values.Get("metricsPrefix")
 	auth, err := parseAuthConfig(uri.Val)
 	if err != nil {
 		return nil, err
 	}
-	podConfig := NewPodConfig(podId, namespaceId, podIdLabel, namespaceIdLabel, containerNamelabel)
+	podConfig := NewPodConfig(podId, namespaceId, podIdLabel, namespaceIdLabel, containerNameLabel)
 
 	whitelistedLabelsMap, err := parseWhitelistedLabels(values.Get("whitelistedLabels"))
 	if err != nil {
