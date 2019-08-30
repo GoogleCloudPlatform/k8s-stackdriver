@@ -43,6 +43,7 @@ type MetricsSource interface {
 
 // Once polls the backend and puts the data to the given service one time.
 func Once(src MetricsSource, gcm *v3.Service) {
+	scrapeTimestamp := time.Now()
 	req, err := src.GetTimeSeriesReq()
 	if err != nil {
 		observeFailedScrape(src.Name())
@@ -67,6 +68,7 @@ func Once(src MetricsSource, gcm *v3.Service) {
 		}
 		log.V(4).Infof("Successfully wrote TimeSeries data for %s to GCM v3 API.", src.Name())
 		observeSuccessfullRequest(len(subReq.TimeSeries))
+		observeIngestionLatency(len(subReq.TimeSeries), time.Now().Sub(scrapeTimestamp).Seconds())
 	}
 }
 

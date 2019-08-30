@@ -48,6 +48,14 @@ var (
 			Help: "Number of timeseries dropped during a push to the Stackdriver",
 		},
 	)
+
+	metricIngestionLatency = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "metric_ingestion_latency_seconds",
+			Help:    "Time passed from the moment, when metric was scraped from the monitored component till it was pushed to the Stackdriver",
+			Buckets: prometheus.ExponentialBuckets(1.0, 1.5, 12),
+		},
+	)
 )
 
 func init() {
@@ -55,6 +63,7 @@ func init() {
 	prometheus.MustRegister(failedScrapes)
 	prometheus.MustRegister(timeseriesPushed)
 	prometheus.MustRegister(timeseriesDropped)
+	prometheus.MustRegister(metricIngestionLatency)
 }
 
 func observeSuccessfullScrape(source string) {
@@ -71,4 +80,10 @@ func observeSuccessfullRequest(batchSize int) {
 
 func observeFailedRequest(batchSize int) {
 	timeseriesDropped.Add(float64(batchSize))
+}
+
+func observeIngestionLatency(numTimeseries int, latency float64) {
+	for i := 0; i < numTimeseries; i++ {
+		metricIngestionLatency.Observe(latency)
+	}
 }
