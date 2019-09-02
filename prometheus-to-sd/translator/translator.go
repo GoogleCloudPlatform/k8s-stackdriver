@@ -374,8 +374,8 @@ func convertToDistributionValue(h *dto.Histogram) *v3.Distribution {
 	}
 
 	return &v3.Distribution{
-		Count: count,
-		Mean:  mean,
+		Count:                 count,
+		Mean:                  mean,
 		SumOfSquaredDeviation: dev,
 		BucketOptions: &v3.BucketOptions{
 			ExplicitBuckets: &v3.Explicit{

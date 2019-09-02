@@ -92,6 +92,9 @@ kubelet-to-gcm/monitor/kubelet/translate.go:		"pod_id":         "machine",
 kubelet-to-gcm/monitor/kubelet/translate.go:		"pod_id":         podID,
 kubelet-to-gcm/monitor/kubelet/translate.go:		"project_id":     t.project,
 kubelet-to-gcm/monitor/kubelet/translate.go:		"project_id":     t.project,
+prometheus-to-sd/.idea/workspace.xml:        <entry file="file://$PROJECT_DIR$/config/dynamic_source.go">
+prometheus-to-sd/.idea/workspace.xml:        <option value="$PROJECT_DIR$/config/dynamic_source.go" />
+prometheus-to-sd/.idea/workspace.xml:    <entry file="file://$PROJECT_DIR$/config/dynamic_source.go">
 prometheus-to-sd/README.md:`project_id`, `cluster_name`, `instance_id` and `zone` are filled automatically by
 prometheus-to-sd/README.md:the prometheus-to-sd. Values of the `namespace_id` and `pod_id` can be passed to
 prometheus-to-sd/translator/metrics.go:		[]string{"component_name", "metric_name"},
