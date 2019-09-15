@@ -65,15 +65,16 @@ func getPrometheusMetrics(config *config.SourceConfig) (*PrometheusResponse, err
 	return &PrometheusResponse{rawResponse: string(body)}, nil
 }
 
-func doPrometheusRequest(url string, auth config.AuthConfig) (resp *http.Response, err error) {
-	// Allow insecure https connections
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
+// Allow insecure https connections
+var client = &http.Client{
+	Transport: &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
 		},
-	}
+	},
+}
+
+func doPrometheusRequest(url string, auth config.AuthConfig) (resp *http.Response, err error) {
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
