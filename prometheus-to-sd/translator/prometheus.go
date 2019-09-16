@@ -66,7 +66,7 @@ func getPrometheusMetrics(config *config.SourceConfig) (*PrometheusResponse, err
 }
 
 // Allow insecure https connections
-var client = &http.Client{
+var prometheusHttpClient = &http.Client{
 	Transport: &http.Transport{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: true,
@@ -84,7 +84,7 @@ func doPrometheusRequest(url string, auth config.AuthConfig) (resp *http.Respons
 	} else if len(auth.Token) > 0 {
 		request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", auth.Token))
 	}
-	return client.Do(request)
+	return prometheusHttpClient.Do(request)
 }
 
 // Build performs parsing and processing of the prometheus metrics response.
