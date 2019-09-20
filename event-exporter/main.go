@@ -61,6 +61,8 @@ func newKubernetesClient() (kubernetes.Interface, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create in-cluster config: %v", err)
 	}
+	// Use protobufs for communication with apiserver.
+	config.ContentType = "application/vnd.kubernetes.protobuf"
 
 	return kubernetes.NewForConfig(config)
 }
