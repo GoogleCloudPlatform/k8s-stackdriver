@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -64,9 +65,9 @@ var (
 		"Cluster location to use. If not set, defaults to value from GCE Metadata Server.")
 	projectOverride = flag.String("project-id", "",
 		"GCP project to send metrics to. If not set, defaults to value from GCE Metadata Server.")
-	monitoredResourceTypes = flag.String("monitored-resource-types", "gke_container",
-		"The monitored resource types to use, either the legacy 'gke_container', or the new 'k8s'")
-	omitComponentName = flag.Bool("omit-component-name", true,
+	monitoredResourceTypePrefix = flag.String("monitored-resource-type-prefix", "", "MonitoredResource type prefix, to be appended by 'container', 'pod', and 'node'.")
+	monitoredResourceLabels     = flag.String("monitored-resource-labels", "", "Manually specified MonitoredResource labels. It is in URL parameter format, like 'A=B&C=D&E=F'. When this field is specified, 'monitored-resource-type-prefix' is also required. To note: 'namespace-name', 'pod-name', and 'container-name' should not be provided in this flag and they will always be overwritten by values in other command line flags.")
+	omitComponentName           = flag.Bool("omit-component-name", true,
 		"If metric name starts with the component name then this substring is removed to keep metric name shorter.")
 	debugPort      = flag.Uint("port", 6061, "Port on which debug information is exposed.")
 	dynamicSources = flags.Uris{}
@@ -107,7 +108,7 @@ func main() {
 		}()
 	}
 
-	gceConf, err := config.GetGceConfig(*projectOverride, *clusterNameOverride, *clusterLocationOverride, *zoneOverride, *nodeOverride, *monitoredResourceTypes)
+	gceConf, err := config.GetGceConfig(*projectOverride, *clusterNameOverride, *clusterLocationOverride, *zoneOverride, *nodeOverride)
 	if err != nil {
 		glog.Fatalf("Failed to get GCE config: %v", err)
 	}
@@ -115,6 +116,14 @@ func main() {
 
 	sourceConfigs := getSourceConfigs(*metricsPrefix, gceConf)
 	glog.Infof("Built the following source configs: %v", sourceConfigs)
+
+	monitoredResourceLabels := parseMonitoredResourceLabels(*monitoredResourceLabels)
+	if len(monitoredResourceLabels) > 0 {
+		if *monitoredResourceTypePrefix == "" {
+			glog.Fatalf("When 'monitored-resource-labels' is specified, 'monitored-resource-type-prefix' cannot be empty.")
+		}
+		glog.Infof("Monitored resource labels: %v", monitoredResourceLabels)
+	}
 
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
@@ -154,7 +163,7 @@ func main() {
 		glog.V(4).Infof("Starting goroutine for %+v", sourceConfig)
 
 		// Pass sourceConfig as a parameter to avoid using the last sourceConfig by all goroutines.
-		go readAndPushDataToStackdriver(stackdriverService, gceConf, sourceConfig)
+		go readAndPushDataToStackdriver(stackdriverService, gceConf, sourceConfig, monitoredResourceLabels, *monitoredResourceTypePrefix)
 	}
 
 	// As worker goroutines work forever, block main thread as well.
@@ -172,13 +181,15 @@ func getSourceConfigs(defaultMetricsPrefix string, gceConfig *config.GceConfig) 
 	return append(staticSourceConfigs, dynamicSourceConfigs...)
 }
 
-func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *config.GceConfig, sourceConfig *config.SourceConfig) {
+func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *config.GceConfig, sourceConfig *config.SourceConfig, monitoredResourceLabels map[string]string, prefix string) {
 	glog.Infof("Running prometheus-to-sd, monitored target is %s %s://%v:%v", sourceConfig.Component, sourceConfig.Protocol, sourceConfig.Host, sourceConfig.Port)
 	commonConfig := &config.CommonConfig{
-		GceConfig:           gceConf,
-		SourceConfig:        sourceConfig,
-		OmitComponentName:   *omitComponentName,
-		DowncaseMetricNames: *downcaseMetricNames,
+		GceConfig:                   gceConf,
+		SourceConfig:                sourceConfig,
+		OmitComponentName:           *omitComponentName,
+		DowncaseMetricNames:         *downcaseMetricNames,
+		MonitoredResourceLabels:     monitoredResourceLabels,
+		MonitoredResourceTypePrefix: prefix,
 	}
 	metricDescriptorCache := translator.NewMetricDescriptorCache(stackdriverService, commonConfig)
 	signal := time.After(0)
@@ -227,4 +238,19 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 		}
 		timeSeriesBuilder.Update(metrics, scrapeTimestamp)
 	}
+}
+
+func parseMonitoredResourceLabels(monitoredResourceLabelsStr string) map[string]string {
+	labels := make(map[string]string)
+	m, err := url.ParseQuery(monitoredResourceLabelsStr)
+	if err != nil {
+		glog.Fatalf("Error parsing 'monitored-resource-labels' field: '%v'.", monitoredResourceLabelsStr)
+	}
+	for k, v := range m {
+		if len(v) != 1 {
+			glog.Fatalf("Key '%v' in 'monitored-resource-labels' doesn't have exactly one value (it has '%v' now).", k, v)
+		}
+		labels[k] = v[0]
+	}
+	return labels
 }
