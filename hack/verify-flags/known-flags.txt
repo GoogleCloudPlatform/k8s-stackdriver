@@ -103,7 +103,8 @@ metric-labels
 metrics-resolution
 min-pr-number
 min-replica-count
-monitored-resource-types
+monitored-resource-labels
+monitored-resource-type-prefix
 namespace-id
 netrc-dir
 network-config
