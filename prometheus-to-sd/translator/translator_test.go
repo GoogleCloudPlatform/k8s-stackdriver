@@ -49,11 +49,10 @@ const epsilon = float64(0.001)
 
 var commonConfig = &config.CommonConfig{
 	GceConfig: &config.GceConfig{
-		Project:                "test-proj",
-		Zone:                   "us-central1-f",
-		Cluster:                "test-cluster",
-		Instance:               "kubernetes-master.c.test-proj.internal",
-		MonitoredResourceTypes: "gke_container",
+		Project:  "test-proj",
+		Zone:     "us-central1-f",
+		Cluster:  "test-cluster",
+		Instance: "kubernetes-master.c.test-proj.internal",
 	},
 	SourceConfig: &config.SourceConfig{
 		PodConfig:     config.NewPodConfig("machine", "", "", "", ""),
@@ -301,16 +300,20 @@ var metricDescriptors = map[string]*v3.MetricDescriptor{
 
 func TestGetMonitoredResourceFromLabels(t *testing.T) {
 	testCases := []struct {
-		name     string
-		config   *config.CommonConfig
-		labels   []*dto.LabelPair
-		expected string
+		name           string
+		config         *config.CommonConfig
+		labels         []*dto.LabelPair
+		expectedType   string
+		expectedLabels map[string]string
 	}{
 		{
-			"Ensure that gke resources return gke_container.",
+			"Ensure that default returns gke_container.",
 			&config.CommonConfig{
 				GceConfig: &config.GceConfig{
-					MonitoredResourceTypes: "gke_container",
+					Project:  "test-project",
+					Zone:     "us-east1-a",
+					Cluster:  "test-cluster",
+					Instance: "test-instance",
 				},
 				SourceConfig: &config.SourceConfig{
 					PodConfig: config.NewPodConfig("", "", "", "", ""),
@@ -318,61 +321,100 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 			},
 			nil,
 			"gke_container",
+			map[string]string{
+				"project_id":     "test-project",
+				"zone":           "us-east1-a",
+				"cluster_name":   "test-cluster",
+				"instance_id":    "test-instance",
+				"namespace_id":   "",
+				"pod_id":         "",
+				"container_name": "",
+			},
 		},
 		{
-			"Ensure that k8s resources with empty resource labels return k8s_container.",
+			"Ensure that k8s resources with 'machine' pod label return k8s_node.",
 			&config.CommonConfig{
-				GceConfig: &config.GceConfig{
-					MonitoredResourceTypes: "k8s",
-				},
+				GceConfig: &config.GceConfig{},
 				SourceConfig: &config.SourceConfig{
-					PodConfig: config.NewPodConfig("", "", "", "", ""),
+					PodConfig: config.NewPodConfig("machine", "", "", "", ""),
+				},
+				MonitoredResourceTypePrefix: "k8s_",
+				MonitoredResourceLabels: map[string]string{
+					"project_id":   "test-project",
+					"location":     "us-west1",
+					"cluster_name": "test-cluster",
+					"node_name":    "test-node",
 				},
 			},
 			nil,
-			"k8s_container",
-		},
-		{
-			"Ensure that k8s resources with non-machine resources return k8s_container.",
-			&config.CommonConfig{
-				GceConfig: &config.GceConfig{
-					MonitoredResourceTypes: "k8s",
-				},
-				SourceConfig: &config.SourceConfig{
-					PodConfig: config.NewPodConfig("nonEmptyPodID", "", "", "", "containerNameLabel"),
-				},
-			},
-			[]*dto.LabelPair{
-				{
-					Name:  stringPtr("containerNameLabel"),
-					Value: stringPtr("machine"),
-				},
-			},
-			"k8s_container",
-		},
-		{
-			"Ensure that k8s resources with machine resources return k8s_node.",
-			&config.CommonConfig{
-				GceConfig: &config.GceConfig{
-					MonitoredResourceTypes: "k8s",
-				},
-				SourceConfig: &config.SourceConfig{
-					PodConfig: config.NewPodConfig("", "", "", "", "containerNameLabel"),
-				},
-			},
-			[]*dto.LabelPair{
-				{
-					Name:  stringPtr("containerNameLabel"),
-					Value: stringPtr("machine"),
-				},
-			},
 			"k8s_node",
+			map[string]string{
+				"project_id":   "test-project",
+				"location":     "us-west1",
+				"cluster_name": "test-cluster",
+				"node_name":    "test-node",
+			},
+		},
+		{
+			"Ensure that k8s resources without container labels return k8s_pod.",
+			&config.CommonConfig{
+				GceConfig: &config.GceConfig{},
+				SourceConfig: &config.SourceConfig{
+					PodConfig: config.NewPodConfig("test-pod", "test-namespace", "", "", ""),
+				},
+				MonitoredResourceTypePrefix: "k8s_",
+				MonitoredResourceLabels: map[string]string{
+					"project_id":   "test-project",
+					"location":     "us-west1",
+					"cluster_name": "test-cluster",
+				},
+			},
+			nil,
+			"k8s_pod",
+			map[string]string{
+				"project_id":     "test-project",
+				"location":       "us-west1",
+				"cluster_name":   "test-cluster",
+				"namespace_name": "test-namespace",
+				"pod_name":       "test-pod",
+			},
+		},
+		{
+			"Ensure that k8s resources with all labels return k8s_container.",
+			&config.CommonConfig{
+				GceConfig: &config.GceConfig{},
+				SourceConfig: &config.SourceConfig{
+					PodConfig: config.NewPodConfig("test-pod", "test-namespace", "", "", "containerNameLabel"),
+				},
+				MonitoredResourceTypePrefix: "k8s_",
+				MonitoredResourceLabels: map[string]string{
+					"project_id":   "test-project",
+					"location":     "us-west1",
+					"cluster_name": "test-cluster",
+				},
+			},
+			[]*dto.LabelPair{
+				{
+					Name:  stringPtr("containerNameLabel"),
+					Value: stringPtr("test-container"),
+				},
+			},
+			"k8s_container",
+			map[string]string{
+				"project_id":     "test-project",
+				"location":       "us-west1",
+				"cluster_name":   "test-cluster",
+				"namespace_name": "test-namespace",
+				"pod_name":       "test-pod",
+				"container_name": "test-container",
+			},
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			monitoredResource := getMonitoredResourceFromLabels(tc.config, tc.labels)
-			assert.Equal(t, tc.expected, monitoredResource.Type)
+			assert.Equal(t, tc.expectedType, monitoredResource.Type)
+			assert.Equal(t, tc.expectedLabels, monitoredResource.Labels)
 		})
 	}
 }
@@ -481,11 +523,10 @@ func TestTranslatePrometheusToStackdriverWithLabelFiltering(t *testing.T) {
 	whitelistedLabelsMap := map[string]map[string]bool{testLabelName: {testLabelValue1: true, testLabelValue2: true}}
 	commonConfigWithFiltering := &config.CommonConfig{
 		GceConfig: &config.GceConfig{
-			Project:                "test-proj",
-			Zone:                   "us-central1-f",
-			Cluster:                "test-cluster",
-			Instance:               "kubernetes-master.c.test-proj.internal",
-			MonitoredResourceTypes: "gke_container",
+			Project:  "test-proj",
+			Zone:     "us-central1-f",
+			Cluster:  "test-cluster",
+			Instance: "kubernetes-master.c.test-proj.internal",
 		},
 		SourceConfig: &config.SourceConfig{
 			PodConfig:            config.NewPodConfig("machine", "", "", "", ""),

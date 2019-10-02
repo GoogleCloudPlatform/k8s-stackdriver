@@ -44,6 +44,14 @@ the prometheus-to-sd. Values of the `namespace_id` and `pod_id` can be passed to
 the component through the additional flags or omitted. `container_name` is
 always empty for now. Field `zone` is overridable via flag.
 
+From 0.8.0, prometheus-to-sd can also take `monitoredResourceLabels` flag to explicitly specify all MonitoredResource labels as a k8s node.
+When this flag is used, prometheus-to-sd will not automatically determine any labels from GCE metadata server, and all of them will have to be explicitly specified.
+This flag needs to be used together with `monitoredResourceTypePrefix` all the time.
+If `pod-id`, `namespace-id` flags aren't specified, or Prometheus-to-sd isn't configured to extract them from metric labels, metrics will be written as node metrics.
+E.g, if `monitored-resource-type-prefix` = "k8s_", metrics will be written to "k8s_node" type, if `namespace-id` or `pod-id` isn't specified.
+If `namespace-id` and `pod-id` are specified, metrics will be written to "k8s_pod" type, with additional resource labels `namespace_name` and `pod_name`.
+If Prometheus-to-sd is configured to scrape container name from metrics, metrics will be written to "k8s_container" type, with extra resource label "container_name".
+
 ## Scrape interval vs. export interval
 
 There are two flags: `scrape-interval` and `export-interval` that allow

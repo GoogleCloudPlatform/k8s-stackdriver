@@ -301,6 +301,8 @@ func translateOne(config *config.CommonConfig,
 	}
 	setValue(mType, valueType, metric, point)
 
+	mr := getMonitoredResourceFromLabels(config, metric.GetLabel())
+	glog.V(4).Infof("MonitoredResource to write: %v", mr)
 	return &v3.TimeSeries{
 		Metric: &v3.Metric{
 			Labels: getMetricLabels(config, metric.GetLabel()),
@@ -462,33 +464,9 @@ func createProjectName(config *config.GceConfig) string {
 
 func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.LabelPair) *v3.MonitoredResource {
 	container, pod, namespace := config.SourceConfig.PodConfig.GetPodInfo(labels)
+	prefix := config.MonitoredResourceTypePrefix
 
-	switch config.GceConfig.MonitoredResourceTypes {
-	case "k8s":
-		if namespace == "" && pod == "" && container == "machine" {
-			return &v3.MonitoredResource{
-				Type: "k8s_node",
-				Labels: map[string]string{
-					"project_id":   config.GceConfig.Project,
-					"location":     config.GceConfig.ClusterLocation,
-					"cluster_name": config.GceConfig.Cluster,
-					"node_name":    config.GceConfig.Instance,
-				},
-			}
-		}
-
-		return &v3.MonitoredResource{
-			Type: "k8s_container",
-			Labels: map[string]string{
-				"project_id":     config.GceConfig.Project,
-				"location":       config.GceConfig.ClusterLocation,
-				"cluster_name":   config.GceConfig.Cluster,
-				"namespace_name": namespace,
-				"pod_name":       pod,
-				"container_name": container,
-			},
-		}
-	case "gke_container":
+	if prefix == "" {
 		return &v3.MonitoredResource{
 			Type: "gke_container",
 			Labels: map[string]string{
@@ -503,5 +481,28 @@ func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.L
 		}
 	}
 
-	return nil
+	resourceLabels := config.MonitoredResourceLabels
+
+	// When namespace and pod are unspecified, it should be written to node type.
+	if namespace == "" || pod == "" || pod == "machine" {
+		return &v3.MonitoredResource{
+			Type:   prefix + "node",
+			Labels: resourceLabels,
+		}
+	}
+
+	resourceLabels["namespace_name"] = namespace
+	resourceLabels["pod_name"] = pod
+	if container == "" {
+		return &v3.MonitoredResource{
+			Type:   prefix + "pod",
+			Labels: resourceLabels,
+		}
+	}
+
+	resourceLabels["container_name"] = container
+	return &v3.MonitoredResource{
+		Type:   prefix + "container",
+		Labels: resourceLabels,
+	}
 }

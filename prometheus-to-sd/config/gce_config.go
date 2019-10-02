@@ -26,16 +26,15 @@ import (
 
 // GceConfig aggregates all GCE related configuration parameters.
 type GceConfig struct {
-	Project                string
-	Zone                   string
-	Cluster                string
-	ClusterLocation        string
-	Instance               string
-	MonitoredResourceTypes string
+	Project         string
+	Zone            string
+	Cluster         string
+	ClusterLocation string
+	Instance        string
 }
 
 // GetGceConfig builds GceConfig based on the provided prefix and metadata server available on GCE.
-func GetGceConfig(project, cluster, clusterLocation, zone, node string, monitoredResourceTypes string) (*GceConfig, error) {
+func GetGceConfig(project, cluster, clusterLocation, zone, node string) (*GceConfig, error) {
 	if project != "" {
 		glog.Infof("Using metadata all from flags")
 		if cluster == "" {
@@ -52,13 +51,11 @@ func GetGceConfig(project, cluster, clusterLocation, zone, node string, monitore
 			glog.Warning("Node was not set. This can be set with --node-name")
 		}
 		return &GceConfig{
-			Project: project,
-			Zone:    zone,
-			Cluster: cluster,
-			// Location is normally set for 'k8s' monitored resources, but not for the 'gke_container' ones.
-			ClusterLocation:        clusterLocation,
-			Instance:               node,
-			MonitoredResourceTypes: monitoredResourceTypes,
+			Project:         project,
+			Zone:            zone,
+			Cluster:         cluster,
+			ClusterLocation: clusterLocation,
+			Instance:        node,
 		}, nil
 	}
 
@@ -92,35 +89,18 @@ func GetGceConfig(project, cluster, clusterLocation, zone, node string, monitore
 		}
 	}
 
-	switch monitoredResourceTypes {
-	case "k8s":
-		if clusterLocation == "" {
-			clusterLocation, err = gce.InstanceAttributeValue("cluster-location")
-			if err != nil {
-				return nil, fmt.Errorf("error while getting cluster location: %v", err)
-			}
-			clusterLocation = strings.TrimSpace(clusterLocation)
-			if clusterLocation == "" {
-				return nil, fmt.Errorf("cluster-location metadata was empty")
-			}
+	if zone == "" {
+		zone, err = gce.Zone()
+		if err != nil {
+			return nil, fmt.Errorf("error while getting zone: %v", err)
 		}
-	case "gke_container":
-		if zone == "" {
-			zone, err = gce.Zone()
-			if err != nil {
-				return nil, fmt.Errorf("error while getting zone: %v", err)
-			}
-		}
-	default:
-		return nil, fmt.Errorf("Unsupported resource types used: '%s'", monitoredResourceTypes)
 	}
 
 	return &GceConfig{
-		Project:                project,
-		Zone:                   zone,
-		Cluster:                cluster,
-		ClusterLocation:        clusterLocation,
-		Instance:               node,
-		MonitoredResourceTypes: monitoredResourceTypes,
+		Project:         project,
+		Zone:            zone,
+		Cluster:         cluster,
+		ClusterLocation: clusterLocation,
+		Instance:        node,
 	}, nil
 }
