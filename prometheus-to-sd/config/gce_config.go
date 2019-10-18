@@ -30,7 +30,9 @@ type GceConfig struct {
 	Zone            string
 	Cluster         string
 	ClusterLocation string
-	Instance        string
+	// This is actually instance name.
+	Instance   string
+	InstanceId string
 }
 
 // GetGceConfig builds GceConfig based on the provided prefix and metadata server available on GCE.
@@ -89,6 +91,12 @@ func GetGceConfig(project, cluster, clusterLocation, zone, node string) (*GceCon
 		}
 	}
 
+	var instanceId string
+	instanceId, err = gce.InstanceId()
+	if err != nil {
+		return nil, fmt.Errorf("error while getting instance id: %v", err)
+	}
+
 	if zone == "" {
 		zone, err = gce.Zone()
 		if err != nil {
@@ -102,5 +110,6 @@ func GetGceConfig(project, cluster, clusterLocation, zone, node string) (*GceCon
 		Cluster:         cluster,
 		ClusterLocation: clusterLocation,
 		Instance:        node,
+		InstanceId:      instanceId,
 	}, nil
 }

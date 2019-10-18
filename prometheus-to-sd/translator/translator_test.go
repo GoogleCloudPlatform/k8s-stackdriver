@@ -356,9 +356,38 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 			},
 		},
 		{
+			"Ensure that k8s resources with 'machine' pod label return k8s_node, and can get default from GCE config..",
+			&config.CommonConfig{
+				GceConfig: &config.GceConfig{
+					Project:  "test-project",
+					Zone:     "us-east1-a",
+					Cluster:  "test-cluster",
+					Instance: "test-instance",
+				},
+				SourceConfig: &config.SourceConfig{
+					PodConfig: config.NewPodConfig("machine", "", "", "", ""),
+				},
+				MonitoredResourceTypePrefix: "k8s_",
+				MonitoredResourceLabels:     map[string]string{},
+			},
+			nil,
+			"k8s_node",
+			map[string]string{
+				"project_id":   "test-project",
+				"location":     "us-east1-a",
+				"cluster_name": "test-cluster",
+				"node_name":    "test-instance",
+			},
+		},
+		{
 			"Ensure that k8s resources without container labels return k8s_pod.",
 			&config.CommonConfig{
-				GceConfig: &config.GceConfig{},
+				GceConfig: &config.GceConfig{
+					Project:  "test-project",
+					Zone:     "us-east1-a",
+					Cluster:  "test-cluster",
+					Instance: "test-instance",
+				},
 				SourceConfig: &config.SourceConfig{
 					PodConfig: config.NewPodConfig("test-pod", "test-namespace", "", "", ""),
 				},
@@ -407,6 +436,35 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 				"namespace_name": "test-namespace",
 				"pod_name":       "test-pod",
 				"container_name": "test-container",
+			},
+		},
+		{
+			"Ensure that other resources with 'machine' pod label return node type.",
+			&config.CommonConfig{
+				GceConfig: &config.GceConfig{
+					Project:  "default-project",
+					Zone:     "us-east1-a",
+					Cluster:  "test-cluster",
+					Instance: "default-instance",
+				},
+				SourceConfig: &config.SourceConfig{
+					PodConfig: config.NewPodConfig("machine", "", "", "", ""),
+				},
+				MonitoredResourceTypePrefix: "other_prefix_",
+				MonitoredResourceLabels: map[string]string{
+					"location":         "us-west1",
+					"cluster_name":     "test-cluster",
+					"additional_label": "foo",
+				},
+			},
+			nil,
+			"other_prefix_node",
+			map[string]string{
+				"project_id":       "default-project",
+				"location":         "us-west1",
+				"cluster_name":     "test-cluster",
+				"instance_id":      "default-instance",
+				"additional_label": "foo",
 			},
 		},
 	}
