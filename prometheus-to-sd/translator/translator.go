@@ -376,8 +376,8 @@ func convertToDistributionValue(h *dto.Histogram) *v3.Distribution {
 	}
 
 	return &v3.Distribution{
-		Count: count,
-		Mean:  mean,
+		Count:                 count,
+		Mean:                  mean,
 		SumOfSquaredDeviation: dev,
 		BucketOptions: &v3.BucketOptions{
 			ExplicitBuckets: &v3.Explicit{
@@ -482,9 +482,31 @@ func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.L
 	}
 
 	resourceLabels := config.MonitoredResourceLabels
+	if _, found := resourceLabels["project_id"]; !found {
+		resourceLabels["project_id"] = config.GceConfig.Project
+	}
+	if _, found := resourceLabels["cluster_name"]; !found {
+		resourceLabels["cluster_name"] = config.GceConfig.Cluster
+	}
+	if _, found := resourceLabels["location"]; !found {
+		resourceLabels["location"] = config.GceConfig.Zone
+	}
+
+	// When MonitoredResource type is not "k8s_*", default "instance_id" label to GCE instance name.
+	if prefix != "k8s_" {
+		if _, found := resourceLabels["instance_id"]; !found {
+			resourceLabels["instance_id"] = config.GceConfig.InstanceId
+		}
+	}
 
 	// When namespace and pod are unspecified, it should be written to node type.
 	if namespace == "" || pod == "" || pod == "machine" {
+		// When MonitoredResource is "k8s_node", default "node_name" label to GCE instance name.
+		if prefix == "k8s_" {
+			if _, found := resourceLabels["node_name"]; !found {
+				resourceLabels["node_name"] = config.GceConfig.Instance
+			}
+		}
 		return &v3.MonitoredResource{
 			Type:   prefix + "node",
 			Labels: resourceLabels,
