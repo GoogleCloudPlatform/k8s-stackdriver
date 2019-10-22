@@ -99,7 +99,15 @@ prometheus-to-sd/translator/translator.go:				"cluster_name":   config.GceConfig
 prometheus-to-sd/translator/translator.go:				"namespace_id":   namespace,
 prometheus-to-sd/translator/translator.go:				"pod_id":         pod,
 prometheus-to-sd/translator/translator.go:				"project_id":     config.GceConfig.Project,
+prometheus-to-sd/translator/translator.go:				resourceLabels["node_name"] = config.GceConfig.Instance
+prometheus-to-sd/translator/translator.go:			if _, found := resourceLabels["node_name"]; !found {
+prometheus-to-sd/translator/translator.go:		// When MonitoredResource is "k8s_node", default "node_name" label to GCE instance name.
+prometheus-to-sd/translator/translator.go:		resourceLabels["cluster_name"] = config.GceConfig.Cluster
+prometheus-to-sd/translator/translator.go:		resourceLabels["project_id"] = config.GceConfig.Project
+prometheus-to-sd/translator/translator.go:	if _, found := resourceLabels["cluster_name"]; !found {
+prometheus-to-sd/translator/translator.go:	if _, found := resourceLabels["project_id"]; !found {
 prometheus-to-sd/translator/translator.go:	resourceLabels["pod_name"] = pod
+prometheus-to-sd/translator/translator_test.go:					"cluster_name":     "test-cluster",
 prometheus-to-sd/translator/translator_test.go:					"cluster_name": "test-cluster",
 prometheus-to-sd/translator/translator_test.go:					"cluster_name": "test-cluster",
 prometheus-to-sd/translator/translator_test.go:					"cluster_name": "test-cluster",
@@ -107,16 +115,21 @@ prometheus-to-sd/translator/translator_test.go:					"node_name":    "test-node",
 prometheus-to-sd/translator/translator_test.go:					"project_id":   "test-project",
 prometheus-to-sd/translator/translator_test.go:					"project_id":   "test-project",
 prometheus-to-sd/translator/translator_test.go:					"project_id":   "test-project",
+prometheus-to-sd/translator/translator_test.go:				"cluster_name":     "test-cluster",
 prometheus-to-sd/translator/translator_test.go:				"cluster_name":   "test-cluster",
 prometheus-to-sd/translator/translator_test.go:				"cluster_name":   "test-cluster",
 prometheus-to-sd/translator/translator_test.go:				"cluster_name":   "test-cluster",
 prometheus-to-sd/translator/translator_test.go:				"cluster_name": "test-cluster",
+prometheus-to-sd/translator/translator_test.go:				"cluster_name": "test-cluster",
 prometheus-to-sd/translator/translator_test.go:				"namespace_id":   "",
+prometheus-to-sd/translator/translator_test.go:				"node_name":    "test-instance",
 prometheus-to-sd/translator/translator_test.go:				"node_name":    "test-node",
 prometheus-to-sd/translator/translator_test.go:				"pod_id":         "",
 prometheus-to-sd/translator/translator_test.go:				"pod_name":       "test-pod",
 prometheus-to-sd/translator/translator_test.go:				"pod_name":       "test-pod",
+prometheus-to-sd/translator/translator_test.go:				"project_id":       "default-project",
 prometheus-to-sd/translator/translator_test.go:				"project_id":     "test-project",
 prometheus-to-sd/translator/translator_test.go:				"project_id":     "test-project",
 prometheus-to-sd/translator/translator_test.go:				"project_id":     "test-project",
+prometheus-to-sd/translator/translator_test.go:				"project_id":   "test-project",
 prometheus-to-sd/translator/translator_test.go:				"project_id":   "test-project",

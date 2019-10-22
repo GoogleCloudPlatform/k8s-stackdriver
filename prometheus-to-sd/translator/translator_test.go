@@ -310,10 +310,11 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 			"Ensure that default returns gke_container.",
 			&config.CommonConfig{
 				GceConfig: &config.GceConfig{
-					Project:  "test-project",
-					Zone:     "us-east1-a",
-					Cluster:  "test-cluster",
-					Instance: "test-instance",
+					Project:    "test-project",
+					Zone:       "us-east1-a",
+					Cluster:    "test-cluster",
+					Instance:   "test-instance",
+					InstanceId: "123",
 				},
 				SourceConfig: &config.SourceConfig{
 					PodConfig: config.NewPodConfig("", "", "", "", ""),
@@ -322,9 +323,10 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 			nil,
 			"gke_container",
 			map[string]string{
-				"project_id":     "test-project",
-				"zone":           "us-east1-a",
-				"cluster_name":   "test-cluster",
+				"project_id":   "test-project",
+				"zone":         "us-east1-a",
+				"cluster_name": "test-cluster",
+				// To note: in legacy "gke_container" type, "instance_id" label referes to instance name.
 				"instance_id":    "test-instance",
 				"namespace_id":   "",
 				"pod_id":         "",
@@ -356,9 +358,40 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 			},
 		},
 		{
+			"Ensure that k8s resources with 'machine' pod label return k8s_node, and can get default from GCE config..",
+			&config.CommonConfig{
+				GceConfig: &config.GceConfig{
+					Project:    "test-project",
+					Zone:       "us-east1-a",
+					Cluster:    "test-cluster",
+					Instance:   "test-instance",
+					InstanceId: "123",
+				},
+				SourceConfig: &config.SourceConfig{
+					PodConfig: config.NewPodConfig("machine", "", "", "", ""),
+				},
+				MonitoredResourceTypePrefix: "k8s_",
+				MonitoredResourceLabels:     map[string]string{},
+			},
+			nil,
+			"k8s_node",
+			map[string]string{
+				"project_id":   "test-project",
+				"location":     "us-east1-a",
+				"cluster_name": "test-cluster",
+				"node_name":    "test-instance",
+			},
+		},
+		{
 			"Ensure that k8s resources without container labels return k8s_pod.",
 			&config.CommonConfig{
-				GceConfig: &config.GceConfig{},
+				GceConfig: &config.GceConfig{
+					Project:    "test-project",
+					Zone:       "us-east1-a",
+					Cluster:    "test-cluster",
+					Instance:   "test-instance",
+					InstanceId: "123",
+				},
 				SourceConfig: &config.SourceConfig{
 					PodConfig: config.NewPodConfig("test-pod", "test-namespace", "", "", ""),
 				},
@@ -407,6 +440,36 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 				"namespace_name": "test-namespace",
 				"pod_name":       "test-pod",
 				"container_name": "test-container",
+			},
+		},
+		{
+			"Ensure that other resources with 'machine' pod label return node type.",
+			&config.CommonConfig{
+				GceConfig: &config.GceConfig{
+					Project:    "default-project",
+					Zone:       "us-east1-a",
+					Cluster:    "test-cluster",
+					Instance:   "default-instance",
+					InstanceId: "123",
+				},
+				SourceConfig: &config.SourceConfig{
+					PodConfig: config.NewPodConfig("machine", "", "", "", ""),
+				},
+				MonitoredResourceTypePrefix: "other_prefix_",
+				MonitoredResourceLabels: map[string]string{
+					"location":         "us-west1",
+					"cluster_name":     "test-cluster",
+					"additional_label": "foo",
+				},
+			},
+			nil,
+			"other_prefix_node",
+			map[string]string{
+				"project_id":       "default-project",
+				"location":         "us-west1",
+				"cluster_name":     "test-cluster",
+				"instance_id":      "123",
+				"additional_label": "foo",
 			},
 		},
 	}

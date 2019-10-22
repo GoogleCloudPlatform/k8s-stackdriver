@@ -66,8 +66,13 @@ var (
 	projectOverride = flag.String("project-id", "",
 		"GCP project to send metrics to. If not set, defaults to value from GCE Metadata Server.")
 	monitoredResourceTypePrefix = flag.String("monitored-resource-type-prefix", "", "MonitoredResource type prefix, to be appended by 'container', 'pod', and 'node'.")
-	monitoredResourceLabels     = flag.String("monitored-resource-labels", "", "Manually specified MonitoredResource labels. It is in URL parameter format, like 'A=B&C=D&E=F'. When this field is specified, 'monitored-resource-type-prefix' is also required. To note: 'namespace-name', 'pod-name', and 'container-name' should not be provided in this flag and they will always be overwritten by values in other command line flags.")
-	omitComponentName           = flag.Bool("omit-component-name", true,
+	monitoredResourceLabels     = flag.String("monitored-resource-labels", "", "Manually specified MonitoredResource labels. "+
+		"It is in URL parameter format, like 'A=B&C=D&E=F'. "+
+		"When this field is specified, 'monitored-resource-type-prefix' is also required. "+
+		"By default, Prometheus-to-sd will read from GCE metadata server to fetch project id, cluster name, cluster location, and instance id. So these fields are optional in this flag. "+
+		"If these values are specified in this flag, they will overwrite the value from GCE metadata server. "+
+		"To note: 'namespace-name', 'pod-name', and 'container-name' should not be provided in this flag and they will always be overwritten by values in other command line flags.")
+	omitComponentName = flag.Bool("omit-component-name", true,
 		"If metric name starts with the component name then this substring is removed to keep metric name shorter.")
 	debugPort      = flag.Uint("port", 6061, "Port on which debug information is exposed.")
 	dynamicSources = flags.Uris{}
