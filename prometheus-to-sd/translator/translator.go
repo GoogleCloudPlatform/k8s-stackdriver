@@ -481,7 +481,10 @@ func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.L
 		}
 	}
 
-	resourceLabels := config.MonitoredResourceLabels
+	resourceLabels := make(map[string]string)
+	for k, v := range config.MonitoredResourceLabels {
+		resourceLabels[k] = v
+	}
 	if _, found := resourceLabels["project_id"]; !found {
 		resourceLabels["project_id"] = config.GceConfig.Project
 	}
