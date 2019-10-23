@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -34,6 +35,21 @@ const customMetricsPrefix = "custom.googleapis.com"
 // PrometheusResponse represents unprocessed response from Prometheus endpoint.
 type PrometheusResponse struct {
 	rawResponse string
+}
+
+var prometheusClient *http.Client
+
+func init() {
+	// Copy a DefaultTransport that is used by default http client.
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	// Allow insecure https connections.
+	transport.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+	prometheusClient = &http.Client{
+		Timeout:   time.Second * 30,
+		Transport: transport,
+	}
 }
 
 // GetPrometheusMetrics scrapes metrics from the given host and port using /metrics handler.
@@ -66,14 +82,6 @@ func getPrometheusMetrics(config *config.SourceConfig) (*PrometheusResponse, err
 }
 
 func doPrometheusRequest(url string, auth config.AuthConfig) (resp *http.Response, err error) {
-	// Allow insecure https connections
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-	}
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -83,7 +91,7 @@ func doPrometheusRequest(url string, auth config.AuthConfig) (resp *http.Respons
 	} else if len(auth.Token) > 0 {
 		request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", auth.Token))
 	}
-	return client.Do(request)
+	return prometheusClient.Do(request)
 }
 
 // Build performs parsing and processing of the prometheus metrics response.
