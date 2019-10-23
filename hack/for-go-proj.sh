@@ -45,11 +45,8 @@ for dep_file in ${dep_projects}; do
   (
     project="${dep_file%Gopkg.toml}"
 
-    if [[ ( $TRAVIS_GO_VERSION =~ ^1\.9 && ! $project =~ 'custom-metrics-stackdriver-adapter' ) ||
-          ( $TRAVIS_GO_VERSION =~ ^1\.10 && $project =~ 'custom-metrics-stackdriver-adapter' ) ]]; then
-      echo "go ${CMD}ing ${project}"
-      cd "${project}"
-      go "${CMD}" ./...
-    fi
+    echo "go ${CMD}ing ${project}"
+    cd "${project}"
+    go "${CMD}" ./...
   )
 done;

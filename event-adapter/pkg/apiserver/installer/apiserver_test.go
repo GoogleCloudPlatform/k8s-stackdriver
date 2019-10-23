@@ -232,7 +232,7 @@ func TestEventsAPI(t *testing.T) {
 			if err != nil {
 				bodyPart = fmt.Sprintf("[error extracting body: %v]", err)
 			}
-			t.Errorf("request: %s", request)
+			t.Errorf("request: %v", request)
 			t.Errorf("Expected %d for %s (%s), Got %#v -- %s", v.Status, v.Method, k, response, bodyPart)
 		}
 	}

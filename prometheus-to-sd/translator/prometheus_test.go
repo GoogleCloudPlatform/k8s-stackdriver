@@ -21,4 +21,3 @@ func TestScrapePrometheusMetrics(t *testing.T) {
 		resp.Body.Close()
 	}
 }
-
