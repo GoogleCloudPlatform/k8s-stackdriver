@@ -319,6 +319,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 				SourceConfig: &config.SourceConfig{
 					PodConfig: config.NewPodConfig("", "", "", "", ""),
 				},
+				MonitoredResourceLabels: map[string]string{},
 			},
 			nil,
 			"gke_container",
@@ -475,9 +476,14 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			originalResourceLabelsInConfig := make(map[string]string)
+			for k, v := range tc.config.MonitoredResourceLabels {
+				originalResourceLabelsInConfig[k] = v
+			}
 			monitoredResource := getMonitoredResourceFromLabels(tc.config, tc.labels)
 			assert.Equal(t, tc.expectedType, monitoredResource.Type)
 			assert.Equal(t, tc.expectedLabels, monitoredResource.Labels)
+			assert.Equal(t, originalResourceLabelsInConfig, tc.config.MonitoredResourceLabels)
 		})
 	}
 }
