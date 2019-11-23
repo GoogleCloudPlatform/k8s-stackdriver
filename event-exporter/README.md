@@ -69,7 +69,7 @@ spec:
     spec:
       containers:
       - name: event-exporter
-        image: gcr.io/google-containers/event-exporter:v0.1.4
+        image: gcr.io/google-containers/event-exporter:v0.3.1
         command:
         - '/event-exporter'
 ```
