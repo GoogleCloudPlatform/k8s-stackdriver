@@ -512,11 +512,12 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 					CustomResourceType: "resource_foo",
 					CustomLabels: map[string]string{
 						"foo":          "bar",
+						"baz":          "",
 						"project_id":   "",
 						"cluster_name": "",
 						"location":     "",
 						"instance_id":  "",
-						"baz":          "",
+						"node_name":    "",
 					},
 				},
 			},
@@ -524,11 +525,12 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 			"resource_foo",
 			map[string]string{
 				"foo":          "bar",
-				"project_id":   "default-project",
 				"baz":          "",
+				"project_id":   "default-project",
 				"cluster_name": "test-cluster",
 				"location":     "us-east1-a",
 				"instance_id":  "123",
+				"node_name":    "default-instance",
 			},
 		},
 	}

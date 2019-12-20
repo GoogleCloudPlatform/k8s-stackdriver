@@ -541,6 +541,7 @@ func getCustomMonitoredResource(config *config.CommonConfig) *v3.MonitoredResour
 	applyDefaultIfEmpty(resourceLabels, "project_id", config.GceConfig.Project)
 	applyDefaultIfEmpty(resourceLabels, "cluster_name", config.GceConfig.Cluster)
 	applyDefaultIfEmpty(resourceLabels, "location", config.GceConfig.Zone)
+	applyDefaultIfEmpty(resourceLabels, "node_name", config.GceConfig.Instance)
 	return &v3.MonitoredResource{
 		Type:   config.SourceConfig.CustomResourceType,
 		Labels: resourceLabels,

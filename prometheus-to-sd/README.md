@@ -60,12 +60,13 @@ Within the `source` URL, two new flags are supported:
 - `customLabel[<label_name>]` specifies the labels that are provided for given
   `customResourceType`. If `customResourceType` is not specified, this field is
   ignored. All the labels for custom resource type has to be explicitly listed
-  in the source config. Omitting the value for the following labels will cause
-  prometheus-to-sd to use a value from GCE config:
-  - `instance_id`
+  in the source config. Providing empty value for the following labels will
+  cause prometheus-to-sd to use a value from GCE config:
   - `cluster_name`
-  - `project_id`
+  - `instance_id`
   - `location`
+  - `node_name`
+  - `project_id`
 
 Example config:
 
