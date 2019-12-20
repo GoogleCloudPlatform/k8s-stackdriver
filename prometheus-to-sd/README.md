@@ -52,6 +52,29 @@ E.g, if `monitored-resource-type-prefix` = "k8s_", metrics will be written to "k
 If `namespace-id` and `pod-id` are specified, metrics will be written to "k8s_pod" type, with additional resource labels `namespace_name` and `pod_name`.
 If Prometheus-to-sd is configured to scrape container name from metrics, metrics will be written to "k8s_container" type, with extra resource label "container_name".
 
+From 0.9.0, custom resource type and labels can be specified per source config.
+Within the `source` URL, two new flags are supported:
+- `customResourceType` specifies the resource type override. When this flag is
+  present, it will override other resource type settings (e.g.
+  `monitored-resource-type-prefix`)
+- `customLabel[<label_name>]` specifies the labels that are provided for given
+  `customResourceType`. If `customResourceType` is not specified, this field is
+  ignored. All the labels for custom resource type has to be explicitly listed
+  in the source config. Omitting the value for the following labels will cause
+  prometheus-to-sd to use a value from GCE config:
+  - `instance_id`
+  - `cluster_name`
+  - `project_id`
+  - `location`
+
+Example config:
+
+`--source=my-container:http://localhost:123?customResourceType=k8s_node&customLabels[node_name]=my-node&customLabels[project_id]&customLabels[location]&customLabels[cluster_name]`
+
+This will scrape metrics from `localhost:123` and send them against `k8s_node`
+resource type, providing `my-node` as the node name and defaulting remaining
+labels using information from GCE Metadata Server.
+
 ## Scrape interval vs. export interval
 
 There are two flags: `scrape-interval` and `export-interval` that allow

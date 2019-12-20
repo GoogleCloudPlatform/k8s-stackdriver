@@ -473,6 +473,58 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 				"additional_label": "foo",
 			},
 		},
+		{
+			"Allow source config resource type override",
+			&config.CommonConfig{
+				MonitoredResourceLabels: map[string]string{},
+				GceConfig: &config.GceConfig{
+					Project:    "default-project",
+					Zone:       "us-east1-a",
+					Cluster:    "test-cluster",
+					Instance:   "default-instance",
+					InstanceId: "123",
+				},
+				SourceConfig: &config.SourceConfig{
+					CustomResourceType: "resource_foo",
+					CustomLabels: map[string]string{
+						"foo": "bar",
+					},
+				},
+			},
+			nil,
+			"resource_foo",
+			map[string]string{
+				"foo": "bar",
+			},
+		},
+		{
+			"Ensure source config resource type override can default",
+			&config.CommonConfig{
+				MonitoredResourceLabels: map[string]string{},
+				GceConfig: &config.GceConfig{
+					Project:    "default-project",
+					Zone:       "us-east1-a",
+					Cluster:    "test-cluster",
+					Instance:   "default-instance",
+					InstanceId: "123",
+				},
+				SourceConfig: &config.SourceConfig{
+					CustomResourceType: "resource_foo",
+					CustomLabels: map[string]string{
+						"foo":        "bar",
+						"project_id": "",
+						"baz":        "",
+					},
+				},
+			},
+			nil,
+			"resource_foo",
+			map[string]string{
+				"foo":        "bar",
+				"project_id": "default-project",
+				"baz":        "",
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

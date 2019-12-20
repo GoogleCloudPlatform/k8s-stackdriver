@@ -40,6 +40,7 @@ func TestMapToSourceConfig(t *testing.T) {
 				AuthConfig:           emptyAuthConfig,
 				PodConfig:            NewPodConfig(podName, podNamespace, "", "", ""),
 				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
+				CustomLabels:         map[string]string{},
 			},
 		},
 		{
@@ -58,6 +59,7 @@ func TestMapToSourceConfig(t *testing.T) {
 				Whitelisted:          []string{"metric1", "metric2"},
 				PodConfig:            NewPodConfig(podName, podNamespace, "", "", ""),
 				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
+				CustomLabels:         map[string]string{},
 			},
 		},
 		{
@@ -76,6 +78,7 @@ func TestMapToSourceConfig(t *testing.T) {
 				Whitelisted:          []string{"metric1", "metric2"},
 				PodConfig:            NewPodConfig(podName, podNamespace, "pod-id", "namespace-id", "container-name"),
 				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
+				CustomLabels:         map[string]string{},
 			},
 		},
 		{
@@ -95,6 +98,7 @@ func TestMapToSourceConfig(t *testing.T) {
 				WhitelistedLabelsMap: map[string]map[string]bool{
 					"containerNameLabel": {"/system.slice/node-problem-detector.service": true},
 				},
+				CustomLabels: map[string]string{},
 			},
 		},
 	}
