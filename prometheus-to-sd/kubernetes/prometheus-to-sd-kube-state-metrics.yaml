@@ -24,7 +24,7 @@ spec:
         memory: 300Mi
         cpu: 200m
   - name: prometheus-to-sd
-    image: gcr.io/google-containers/prometheus-to-sd:v0.3.2
+    image: gcr.io/google-containers/prometheus-to-sd:v0.9.0
     ports:
       - name: profiler
         containerPort: 6060
