@@ -101,11 +101,14 @@ func getConfigsFromPods(pods []core.Pod, sources map[string]url.URL) []*SourceCo
 func mapToSourceConfig(componentName string, url url.URL, ip string, podId, namespaceId string) (*SourceConfig, error) {
 	protocol := url.Scheme
 	port := url.Port()
-	whitelisted := url.Query().Get("whitelisted")
-	podIdLabel := url.Query().Get("podIdLabel")
-	namespaceIdLabel := url.Query().Get("namespaceIdLabel")
-	containerNamelabel := url.Query().Get("containerNamelabel")
-	metricsPrefix := url.Query().Get("metricsPrefix")
+	values := url.Query()
+	whitelisted := values.Get("whitelisted")
+	podIdLabel := values.Get("podIdLabel")
+	namespaceIdLabel := values.Get("namespaceIdLabel")
+	containerNamelabel := values.Get("containerNamelabel")
+	metricsPrefix := values.Get("metricsPrefix")
+	customResource := values.Get("customResourceType")
+	customLabels := getMap(values, "customLabels")
 	auth, err := parseAuthConfig(url)
 	if err != nil {
 		return nil, err
@@ -115,5 +118,5 @@ func mapToSourceConfig(componentName string, url url.URL, ip string, podId, name
 	if err != nil {
 		return nil, err
 	}
-	return newSourceConfig(componentName, protocol, ip, port, url.Path, *auth, whitelisted, metricsPrefix, podConfig, whitelistedLabelsMap)
+	return newSourceConfig(componentName, protocol, ip, port, url.Path, *auth, whitelisted, metricsPrefix, podConfig, whitelistedLabelsMap, customResource, customLabels)
 }

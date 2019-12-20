@@ -92,9 +92,10 @@ kubelet-to-gcm/monitor/kubelet/translate.go:		"pod_id":         "machine",
 kubelet-to-gcm/monitor/kubelet/translate.go:		"pod_id":         podID,
 kubelet-to-gcm/monitor/kubelet/translate.go:		"project_id":     t.project,
 kubelet-to-gcm/monitor/kubelet/translate.go:		"project_id":     t.project,
-prometheus-to-sd/.idea/workspace.xml:        <entry file="file://$PROJECT_DIR$/config/dynamic_source.go">
-prometheus-to-sd/.idea/workspace.xml:        <option value="$PROJECT_DIR$/config/dynamic_source.go" />
-prometheus-to-sd/.idea/workspace.xml:    <entry file="file://$PROJECT_DIR$/config/dynamic_source.go">
+prometheus-to-sd/README.md:  - `cluster_name`
+prometheus-to-sd/README.md:  - `node_name`
+prometheus-to-sd/README.md:  - `project_id`
+prometheus-to-sd/README.md:`--source=my-container:http://localhost:123?customResourceType=k8s_node&customLabels[node_name]=my-node&customLabels[project_id]&customLabels[location]&customLabels[cluster_name]`
 prometheus-to-sd/README.md:`project_id`, `cluster_name`, `instance_id` and `zone` are filled automatically by
 prometheus-to-sd/README.md:the prometheus-to-sd. Values of the `namespace_id` and `pod_id` can be passed to
 prometheus-to-sd/translator/metrics.go:		[]string{"component_name", "metric_name"},
@@ -107,9 +108,15 @@ prometheus-to-sd/translator/translator.go:			if _, found := resourceLabels["node
 prometheus-to-sd/translator/translator.go:		// When MonitoredResource is "k8s_node", default "node_name" label to GCE instance name.
 prometheus-to-sd/translator/translator.go:		resourceLabels["cluster_name"] = config.GceConfig.Cluster
 prometheus-to-sd/translator/translator.go:		resourceLabels["project_id"] = config.GceConfig.Project
+prometheus-to-sd/translator/translator.go:	applyDefaultIfEmpty(resourceLabels, "cluster_name", config.GceConfig.Cluster)
+prometheus-to-sd/translator/translator.go:	applyDefaultIfEmpty(resourceLabels, "node_name", config.GceConfig.Instance)
+prometheus-to-sd/translator/translator.go:	applyDefaultIfEmpty(resourceLabels, "project_id", config.GceConfig.Project)
 prometheus-to-sd/translator/translator.go:	if _, found := resourceLabels["cluster_name"]; !found {
 prometheus-to-sd/translator/translator.go:	if _, found := resourceLabels["project_id"]; !found {
 prometheus-to-sd/translator/translator.go:	resourceLabels["pod_name"] = pod
+prometheus-to-sd/translator/translator_test.go:						"cluster_name": "",
+prometheus-to-sd/translator/translator_test.go:						"node_name":    "",
+prometheus-to-sd/translator/translator_test.go:						"project_id":   "",
 prometheus-to-sd/translator/translator_test.go:					"cluster_name":     "test-cluster",
 prometheus-to-sd/translator/translator_test.go:					"cluster_name": "test-cluster",
 prometheus-to-sd/translator/translator_test.go:					"cluster_name": "test-cluster",
@@ -124,7 +131,9 @@ prometheus-to-sd/translator/translator_test.go:				"cluster_name":   "test-clust
 prometheus-to-sd/translator/translator_test.go:				"cluster_name": "test-cluster",
 prometheus-to-sd/translator/translator_test.go:				"cluster_name": "test-cluster",
 prometheus-to-sd/translator/translator_test.go:				"cluster_name": "test-cluster",
+prometheus-to-sd/translator/translator_test.go:				"cluster_name": "test-cluster",
 prometheus-to-sd/translator/translator_test.go:				"namespace_id":   "",
+prometheus-to-sd/translator/translator_test.go:				"node_name":    "default-instance",
 prometheus-to-sd/translator/translator_test.go:				"node_name":    "test-instance",
 prometheus-to-sd/translator/translator_test.go:				"node_name":    "test-node",
 prometheus-to-sd/translator/translator_test.go:				"pod_id":         "",
@@ -133,6 +142,7 @@ prometheus-to-sd/translator/translator_test.go:				"pod_name":       "test-pod",
 prometheus-to-sd/translator/translator_test.go:				"project_id":       "default-project",
 prometheus-to-sd/translator/translator_test.go:				"project_id":     "test-project",
 prometheus-to-sd/translator/translator_test.go:				"project_id":     "test-project",
+prometheus-to-sd/translator/translator_test.go:				"project_id":   "default-project",
 prometheus-to-sd/translator/translator_test.go:				"project_id":   "test-project",
 prometheus-to-sd/translator/translator_test.go:				"project_id":   "test-project",
 prometheus-to-sd/translator/translator_test.go:				"project_id":   "test-project",

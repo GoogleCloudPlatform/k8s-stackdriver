@@ -463,6 +463,9 @@ func createProjectName(config *config.GceConfig) string {
 }
 
 func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.LabelPair) *v3.MonitoredResource {
+	if config.SourceConfig.CustomResourceType != "" {
+		return getCustomMonitoredResource(config)
+	}
 	container, pod, namespace := config.SourceConfig.PodConfig.GetPodInfo(labels)
 	prefix := config.MonitoredResourceTypePrefix
 
@@ -529,5 +532,24 @@ func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.L
 	return &v3.MonitoredResource{
 		Type:   prefix + "container",
 		Labels: resourceLabels,
+	}
+}
+
+func getCustomMonitoredResource(config *config.CommonConfig) *v3.MonitoredResource {
+	resourceLabels := config.SourceConfig.CustomLabels
+	applyDefaultIfEmpty(resourceLabels, "instance_id", config.GceConfig.InstanceId)
+	applyDefaultIfEmpty(resourceLabels, "project_id", config.GceConfig.Project)
+	applyDefaultIfEmpty(resourceLabels, "cluster_name", config.GceConfig.Cluster)
+	applyDefaultIfEmpty(resourceLabels, "location", config.GceConfig.Zone)
+	applyDefaultIfEmpty(resourceLabels, "node_name", config.GceConfig.Instance)
+	return &v3.MonitoredResource{
+		Type:   config.SourceConfig.CustomResourceType,
+		Labels: resourceLabels,
+	}
+}
+
+func applyDefaultIfEmpty(resourceLabels map[string]string, key, defaultValue string) {
+	if val, found := resourceLabels[key]; found && val == "" {
+		resourceLabels[key] = defaultValue
 	}
 }

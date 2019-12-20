@@ -19,6 +19,7 @@ package config
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -39,6 +40,8 @@ type SourceConfig struct {
 	WhitelistedLabelsMap map[string]map[string]bool
 	PodConfig            PodConfig
 	MetricsPrefix        string
+	CustomResourceType   string
+	CustomLabels         map[string]string
 }
 
 const defaultMetricsPath = "/metrics"
@@ -46,7 +49,7 @@ const defaultMetricsPath = "/metrics"
 var validWhitelistedLabels = map[string]bool{"containerNameLabel": true, "namespaceIdLabel": true, "podIdLabel": true}
 
 // newSourceConfig creates a new SourceConfig based on string representation of fields.
-func newSourceConfig(component, protocol, host, port, path string, auth AuthConfig, whitelisted, metricsPrefix string, podConfig PodConfig, whitelistedLabelsMap map[string]map[string]bool) (*SourceConfig, error) {
+func newSourceConfig(component, protocol, host, port, path string, auth AuthConfig, whitelisted, metricsPrefix string, podConfig PodConfig, whitelistedLabelsMap map[string]map[string]bool, customResourceType string, customLabels map[string]string) (*SourceConfig, error) {
 	if port == "" {
 		return nil, fmt.Errorf("No port provided.")
 	}
@@ -83,6 +86,8 @@ func newSourceConfig(component, protocol, host, port, path string, auth AuthConf
 		WhitelistedLabelsMap: whitelistedLabelsMap,
 		PodConfig:            podConfig,
 		MetricsPrefix:        metricsPrefix,
+		CustomResourceType:   customResourceType,
+		CustomLabels:         customLabels,
 	}, nil
 }
 
@@ -102,6 +107,8 @@ func parseSourceConfig(uri flags.Uri, podId, namespaceId string) (*SourceConfig,
 	namespaceIdLabel := values.Get("namespaceIdLabel")
 	containerNameLabel := values.Get("containerNameLabel")
 	metricsPrefix := values.Get("metricsPrefix")
+	customResource := values.Get("customResourceType")
+	customLabels := getMap(values, "customLabels")
 	auth, err := parseAuthConfig(uri.Val)
 	if err != nil {
 		return nil, err
@@ -112,7 +119,28 @@ func parseSourceConfig(uri flags.Uri, podId, namespaceId string) (*SourceConfig,
 	if err != nil {
 		return nil, err
 	}
-	return newSourceConfig(component, protocol, host, port, path, *auth, whitelisted, metricsPrefix, podConfig, whitelistedLabelsMap)
+	return newSourceConfig(component, protocol, host, port, path, *auth, whitelisted, metricsPrefix, podConfig, whitelistedLabelsMap, customResource, customLabels)
+}
+
+func getMap(v url.Values, name string) map[string]string {
+	n := len(name)
+	m := make(map[string]string)
+	for k, vals := range v {
+		if len(k) <= n {
+			continue
+		}
+		if k[:n] == name && k[n] == '[' && k[len(k)-1] == ']' {
+			if len(vals) > 1 {
+				glog.Warningf("Ignoring multiple values of %v", k)
+			}
+			var val string
+			if len(vals) == 1 {
+				val = vals[0]
+			}
+			m[k[n+1:len(k)-1]] = val
+		}
+	}
+	return m
 }
 
 // UpdateWhitelistedMetrics sets passed list as a list of whitelisted metrics.

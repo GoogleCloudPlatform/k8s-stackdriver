@@ -473,6 +473,66 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 				"additional_label": "foo",
 			},
 		},
+		{
+			"Allow source config resource type override",
+			&config.CommonConfig{
+				MonitoredResourceLabels: map[string]string{},
+				GceConfig: &config.GceConfig{
+					Project:    "default-project",
+					Zone:       "us-east1-a",
+					Cluster:    "test-cluster",
+					Instance:   "default-instance",
+					InstanceId: "123",
+				},
+				SourceConfig: &config.SourceConfig{
+					CustomResourceType: "resource_foo",
+					CustomLabels: map[string]string{
+						"foo": "bar",
+					},
+				},
+			},
+			nil,
+			"resource_foo",
+			map[string]string{
+				"foo": "bar",
+			},
+		},
+		{
+			"Ensure source config resource type override can default",
+			&config.CommonConfig{
+				MonitoredResourceLabels: map[string]string{},
+				GceConfig: &config.GceConfig{
+					Project:    "default-project",
+					Zone:       "us-east1-a",
+					Cluster:    "test-cluster",
+					Instance:   "default-instance",
+					InstanceId: "123",
+				},
+				SourceConfig: &config.SourceConfig{
+					CustomResourceType: "resource_foo",
+					CustomLabels: map[string]string{
+						"foo":          "bar",
+						"baz":          "",
+						"project_id":   "",
+						"cluster_name": "",
+						"location":     "",
+						"instance_id":  "",
+						"node_name":    "",
+					},
+				},
+			},
+			nil,
+			"resource_foo",
+			map[string]string{
+				"foo":          "bar",
+				"baz":          "",
+				"project_id":   "default-project",
+				"cluster_name": "test-cluster",
+				"location":     "us-east1-a",
+				"instance_id":  "123",
+				"node_name":    "default-instance",
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
