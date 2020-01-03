@@ -29,11 +29,10 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	v3 "google.golang.org/api/monitoring/v3"
-
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/config"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/flags"
@@ -85,6 +84,8 @@ var (
 	delayedShutdownTimeout = flag.Duration("delayed-shutdown-timeout", 120*time.Second,
 		"Time to wait for the shutdown after receiving SIGTERM. 0 value means shutdown immediately, negative value results in ignoring signal."+
 			" Default value is 120 seconds.")
+	gceTokenURL  = flag.String("gce-token-url", "", "URL to be used to obtain GCE access token")
+	gceTokenBody = flag.String("gce-token-body", "", "HTTP request body to be used to obtain GCE access token")
 )
 
 func main() {
@@ -137,7 +138,9 @@ func main() {
 
 	var client *http.Client
 
-	if *projectOverride != "" {
+	if *gceTokenURL != "" {
+		client = oauth2.NewClient(context.Background(), config.NewAltTokenSource(*gceTokenURL, *gceTokenBody))
+	} else if *projectOverride != "" {
 		client, err = google.DefaultClient(context.Background(), "https://www.googleapis.com/auth/cloud-platform")
 		if err != nil {
 			glog.Fatalf("Error getting default credentials: %v", err)

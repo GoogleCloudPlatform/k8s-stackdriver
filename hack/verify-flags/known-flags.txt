@@ -58,6 +58,8 @@ fixes-issue-reassign
 flush-delay
 forward-services
 gate-approved
+gce-token-url
+gce-token-body
 gcm-endpoint
 gcs-bucket
 gcs-logs-dir
