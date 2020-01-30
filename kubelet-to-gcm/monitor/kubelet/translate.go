@@ -28,13 +28,15 @@ import (
 )
 
 var (
+	// Container metrics
+
 	containerUptimeMD = &metricMetadata{
 		MetricKind: "CUMULATIVE",
 		ValueType:  "DOUBLE",
 		Name:       "kubernetes.io/container/uptime",
 	}
 
-	cpuContainerCoreUsageTimeMD = &metricMetadata{
+	containerCpuCoreUsageTimeMD = &metricMetadata{
 		MetricKind: "CUMULATIVE",
 		ValueType:  "DOUBLE",
 		Name:       "kubernetes.io/container/cpu/core_usage_time",
@@ -58,7 +60,15 @@ var (
 		Name:       "kubernetes.io/container/memory/page_fault_kind",
 	}
 
-	cpuNodeCoreUsageTimeMD = &metricMetadata{
+	containerEphemeralstorageUsedMD = &metricMetadata{
+		MetricKind: "GAUGE",
+		ValueType:  "INT64",
+		Name:       "kubernetes.io/container/ephemeral_storage/used_bytes",
+	}
+
+	// Node metrics
+
+	nodeCpuCoreUsageTimeMD = &metricMetadata{
 		MetricKind: "CUMULATIVE",
 		ValueType:  "DOUBLE",
 		Name:       "kubernetes.io/node/cpu/core_usage_time",
@@ -76,24 +86,31 @@ var (
 		Name:       "kubernetes.io/node/used_bytes",
 	}
 
+	nodeEphemeralstorageTotalMD = &metricMetadata{
+		MetricKind: "GAUGE",
+		ValueType:  "INT64",
+		Name:       "kubernetes.io/node/ephemeral_storage/total_bytes",
+	}
+
+	nodeEphemeralstorageUsedMD = &metricMetadata{
+		MetricKind: "GAUGE",
+		ValueType:  "INT64",
+		Name:       "kubernetes.io/node/ephemeral_storage/used_bytes",
+	}
+
 	// Legacy metrics.
 
-	reservedCoresMD = &metricMetadata{
-		MetricKind: "GAUGE",
-		ValueType:  "DOUBLE",
-		Name:       "container.googleapis.com/container/cpu/reserved_cores",
-	}
 	legacyUsageTimeMD = &metricMetadata{
 		MetricKind: "CUMULATIVE",
 		ValueType:  "DOUBLE",
 		Name:       "container.googleapis.com/container/cpu/usage_time",
 	}
-	diskTotalMD = &metricMetadata{
+	legacyDiskTotalMD = &metricMetadata{
 		MetricKind: "GAUGE",
 		ValueType:  "INT64",
 		Name:       "container.googleapis.com/container/disk/bytes_total",
 	}
-	diskUsedMD = &metricMetadata{
+	legacyDiskUsedMD = &metricMetadata{
 		MetricKind: "GAUGE",
 		ValueType:  "INT64",
 		Name:       "container.googleapis.com/container/disk/bytes_used",
@@ -117,23 +134,6 @@ var (
 		MetricKind: "CUMULATIVE",
 		ValueType:  "DOUBLE",
 		Name:       "container.googleapis.com/container/uptime",
-	}
-
-	legacyMemoryMetrics = map[string]*metricMetadata{
-		"mem_total": legacyMemTotalMD,
-		"mem_used": legacyMemUsedMD,
-		"page_faults": legacyPageFaultsMD,
-	}
-
-	containerMemoryMetrics = map[string]*metricMetadata{
-		"mem_total": containerMemTotalMD,
-		"mem_used": containerMemUsedMD,
-		"page_faults": containerPageFaultsMD,
-	}
-
-	nodeMemoryMetrics = map[string]*metricMetadata{
-		"mem_total": nodeMemTotalMD,
-		"mem_used": nodeMemUsedMD,
 	}
 
 	memUsedNonEvictableLabels = map[string]string{"memory_type": "non-evictable"}
@@ -228,7 +228,11 @@ func (t *Translator) translateNode(node stats.NodeStats) ([]*v3.TimeSeries, erro
 	timeSeries = append(timeSeries, memTS...)
 
 	// File-system stats.
-	fsTS, err = translateFS("/", node.Fs, tsFactory, node.StartTime.Time)
+	if t.useOldResourceModel {
+		fsTS, err = legacyTranslateFS("/", node.Fs, tsFactory, node.StartTime.Time)
+	} else {
+		fsTS, err = nodeTranslateFS("/", node.Fs, tsFactory, node.StartTime.Time)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -341,7 +345,11 @@ func (t *Translator) translateContainer(podID, namespace string, container stats
 	containerSeries = append(containerSeries, memTS...)
 
 	// File-system stats.
-	rootfsTS, err = translateFS("/", container.Rootfs, tsFactory, container.StartTime.Time)
+	if t.useOldResourceModel {
+		rootfsTS, err = legacyTranslateFS("/", container.Rootfs, tsFactory, container.StartTime.Time)
+	} else {
+		rootfsTS, err = containerTranslateFS("/", container.Rootfs, container.Logs, tsFactory, container.StartTime.Time)
+	}
 	if err != nil {
 		if requireFsStats {
 			return nil, fmt.Errorf("failed to translate rootfs stats: %v", err)
@@ -350,13 +358,15 @@ func (t *Translator) translateContainer(podID, namespace string, container stats
 		containerSeries = append(containerSeries, rootfsTS...)
 	}
 
-	logfsTS, err = translateFS("logs", container.Logs, tsFactory, container.StartTime.Time)
-	if err != nil {
-		if requireFsStats {
-			return nil, fmt.Errorf("failed to translate log stats: %v", err)
+	if t.useOldResourceModel {
+		logfsTS, err = legacyTranslateFS("logs", container.Logs, tsFactory, container.StartTime.Time)
+		if err != nil {
+			if requireFsStats {
+				return nil, fmt.Errorf("failed to translate log stats: %v", err)
+			}
+		} else {
+			containerSeries = append(containerSeries, logfsTS...)
 		}
-	} else {
-		containerSeries = append(containerSeries, logfsTS...)
 	}
 
 	// CPU stats.
@@ -378,11 +388,11 @@ func legacyTranslateCPU(cpu *stats.CPUStats, tsFactory *timeSeriesFactory, start
 }
 
 func nodeTranslateCPU(cpu *stats.CPUStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
-	return translateCPU(cpu, tsFactory, startTime, map[string]*metricMetadata{"usage_time": cpuNodeCoreUsageTimeMD})
+	return translateCPU(cpu, tsFactory, startTime, map[string]*metricMetadata{"usage_time": nodeCpuCoreUsageTimeMD})
 }
 
 func containerTranslateCPU(cpu *stats.CPUStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
-	return translateCPU(cpu, tsFactory, startTime, map[string]*metricMetadata{"usage_time": cpuContainerCoreUsageTimeMD})
+	return translateCPU(cpu, tsFactory, startTime, map[string]*metricMetadata{"usage_time": containerCpuCoreUsageTimeMD})
 }
 
 // translateCPU creates all the TimeSeries for a give CPUStat.
@@ -407,19 +417,39 @@ func translateCPU(cpu *stats.CPUStats, tsFactory *timeSeriesFactory, startTime t
 	return timeSeries, nil
 }
 
+func legacyTranslateFS(volume string, fs *stats.FsStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
+	legacyFSMetrics := map[string]*metricMetadata{
+		"disk_total": legacyDiskTotalMD,
+		"disk_used": legacyDiskUsedMD,
+	}
+	return translateFS(volume, fs, tsFactory, startTime, legacyFSMetrics)
+}
+
+func nodeTranslateFS(volume string, fs *stats.FsStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
+	nodeFSMetrics := map[string]*metricMetadata{
+		"disk_total": nodeEphemeralstorageUsedMD,
+		"disk_used": nodeEphemeralstorageTotalMD,
+	}
+	return translateFS(volume, fs, tsFactory, startTime, nodeFSMetrics)
+}
+
+func containerTranslateFS(volume string, rootfs *stats.FsStats, logs *stats.FsStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
+	containerFSMetrics := map[string]*metricMetadata{
+		"disk_used": containerEphemeralstorageUsedMD,
+	}
+	combinedUsage := *rootfs.UsedBytes + *logs.UsedBytes
+	combinedStats := &stats.FsStats{
+		UsedBytes: &combinedUsage,
+	}
+	return translateFS(volume, combinedStats, tsFactory, startTime, containerFSMetrics)
+}
+
 // translateFS creates all the TimeSeries for a given FsStats and volume name.
-func translateFS(volume string, fs *stats.FsStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
+func translateFS(volume string, fs *stats.FsStats, tsFactory *timeSeriesFactory, startTime time.Time, metrics map[string]*metricMetadata) ([]*v3.TimeSeries, error) {
 	var timeSeries []*v3.TimeSeries
 
-	// First, check that we've been given all the data we need.
 	if fs == nil {
 		return nil, fmt.Errorf("File-system information missing.")
-	}
-	if fs.CapacityBytes == nil {
-		return nil, fmt.Errorf("CapacityBytes is missing from FsStats %v", fs)
-	}
-	if fs.UsedBytes == nil {
-		return nil, fmt.Errorf("UsedBytes is missing from FsStats %v", fs)
 	}
 
 	// For some reason the Kubelet doesn't return when this sample is from,
@@ -427,31 +457,55 @@ func translateFS(volume string, fs *stats.FsStats, tsFactory *timeSeriesFactory,
 	now := time.Now()
 
 	resourceLabels := map[string]string{"device_name": volume}
-	// Total disk available.
-	diskTotalPoint := tsFactory.newPoint(&v3.TypedValue{
-		Int64Value:      monitor.Int64Ptr(int64(*fs.CapacityBytes)),
-		ForceSendFields: []string{"Int64Value"},
-	}, startTime, now, diskTotalMD.MetricKind)
-	timeSeries = append(timeSeries, tsFactory.newTimeSeries(resourceLabels, diskTotalMD, diskTotalPoint))
+	if diskTotalMD, found := metrics["disk_total"]; found {
+		if fs.CapacityBytes == nil {
+			return nil, fmt.Errorf("CapacityBytes is missing from FsStats %v", fs)
+		}
+		// Total disk available.
+		diskTotalPoint := tsFactory.newPoint(&v3.TypedValue{
+			Int64Value:      monitor.Int64Ptr(int64(*fs.CapacityBytes)),
+			ForceSendFields: []string{"Int64Value"},
+		}, startTime, now, diskTotalMD.MetricKind)
+		timeSeries = append(timeSeries, tsFactory.newTimeSeries(resourceLabels, diskTotalMD, diskTotalPoint))
+	}
 
-	// Total disk used.
-	diskUsedPoint := tsFactory.newPoint(&v3.TypedValue{
-		Int64Value:      monitor.Int64Ptr(int64(*fs.UsedBytes)),
-		ForceSendFields: []string{"Int64Value"},
-	}, startTime, now, diskUsedMD.MetricKind)
-	timeSeries = append(timeSeries, tsFactory.newTimeSeries(resourceLabels, diskUsedMD, diskUsedPoint))
+	if diskUsedMD, found := metrics["disk_used"]; found {
+		if fs.UsedBytes == nil {
+			return nil, fmt.Errorf("UsedBytes is missing from FsStats %v", fs)
+		}
+		// Total disk used.
+		diskUsedPoint := tsFactory.newPoint(&v3.TypedValue{
+			Int64Value:      monitor.Int64Ptr(int64(*fs.UsedBytes)),
+			ForceSendFields: []string{"Int64Value"},
+		}, startTime, now, diskUsedMD.MetricKind)
+		timeSeries = append(timeSeries, tsFactory.newTimeSeries(resourceLabels, diskUsedMD, diskUsedPoint))
+	}
 	return timeSeries, nil
 }
 
 func legacyTranslateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
+	legacyMemoryMetrics := map[string]*metricMetadata{
+		"mem_total": legacyMemTotalMD,
+		"mem_used": legacyMemUsedMD,
+		"page_faults": legacyPageFaultsMD,
+	}
 	return translateMemory(memory, tsFactory, startTime, legacyMemoryMetrics)
 }
 
 func nodeTranslateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
+	nodeMemoryMetrics := map[string]*metricMetadata{
+		"mem_total": nodeMemTotalMD,
+		"mem_used": nodeMemUsedMD,
+	}
 	return translateMemory(memory, tsFactory, startTime, nodeMemoryMetrics)
 }
 
 func containerTranslateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
+	containerMemoryMetrics := map[string]*metricMetadata{
+		"mem_total": containerMemTotalMD,
+		"mem_used": containerMemUsedMD,
+		"page_faults": containerPageFaultsMD,
+	}
 	return translateMemory(memory, tsFactory, startTime, containerMemoryMetrics)
 }
 
@@ -459,24 +513,17 @@ func containerTranslateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFa
 func translateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, startTime time.Time, metrics map[string]*metricMetadata) ([]*v3.TimeSeries, error) {
 	var timeSeries []*v3.TimeSeries
 
-	// First, check that we've been given all the data we need.
 	if memory == nil {
 		return nil, fmt.Errorf("Memory information missing.")
 	}
-	if memory.MajorPageFaults == nil {
-		return nil, fmt.Errorf("MajorPageFaults missing in MemoryStats %v", memory)
-	}
-	if memory.PageFaults == nil {
-		return nil, fmt.Errorf("PageFaults missing in MemoryStats %v", memory)
-	}
-	if memory.WorkingSetBytes == nil {
-		return nil, fmt.Errorf("WorkingSetBytes information missing in MemoryStats %v", memory)
-	}
-	if memory.UsageBytes == nil {
-		return nil, fmt.Errorf("UsageBytes information missing in MemoryStats %v", memory)
-	}
 
 	if pageFaultsMD, found := metrics["page_faults"]; found {
+		if memory.MajorPageFaults == nil {
+			return nil, fmt.Errorf("MajorPageFaults missing in MemoryStats %v", memory)
+		}
+		if memory.PageFaults == nil {
+			return nil, fmt.Errorf("PageFaults missing in MemoryStats %v", memory)
+		}
 		// Major page faults.
 		majorPFPoint := tsFactory.newPoint(&v3.TypedValue{
 			Int64Value:      monitor.Int64Ptr(int64(*memory.MajorPageFaults)),
@@ -492,6 +539,13 @@ func translateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, st
 	}
 
 	if memUsedMD, found := metrics["mem_used"]; found {
+		if memory.WorkingSetBytes == nil {
+			return nil, fmt.Errorf("WorkingSetBytes information missing in MemoryStats %v", memory)
+		}
+		if memory.UsageBytes == nil {
+			return nil, fmt.Errorf("UsageBytes information missing in MemoryStats %v", memory)
+		}
+
 		// Non-evictable memory.
 		nonEvictMemPoint := tsFactory.newPoint(&v3.TypedValue{
 			Int64Value:      monitor.Int64Ptr(int64(*memory.WorkingSetBytes)),
