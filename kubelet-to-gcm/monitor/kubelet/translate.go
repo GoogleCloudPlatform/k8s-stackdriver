@@ -156,15 +156,15 @@ type Translator struct {
 }
 
 // NewTranslator creates a new Translator with the given fields.
-func NewTranslator(zone, project, cluster, instanceID string, resolution time.Duration) *Translator {
+func NewTranslator(zone, project, cluster, instanceID, metricPrefix string, resolution time.Duration) *Translator {
 	return &Translator{
 		zone:                zone,
 		project:             project,
 		cluster:             cluster,
 		instanceID:          instanceID,
-		metricPrefix:        "",
+		metricPrefix:        metricPrefix,
 		resolution:          resolution,
-		useOldResourceModel: true,
+		useOldResourceModel: metricPrefix == "",
 	}
 }
 
@@ -437,9 +437,20 @@ func containerTranslateFS(volume string, rootfs *stats.FsStats, logs *stats.FsSt
 	containerFSMetrics := map[string]*metricMetadata{
 		"disk_used": containerEphemeralstorageUsedMD,
 	}
-	combinedUsage := *rootfs.UsedBytes + *logs.UsedBytes
+
+	var combinedUsage uint64
+	if rootfs != nil {
+		combinedUsage = *rootfs.UsedBytes
+	}
+	if logs != nil {
+		combinedUsage = combinedUsage + *logs.UsedBytes
+	}
+	
 	combinedStats := &stats.FsStats{
 		UsedBytes: &combinedUsage,
+	}
+	if rootfs == nil && logs == nil {
+		combinedStats = nil
 	}
 	return translateFS(volume, combinedStats, tsFactory, startTime, containerFSMetrics)
 }
