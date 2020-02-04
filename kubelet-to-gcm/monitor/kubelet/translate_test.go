@@ -159,16 +159,17 @@ const (
 // TestTranslator
 func TestTranslator(t *testing.T) {
 	testCases := []struct {
-		Summary, Zone, Project, Cluster, InstanceID, MetricPrefix string
-		Resolution                                  			  time.Duration
-		ExpectedTSCount                             			  int
+		Summary, Zone, Project, Cluster, ClusterLocation, InstanceID, NodeName, SchemaPrefix string
+		Resolution                                  			  				   			 time.Duration
+		ExpectedTSCount                             			  				   			 int
 	}{
 		{
 			Zone:            "us-central1-f",
 			Project:         "test-project",
 			Cluster:         "unit-test-clus",
+			ClusterLocation: "test-location",
 			InstanceID:      "this-instance",
-			MetricPrefix:	 "",
+			SchemaPrefix:	 "",
 			Resolution:      time.Second * time.Duration(10),
 			Summary:         summaryJSON,
 			ExpectedTSCount: 34,
@@ -177,8 +178,9 @@ func TestTranslator(t *testing.T) {
 			Zone:            "us-central1-f",
 			Project:         "test-project",
 			Cluster:         "unit-test-clus",
+			ClusterLocation: "test-location",
 			InstanceID:      "this-instance",
-			MetricPrefix:	 "k8s_",
+			SchemaPrefix:	 "k8s_",
 			Resolution:      time.Second * time.Duration(10),
 			Summary:         summaryJSON,
 			ExpectedTSCount: 26,
@@ -191,7 +193,7 @@ func TestTranslator(t *testing.T) {
 			t.Errorf("Failed to unmarshal test case %d with data %s, err: %v", i, tc.Summary, err)
 		}
 
-		translator := NewTranslator(tc.Zone, tc.Project, tc.Cluster, tc.InstanceID, tc.MetricPrefix, tc.Resolution)
+		translator := NewTranslator(tc.Zone, tc.Project, tc.Cluster, tc.ClusterLocation, tc.InstanceID, tc.SchemaPrefix, tc.Resolution)
 		tsReq, err := translator.Translate(summary)
 		if err != nil {
 			t.Errorf("Failed to translate to GCM in test case %d. Summary: %v, Err: %s", i, tc.Summary, err)
@@ -304,7 +306,7 @@ func TestTranslateContainers(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			legacyTranslator := NewTranslator("us-central1-f", "test-project", "unit-test-clus", "this-instance", "", time.Second)
+			legacyTranslator := NewTranslator("us-central1-f", "test-project", "unit-test-clus", "test-location", "this-instance", "", time.Second)
 			ts, err := legacyTranslator.translateContainers(tc.pods)
 			if err != nil {
 				t.Errorf("Failed to translate to GCM. Pods: %v, Err: %s", tc.pods, err)
@@ -313,7 +315,7 @@ func TestTranslateContainers(t *testing.T) {
 				t.Errorf("Expected %d TimeSeries, got %d", tc.ExpectedLegacyTSCount, len(ts))
 			}
 			
-			translator := NewTranslator("us-central1-f", "test-project", "unit-test-clus", "this-instance", "k8s_", time.Second)
+			translator := NewTranslator("us-central1-f", "test-project", "unit-test-clus", "test-location", "this-instance", "k8s_", time.Second)
 			ts, err = translator.translateContainers(tc.pods)
 			if err != nil {
 				t.Errorf("Failed to translate to GCM. Pods: %v, Err: %s", tc.pods, err)

@@ -57,7 +57,7 @@ var (
 	containerPageFaultsMD = &metricMetadata{
 		MetricKind: "DELTA",
 		ValueType:  "INT64",
-		Name:       "kubernetes.io/container/memory/page_fault_kind",
+		Name:       "kubernetes.io/container/memory/page_fault_count",
 	}
 
 	containerEphemeralstorageUsedMD = &metricMetadata{
@@ -77,13 +77,13 @@ var (
 	nodeMemTotalMD = &metricMetadata{
 		MetricKind: "GAUGE",
 		ValueType:  "INT64",
-		Name:       "kubernetes.io/node/total_bytes",
+		Name:       "kubernetes.io/node/memory/total_bytes",
 	}
 
 	nodeMemUsedMD = &metricMetadata{
 		MetricKind: "GAUGE",
 		ValueType:  "INT64",
-		Name:       "kubernetes.io/node/used_bytes",
+		Name:       "kubernetes.io/node/memory/used_bytes",
 	}
 
 	nodeEphemeralstorageTotalMD = &metricMetadata{
@@ -150,21 +150,22 @@ type metricMetadata struct {
 // Translator contains the required information to perform translations from
 // kubelet summarys to GCM's GKE metrics.
 type Translator struct {
-	zone, project, cluster, instanceID, metricPrefix string
-	resolution                                       time.Duration
-	useOldResourceModel                              bool
+	zone, project, cluster, clusterLocation, instanceID, schemaPrefix string
+	resolution                                       		   		  time.Duration
+	useOldResourceModel                              		   		  bool
 }
 
 // NewTranslator creates a new Translator with the given fields.
-func NewTranslator(zone, project, cluster, instanceID, metricPrefix string, resolution time.Duration) *Translator {
+func NewTranslator(zone, project, cluster, clusterLocation, instanceID, schemaPrefix string, resolution time.Duration) *Translator {
 	return &Translator{
 		zone:                zone,
 		project:             project,
 		cluster:             cluster,
+		clusterLocation:	 clusterLocation,
 		instanceID:          instanceID,
-		metricPrefix:        metricPrefix,
+		schemaPrefix:        schemaPrefix,
 		resolution:          resolution,
-		useOldResourceModel: metricPrefix == "",
+		useOldResourceModel: schemaPrefix == "",
 	}
 }
 
@@ -193,11 +194,7 @@ func (t *Translator) translateNode(node stats.NodeStats) ([]*v3.TimeSeries, erro
 		err error
 	)
 
-	if t.useOldResourceModel {
-		tsFactory = newTimeSeriesFactory(t.getMonitoredResource(map[string]string{"pod": "machine"}), t.resolution)
-	} else {
-		tsFactory = newTimeSeriesFactory(t.getMonitoredResource(map[string]string{"node": node.NodeName}), t.resolution)
-	}
+	tsFactory = newTimeSeriesFactory(t.getMonitoredResource(map[string]string{"pod": "machine"}), t.resolution)
 
 	// Uptime. This is embedded: there's no nil check.
 	now := time.Now()
@@ -210,40 +207,26 @@ func (t *Translator) translateNode(node stats.NodeStats) ([]*v3.TimeSeries, erro
 			DoubleValue: monitor.Float64Ptr(float64(time.Since(node.StartTime.Time).Seconds())),
 		},
 	}
-	metric := containerUptimeMD
-	if t.useOldResourceModel {
-		metric = legacyUptimeMD
-	}
-	timeSeries = append(timeSeries, tsFactory.newTimeSeries(noLabels, metric, uptimePoint))
+	timeSeries = append(timeSeries, tsFactory.newTimeSeries(noLabels, t.getUptimeMD(), uptimePoint))
 
 	// Memory stats.
-	if t.useOldResourceModel {
-		memTS, err = legacyTranslateMemory(node.Memory, tsFactory, node.StartTime.Time)
-	} else {
-		memTS, err = nodeTranslateMemory(node.Memory, tsFactory, node.StartTime.Time)
-	}
+	memUsedMD, memTotalMD, pageFaultsMD := t.getMemoryMD(tsFactory.monitoredResource.Type)
+	memTS, err = translateMemory(node.Memory, tsFactory, node.StartTime.Time, memUsedMD, memTotalMD, pageFaultsMD)
 	if err != nil {
 		return nil, err
 	}
 	timeSeries = append(timeSeries, memTS...)
 
 	// File-system stats.
-	if t.useOldResourceModel {
-		fsTS, err = legacyTranslateFS("/", node.Fs, tsFactory, node.StartTime.Time)
-	} else {
-		fsTS, err = nodeTranslateFS("/", node.Fs, tsFactory, node.StartTime.Time)
-	}
+	diskUsedMD, diskTotalMD := t.getFsMD(tsFactory.monitoredResource.Type)
+	fsTS, err = translateFS("/", node.Fs, tsFactory, node.StartTime.Time, diskUsedMD, diskTotalMD)
 	if err != nil {
 		return nil, err
 	}
 	timeSeries = append(timeSeries, fsTS...)
 
 	// CPU stats.
-	if t.useOldResourceModel {
-		cpuTS, err = legacyTranslateCPU(node.CPU, tsFactory, node.StartTime.Time)
-	} else {
-		cpuTS, err = nodeTranslateCPU(node.CPU, tsFactory, node.StartTime.Time)
-	}
+	cpuTS, err = translateCPU(node.CPU, tsFactory, node.StartTime.Time, t.getCpuMD(tsFactory.monitoredResource.Type))
 	if err != nil {
 		return nil, err
 	}
@@ -327,26 +310,20 @@ func (t *Translator) translateContainer(podID, namespace string, container stats
 			ForceSendFields: []string{"DoubleValue"},
 		},
 	}
-	metric := containerUptimeMD
-	if t.useOldResourceModel {
-		metric = legacyUptimeMD
-	}
-	containerSeries = append(containerSeries, tsFactory.newTimeSeries(noLabels, metric, uptimePoint))
+	containerSeries = append(containerSeries, tsFactory.newTimeSeries(noLabels, t.getUptimeMD(), uptimePoint))
 
 	// Memory stats.
-	if t.useOldResourceModel {
-		memTS, err = legacyTranslateMemory(container.Memory, tsFactory, container.StartTime.Time)
-	} else {
-		memTS, err = containerTranslateMemory(container.Memory, tsFactory, container.StartTime.Time)
-	}
+	memUsedMD, memTotalMD, pageFaultsMD := t.getMemoryMD(tsFactory.monitoredResource.Type)
+	memTS, err = translateMemory(container.Memory, tsFactory, container.StartTime.Time, memUsedMD, memTotalMD, pageFaultsMD)
 	if err != nil {
 		return nil, fmt.Errorf("failed to translate memory stats: %v", err)
 	}
 	containerSeries = append(containerSeries, memTS...)
 
 	// File-system stats.
+	diskUsedMD, diskTotalMD := t.getFsMD(tsFactory.monitoredResource.Type)
 	if t.useOldResourceModel {
-		rootfsTS, err = legacyTranslateFS("/", container.Rootfs, tsFactory, container.StartTime.Time)
+		rootfsTS, err = translateFS("/", container.Rootfs, tsFactory, container.StartTime.Time, diskUsedMD, diskTotalMD)
 	} else {
 		rootfsTS, err = containerTranslateFS("/", container.Rootfs, container.Logs, tsFactory, container.StartTime.Time)
 	}
@@ -359,7 +336,7 @@ func (t *Translator) translateContainer(podID, namespace string, container stats
 	}
 
 	if t.useOldResourceModel {
-		logfsTS, err = legacyTranslateFS("logs", container.Logs, tsFactory, container.StartTime.Time)
+		logfsTS, err = translateFS("logs", container.Logs, tsFactory, container.StartTime.Time, diskUsedMD, diskTotalMD)
 		if err != nil {
 			if requireFsStats {
 				return nil, fmt.Errorf("failed to translate log stats: %v", err)
@@ -370,11 +347,7 @@ func (t *Translator) translateContainer(podID, namespace string, container stats
 	}
 
 	// CPU stats.
-	if t.useOldResourceModel {
-		cpuTS, err = legacyTranslateCPU(container.CPU, tsFactory, container.StartTime.Time)
-	} else {
-		cpuTS, err = containerTranslateCPU(container.CPU, tsFactory, container.StartTime.Time)
-	}
+	cpuTS, err = translateCPU(container.CPU, tsFactory, container.StartTime.Time, t.getCpuMD(tsFactory.monitoredResource.Type))
 	if err != nil {
 		return nil, fmt.Errorf("failed to translate cpu stats: %v", err)
 	}
@@ -383,20 +356,48 @@ func (t *Translator) translateContainer(podID, namespace string, container stats
 	return containerSeries, nil
 }
 
-func legacyTranslateCPU(cpu *stats.CPUStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
-	return translateCPU(cpu, tsFactory, startTime, map[string]*metricMetadata{"usage_time": legacyUsageTimeMD})
+func (t *Translator) getUptimeMD() *metricMetadata {
+	if t.useOldResourceModel {
+		return legacyUptimeMD
+	}
+	return containerUptimeMD
 }
 
-func nodeTranslateCPU(cpu *stats.CPUStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
-	return translateCPU(cpu, tsFactory, startTime, map[string]*metricMetadata{"usage_time": nodeCpuCoreUsageTimeMD})
+func (t *Translator) getCpuMD(resourceType string) *metricMetadata {
+	switch resourceType {
+	case t.schemaPrefix + "node":
+		return nodeCpuCoreUsageTimeMD
+	case t.schemaPrefix + "container":
+		return containerCpuCoreUsageTimeMD
+	default:
+		return legacyUsageTimeMD
+	}
 }
 
-func containerTranslateCPU(cpu *stats.CPUStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
-	return translateCPU(cpu, tsFactory, startTime, map[string]*metricMetadata{"usage_time": containerCpuCoreUsageTimeMD})
+func (t *Translator) getFsMD(resourceType string) (*metricMetadata, *metricMetadata) {
+	switch resourceType {
+	case t.schemaPrefix + "node":
+		return nodeEphemeralstorageUsedMD, nodeEphemeralstorageTotalMD
+	case t.schemaPrefix + "container":
+		return containerEphemeralstorageUsedMD, nil
+	default:
+		return legacyDiskUsedMD, legacyDiskTotalMD
+	}
+}
+
+func (t *Translator) getMemoryMD(resourceType string) (*metricMetadata, *metricMetadata, *metricMetadata) {
+	switch resourceType {
+	case t.schemaPrefix + "node":
+		return nodeMemUsedMD, nodeMemTotalMD, nil
+	case t.schemaPrefix + "container":
+		return containerMemUsedMD, containerMemTotalMD, containerPageFaultsMD
+	default:
+		return legacyMemUsedMD, legacyMemTotalMD, legacyPageFaultsMD
+	}
 }
 
 // translateCPU creates all the TimeSeries for a give CPUStat.
-func translateCPU(cpu *stats.CPUStats, tsFactory *timeSeriesFactory, startTime time.Time, metrics map[string]*metricMetadata) ([]*v3.TimeSeries, error) {
+func translateCPU(cpu *stats.CPUStats, tsFactory *timeSeriesFactory, startTime time.Time, usageTimeMD *metricMetadata) ([]*v3.TimeSeries, error) {
 	var timeSeries []*v3.TimeSeries
 
 	// First check that all required information is present.
@@ -411,33 +412,13 @@ func translateCPU(cpu *stats.CPUStats, tsFactory *timeSeriesFactory, startTime t
 	cpuTotalPoint := tsFactory.newPoint(&v3.TypedValue{
 		DoubleValue:     monitor.Float64Ptr(float64(*cpu.UsageCoreNanoSeconds) / float64(1000*1000*1000)),
 		ForceSendFields: []string{"DoubleValue"},
-	}, startTime, cpu.Time.Time, metrics["usage_time"].MetricKind)
+	}, startTime, cpu.Time.Time, usageTimeMD.MetricKind)
 
-	timeSeries = append(timeSeries, tsFactory.newTimeSeries(noLabels, metrics["usage_time"], cpuTotalPoint))
+	timeSeries = append(timeSeries, tsFactory.newTimeSeries(noLabels, usageTimeMD, cpuTotalPoint))
 	return timeSeries, nil
 }
 
-func legacyTranslateFS(volume string, fs *stats.FsStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
-	legacyFSMetrics := map[string]*metricMetadata{
-		"disk_total": legacyDiskTotalMD,
-		"disk_used": legacyDiskUsedMD,
-	}
-	return translateFS(volume, fs, tsFactory, startTime, legacyFSMetrics)
-}
-
-func nodeTranslateFS(volume string, fs *stats.FsStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
-	nodeFSMetrics := map[string]*metricMetadata{
-		"disk_total": nodeEphemeralstorageUsedMD,
-		"disk_used": nodeEphemeralstorageTotalMD,
-	}
-	return translateFS(volume, fs, tsFactory, startTime, nodeFSMetrics)
-}
-
 func containerTranslateFS(volume string, rootfs *stats.FsStats, logs *stats.FsStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
-	containerFSMetrics := map[string]*metricMetadata{
-		"disk_used": containerEphemeralstorageUsedMD,
-	}
-
 	var combinedUsage uint64
 	if rootfs != nil {
 		combinedUsage = *rootfs.UsedBytes
@@ -445,18 +426,19 @@ func containerTranslateFS(volume string, rootfs *stats.FsStats, logs *stats.FsSt
 	if logs != nil {
 		combinedUsage = combinedUsage + *logs.UsedBytes
 	}
-	
+
 	combinedStats := &stats.FsStats{
 		UsedBytes: &combinedUsage,
 	}
 	if rootfs == nil && logs == nil {
 		combinedStats = nil
 	}
-	return translateFS(volume, combinedStats, tsFactory, startTime, containerFSMetrics)
+	
+	return translateFS(volume, combinedStats, tsFactory, startTime, containerEphemeralstorageUsedMD, nil)
 }
 
 // translateFS creates all the TimeSeries for a given FsStats and volume name.
-func translateFS(volume string, fs *stats.FsStats, tsFactory *timeSeriesFactory, startTime time.Time, metrics map[string]*metricMetadata) ([]*v3.TimeSeries, error) {
+func translateFS(volume string, fs *stats.FsStats, tsFactory *timeSeriesFactory, startTime time.Time, diskUsedMD *metricMetadata, diskTotalMD *metricMetadata) ([]*v3.TimeSeries, error) {
 	var timeSeries []*v3.TimeSeries
 
 	if fs == nil {
@@ -468,7 +450,7 @@ func translateFS(volume string, fs *stats.FsStats, tsFactory *timeSeriesFactory,
 	now := time.Now()
 
 	resourceLabels := map[string]string{"device_name": volume}
-	if diskTotalMD, found := metrics["disk_total"]; found {
+	if diskTotalMD != nil {
 		if fs.CapacityBytes == nil {
 			return nil, fmt.Errorf("CapacityBytes is missing from FsStats %v", fs)
 		}
@@ -480,7 +462,7 @@ func translateFS(volume string, fs *stats.FsStats, tsFactory *timeSeriesFactory,
 		timeSeries = append(timeSeries, tsFactory.newTimeSeries(resourceLabels, diskTotalMD, diskTotalPoint))
 	}
 
-	if diskUsedMD, found := metrics["disk_used"]; found {
+	if diskUsedMD != nil {
 		if fs.UsedBytes == nil {
 			return nil, fmt.Errorf("UsedBytes is missing from FsStats %v", fs)
 		}
@@ -494,41 +476,15 @@ func translateFS(volume string, fs *stats.FsStats, tsFactory *timeSeriesFactory,
 	return timeSeries, nil
 }
 
-func legacyTranslateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
-	legacyMemoryMetrics := map[string]*metricMetadata{
-		"mem_total": legacyMemTotalMD,
-		"mem_used": legacyMemUsedMD,
-		"page_faults": legacyPageFaultsMD,
-	}
-	return translateMemory(memory, tsFactory, startTime, legacyMemoryMetrics)
-}
-
-func nodeTranslateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
-	nodeMemoryMetrics := map[string]*metricMetadata{
-		"mem_total": nodeMemTotalMD,
-		"mem_used": nodeMemUsedMD,
-	}
-	return translateMemory(memory, tsFactory, startTime, nodeMemoryMetrics)
-}
-
-func containerTranslateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, startTime time.Time) ([]*v3.TimeSeries, error) {
-	containerMemoryMetrics := map[string]*metricMetadata{
-		"mem_total": containerMemTotalMD,
-		"mem_used": containerMemUsedMD,
-		"page_faults": containerPageFaultsMD,
-	}
-	return translateMemory(memory, tsFactory, startTime, containerMemoryMetrics)
-}
-
 // translateMemory creates all the TimeSeries for a given MemoryStats.
-func translateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, startTime time.Time, metrics map[string]*metricMetadata) ([]*v3.TimeSeries, error) {
+func translateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, startTime time.Time, memUsedMD *metricMetadata, memTotalMD *metricMetadata, pageFaultsMD *metricMetadata) ([]*v3.TimeSeries, error) {
 	var timeSeries []*v3.TimeSeries
 
 	if memory == nil {
 		return nil, fmt.Errorf("Memory information missing.")
 	}
 
-	if pageFaultsMD, found := metrics["page_faults"]; found {
+	if pageFaultsMD != nil {
 		if memory.MajorPageFaults == nil {
 			return nil, fmt.Errorf("MajorPageFaults missing in MemoryStats %v", memory)
 		}
@@ -549,7 +505,7 @@ func translateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, st
 		timeSeries = append(timeSeries, tsFactory.newTimeSeries(minorPageFaultLabels, pageFaultsMD, minorPFPoint))
 	}
 
-	if memUsedMD, found := metrics["mem_used"]; found {
+	if memUsedMD != nil {
 		if memory.WorkingSetBytes == nil {
 			return nil, fmt.Errorf("WorkingSetBytes information missing in MemoryStats %v", memory)
 		}
@@ -571,7 +527,7 @@ func translateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, st
 		timeSeries = append(timeSeries, tsFactory.newTimeSeries(memUsedEvictableLabels, memUsedMD, evictMemPoint))
 	}
 
-	if memTotalMD, found := metrics["mem_total"]; found {
+	if memTotalMD != nil {
 		// Available memory. This may or may not be present, so don't fail if it's absent.
 		if memory.AvailableBytes != nil {
 			availableMemPoint := tsFactory.newPoint(&v3.TypedValue{
@@ -602,12 +558,14 @@ func (t *Translator) getMonitoredResource(labels map[string]string) *v3.Monitore
 		}
 	}
 
-	resourceLabels["location"] = t.zone
+	resourceLabels["location"] = t.clusterLocation
 
-	if _, found := labels["node"]; found {
-		resourceLabels["node_name"] = labels["node"]
+	if _, found := labels["container"]; !found {
+		if t.instanceID != "" {
+			resourceLabels["node_name"] = t.instanceID
+		}
 		return &v3.MonitoredResource{
-			Type:   t.metricPrefix + "node",
+			Type:   t.schemaPrefix + "node",
 			Labels: resourceLabels,
 		}
 	}
@@ -617,7 +575,7 @@ func (t *Translator) getMonitoredResource(labels map[string]string) *v3.Monitore
 	resourceLabels["container_name"] = labels["container"]
 
 	return &v3.MonitoredResource{
-		Type:   t.metricPrefix + "container",
+		Type:   t.schemaPrefix + "container",
 		Labels: resourceLabels,
 	}
 }

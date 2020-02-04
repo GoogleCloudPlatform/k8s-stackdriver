@@ -33,7 +33,7 @@ const (
 
 // NewConfigs returns the SourceConfigs for all monitored endpoints, and
 // hits the GCE Metadata server if required.
-func NewConfigs(zone, projectID, cluster, host, instance string, kubeletPort, ctrlPort uint, resolution time.Duration) (*monitor.SourceConfig, *monitor.SourceConfig, error) {
+func NewConfigs(zone, projectID, cluster, clusterLocation, host, instance string, kubeletPort, ctrlPort uint, resolution time.Duration) (*monitor.SourceConfig, *monitor.SourceConfig, error) {
 	zone, err := getZone(zone)
 	if err != nil {
 		return nil, nil, err
@@ -45,6 +45,11 @@ func NewConfigs(zone, projectID, cluster, host, instance string, kubeletPort, ct
 	}
 
 	cluster, err = getCluster(cluster)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	clusterLocation, err = getClusterLocation(clusterLocation)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -63,6 +68,7 @@ func NewConfigs(zone, projectID, cluster, host, instance string, kubeletPort, ct
 			Zone:       zone,
 			Project:    projectID,
 			Cluster:    cluster,
+			ClusterLocation: clusterLocation,
 			Host:       host,
 			Instance:   instance,
 			Port:       kubeletPort,
@@ -71,6 +77,7 @@ func NewConfigs(zone, projectID, cluster, host, instance string, kubeletPort, ct
 			Zone:       zone,
 			Project:    projectID,
 			Cluster:    cluster,
+			ClusterLocation: clusterLocation,
 			Host:       host,
 			Instance:   instance,
 			Port:       ctrlPort,
@@ -141,6 +148,17 @@ func getCluster(cluster string) (string, error) {
 		cluster = string(body)
 	}
 	return cluster, nil
+}
+
+func getClusterLocation(clusterLocation string) (string, error) {
+	if clusterLocation == "use-gce" {
+		body, err := getGCEMetaData(metaDataURI("/instance/attributes/cluster-location"))
+		if err != nil {
+			return "", fmt.Errorf("Failed to get cluster location from GCE: %v", err)
+		}
+		clusterLocation = string(body)
+	}
+	return clusterLocation, nil
 }
 
 // getKubeletHost returns the kubelet host if given, or gets ip of network interface 0 from gce.

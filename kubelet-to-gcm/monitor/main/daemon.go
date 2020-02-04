@@ -46,6 +46,7 @@ var (
 	zone            = flag.String("zone", "use-gce", "The zone where this kubelet lives.")
 	project         = flag.String("project", "use-gce", "The project where this kubelet's host lives.")
 	cluster         = flag.String("cluster", "use-gce", "The cluster where this kubelet holds membership.")
+	clusterLocation = flag.String("cluster-location", "use-gce", "The location of the cluster where this kubelet holds membership.")
 	kubeletInstance = flag.String("kubelet-instance", "use-gce", "The instance name the kubelet resides on.")
 	kubeletHost     = flag.String("kubelet-host", "use-gce", "The kubelet's host name.")
 	kubeletPort     = flag.Uint("kubelet-port", 10255, "The kubelet's port.")
@@ -66,7 +67,7 @@ func main() {
 	resolution := time.Second * time.Duration(*res)
 
 	// Initialize the configuration.
-	kubeletCfg, ctrlCfg, err := config.NewConfigs(*zone, *project, *cluster, *kubeletHost, *kubeletInstance, *kubeletPort, *ctrlPort, resolution)
+	kubeletCfg, ctrlCfg, err := config.NewConfigs(*zone, *project, *cluster, *clusterLocation, *kubeletHost, *kubeletInstance, *kubeletPort, *ctrlPort, resolution)
 	if err != nil {
 		log.Fatalf("Failed to initialize configuration: %v", err)
 	}
