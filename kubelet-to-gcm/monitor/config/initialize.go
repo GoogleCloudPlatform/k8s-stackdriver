@@ -33,7 +33,7 @@ const (
 
 // NewConfigs returns the SourceConfigs for all monitored endpoints, and
 // hits the GCE Metadata server if required.
-func NewConfigs(zone, projectID, cluster, clusterLocation, host, instance string, kubeletPort, ctrlPort uint, resolution time.Duration) (*monitor.SourceConfig, *monitor.SourceConfig, error) {
+func NewConfigs(zone, projectID, cluster, clusterLocation, host, instance, schemaPrefix string, monitoredResourceLabels map[string]string, kubeletPort, ctrlPort uint, resolution time.Duration) (*monitor.SourceConfig, *monitor.SourceConfig, error) {
 	zone, err := getZone(zone)
 	if err != nil {
 		return nil, nil, err
@@ -65,23 +65,27 @@ func NewConfigs(zone, projectID, cluster, clusterLocation, host, instance string
 	}
 
 	return &monitor.SourceConfig{
-			Zone:       zone,
-			Project:    projectID,
-			Cluster:    cluster,
-			ClusterLocation: clusterLocation,
-			Host:       host,
-			Instance:   instance,
-			Port:       kubeletPort,
-			Resolution: resolution,
+			Zone:                    zone,
+			Project:                 projectID,
+			Cluster:                 cluster,
+			ClusterLocation:         clusterLocation,
+			Host:                    host,
+			Instance:                instance,
+			SchemaPrefix:            schemaPrefix,
+			MonitoredResourceLabels: monitoredResourceLabels,
+			Port:                    kubeletPort,
+			Resolution:              resolution,
 		}, &monitor.SourceConfig{
-			Zone:       zone,
-			Project:    projectID,
-			Cluster:    cluster,
-			ClusterLocation: clusterLocation,
-			Host:       host,
-			Instance:   instance,
-			Port:       ctrlPort,
-			Resolution: resolution,
+			Zone:                    zone,
+			Project:                 projectID,
+			Cluster:                 cluster,
+			ClusterLocation:         clusterLocation,
+			Host:                    host,
+			Instance:                instance,
+			SchemaPrefix:            schemaPrefix,
+			MonitoredResourceLabels: monitoredResourceLabels,
+			Port:                    ctrlPort,
+			Resolution:              resolution,
 		}, nil
 }
 

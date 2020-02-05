@@ -160,30 +160,33 @@ const (
 func TestTranslator(t *testing.T) {
 	testCases := []struct {
 		Summary, Zone, Project, Cluster, ClusterLocation, InstanceID, NodeName, SchemaPrefix string
-		Resolution                                  			  				   			 time.Duration
-		ExpectedTSCount                             			  				   			 int
+		monitoredResourceLabels                                                              map[string]string
+		Resolution                                                                           time.Duration
+		ExpectedTSCount                                                                      int
 	}{
 		{
-			Zone:            "us-central1-f",
-			Project:         "test-project",
-			Cluster:         "unit-test-clus",
-			ClusterLocation: "test-location",
-			InstanceID:      "this-instance",
-			SchemaPrefix:	 "",
-			Resolution:      time.Second * time.Duration(10),
-			Summary:         summaryJSON,
-			ExpectedTSCount: 34,
+			Zone:                    "us-central1-f",
+			Project:                 "test-project",
+			Cluster:                 "unit-test-clus",
+			ClusterLocation:         "test-location",
+			InstanceID:              "this-instance",
+			SchemaPrefix:            "",
+			monitoredResourceLabels: map[string]string{},
+			Resolution:              time.Second * time.Duration(10),
+			Summary:                 summaryJSON,
+			ExpectedTSCount:         34,
 		},
 		{
-			Zone:            "us-central1-f",
-			Project:         "test-project",
-			Cluster:         "unit-test-clus",
-			ClusterLocation: "test-location",
-			InstanceID:      "this-instance",
-			SchemaPrefix:	 "k8s_",
-			Resolution:      time.Second * time.Duration(10),
-			Summary:         summaryJSON,
-			ExpectedTSCount: 26,
+			Zone:                    "us-central1-f",
+			Project:                 "test-project",
+			Cluster:                 "unit-test-clus",
+			ClusterLocation:         "test-location",
+			InstanceID:              "this-instance",
+			SchemaPrefix:            "k8s_",
+			monitoredResourceLabels: map[string]string{},
+			Resolution:              time.Second * time.Duration(10),
+			Summary:                 summaryJSON,
+			ExpectedTSCount:         26,
 		},
 	}
 
@@ -193,7 +196,7 @@ func TestTranslator(t *testing.T) {
 			t.Errorf("Failed to unmarshal test case %d with data %s, err: %v", i, tc.Summary, err)
 		}
 
-		translator := NewTranslator(tc.Zone, tc.Project, tc.Cluster, tc.ClusterLocation, tc.InstanceID, tc.SchemaPrefix, tc.Resolution)
+		translator := NewTranslator(tc.Zone, tc.Project, tc.Cluster, tc.ClusterLocation, tc.InstanceID, tc.SchemaPrefix, tc.monitoredResourceLabels, tc.Resolution)
 		tsReq, err := translator.Translate(summary)
 		if err != nil {
 			t.Errorf("Failed to translate to GCM in test case %d. Summary: %v, Err: %s", i, tc.Summary, err)
@@ -219,79 +222,79 @@ func TestTranslateContainers(t *testing.T) {
 	legacyTsPerContainer := 11
 	tsPerContainer := 8
 	testCases := []struct {
-		name            string
+		name                  string
 		ExpectedLegacyTSCount int
-		ExpectedTSCount int
-		pods            []stats.PodStats
+		ExpectedTSCount       int
+		pods                  []stats.PodStats
 	}{
 		{
-			name:            "empty",
+			name:                  "empty",
 			ExpectedLegacyTSCount: 0,
-			ExpectedTSCount: 0,
-			pods:            []stats.PodStats{},
+			ExpectedTSCount:       0,
+			pods:                  []stats.PodStats{},
 		},
 		{
-			name:            "pod without container",
+			name:                  "pod without container",
 			ExpectedLegacyTSCount: 0,
-			ExpectedTSCount: 0,
+			ExpectedTSCount:       0,
 			pods: []stats.PodStats{
 				getPodStats(),
 			},
 		},
 		{
-			name:            "single pod with one container",
+			name:                  "single pod with one container",
 			ExpectedLegacyTSCount: legacyTsPerContainer,
-			ExpectedTSCount: tsPerContainer,
+			ExpectedTSCount:       tsPerContainer,
 			pods: []stats.PodStats{
 				getPodStats(aliceContainer),
 			},
 		},
 		{
-			name:            "single pod with one container without usageNanoCores",
+			name:                  "single pod with one container without usageNanoCores",
 			ExpectedLegacyTSCount: legacyTsPerContainer,
-			ExpectedTSCount: tsPerContainer,
+			ExpectedTSCount:       tsPerContainer,
 			pods: []stats.PodStats{
 				getPodStats(*getContainerStats(true)),
 			},
 		},
 		{
-			name:            "single pod with two containers",
+			name:                  "single pod with two containers",
 			ExpectedLegacyTSCount: legacyTsPerContainer * 2,
-			ExpectedTSCount: tsPerContainer * 2,
+			ExpectedTSCount:       tsPerContainer * 2,
 			pods: []stats.PodStats{
 				getPodStats(aliceContainer, bobContainer),
 			},
 		},
 		{
-			name:            "single pod with similar container",
+			name:                  "single pod with similar container",
 			ExpectedLegacyTSCount: legacyTsPerContainer,
-			ExpectedTSCount: tsPerContainer,
+			ExpectedTSCount:       tsPerContainer,
 			pods: []stats.PodStats{
 				getPodStats(aliceContainer, aliceContainer),
 			},
 		},
 		{
-			name:            "two pods with one container each",
+			name:                  "two pods with one container each",
 			ExpectedLegacyTSCount: legacyTsPerContainer * 2,
-			ExpectedTSCount: tsPerContainer * 2,
+			ExpectedTSCount:       tsPerContainer * 2,
 			pods: []stats.PodStats{
 				getPodStats(aliceContainer),
 				getPodStats(bobContainer),
 			},
 		},
 		{
-			name:            "two pods with similar container",
+			name:                  "two pods with similar container",
 			ExpectedLegacyTSCount: legacyTsPerContainer * 2,
-			ExpectedTSCount: tsPerContainer * 2,
+			ExpectedTSCount:       tsPerContainer * 2,
 			pods: []stats.PodStats{
 				getPodStats(aliceContainer),
 				getPodStats(aliceContainer),
 			},
 		},
 		{
-			name:            "single pod with empty stats container",
+			name:                  "single pod with empty stats container",
 			ExpectedLegacyTSCount: legacyTsPerContainer,
-			ExpectedTSCount: tsPerContainer * 3,
+			ExpectedTSCount:       tsPerContainer * 3,
 			pods: []stats.PodStats{
 				getPodStats(
 					aliceContainer,
@@ -306,7 +309,7 @@ func TestTranslateContainers(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			legacyTranslator := NewTranslator("us-central1-f", "test-project", "unit-test-clus", "test-location", "this-instance", "", time.Second)
+			legacyTranslator := NewTranslator("us-central1-f", "test-project", "unit-test-clus", "test-location", "this-instance", "", map[string]string{}, time.Second)
 			ts, err := legacyTranslator.translateContainers(tc.pods)
 			if err != nil {
 				t.Errorf("Failed to translate to GCM. Pods: %v, Err: %s", tc.pods, err)
@@ -314,8 +317,8 @@ func TestTranslateContainers(t *testing.T) {
 			if tc.ExpectedLegacyTSCount != len(ts) {
 				t.Errorf("Expected %d TimeSeries, got %d", tc.ExpectedLegacyTSCount, len(ts))
 			}
-			
-			translator := NewTranslator("us-central1-f", "test-project", "unit-test-clus", "test-location", "this-instance", "k8s_", time.Second)
+
+			translator := NewTranslator("us-central1-f", "test-project", "unit-test-clus", "test-location", "this-instance", "k8s_", map[string]string{}, time.Second)
 			ts, err = translator.translateContainers(tc.pods)
 			if err != nil {
 				t.Errorf("Failed to translate to GCM. Pods: %v, Err: %s", tc.pods, err)

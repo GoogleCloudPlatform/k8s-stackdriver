@@ -150,22 +150,24 @@ type metricMetadata struct {
 // Translator contains the required information to perform translations from
 // kubelet summarys to GCM's GKE metrics.
 type Translator struct {
-	zone, project, cluster, clusterLocation, instanceID, schemaPrefix string
-	resolution                                       		   		  time.Duration
-	useOldResourceModel                              		   		  bool
+	zone, project, cluster, clusterLocation, instance, schemaPrefix string
+	monitoredResourceLabels                                         map[string]string
+	resolution                                                      time.Duration
+	useOldResourceModel                                             bool
 }
 
 // NewTranslator creates a new Translator with the given fields.
-func NewTranslator(zone, project, cluster, clusterLocation, instanceID, schemaPrefix string, resolution time.Duration) *Translator {
+func NewTranslator(zone, project, cluster, clusterLocation, instance, schemaPrefix string, monitoredResourceLabels map[string]string, resolution time.Duration) *Translator {
 	return &Translator{
-		zone:                zone,
-		project:             project,
-		cluster:             cluster,
-		clusterLocation:	 clusterLocation,
-		instanceID:          instanceID,
-		schemaPrefix:        schemaPrefix,
-		resolution:          resolution,
-		useOldResourceModel: schemaPrefix == "",
+		zone:                    zone,
+		project:                 project,
+		cluster:                 cluster,
+		clusterLocation:         clusterLocation,
+		instance:                instance,
+		schemaPrefix:            schemaPrefix,
+		monitoredResourceLabels: monitoredResourceLabels,
+		resolution:              resolution,
+		useOldResourceModel:     schemaPrefix == "",
 	}
 }
 
@@ -190,8 +192,8 @@ func (t *Translator) Translate(summary *stats.Summary) (*v3.CreateTimeSeriesRequ
 func (t *Translator) translateNode(node stats.NodeStats) ([]*v3.TimeSeries, error) {
 	var (
 		timeSeries, memTS, fsTS, cpuTS []*v3.TimeSeries
-		tsFactory	*timeSeriesFactory
-		err error
+		tsFactory                      *timeSeriesFactory
+		err                            error
 	)
 
 	tsFactory = newTimeSeriesFactory(t.getMonitoredResource(map[string]string{"pod": "machine"}), t.resolution)
@@ -287,12 +289,12 @@ func (t *Translator) translateContainers(pods []stats.PodStats) ([]*v3.TimeSerie
 func (t *Translator) translateContainer(podID, namespace string, container stats.ContainerStats, requireFsStats bool) ([]*v3.TimeSeries, error) {
 	var (
 		containerSeries, memTS, rootfsTS, logfsTS, cpuTS []*v3.TimeSeries
-		err error
-		containerName   = container.Name
-		containerLabels = map[string]string{
-			"namespace": 	namespace,
-			"pod":			podID,
-			"container":	containerName,
+		err                                              error
+		containerName                                    = container.Name
+		containerLabels                                  = map[string]string{
+			"namespace": namespace,
+			"pod":       podID,
+			"container": containerName,
 		}
 	)
 
@@ -433,7 +435,7 @@ func containerTranslateFS(volume string, rootfs *stats.FsStats, logs *stats.FsSt
 	if rootfs == nil && logs == nil {
 		combinedStats = nil
 	}
-	
+
 	return translateFS(volume, combinedStats, tsFactory, startTime, containerEphemeralstorageUsedMD, nil)
 }
 
@@ -542,27 +544,31 @@ func translateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, st
 
 func (t *Translator) getMonitoredResource(labels map[string]string) *v3.MonitoredResource {
 	resourceLabels := map[string]string{
-		"project_id":	t.project,
-		"cluster_name":	t.cluster,
+		"project_id":   t.project,
+		"cluster_name": t.cluster,
 	}
 
 	if t.useOldResourceModel {
 		resourceLabels["zone"] = t.zone
-		resourceLabels["instance_id"] = t.instanceID
+		resourceLabels["instance_id"] = t.instance
 		resourceLabels["namespace_id"] = labels["namespace"]
 		resourceLabels["pod_id"] = labels["pod"]
 		resourceLabels["container_name"] = labels["container"]
 		return &v3.MonitoredResource{
-			Type:	"gke_container",
+			Type:   "gke_container",
 			Labels: resourceLabels,
 		}
 	}
 
 	resourceLabels["location"] = t.clusterLocation
 
+	for k, v := range t.monitoredResourceLabels {
+		resourceLabels[k] = v
+	}
+
 	if _, found := labels["container"]; !found {
-		if t.instanceID != "" {
-			resourceLabels["node_name"] = t.instanceID
+		if t.instance != "" {
+			resourceLabels["node_name"] = t.instance
 		}
 		return &v3.MonitoredResource{
 			Type:   t.schemaPrefix + "node",
