@@ -31,7 +31,7 @@ var (
 	// Container metrics
 
 	containerUptimeMD = &metricMetadata{
-		MetricKind: "CUMULATIVE",
+		MetricKind: "GAUGE",
 		ValueType:  "DOUBLE",
 		Name:       "kubernetes.io/container/uptime",
 	}
@@ -55,7 +55,7 @@ var (
 	}
 
 	containerPageFaultsMD = &metricMetadata{
-		MetricKind: "DELTA",
+		MetricKind: "CUMULATIVE",
 		ValueType:  "INT64",
 		Name:       "kubernetes.io/container/memory/page_fault_count",
 	}
@@ -199,17 +199,7 @@ func (t *Translator) translateNode(node stats.NodeStats) ([]*v3.TimeSeries, erro
 	tsFactory = newTimeSeriesFactory(t.getMonitoredResource(map[string]string{"pod": "machine"}), t.resolution)
 
 	// Uptime. This is embedded: there's no nil check.
-	now := time.Now()
-	uptimePoint := &v3.Point{
-		Interval: &v3.TimeInterval{
-			EndTime:   now.Format(time.RFC3339),
-			StartTime: node.StartTime.Time.Format(time.RFC3339),
-		},
-		Value: &v3.TypedValue{
-			DoubleValue: monitor.Float64Ptr(float64(time.Since(node.StartTime.Time).Seconds())),
-		},
-	}
-	timeSeries = append(timeSeries, tsFactory.newTimeSeries(noLabels, t.getUptimeMD(), uptimePoint))
+	timeSeries = append(timeSeries, tsFactory.newTimeSeries(noLabels, t.getUptimeMD(), t.getUptimePoint(node.StartTime.Time)))
 
 	// Memory stats.
 	memUsedMD, memTotalMD, pageFaultsMD := t.getMemoryMD(tsFactory.monitoredResource.Type)
@@ -301,18 +291,7 @@ func (t *Translator) translateContainer(podID, namespace string, container stats
 	tsFactory := newTimeSeriesFactory(t.getMonitoredResource(containerLabels), t.resolution)
 
 	// Uptime. This is embedded: there's no nil check.
-	now := time.Now()
-	uptimePoint := &v3.Point{
-		Interval: &v3.TimeInterval{
-			EndTime:   now.Format(time.RFC3339),
-			StartTime: container.StartTime.Time.Format(time.RFC3339),
-		},
-		Value: &v3.TypedValue{
-			DoubleValue:     monitor.Float64Ptr(float64(time.Since(container.StartTime.Time).Seconds())),
-			ForceSendFields: []string{"DoubleValue"},
-		},
-	}
-	containerSeries = append(containerSeries, tsFactory.newTimeSeries(noLabels, t.getUptimeMD(), uptimePoint))
+	containerSeries = append(containerSeries, tsFactory.newTimeSeries(noLabels, t.getUptimeMD(), t.getUptimePoint(container.StartTime.Time)))
 
 	// Memory stats.
 	memUsedMD, memTotalMD, pageFaultsMD := t.getMemoryMD(tsFactory.monitoredResource.Type)
@@ -363,6 +342,25 @@ func (t *Translator) getUptimeMD() *metricMetadata {
 		return legacyUptimeMD
 	}
 	return containerUptimeMD
+}
+
+func (t *Translator) getUptimePoint(startTime time.Time) *v3.Point {
+	now := time.Now()
+	s := now.Format(time.RFC3339)
+	if t.useOldResourceModel {
+		s = startTime.Format(time.RFC3339)
+	}
+
+	return &v3.Point{
+		Interval: &v3.TimeInterval{
+			EndTime:   now.Format(time.RFC3339),
+			StartTime: s,
+		},
+		Value: &v3.TypedValue{
+			DoubleValue:     monitor.Float64Ptr(float64(time.Since(startTime).Seconds())),
+			ForceSendFields: []string{"DoubleValue"},
+		},
+	}
 }
 
 func (t *Translator) getCpuMD(resourceType string) *metricMetadata {
@@ -452,6 +450,9 @@ func translateFS(volume string, fs *stats.FsStats, tsFactory *timeSeriesFactory,
 	now := time.Now()
 
 	resourceLabels := map[string]string{"device_name": volume}
+	if tsFactory.monitoredResource.Type != "gke_container" {
+		resourceLabels = noLabels
+	}
 	if diskTotalMD != nil {
 		if fs.CapacityBytes == nil {
 			return nil, fmt.Errorf("CapacityBytes is missing from FsStats %v", fs)
@@ -576,8 +577,8 @@ func (t *Translator) getMonitoredResource(labels map[string]string) *v3.Monitore
 		}
 	}
 
-	resourceLabels["namespace_id"] = labels["namespace"]
-	resourceLabels["pod_id"] = labels["pod"]
+	resourceLabels["namespace_name"] = labels["namespace"]
+	resourceLabels["pod_name"] = labels["pod"]
 	resourceLabels["container_name"] = labels["container"]
 
 	return &v3.MonitoredResource{
