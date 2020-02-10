@@ -28,6 +28,18 @@ import (
 )
 
 var (
+	daemonCpuCoreUsageTimeMD = &metricMetadata{
+		MetricKind: "CUMULATIVE",
+		ValueType:  "DOUBLE",
+		Name:       "kubernetes.io/node_daemon/cpu/core_usage_time",
+	}
+
+	daemonMemUsedMD = &metricMetadata{
+		MetricKind: "GAUGE",
+		ValueType:  "INT64",
+		Name:       "kubernetes.io/node_daemon/memory/used_bytes",
+	}
+
 	// Container metrics
 
 	containerUptimeMD = &metricMetadata{
@@ -150,20 +162,21 @@ type metricMetadata struct {
 // Translator contains the required information to perform translations from
 // kubelet summarys to GCM's GKE metrics.
 type Translator struct {
-	zone, project, cluster, clusterLocation, instance, schemaPrefix string
-	monitoredResourceLabels                                         map[string]string
-	resolution                                                      time.Duration
-	useOldResourceModel                                             bool
+	zone, project, cluster, clusterLocation, instance, instanceID, schemaPrefix string
+	monitoredResourceLabels                                                     map[string]string
+	resolution                                                                  time.Duration
+	useOldResourceModel                                                         bool
 }
 
 // NewTranslator creates a new Translator with the given fields.
-func NewTranslator(zone, project, cluster, clusterLocation, instance, schemaPrefix string, monitoredResourceLabels map[string]string, resolution time.Duration) *Translator {
+func NewTranslator(zone, project, cluster, clusterLocation, instance, instanceID, schemaPrefix string, monitoredResourceLabels map[string]string, resolution time.Duration) *Translator {
 	return &Translator{
 		zone:                    zone,
 		project:                 project,
 		cluster:                 cluster,
 		clusterLocation:         clusterLocation,
 		instance:                instance,
+		instanceID:              instanceID,
 		schemaPrefix:            schemaPrefix,
 		monitoredResourceLabels: monitoredResourceLabels,
 		resolution:              resolution,
@@ -203,7 +216,7 @@ func (t *Translator) translateNode(node stats.NodeStats) ([]*v3.TimeSeries, erro
 
 	// Memory stats.
 	memUsedMD, memTotalMD, pageFaultsMD := t.getMemoryMD(tsFactory.monitoredResource.Type)
-	memTS, err = translateMemory(node.Memory, tsFactory, node.StartTime.Time, memUsedMD, memTotalMD, pageFaultsMD)
+	memTS, err = translateMemory(node.Memory, tsFactory, node.StartTime.Time, memUsedMD, memTotalMD, pageFaultsMD, "")
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +231,7 @@ func (t *Translator) translateNode(node stats.NodeStats) ([]*v3.TimeSeries, erro
 	timeSeries = append(timeSeries, fsTS...)
 
 	// CPU stats.
-	cpuTS, err = translateCPU(node.CPU, tsFactory, node.StartTime.Time, t.getCpuMD(tsFactory.monitoredResource.Type))
+	cpuTS, err = translateCPU(node.CPU, tsFactory, node.StartTime.Time, t.getCpuMD(tsFactory.monitoredResource.Type), "")
 	if err != nil {
 		return nil, err
 	}
@@ -231,12 +244,27 @@ func (t *Translator) translateNode(node stats.NodeStats) ([]*v3.TimeSeries, erro
 		// * There aren't pod id and namespace;
 		// * There is no fs stats.
 		// Pod ID and namespace for system containers are empty.
-		containerSeries, err := t.translateContainer("", "", container, false /* requireFsStats */)
-		if err != nil {
-			glog.Warningf("Failed to translate system container stats for %q: %v", container.Name, err)
-			continue
+		if t.useOldResourceModel {
+			containerSeries, err := t.translateContainer("", "", container, false /* requireFsStats */)
+			if err != nil {
+				glog.Warningf("Failed to translate system container stats for %q: %v", container.Name, err)
+				continue
+			}
+			timeSeries = append(timeSeries, containerSeries...)
+		} else {
+			cpuTS, err = translateCPU(container.CPU, tsFactory, node.StartTime.Time, daemonCpuCoreUsageTimeMD, container.Name)
+			if err != nil {
+				glog.Warningf("Failed to translate system container CPU stats for %q: %v", container.Name, err)
+			} else {
+				timeSeries = append(timeSeries, cpuTS...)
+			}
+			memTS, err = translateMemory(container.Memory, tsFactory, node.StartTime.Time, daemonMemUsedMD, nil, nil, container.Name)
+			if err != nil {
+				glog.Warningf("Failed to translate system container memory stats for %q: %v", container.Name, err)
+				continue
+			}
+			timeSeries = append(timeSeries, memTS...)
 		}
-		timeSeries = append(timeSeries, containerSeries...)
 	}
 
 	return timeSeries, nil
@@ -295,7 +323,7 @@ func (t *Translator) translateContainer(podID, namespace string, container stats
 
 	// Memory stats.
 	memUsedMD, memTotalMD, pageFaultsMD := t.getMemoryMD(tsFactory.monitoredResource.Type)
-	memTS, err = translateMemory(container.Memory, tsFactory, container.StartTime.Time, memUsedMD, memTotalMD, pageFaultsMD)
+	memTS, err = translateMemory(container.Memory, tsFactory, container.StartTime.Time, memUsedMD, memTotalMD, pageFaultsMD, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to translate memory stats: %v", err)
 	}
@@ -328,7 +356,7 @@ func (t *Translator) translateContainer(podID, namespace string, container stats
 	}
 
 	// CPU stats.
-	cpuTS, err = translateCPU(container.CPU, tsFactory, container.StartTime.Time, t.getCpuMD(tsFactory.monitoredResource.Type))
+	cpuTS, err = translateCPU(container.CPU, tsFactory, container.StartTime.Time, t.getCpuMD(tsFactory.monitoredResource.Type), "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to translate cpu stats: %v", err)
 	}
@@ -397,7 +425,7 @@ func (t *Translator) getMemoryMD(resourceType string) (*metricMetadata, *metricM
 }
 
 // translateCPU creates all the TimeSeries for a give CPUStat.
-func translateCPU(cpu *stats.CPUStats, tsFactory *timeSeriesFactory, startTime time.Time, usageTimeMD *metricMetadata) ([]*v3.TimeSeries, error) {
+func translateCPU(cpu *stats.CPUStats, tsFactory *timeSeriesFactory, startTime time.Time, usageTimeMD *metricMetadata, component string) ([]*v3.TimeSeries, error) {
 	var timeSeries []*v3.TimeSeries
 
 	// First check that all required information is present.
@@ -414,7 +442,11 @@ func translateCPU(cpu *stats.CPUStats, tsFactory *timeSeriesFactory, startTime t
 		ForceSendFields: []string{"DoubleValue"},
 	}, startTime, cpu.Time.Time, usageTimeMD.MetricKind)
 
-	timeSeries = append(timeSeries, tsFactory.newTimeSeries(noLabels, usageTimeMD, cpuTotalPoint))
+	labels := noLabels
+	if component != "" {
+		labels["component"] = component
+	}
+	timeSeries = append(timeSeries, tsFactory.newTimeSeries(labels, usageTimeMD, cpuTotalPoint))
 	return timeSeries, nil
 }
 
@@ -480,7 +512,7 @@ func translateFS(volume string, fs *stats.FsStats, tsFactory *timeSeriesFactory,
 }
 
 // translateMemory creates all the TimeSeries for a given MemoryStats.
-func translateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, startTime time.Time, memUsedMD *metricMetadata, memTotalMD *metricMetadata, pageFaultsMD *metricMetadata) ([]*v3.TimeSeries, error) {
+func translateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, startTime time.Time, memUsedMD *metricMetadata, memTotalMD *metricMetadata, pageFaultsMD *metricMetadata, component string) ([]*v3.TimeSeries, error) {
 	var timeSeries []*v3.TimeSeries
 
 	if memory == nil {
@@ -521,13 +553,18 @@ func translateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, st
 			Int64Value:      monitor.Int64Ptr(int64(*memory.WorkingSetBytes)),
 			ForceSendFields: []string{"Int64Value"},
 		}, startTime, memory.Time.Time, memUsedMD.MetricKind)
-		timeSeries = append(timeSeries, tsFactory.newTimeSeries(memUsedNonEvictableLabels, memUsedMD, nonEvictMemPoint))
+		labels := memUsedNonEvictableLabels
+		if component != "" {
+			labels["component"] = component
+		}
+		timeSeries = append(timeSeries, tsFactory.newTimeSeries(labels, memUsedMD, nonEvictMemPoint))
 		// Evictable memory.
 		evictMemPoint := tsFactory.newPoint(&v3.TypedValue{
 			Int64Value:      monitor.Int64Ptr(int64(*memory.UsageBytes - *memory.WorkingSetBytes)),
 			ForceSendFields: []string{"Int64Value"},
 		}, startTime, memory.Time.Time, memUsedMD.MetricKind)
-		timeSeries = append(timeSeries, tsFactory.newTimeSeries(memUsedEvictableLabels, memUsedMD, evictMemPoint))
+		labels["memory_type"] = "evictable"
+		timeSeries = append(timeSeries, tsFactory.newTimeSeries(labels, memUsedMD, evictMemPoint))
 	}
 
 	if memTotalMD != nil {
@@ -562,6 +599,9 @@ func (t *Translator) getMonitoredResource(labels map[string]string) *v3.Monitore
 	}
 
 	resourceLabels["location"] = t.clusterLocation
+	if t.schemaPrefix != "k8s_" {
+		resourceLabels["instance_id"] = t.instanceID
+	}
 
 	for k, v := range t.monitoredResourceLabels {
 		resourceLabels[k] = v

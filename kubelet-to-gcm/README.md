@@ -18,9 +18,11 @@ Usage of monitor:
       --project="": The project where this kubelet's host lives.
       --resolution=10: The time, in seconds, to poll the Kubelet.
       --zone="": The zone where this kubelet lives.
+      --monitored-resource-labels="A=B&C=D": Manually specified MonitoredResource labels.
 ```
 
 Some of these fields are required for the gke_container schema in StackDriver (e.g., cluster and project). Others are needed for determining endpoints.
+monitored-resource-labels are in the URL parameter format, like 'A=B&C=D&E=F'.
 
 ## Example deployment file
 
@@ -53,5 +55,6 @@ spec:
       - --zone=us-central1-b
       - --project=gke-test-us-central1-b-0
       - --resolution=60
+      - --monitored-resource-labels="A=B&C=D"
   terminationGracePeriodSeconds: 30
 ```

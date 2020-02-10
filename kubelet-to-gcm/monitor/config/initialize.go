@@ -64,6 +64,11 @@ func NewConfigs(zone, projectID, cluster, clusterLocation, host, instance, schem
 		return nil, nil, err
 	}
 
+	instanceID, err := getInstanceID()
+	if err != nil {
+		return nil, nil, err
+	}
+
 	return &monitor.SourceConfig{
 			Zone:                    zone,
 			Project:                 projectID,
@@ -71,6 +76,7 @@ func NewConfigs(zone, projectID, cluster, clusterLocation, host, instance, schem
 			ClusterLocation:         clusterLocation,
 			Host:                    host,
 			Instance:                instance,
+			InstanceID:              instanceID,
 			SchemaPrefix:            schemaPrefix,
 			MonitoredResourceLabels: monitoredResourceLabels,
 			Port:                    kubeletPort,
@@ -82,6 +88,7 @@ func NewConfigs(zone, projectID, cluster, clusterLocation, host, instance, schem
 			ClusterLocation:         clusterLocation,
 			Host:                    host,
 			Instance:                instance,
+			InstanceID:              instanceID,
 			SchemaPrefix:            schemaPrefix,
 			MonitoredResourceLabels: monitoredResourceLabels,
 			Port:                    ctrlPort,
@@ -187,4 +194,12 @@ func getInstance(instance string) (string, error) {
 		instance = string(body)
 	}
 	return strings.Split(instance, ".")[0], nil
+}
+
+func getInstanceID() (string, error) {
+	body, err := getGCEMetaData(metaDataURI("/instance/id"))
+	if err != nil {
+		return "", fmt.Errorf("Failed to get instance id from GCE: %v", err)
+	}
+	return string(body), nil
 }

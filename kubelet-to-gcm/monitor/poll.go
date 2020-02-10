@@ -28,10 +28,10 @@ const maxTimeSeriesPerRequest = 200
 // SourceConfig is the set of data required to configure a kubernetes
 // data source (e.g., kubelet or kube-controller).
 type SourceConfig struct {
-	Zone, Project, Cluster, ClusterLocation, Host, Instance, SchemaPrefix string
-	MonitoredResourceLabels                                               map[string]string
-	Port                                                                  uint
-	Resolution                                                            time.Duration
+	Zone, Project, Cluster, ClusterLocation, Host, Instance, InstanceID, SchemaPrefix string
+	MonitoredResourceLabels                                                           map[string]string
+	Port                                                                              uint
+	Resolution                                                                        time.Duration
 }
 
 // MetricsSource is an object that provides kubernetes metrics in
