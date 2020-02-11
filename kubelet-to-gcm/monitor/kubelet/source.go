@@ -35,7 +35,7 @@ type Source struct {
 // NewSource creates a new Source for a kubelet.
 func NewSource(cfg *monitor.SourceConfig) (*Source, error) {
 	// Create objects for kubelet monitoring.
-	trans := NewTranslator(cfg.Zone, cfg.Project, cfg.Cluster, cfg.Instance, cfg.Resolution)
+	trans := NewTranslator(cfg.Zone, cfg.Project, cfg.Cluster, cfg.ClusterLocation, cfg.Instance, cfg.InstanceID, cfg.SchemaPrefix, cfg.MonitoredResourceLabels, cfg.Resolution)
 
 	// NewClient validates its own inputs.
 	client, err := NewClient(cfg.Host, cfg.Port, &http.Client{})

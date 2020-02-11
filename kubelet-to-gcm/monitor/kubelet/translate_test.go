@@ -159,18 +159,36 @@ const (
 // TestTranslator
 func TestTranslator(t *testing.T) {
 	testCases := []struct {
-		Summary, Zone, Project, Cluster, InstanceID string
-		Resolution                                  time.Duration
-		ExpectedTSCount                             int
+		Summary, Zone, Project, Cluster, ClusterLocation, Instance, InstanceID, NodeName, SchemaPrefix string
+		monitoredResourceLabels                                                                        map[string]string
+		Resolution                                                                                     time.Duration
+		ExpectedTSCount                                                                                int
 	}{
 		{
-			Zone:            "us-central1-f",
-			Project:         "test-project",
-			Cluster:         "unit-test-clus",
-			InstanceID:      "this-instance",
-			Resolution:      time.Second * time.Duration(10),
-			Summary:         summaryJSON,
-			ExpectedTSCount: 34,
+			Zone:                    "us-central1-f",
+			Project:                 "test-project",
+			Cluster:                 "unit-test-clus",
+			ClusterLocation:         "test-location",
+			Instance:                "this-instance",
+			InstanceID:              "id",
+			SchemaPrefix:            "",
+			monitoredResourceLabels: map[string]string{},
+			Resolution:              time.Second * time.Duration(10),
+			Summary:                 summaryJSON,
+			ExpectedTSCount:         34,
+		},
+		{
+			Zone:                    "us-central1-f",
+			Project:                 "test-project",
+			Cluster:                 "unit-test-clus",
+			ClusterLocation:         "test-location",
+			Instance:                "this-instance",
+			InstanceID:              "id",
+			SchemaPrefix:            "k8s_",
+			monitoredResourceLabels: map[string]string{},
+			Resolution:              time.Second * time.Duration(10),
+			Summary:                 summaryJSON,
+			ExpectedTSCount:         23,
 		},
 	}
 
@@ -180,7 +198,7 @@ func TestTranslator(t *testing.T) {
 			t.Errorf("Failed to unmarshal test case %d with data %s, err: %v", i, tc.Summary, err)
 		}
 
-		translator := NewTranslator(tc.Zone, tc.Project, tc.Cluster, tc.InstanceID, tc.Resolution)
+		translator := NewTranslator(tc.Zone, tc.Project, tc.Cluster, tc.ClusterLocation, tc.Instance, tc.InstanceID, tc.SchemaPrefix, tc.monitoredResourceLabels, tc.Resolution)
 		tsReq, err := translator.Translate(summary)
 		if err != nil {
 			t.Errorf("Failed to translate to GCM in test case %d. Summary: %v, Err: %s", i, tc.Summary, err)
@@ -203,71 +221,82 @@ func TestTranslateContainers(t *testing.T) {
 	noLogStatsContainer.Logs = nil
 	noRootfsStatsContainer := *getContainerStats(false)
 	noRootfsStatsContainer.Rootfs = nil
-	tsPerContainer := 11
+	legacyTsPerContainer := 11
+	tsPerContainer := 8
 	testCases := []struct {
-		name            string
-		ExpectedTSCount int
-		pods            []stats.PodStats
+		name                  string
+		ExpectedLegacyTSCount int
+		ExpectedTSCount       int
+		pods                  []stats.PodStats
 	}{
 		{
-			name:            "empty",
-			ExpectedTSCount: 0,
-			pods:            []stats.PodStats{},
+			name:                  "empty",
+			ExpectedLegacyTSCount: 0,
+			ExpectedTSCount:       0,
+			pods:                  []stats.PodStats{},
 		},
 		{
-			name:            "pod without container",
-			ExpectedTSCount: 0,
+			name:                  "pod without container",
+			ExpectedLegacyTSCount: 0,
+			ExpectedTSCount:       0,
 			pods: []stats.PodStats{
 				getPodStats(),
 			},
 		},
 		{
-			name:            "single pod with one container",
-			ExpectedTSCount: tsPerContainer,
+			name:                  "single pod with one container",
+			ExpectedLegacyTSCount: legacyTsPerContainer,
+			ExpectedTSCount:       tsPerContainer,
 			pods: []stats.PodStats{
 				getPodStats(aliceContainer),
 			},
 		},
 		{
-			name:            "single pod with one container without usageNanoCores",
-			ExpectedTSCount: tsPerContainer,
+			name:                  "single pod with one container without usageNanoCores",
+			ExpectedLegacyTSCount: legacyTsPerContainer,
+			ExpectedTSCount:       tsPerContainer,
 			pods: []stats.PodStats{
 				getPodStats(*getContainerStats(true)),
 			},
 		},
 		{
-			name:            "single pod with two containers",
-			ExpectedTSCount: tsPerContainer * 2,
+			name:                  "single pod with two containers",
+			ExpectedLegacyTSCount: legacyTsPerContainer * 2,
+			ExpectedTSCount:       tsPerContainer * 2,
 			pods: []stats.PodStats{
 				getPodStats(aliceContainer, bobContainer),
 			},
 		},
 		{
-			name:            "single pod with similar container",
-			ExpectedTSCount: tsPerContainer * 1,
+			name:                  "single pod with similar container",
+			ExpectedLegacyTSCount: legacyTsPerContainer,
+			ExpectedTSCount:       tsPerContainer,
 			pods: []stats.PodStats{
 				getPodStats(aliceContainer, aliceContainer),
 			},
 		},
 		{
-			name:            "two pods with one container each",
-			ExpectedTSCount: tsPerContainer * 2,
+			name:                  "two pods with one container each",
+			ExpectedLegacyTSCount: legacyTsPerContainer * 2,
+			ExpectedTSCount:       tsPerContainer * 2,
 			pods: []stats.PodStats{
 				getPodStats(aliceContainer),
 				getPodStats(bobContainer),
 			},
 		},
 		{
-			name:            "two pods with similar container",
-			ExpectedTSCount: tsPerContainer * 2,
+			name:                  "two pods with similar container",
+			ExpectedLegacyTSCount: legacyTsPerContainer * 2,
+			ExpectedTSCount:       tsPerContainer * 2,
 			pods: []stats.PodStats{
 				getPodStats(aliceContainer),
 				getPodStats(aliceContainer),
 			},
 		},
 		{
-			name:            "single pod with empty stats container",
-			ExpectedTSCount: tsPerContainer * 1,
+			name:                  "single pod with empty stats container",
+			ExpectedLegacyTSCount: legacyTsPerContainer,
+			ExpectedTSCount:       tsPerContainer * 3,
 			pods: []stats.PodStats{
 				getPodStats(
 					aliceContainer,
@@ -282,16 +311,23 @@ func TestTranslateContainers(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			translator := NewTranslator("us-central1-f", "test-project", "unit-test-clus", "this-instance", time.Second)
-			ts, err := translator.translateContainers(tc.pods)
+			legacyTranslator := NewTranslator("us-central1-f", "test-project", "unit-test-clus", "test-location", "this-instance", "id", "", map[string]string{}, time.Second)
+			ts, err := legacyTranslator.translateContainers(tc.pods)
 			if err != nil {
 				t.Errorf("Failed to translate to GCM. Pods: %v, Err: %s", tc.pods, err)
 			}
+			if tc.ExpectedLegacyTSCount != len(ts) {
+				t.Errorf("Expected %d TimeSeries, got %d", tc.ExpectedLegacyTSCount, len(ts))
+			}
 
+			translator := NewTranslator("us-central1-f", "test-project", "unit-test-clus", "test-location", "this-instance", "id", "k8s_", map[string]string{}, time.Second)
+			ts, err = translator.translateContainers(tc.pods)
+			if err != nil {
+				t.Errorf("Failed to translate to GCM. Pods: %v, Err: %s", tc.pods, err)
+			}
 			if tc.ExpectedTSCount != len(ts) {
 				t.Errorf("Expected %d TimeSeries, got %d", tc.ExpectedTSCount, len(ts))
 			}
-
 		})
 	}
 }

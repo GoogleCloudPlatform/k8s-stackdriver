@@ -20,9 +20,11 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
+	"github.com/golang/glog"
 	log "github.com/golang/glog"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2/google"
@@ -42,10 +44,13 @@ const (
 )
 
 var (
+	schemaPrefix            = flag.String("schema-prefix", "k8s_", "MonitoredResource type prefix, to be appended by 'container', 'pod', and 'node'.")
+	monitoredResourceLabels = flag.String("monitored-resource-labels", "", "Manually specified MonitoredResource labels.")
 	// Flags to identify the Kubelet.
 	zone            = flag.String("zone", "use-gce", "The zone where this kubelet lives.")
 	project         = flag.String("project", "use-gce", "The project where this kubelet's host lives.")
 	cluster         = flag.String("cluster", "use-gce", "The cluster where this kubelet holds membership.")
+	clusterLocation = flag.String("cluster-location", "use-gce", "The location of the cluster where this kubelet holds membership.")
 	kubeletInstance = flag.String("kubelet-instance", "use-gce", "The instance name the kubelet resides on.")
 	kubeletHost     = flag.String("kubelet-host", "use-gce", "The kubelet's host name.")
 	kubeletPort     = flag.Uint("kubelet-port", 10255, "The kubelet's port.")
@@ -65,8 +70,9 @@ func main() {
 
 	resolution := time.Second * time.Duration(*res)
 
+	monitoredResourceLabels := parseMonitoredResourceLabels(*monitoredResourceLabels)
 	// Initialize the configuration.
-	kubeletCfg, ctrlCfg, err := config.NewConfigs(*zone, *project, *cluster, *kubeletHost, *kubeletInstance, *kubeletPort, *ctrlPort, resolution)
+	kubeletCfg, ctrlCfg, err := config.NewConfigs(*zone, *project, *cluster, *clusterLocation, *kubeletHost, *kubeletInstance, *schemaPrefix, monitoredResourceLabels, *kubeletPort, *ctrlPort, resolution)
 	if err != nil {
 		log.Fatalf("Failed to initialize configuration: %v", err)
 	}
@@ -110,4 +116,19 @@ func main() {
 		go monitor.Once(ctrlSrc, service)
 		time.Sleep(resolution)
 	}
+}
+
+func parseMonitoredResourceLabels(monitoredResourceLabelsStr string) map[string]string {
+	labels := make(map[string]string)
+	m, err := url.ParseQuery(monitoredResourceLabelsStr)
+	if err != nil {
+		glog.Fatalf("Error parsing 'monitored-resource-labels' field: '%v', with error message: '%s'.", monitoredResourceLabelsStr, err)
+	}
+	for k, v := range m {
+		if len(v) != 1 {
+			glog.Fatalf("Key '%v' in 'monitored-resource-labels' doesn't have exactly one value (it has '%v' now).", k, v)
+		}
+		labels[k] = v[0]
+	}
+	return labels
 }
