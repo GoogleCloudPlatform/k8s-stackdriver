@@ -442,7 +442,7 @@ func translateCPU(cpu *stats.CPUStats, tsFactory *timeSeriesFactory, startTime t
 		ForceSendFields: []string{"DoubleValue"},
 	}, startTime, cpu.Time.Time, usageTimeMD.MetricKind)
 
-	labels := noLabels
+	labels := map[string]string{}
 	if component != "" {
 		labels["component"] = component
 	}
@@ -553,17 +553,21 @@ func translateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, st
 			Int64Value:      monitor.Int64Ptr(int64(*memory.WorkingSetBytes)),
 			ForceSendFields: []string{"Int64Value"},
 		}, startTime, memory.Time.Time, memUsedMD.MetricKind)
-		labels := memUsedNonEvictableLabels
+		labels := map[string]string{"memory_type": "non-evictable"}
 		if component != "" {
 			labels["component"] = component
 		}
 		timeSeries = append(timeSeries, tsFactory.newTimeSeries(labels, memUsedMD, nonEvictMemPoint))
+
 		// Evictable memory.
 		evictMemPoint := tsFactory.newPoint(&v3.TypedValue{
 			Int64Value:      monitor.Int64Ptr(int64(*memory.UsageBytes - *memory.WorkingSetBytes)),
 			ForceSendFields: []string{"Int64Value"},
 		}, startTime, memory.Time.Time, memUsedMD.MetricKind)
-		labels["memory_type"] = "evictable"
+		labels = map[string]string{"memory_type": "evictable"}
+		if component != "" {
+			labels["component"] = component
+		}
 		timeSeries = append(timeSeries, tsFactory.newTimeSeries(labels, memUsedMD, evictMemPoint))
 	}
 
