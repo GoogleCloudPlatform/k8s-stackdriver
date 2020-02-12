@@ -362,11 +362,12 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 			"Ensure that k8s resources with 'machine' pod label return k8s_node, and can get default from GCE config..",
 			&config.CommonConfig{
 				GceConfig: &config.GceConfig{
-					Project:    "test-project",
-					Zone:       "us-east1-a",
-					Cluster:    "test-cluster",
-					Instance:   "test-instance",
-					InstanceId: "123",
+					Project:         "test-project",
+					Zone:            "us-east1-a",
+					Cluster:         "test-cluster",
+					ClusterLocation: "test-location",
+					Instance:        "test-instance",
+					InstanceId:      "123",
 				},
 				SourceConfig: &config.SourceConfig{
 					PodConfig: config.NewPodConfig("machine", "", "", "", ""),
@@ -378,7 +379,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 			"k8s_node",
 			map[string]string{
 				"project_id":   "test-project",
-				"location":     "us-east1-a",
+				"location":     "test-location",
 				"cluster_name": "test-cluster",
 				"node_name":    "test-instance",
 			},
@@ -502,11 +503,12 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 			&config.CommonConfig{
 				MonitoredResourceLabels: map[string]string{},
 				GceConfig: &config.GceConfig{
-					Project:    "default-project",
-					Zone:       "us-east1-a",
-					Cluster:    "test-cluster",
-					Instance:   "default-instance",
-					InstanceId: "123",
+					Project:         "default-project",
+					Zone:            "us-east1-a",
+					Cluster:         "test-cluster",
+					ClusterLocation: "test-location",
+					Instance:        "default-instance",
+					InstanceId:      "123",
 				},
 				SourceConfig: &config.SourceConfig{
 					CustomResourceType: "resource_foo",
@@ -528,7 +530,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 				"baz":          "",
 				"project_id":   "default-project",
 				"cluster_name": "test-cluster",
-				"location":     "us-east1-a",
+				"location":     "test-location",
 				"instance_id":  "123",
 				"node_name":    "default-instance",
 			},

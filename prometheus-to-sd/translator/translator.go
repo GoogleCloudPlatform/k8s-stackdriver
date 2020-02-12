@@ -495,7 +495,7 @@ func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.L
 		resourceLabels["cluster_name"] = config.GceConfig.Cluster
 	}
 	if _, found := resourceLabels["location"]; !found {
-		resourceLabels["location"] = config.GceConfig.Zone
+		resourceLabels["location"] = config.GceConfig.ClusterLocation
 	}
 
 	// When MonitoredResource type is not "k8s_*", default "instance_id" label to GCE instance name.
@@ -540,7 +540,7 @@ func getCustomMonitoredResource(config *config.CommonConfig) *v3.MonitoredResour
 	applyDefaultIfEmpty(resourceLabels, "instance_id", config.GceConfig.InstanceId)
 	applyDefaultIfEmpty(resourceLabels, "project_id", config.GceConfig.Project)
 	applyDefaultIfEmpty(resourceLabels, "cluster_name", config.GceConfig.Cluster)
-	applyDefaultIfEmpty(resourceLabels, "location", config.GceConfig.Zone)
+	applyDefaultIfEmpty(resourceLabels, "location", config.GceConfig.ClusterLocation)
 	applyDefaultIfEmpty(resourceLabels, "node_name", config.GceConfig.Instance)
 	return &v3.MonitoredResource{
 		Type:   config.SourceConfig.CustomResourceType,
