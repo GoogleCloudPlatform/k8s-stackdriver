@@ -44,7 +44,8 @@ const (
 )
 
 var (
-	schemaPrefix            = flag.String("schema-prefix", "", "MonitoredResource type prefix, to be appended by 'container', 'pod', and 'node'.")
+	schemaPrefix = flag.String("schema-prefix", "", "MonitoredResource type prefix, to be appended by 'container', 'pod', and 'node'."+
+		"When empty, old resource model (gke_container) is used. k8s_ prefix uses new model, with separate pod/container/node.")
 	monitoredResourceLabels = flag.String("monitored-resource-labels", "", "Manually specified MonitoredResource labels.")
 	// Flags to identify the Kubelet.
 	zone            = flag.String("zone", "use-gce", "The zone where this kubelet lives.")
