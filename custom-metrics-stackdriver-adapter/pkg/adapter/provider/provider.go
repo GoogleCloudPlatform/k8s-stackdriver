@@ -228,14 +228,7 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 // ListAllMetrics returns all custom metrics available from Stackdriver.
 // List only pod metrics
 func (p *StackdriverProvider) ListAllMetrics() []provider.CustomMetricInfo {
-	metrics := []provider.CustomMetricInfo{}
-	stackdriverRequest := p.translator.ListMetricDescriptors()
-	response, err := stackdriverRequest.Do()
-	if err != nil {
-		klog.Errorf("Failed request to stackdriver api: %s", err)
-		return metrics
-	}
-	return p.translator.GetMetricsFromSDDescriptorsResp(response)
+	return []provider.CustomMetricInfo{}
 }
 
 // GetExternalMetric queries Stackdriver for external metrics.
