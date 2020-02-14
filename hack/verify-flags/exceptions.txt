@@ -84,14 +84,12 @@ kubelet-to-gcm/monitor/controller/translator.go:		"cluster_name":   t.cluster,
 kubelet-to-gcm/monitor/controller/translator.go:		"namespace_id":   "",
 kubelet-to-gcm/monitor/controller/translator.go:		"pod_id":         "machine",
 kubelet-to-gcm/monitor/controller/translator.go:		"project_id":     t.project,
-kubelet-to-gcm/monitor/kubelet/translate.go:		"cluster_name":   t.cluster,
-kubelet-to-gcm/monitor/kubelet/translate.go:		"cluster_name":   t.cluster,
-kubelet-to-gcm/monitor/kubelet/translate.go:		"namespace_id":   "",
-kubelet-to-gcm/monitor/kubelet/translate.go:		"namespace_id":   namespace,
-kubelet-to-gcm/monitor/kubelet/translate.go:		"pod_id":         "machine",
-kubelet-to-gcm/monitor/kubelet/translate.go:		"pod_id":         podID,
-kubelet-to-gcm/monitor/kubelet/translate.go:		"project_id":     t.project,
-kubelet-to-gcm/monitor/kubelet/translate.go:		"project_id":     t.project,
+kubelet-to-gcm/monitor/kubelet/translate.go:			resourceLabels["node_name"] = t.instance
+kubelet-to-gcm/monitor/kubelet/translate.go:		"cluster_name": t.cluster,
+kubelet-to-gcm/monitor/kubelet/translate.go:		"project_id":   t.project,
+kubelet-to-gcm/monitor/kubelet/translate.go:		resourceLabels["namespace_id"] = labels["namespace"]
+kubelet-to-gcm/monitor/kubelet/translate.go:		resourceLabels["pod_id"] = labels["pod"]
+kubelet-to-gcm/monitor/kubelet/translate.go:	resourceLabels["pod_name"] = labels["pod"]
 prometheus-to-sd/README.md:  - `cluster_name`
 prometheus-to-sd/README.md:  - `node_name`
 prometheus-to-sd/README.md:  - `project_id`
