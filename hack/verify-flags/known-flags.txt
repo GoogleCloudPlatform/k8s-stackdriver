@@ -155,6 +155,7 @@ scale-down-unneeded-time
 scale-down-unready-time
 scale-down-utilization-threshold
 scan-interval
+schema-prefix
 scrape-interval
 services-configmap
 shame-cc
