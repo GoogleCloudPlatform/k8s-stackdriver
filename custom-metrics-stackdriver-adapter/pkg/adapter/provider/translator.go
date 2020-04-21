@@ -402,28 +402,37 @@ func (t *Translator) filterForSelector(metricSelector labels.Selector, allowedLa
 	}
 	filters := []string{}
 	for _, req := range requirements {
+		l := req.Values().List()
 		switch req.Operator() {
 		case selection.Equals, selection.DoubleEquals:
 			if isAllowedLabelName(req.Key(), allowedLabelPrefixes, allowedFullLabelNames) {
-				filters = append(filters, fmt.Sprintf("%s = %q", req.Key(), req.Values().List()[0]))
+				filters = append(filters, fmt.Sprintf("%s = %q", req.Key(), l[0]))
 			} else {
 				return "", NewLabelNotAllowedError(req.Key())
 			}
 		case selection.NotEquals:
 			if isAllowedLabelName(req.Key(), allowedLabelPrefixes, allowedFullLabelNames) {
-				filters = append(filters, fmt.Sprintf("%s != %q", req.Key(), req.Values().List()[0]))
+				filters = append(filters, fmt.Sprintf("%s != %q", req.Key(), l[0]))
 			} else {
 				return "", NewLabelNotAllowedError(req.Key())
 			}
 		case selection.In:
 			if isAllowedLabelName(req.Key(), allowedLabelPrefixes, allowedFullLabelNames) {
-				filters = append(filters, fmt.Sprintf("%s = one_of(%s)", req.Key(), strings.Join(quoteAll(req.Values().List()), ",")))
+				if len(l) == 1 {
+					filters = append(filters, fmt.Sprintf("%s = %s", req.Key(), l[0]))
+				} else {
+					filters = append(filters, fmt.Sprintf("%s = one_of(%s)", req.Key(), strings.Join(quoteAll(l), ",")))
+				}
 			} else {
 				return "", NewLabelNotAllowedError(req.Key())
 			}
 		case selection.NotIn:
 			if isAllowedLabelName(req.Key(), allowedLabelPrefixes, allowedFullLabelNames) {
-				filters = append(filters, fmt.Sprintf("NOT %s = one_of(%s)", req.Key(), strings.Join(quoteAll(req.Values().List()), ",")))
+				if len(l) == 1 {
+					filters = append(filters, fmt.Sprintf("%s != %s", req.Key(), l[0]))
+				} else {
+					filters = append(filters, fmt.Sprintf("NOT %s = one_of(%s)", req.Key(), strings.Join(quoteAll(l), ",")))
+				}
 			} else {
 				return "", NewLabelNotAllowedError(req.Key())
 			}
@@ -439,9 +448,9 @@ func (t *Translator) filterForSelector(metricSelector labels.Selector, allowedLa
 			return "", apierr.NewBadRequest("Label selector with operator DoesNotExist is not allowed")
 		case selection.GreaterThan:
 			if isAllowedLabelName(req.Key(), allowedLabelPrefixes, allowedFullLabelNames) {
-				value, err := strconv.ParseInt(req.Values().List()[0], 10, 64)
+				value, err := strconv.ParseInt(l[0], 10, 64)
 				if err != nil {
-					return "", apierr.NewInternalError(fmt.Errorf("Unexpected error: value %s could not be parsed to integer", req.Values().List()[0]))
+					return "", apierr.NewInternalError(fmt.Errorf("Unexpected error: value %s could not be parsed to integer", l[0]))
 				}
 				filters = append(filters, fmt.Sprintf("%s > %v", req.Key(), value))
 			} else {
@@ -449,9 +458,9 @@ func (t *Translator) filterForSelector(metricSelector labels.Selector, allowedLa
 			}
 		case selection.LessThan:
 			if isAllowedLabelName(req.Key(), allowedLabelPrefixes, allowedFullLabelNames) {
-				value, err := strconv.ParseInt(req.Values().List()[0], 10, 64)
+				value, err := strconv.ParseInt(l[0], 10, 64)
 				if err != nil {
-					return "", apierr.NewInternalError(fmt.Errorf("Unexpected error: value %s could not be parsed to integer", req.Values().List()[0]))
+					return "", apierr.NewInternalError(fmt.Errorf("Unexpected error: value %s could not be parsed to integer", l[0]))
 				}
 				filters = append(filters, fmt.Sprintf("%s < %v", req.Key(), value))
 			} else {
