@@ -11,7 +11,7 @@ PKG := $(shell find pkg/* -type f)
 build: build/adapter
 
 build/adapter: adapter.go $(PKG)
-	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(ARCH) go build -a -o $(OUT_DIR)/$(ARCH)/adapter adapter.go
+	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(ARCH) go build -mod vendor -a -o $(OUT_DIR)/$(ARCH)/adapter adapter.go
 
 docker:
 	docker build --pull -t ${PREFIX}/custom-metrics-stackdriver-adapter:$(TAG) .
