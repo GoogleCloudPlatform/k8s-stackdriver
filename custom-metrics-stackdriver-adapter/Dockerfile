@@ -15,7 +15,7 @@
 FROM golang:1.13-alpine as builder
 WORKDIR ${GOPATH}/src/github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter
 COPY . ./
-RUN CGO_ENABLED=0 GOOS=linux go build -o /adapter
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -o /adapter
 
 RUN apk update \
     && apk add --no-cache govendor \
