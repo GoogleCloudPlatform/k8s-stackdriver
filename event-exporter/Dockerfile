@@ -15,7 +15,7 @@
 FROM golang:1.13-alpine as builder
 WORKDIR ${GOPATH}/src/github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter
 COPY . ./
-RUN CGO_ENABLED=0 GOOS=linux go build -o /event-exporter
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -o /event-exporter
 
 FROM gcr.io/distroless/static:latest
 COPY --from=builder event-exporter /
