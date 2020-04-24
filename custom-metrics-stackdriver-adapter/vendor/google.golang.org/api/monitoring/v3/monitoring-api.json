@@ -21,7 +21,7 @@
   "baseUrl": "https://monitoring.googleapis.com/",
   "batchPath": "batch",
   "canonicalName": "Monitoring",
-  "description": "Manages your Cloud Monitoring data and configurations. Most projects must be associated with a Workspace, with a few exceptions as noted on the individual method pages. The table entries below are presented in alphabetical order, not in order of common use. For explanations of the concepts found in the table entries, read the Cloud Monitoring documentation.",
+  "description": "Manages your Stackdriver Monitoring data and configurations. Most projects must be associated with a Stackdriver account, with a few exceptions as noted on the individual method pages. The table entries below are presented in alphabetical order, not in order of common use. For explanations of the concepts found in the table entries, read the Stackdriver Monitoring documentation.",
   "discoveryVersion": "v1",
   "documentationLink": "https://cloud.google.com/monitoring/api/",
   "fullyEncodeReservedExpansion": true,
@@ -31,7 +31,6 @@
   },
   "id": "monitoring:v3",
   "kind": "discovery#restDescription",
-  "mtlsRootUrl": "https://monitoring.mtls.googleapis.com/",
   "name": "monitoring",
   "ownerDomain": "google.com",
   "ownerName": "Google",
@@ -128,7 +127,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. The project in which to create the alerting policy. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]\nNote that this field names the parent container in which the alerting policy will be written, not the name of the created policy. The alerting policy that is returned will have a name that contains a normalized representation of this name as a prefix but adds a suffix of the form /alertPolicies/[ALERT_POLICY_ID], identifying the policy in the container.",
+                  "description": "The project in which to create the alerting policy. The format is projects/[PROJECT_ID].Note that this field names the parent container in which the alerting policy will be written, not the name of the created policy. The alerting policy that is returned will have a name that contains a normalized representation of this name as a prefix but adds a suffix of the form /alertPolicies/[POLICY_ID], identifying the policy in the container.",
                   "location": "path",
                   "pattern": "^projects/[^/]+$",
                   "required": true,
@@ -157,7 +156,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. The alerting policy to delete. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/alertPolicies/[ALERT_POLICY_ID]\nFor more information, see AlertPolicy.",
+                  "description": "The alerting policy to delete. The format is:\nprojects/[PROJECT_ID]/alertPolicies/[ALERT_POLICY_ID]\nFor more information, see AlertPolicy.",
                   "location": "path",
                   "pattern": "^projects/[^/]+/alertPolicies/[^/]+$",
                   "required": true,
@@ -183,7 +182,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. The alerting policy to retrieve. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/alertPolicies/[ALERT_POLICY_ID]\n",
+                  "description": "The alerting policy to retrieve. The format is\nprojects/[PROJECT_ID]/alertPolicies/[ALERT_POLICY_ID]\n",
                   "location": "path",
                   "pattern": "^projects/[^/]+/alertPolicies/[^/]+$",
                   "required": true,
@@ -210,19 +209,19 @@
               ],
               "parameters": {
                 "filter": {
-                  "description": "If provided, this field specifies the criteria that must be met by alert policies to be included in the response.For more details, see sorting and filtering (https://cloud.google.com/monitoring/api/v3/sorting-and-filtering).",
+                  "description": "If provided, this field specifies the criteria that must be met by alert policies to be included in the response.For more details, see sorting and filtering.",
                   "location": "query",
                   "type": "string"
                 },
                 "name": {
-                  "description": "Required. The project whose alert policies are to be listed. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]\nNote that this field names the parent container in which the alerting policies to be listed are stored. To retrieve a single alerting policy by name, use the GetAlertPolicy operation, instead.",
+                  "description": "The project whose alert policies are to be listed. The format is\nprojects/[PROJECT_ID]\nNote that this field names the parent container in which the alerting policies to be listed are stored. To retrieve a single alerting policy by name, use the GetAlertPolicy operation, instead.",
                   "location": "path",
                   "pattern": "^projects/[^/]+$",
                   "required": true,
                   "type": "string"
                 },
                 "orderBy": {
-                  "description": "A comma-separated list of fields by which to sort the result. Supports the same set of field references as the filter field. Entries can be prefixed with a minus sign to sort by the field in descending order.For more details, see sorting and filtering (https://cloud.google.com/monitoring/api/v3/sorting-and-filtering).",
+                  "description": "A comma-separated list of fields by which to sort the result. Supports the same set of field references as the filter field. Entries can be prefixed with a minus sign to sort by the field in descending order.For more details, see sorting and filtering.",
                   "location": "query",
                   "type": "string"
                 },
@@ -258,7 +257,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required if the policy exists. The resource name for this policy. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/alertPolicies/[ALERT_POLICY_ID]\n[ALERT_POLICY_ID] is assigned by Stackdriver Monitoring when the policy is created. When calling the alertPolicies.create method, do not include the name field in the alerting policy passed as part of the request.",
+                  "description": "Required if the policy exists. The resource name for this policy. The syntax is:\nprojects/[PROJECT_ID]/alertPolicies/[ALERT_POLICY_ID]\n[ALERT_POLICY_ID] is assigned by Stackdriver Monitoring when the policy is created. When calling the alertPolicies.create method, do not include the name field in the alerting policy passed as part of the request.",
                   "location": "path",
                   "pattern": "^projects/[^/]+/alertPolicies/[^/]+$",
                   "required": true,
@@ -297,7 +296,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "The project in which to create the time series. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]\n",
+                  "description": "The project in which to create the time series. The format is \"projects/PROJECT_ID_OR_NUMBER\".",
                   "location": "path",
                   "pattern": "^projects/[^/]+$",
                   "required": true,
@@ -331,7 +330,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. The project in which to create the group. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]\n",
+                  "description": "The project in which to create the group. The format is \"projects/{project_id_or_number}\".",
                   "location": "path",
                   "pattern": "^projects/[^/]+$",
                   "required": true,
@@ -365,7 +364,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. The group to delete. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/groups/[GROUP_ID]\n",
+                  "description": "The group to delete. The format is \"projects/{project_id_or_number}/groups/{group_id}\".",
                   "location": "path",
                   "pattern": "^projects/[^/]+/groups/[^/]+$",
                   "required": true,
@@ -396,7 +395,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. The group to retrieve. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/groups/[GROUP_ID]\n",
+                  "description": "The group to retrieve. The format is \"projects/{project_id_or_number}/groups/{group_id}\".",
                   "location": "path",
                   "pattern": "^projects/[^/]+/groups/[^/]+$",
                   "required": true,
@@ -423,22 +422,22 @@
               ],
               "parameters": {
                 "ancestorsOfGroup": {
-                  "description": "A group name. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/groups/[GROUP_ID]\nReturns groups that are ancestors of the specified group. The groups are returned in order, starting with the immediate parent and ending with the most distant ancestor. If the specified group has no immediate parent, the results are empty.",
+                  "description": "A group name: \"projects/{project_id_or_number}/groups/{group_id}\". Returns groups that are ancestors of the specified group. The groups are returned in order, starting with the immediate parent and ending with the most distant ancestor. If the specified group has no immediate parent, the results are empty.",
                   "location": "query",
                   "type": "string"
                 },
                 "childrenOfGroup": {
-                  "description": "A group name. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/groups/[GROUP_ID]\nReturns groups whose parent_name field contains the group name. If no groups have this parent, the results are empty.",
+                  "description": "A group name: \"projects/{project_id_or_number}/groups/{group_id}\". Returns groups whose parentName field contains the group name. If no groups have this parent, the results are empty.",
                   "location": "query",
                   "type": "string"
                 },
                 "descendantsOfGroup": {
-                  "description": "A group name. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/groups/[GROUP_ID]\nReturns the descendants of the specified group. This is a superset of the results returned by the children_of_group filter, and includes children-of-children, and so forth.",
+                  "description": "A group name: \"projects/{project_id_or_number}/groups/{group_id}\". Returns the descendants of the specified group. This is a superset of the results returned by the childrenOfGroup filter, and includes children-of-children, and so forth.",
                   "location": "query",
                   "type": "string"
                 },
                 "name": {
-                  "description": "Required. The project whose groups are to be listed. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]\n",
+                  "description": "The project whose groups are to be listed. The format is \"projects/{project_id_or_number}\".",
                   "location": "path",
                   "pattern": "^projects/[^/]+$",
                   "required": true,
@@ -451,7 +450,7 @@
                   "type": "integer"
                 },
                 "pageToken": {
-                  "description": "If this field is not empty then it must contain the next_page_token value returned by a previous call to this method. Using this field causes the method to return additional results from the previous method call.",
+                  "description": "If this field is not empty then it must contain the nextPageToken value returned by a previous call to this method. Using this field causes the method to return additional results from the previous method call.",
                   "location": "query",
                   "type": "string"
                 }
@@ -476,7 +475,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Output only. The name of this group. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/groups/[GROUP_ID]\nWhen creating a group, this field is ignored and a new name is created consisting of the project specified in the call to CreateGroup and a unique [GROUP_ID] that is generated automatically.",
+                  "description": "Output only. The name of this group. The format is \"projects/{project_id_or_number}/groups/{group_id}\". When creating a group, this field is ignored and a new name is created consisting of the project specified in the call to CreateGroup and a unique {group_id} that is generated automatically.",
                   "location": "path",
                   "pattern": "^projects/[^/]+/groups/[^/]+$",
                   "required": true,
@@ -514,7 +513,7 @@
                   ],
                   "parameters": {
                     "filter": {
-                      "description": "An optional list filter (https://cloud.google.com/monitoring/api/learn_more#filtering) describing the members to be returned. The filter may reference the type, labels, and metadata of monitored resources that comprise the group. For example, to return only resources representing Compute Engine VM instances, use this filter:\n`resource.type = \"gce_instance\"`\n",
+                      "description": "An optional list filter describing the members to be returned. The filter may reference the type, labels, and metadata of monitored resources that comprise the group. For example, to return only resources representing Compute Engine VM instances, use this filter:\nresource.type = \"gce_instance\"\n",
                       "location": "query",
                       "type": "string"
                     },
@@ -531,7 +530,7 @@
                       "type": "string"
                     },
                     "name": {
-                      "description": "Required. The group whose members are listed. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/groups/[GROUP_ID]\n",
+                      "description": "The group whose members are listed. The format is \"projects/{project_id_or_number}/groups/{group_id}\".",
                       "location": "path",
                       "pattern": "^projects/[^/]+/groups/[^/]+$",
                       "required": true,
@@ -544,7 +543,7 @@
                       "type": "integer"
                     },
                     "pageToken": {
-                      "description": "If this field is not empty then it must contain the next_page_token value returned by a previous call to this method. Using this field causes the method to return additional results from the previous method call.",
+                      "description": "If this field is not empty then it must contain the nextPageToken value returned by a previous call to this method. Using this field causes the method to return additional results from the previous method call.",
                       "location": "query",
                       "type": "string"
                     }
@@ -566,7 +565,7 @@
         "metricDescriptors": {
           "methods": {
             "create": {
-              "description": "Creates a new metric descriptor. User-created metric descriptors define custom metrics (https://cloud.google.com/monitoring/custom-metrics).",
+              "description": "Creates a new metric descriptor. User-created metric descriptors define custom metrics.",
               "flatPath": "v3/projects/{projectsId}/metricDescriptors",
               "httpMethod": "POST",
               "id": "monitoring.projects.metricDescriptors.create",
@@ -575,7 +574,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. The project on which to execute the request. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]\n",
+                  "description": "The project on which to execute the request. The format is \"projects/{project_id_or_number}\".",
                   "location": "path",
                   "pattern": "^projects/[^/]+$",
                   "required": true,
@@ -596,7 +595,7 @@
               ]
             },
             "delete": {
-              "description": "Deletes a metric descriptor. Only user-created custom metrics (https://cloud.google.com/monitoring/custom-metrics) can be deleted.",
+              "description": "Deletes a metric descriptor. Only user-created custom metrics can be deleted.",
               "flatPath": "v3/projects/{projectsId}/metricDescriptors/{metricDescriptorsId}",
               "httpMethod": "DELETE",
               "id": "monitoring.projects.metricDescriptors.delete",
@@ -605,9 +604,9 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. The metric descriptor on which to execute the request. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/metricDescriptors/[METRIC_ID]\nAn example of [METRIC_ID] is: \"custom.googleapis.com/my_test_metric\".",
+                  "description": "The metric descriptor on which to execute the request. The format is \"projects/{project_id_or_number}/metricDescriptors/{metric_id}\". An example of {metric_id} is: \"custom.googleapis.com/my_test_metric\".",
                   "location": "path",
-                  "pattern": "^projects/[^/]+/metricDescriptors/.*$",
+                  "pattern": "^projects/[^/]+/metricDescriptors/.+$",
                   "required": true,
                   "type": "string"
                 }
@@ -622,7 +621,7 @@
               ]
             },
             "get": {
-              "description": "Gets a single metric descriptor. This method does not require a Workspace.",
+              "description": "Gets a single metric descriptor. This method does not require a Stackdriver account.",
               "flatPath": "v3/projects/{projectsId}/metricDescriptors/{metricDescriptorsId}",
               "httpMethod": "GET",
               "id": "monitoring.projects.metricDescriptors.get",
@@ -631,9 +630,9 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. The metric descriptor on which to execute the request. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/metricDescriptors/[METRIC_ID]\nAn example value of [METRIC_ID] is \"compute.googleapis.com/instance/disk/read_bytes_count\".",
+                  "description": "The metric descriptor on which to execute the request. The format is \"projects/{project_id_or_number}/metricDescriptors/{metric_id}\". An example value of {metric_id} is \"compute.googleapis.com/instance/disk/read_bytes_count\".",
                   "location": "path",
-                  "pattern": "^projects/[^/]+/metricDescriptors/.*$",
+                  "pattern": "^projects/[^/]+/metricDescriptors/.+$",
                   "required": true,
                   "type": "string"
                 }
@@ -650,7 +649,7 @@
               ]
             },
             "list": {
-              "description": "Lists metric descriptors that match a filter. This method does not require a Workspace.",
+              "description": "Lists metric descriptors that match a filter. This method does not require a Stackdriver account.",
               "flatPath": "v3/projects/{projectsId}/metricDescriptors",
               "httpMethod": "GET",
               "id": "monitoring.projects.metricDescriptors.list",
@@ -659,12 +658,12 @@
               ],
               "parameters": {
                 "filter": {
-                  "description": "If this field is empty, all custom and system-defined metric descriptors are returned. Otherwise, the filter (https://cloud.google.com/monitoring/api/v3/filters) specifies which metric descriptors are to be returned. For example, the following filter matches all custom metrics (https://cloud.google.com/monitoring/custom-metrics):\nmetric.type = starts_with(\"custom.googleapis.com/\")\n",
+                  "description": "If this field is empty, all custom and system-defined metric descriptors are returned. Otherwise, the filter specifies which metric descriptors are to be returned. For example, the following filter matches all custom metrics:\nmetric.type = starts_with(\"custom.googleapis.com/\")\n",
                   "location": "query",
                   "type": "string"
                 },
                 "name": {
-                  "description": "Required. The project on which to execute the request. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]\n",
+                  "description": "The project on which to execute the request. The format is \"projects/{project_id_or_number}\".",
                   "location": "path",
                   "pattern": "^projects/[^/]+$",
                   "required": true,
@@ -698,7 +697,7 @@
         "monitoredResourceDescriptors": {
           "methods": {
             "get": {
-              "description": "Gets a single monitored resource descriptor. This method does not require a Workspace.",
+              "description": "Gets a single monitored resource descriptor. This method does not require a Stackdriver account.",
               "flatPath": "v3/projects/{projectsId}/monitoredResourceDescriptors/{monitoredResourceDescriptorsId}",
               "httpMethod": "GET",
               "id": "monitoring.projects.monitoredResourceDescriptors.get",
@@ -707,9 +706,9 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. The monitored resource descriptor to get. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/monitoredResourceDescriptors/[RESOURCE_TYPE]\nThe [RESOURCE_TYPE] is a predefined type, such as cloudsql_database.",
+                  "description": "The monitored resource descriptor to get. The format is \"projects/{project_id_or_number}/monitoredResourceDescriptors/{resource_type}\". The {resource_type} is a predefined type, such as cloudsql_database.",
                   "location": "path",
-                  "pattern": "^projects/[^/]+/monitoredResourceDescriptors/.*$",
+                  "pattern": "^projects/[^/]+/monitoredResourceDescriptors/.+$",
                   "required": true,
                   "type": "string"
                 }
@@ -726,7 +725,7 @@
               ]
             },
             "list": {
-              "description": "Lists monitored resource descriptors that match a filter. This method does not require a Workspace.",
+              "description": "Lists monitored resource descriptors that match a filter. This method does not require a Stackdriver account.",
               "flatPath": "v3/projects/{projectsId}/monitoredResourceDescriptors",
               "httpMethod": "GET",
               "id": "monitoring.projects.monitoredResourceDescriptors.list",
@@ -735,12 +734,12 @@
               ],
               "parameters": {
                 "filter": {
-                  "description": "An optional filter (https://cloud.google.com/monitoring/api/v3/filters) describing the descriptors to be returned. The filter can reference the descriptor's type and labels. For example, the following filter returns only Google Compute Engine descriptors that have an id label:\nresource.type = starts_with(\"gce_\") AND resource.label:id\n",
+                  "description": "An optional filter describing the descriptors to be returned. The filter can reference the descriptor's type and labels. For example, the following filter returns only Google Compute Engine descriptors that have an id label:\nresource.type = starts_with(\"gce_\") AND resource.label:id\n",
                   "location": "query",
                   "type": "string"
                 },
                 "name": {
-                  "description": "Required. The project on which to execute the request. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]\n",
+                  "description": "The project on which to execute the request. The format is \"projects/{project_id_or_number}\".",
                   "location": "path",
                   "pattern": "^projects/[^/]+$",
                   "required": true,
@@ -783,7 +782,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. The channel type for which to execute the request. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/notificationChannelDescriptors/[CHANNEL_TYPE]\n",
+                  "description": "The channel type for which to execute the request. The format is projects/[PROJECT_ID]/notificationChannelDescriptors/{channel_type}.",
                   "location": "path",
                   "pattern": "^projects/[^/]+/notificationChannelDescriptors/[^/]+$",
                   "required": true,
@@ -810,7 +809,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. The REST resource name of the parent from which to retrieve the notification channel descriptors. The expected syntax is:\nprojects/[PROJECT_ID_OR_NUMBER]\nNote that this names the parent container in which to look for the descriptors; to retrieve a single descriptor by name, use the GetNotificationChannelDescriptor operation, instead.",
+                  "description": "The REST resource name of the parent from which to retrieve the notification channel descriptors. The expected syntax is:\nprojects/[PROJECT_ID]\nNote that this names the parent container in which to look for the descriptors; to retrieve a single descriptor by name, use the GetNotificationChannelDescriptor operation, instead.",
                   "location": "path",
                   "pattern": "^projects/[^/]+$",
                   "required": true,
@@ -852,7 +851,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. The project on which to execute the request. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]\nThis names the container into which the channel will be written, this does not name the newly created channel. The resulting channel's name will have a normalized version of this field as a prefix, but will add /notificationChannels/[CHANNEL_ID] to identify the channel.",
+                  "description": "The project on which to execute the request. The format is:\nprojects/[PROJECT_ID]\nNote that this names the container into which the channel will be written. This does not name the newly created channel. The resulting channel's name will have a normalized version of this field as a prefix, but will add /notificationChannels/[CHANNEL_ID] to identify the channel.",
                   "location": "path",
                   "pattern": "^projects/[^/]+$",
                   "required": true,
@@ -886,7 +885,7 @@
                   "type": "boolean"
                 },
                 "name": {
-                  "description": "Required. The channel for which to execute the request. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/notificationChannels/[CHANNEL_ID]\n",
+                  "description": "The channel for which to execute the request. The format is projects/[PROJECT_ID]/notificationChannels/[CHANNEL_ID].",
                   "location": "path",
                   "pattern": "^projects/[^/]+/notificationChannels/[^/]+$",
                   "required": true,
@@ -912,7 +911,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. The channel for which to execute the request. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/notificationChannels/[CHANNEL_ID]\n",
+                  "description": "The channel for which to execute the request. The format is projects/[PROJECT_ID]/notificationChannels/[CHANNEL_ID].",
                   "location": "path",
                   "pattern": "^projects/[^/]+/notificationChannels/[^/]+$",
                   "required": true,
@@ -939,7 +938,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. The notification channel for which a verification code is to be generated and retrieved. This must name a channel that is already verified; if the specified channel is not verified, the request will fail.",
+                  "description": "The notification channel for which a verification code is to be generated and retrieved. This must name a channel that is already verified; if the specified channel is not verified, the request will fail.",
                   "location": "path",
                   "pattern": "^projects/[^/]+/notificationChannels/[^/]+$",
                   "required": true,
@@ -968,19 +967,19 @@
               ],
               "parameters": {
                 "filter": {
-                  "description": "If provided, this field specifies the criteria that must be met by notification channels to be included in the response.For more details, see sorting and filtering (https://cloud.google.com/monitoring/api/v3/sorting-and-filtering).",
+                  "description": "If provided, this field specifies the criteria that must be met by notification channels to be included in the response.For more details, see sorting and filtering.",
                   "location": "query",
                   "type": "string"
                 },
                 "name": {
-                  "description": "Required. The project on which to execute the request. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]\nThis names the container in which to look for the notification channels; it does not name a specific channel. To query a specific channel by REST resource name, use the GetNotificationChannel operation.",
+                  "description": "The project on which to execute the request. The format is projects/[PROJECT_ID]. That is, this names the container in which to look for the notification channels; it does not name a specific channel. To query a specific channel by REST resource name, use the GetNotificationChannel operation.",
                   "location": "path",
                   "pattern": "^projects/[^/]+$",
                   "required": true,
                   "type": "string"
                 },
                 "orderBy": {
-                  "description": "A comma-separated list of fields by which to sort the result. Supports the same set of fields as in filter. Entries can be prefixed with a minus sign to sort in descending rather than ascending order.For more details, see sorting and filtering (https://cloud.google.com/monitoring/api/v3/sorting-and-filtering).",
+                  "description": "A comma-separated list of fields by which to sort the result. Supports the same set of fields as in filter. Entries can be prefixed with a minus sign to sort in descending rather than ascending order.For more details, see sorting and filtering.",
                   "location": "query",
                   "type": "string"
                 },
@@ -1016,7 +1015,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "The full REST resource name for this channel. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/notificationChannels/[CHANNEL_ID]\nThe [CHANNEL_ID] is automatically assigned by the server on creation.",
+                  "description": "The full REST resource name for this channel. The syntax is:\nprojects/[PROJECT_ID]/notificationChannels/[CHANNEL_ID]\nThe [CHANNEL_ID] is automatically assigned by the server on creation.",
                   "location": "path",
                   "pattern": "^projects/[^/]+/notificationChannels/[^/]+$",
                   "required": true,
@@ -1051,7 +1050,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. The notification channel to which to send a verification code.",
+                  "description": "The notification channel to which to send a verification code.",
                   "location": "path",
                   "pattern": "^projects/[^/]+/notificationChannels/[^/]+$",
                   "required": true,
@@ -1080,7 +1079,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. The notification channel to verify.",
+                  "description": "The notification channel to verify.",
                   "location": "path",
                   "pattern": "^projects/[^/]+/notificationChannels/[^/]+$",
                   "required": true,
@@ -1113,7 +1112,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. The project on which to execute the request. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]\n",
+                  "description": "The project on which to execute the request. The format is \"projects/{project_id_or_number}\".",
                   "location": "path",
                   "pattern": "^projects/[^/]+$",
                   "required": true,
@@ -1134,7 +1133,7 @@
               ]
             },
             "list": {
-              "description": "Lists time series that match a filter. This method does not require a Workspace.",
+              "description": "Lists time series that match a filter. This method does not require a Stackdriver account.",
               "flatPath": "v3/projects/{projectsId}/timeSeries",
               "httpMethod": "GET",
               "id": "monitoring.projects.timeSeries.list",
@@ -1202,7 +1201,7 @@
                   "type": "string"
                 },
                 "filter": {
-                  "description": "Required. A monitoring filter (https://cloud.google.com/monitoring/api/v3/filters) that specifies which time series should be returned. The filter must specify a single metric type, and can additionally specify metric labels and other information. For example:\nmetric.type = \"compute.googleapis.com/instance/cpu/usage_time\" AND\n    metric.labels.instance_name = \"my-instance-name\"\n",
+                  "description": "A monitoring filter that specifies which time series should be returned. The filter must specify a single metric type, and can additionally specify metric labels and other information. For example:\nmetric.type = \"compute.googleapis.com/instance/cpu/usage_time\" AND\n    metric.labels.instance_name = \"my-instance-name\"\n",
                   "location": "query",
                   "type": "string"
                 },
@@ -1219,7 +1218,7 @@
                   "type": "string"
                 },
                 "name": {
-                  "description": "Required. The project on which to execute the request. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]\n",
+                  "description": "The project on which to execute the request. The format is \"projects/{project_id_or_number}\".",
                   "location": "path",
                   "pattern": "^projects/[^/]+$",
                   "required": true,
@@ -1242,7 +1241,7 @@
                   "type": "string"
                 },
                 "view": {
-                  "description": "Required. Specifies which information is returned about the time series.",
+                  "description": "Specifies which information is returned about the time series.",
                   "enum": [
                     "FULL",
                     "HEADERS"
@@ -1254,36 +1253,6 @@
               "path": "v3/{+name}/timeSeries",
               "response": {
                 "$ref": "ListTimeSeriesResponse"
-              },
-              "scopes": [
-                "https://www.googleapis.com/auth/cloud-platform",
-                "https://www.googleapis.com/auth/monitoring",
-                "https://www.googleapis.com/auth/monitoring.read"
-              ]
-            },
-            "query": {
-              "description": "Queries time series using the time series query language. This method does not require a Workspace.",
-              "flatPath": "v3/projects/{projectsId}/timeSeries:query",
-              "httpMethod": "POST",
-              "id": "monitoring.projects.timeSeries.query",
-              "parameterOrder": [
-                "name"
-              ],
-              "parameters": {
-                "name": {
-                  "description": "Required. The project on which to execute the request. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]\n",
-                  "location": "path",
-                  "pattern": "^projects/[^/]+$",
-                  "required": true,
-                  "type": "string"
-                }
-              },
-              "path": "v3/{+name}/timeSeries:query",
-              "request": {
-                "$ref": "QueryTimeSeriesRequest"
-              },
-              "response": {
-                "$ref": "QueryTimeSeriesResponse"
               },
               "scopes": [
                 "https://www.googleapis.com/auth/cloud-platform",
@@ -1305,7 +1274,7 @@
               ],
               "parameters": {
                 "parent": {
-                  "description": "Required. The project in which to create the Uptime check. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]\n",
+                  "description": "The project in which to create the Uptime check. The format  is projects/[PROJECT_ID].",
                   "location": "path",
                   "pattern": "^projects/[^/]+$",
                   "required": true,
@@ -1334,7 +1303,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. The Uptime check configuration to delete. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/uptimeCheckConfigs/[UPTIME_CHECK_ID]\n",
+                  "description": "The Uptime check configuration to delete. The format  is projects/[PROJECT_ID]/uptimeCheckConfigs/[UPTIME_CHECK_ID].",
                   "location": "path",
                   "pattern": "^projects/[^/]+/uptimeCheckConfigs/[^/]+$",
                   "required": true,
@@ -1360,7 +1329,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. The Uptime check configuration to retrieve. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/uptimeCheckConfigs/[UPTIME_CHECK_ID]\n",
+                  "description": "The Uptime check configuration to retrieve. The format  is projects/[PROJECT_ID]/uptimeCheckConfigs/[UPTIME_CHECK_ID].",
                   "location": "path",
                   "pattern": "^projects/[^/]+/uptimeCheckConfigs/[^/]+$",
                   "required": true,
@@ -1398,7 +1367,7 @@
                   "type": "string"
                 },
                 "parent": {
-                  "description": "Required. The project whose Uptime check configurations are listed. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]\n",
+                  "description": "The project whose Uptime check configurations are listed. The format  is projects/[PROJECT_ID].",
                   "location": "path",
                   "pattern": "^projects/[^/]+$",
                   "required": true,
@@ -1425,7 +1394,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "A unique resource name for this Uptime check configuration. The format is:\n projects/[PROJECT_ID_OR_NUMBER]/uptimeCheckConfigs/[UPTIME_CHECK_ID]\nThis field should be omitted when creating the Uptime check configuration; on create, the resource name is assigned by the server and included in the response.",
+                  "description": "A unique resource name for this Uptime check configuration. The format is:projects/[PROJECT_ID]/uptimeCheckConfigs/[UPTIME_CHECK_ID].This field should be omitted when creating the Uptime check configuration; on create, the resource name is assigned by the server and included in the response.",
                   "location": "path",
                   "pattern": "^projects/[^/]+/uptimeCheckConfigs/[^/]+$",
                   "required": true,
@@ -1466,14 +1435,14 @@
           ],
           "parameters": {
             "parent": {
-              "description": "Required. Resource name of the parent workspace. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]\n",
+              "description": "Resource name of the parent workspace. Of the form projects/{project_id}.",
               "location": "path",
               "pattern": "^[^/]+/[^/]+$",
               "required": true,
               "type": "string"
             },
             "serviceId": {
-              "description": "Optional. The Service id to use for this Service. If omitted, an id will be generated instead. Must match the pattern [a-z0-9\\-]+",
+              "description": "Optional. The Service id to use for this Service. If omitted, an id will be generated instead. Must match the pattern a-z0-9-+",
               "location": "query",
               "type": "string"
             }
@@ -1500,7 +1469,7 @@
           ],
           "parameters": {
             "name": {
-              "description": "Required. Resource name of the Service to delete. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/services/[SERVICE_ID]\n",
+              "description": "Resource name of the Service to delete. Of the form projects/{project_id}/services/{service_id}.",
               "location": "path",
               "pattern": "^[^/]+/[^/]+/services/[^/]+$",
               "required": true,
@@ -1526,7 +1495,7 @@
           ],
           "parameters": {
             "name": {
-              "description": "Required. Resource name of the Service. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/services/[SERVICE_ID]\n",
+              "description": "Resource name of the Service. Of the form projects/{project_id}/services/{service_id}.",
               "location": "path",
               "pattern": "^[^/]+/[^/]+/services/[^/]+$",
               "required": true,
@@ -1569,7 +1538,7 @@
               "type": "string"
             },
             "parent": {
-              "description": "Required. Resource name of the parent containing the listed services, either a project or a Monitoring Workspace. The formats are:\nprojects/[PROJECT_ID_OR_NUMBER]\nworkspaces/[HOST_PROJECT_ID_OR_NUMBER]\n",
+              "description": "Resource name of the parent Workspace. Of the form projects/{project_id}.",
               "location": "path",
               "pattern": "^[^/]+/[^/]+$",
               "required": true,
@@ -1596,7 +1565,7 @@
           ],
           "parameters": {
             "name": {
-              "description": "Resource name for this Service. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/services/[SERVICE_ID]\n",
+              "description": "Resource name for this Service. Of the form projects/{project_id}/services/{service_id}.",
               "location": "path",
               "pattern": "^[^/]+/[^/]+/services/[^/]+$",
               "required": true,
@@ -1635,14 +1604,14 @@
               ],
               "parameters": {
                 "parent": {
-                  "description": "Required. Resource name of the parent Service. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/services/[SERVICE_ID]\n",
+                  "description": "Resource name of the parent Service. Of the form projects/{project_id}/services/{service_id}.",
                   "location": "path",
                   "pattern": "^[^/]+/[^/]+/services/[^/]+$",
                   "required": true,
                   "type": "string"
                 },
                 "serviceLevelObjectiveId": {
-                  "description": "Optional. The ServiceLevelObjective id to use for this ServiceLevelObjective. If omitted, an id will be generated instead. Must match the pattern [a-z0-9\\-]+",
+                  "description": "Optional. The ServiceLevelObjective id to use for this ServiceLevelObjective. If omitted, an id will be generated instead. Must match the pattern a-z0-9-+",
                   "location": "query",
                   "type": "string"
                 }
@@ -1669,7 +1638,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. Resource name of the ServiceLevelObjective to delete. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/services/[SERVICE_ID]/serviceLevelObjectives/[SLO_NAME]\n",
+                  "description": "Resource name of the ServiceLevelObjective to delete. Of the form projects/{project_id}/services/{service_id}/serviceLevelObjectives/{slo_name}.",
                   "location": "path",
                   "pattern": "^[^/]+/[^/]+/services/[^/]+/serviceLevelObjectives/[^/]+$",
                   "required": true,
@@ -1695,7 +1664,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Required. Resource name of the ServiceLevelObjective to get. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/services/[SERVICE_ID]/serviceLevelObjectives/[SLO_NAME]\n",
+                  "description": "Resource name of the ServiceLevelObjective to get. Of the form projects/{project_id}/services/{service_id}/serviceLevelObjectives/{slo_name}.",
                   "location": "path",
                   "pattern": "^[^/]+/[^/]+/services/[^/]+/serviceLevelObjectives/[^/]+$",
                   "required": true,
@@ -1748,7 +1717,7 @@
                   "type": "string"
                 },
                 "parent": {
-                  "description": "Required. Resource name of the parent containing the listed SLOs, either a project or a Monitoring Workspace. The formats are:\nprojects/[PROJECT_ID_OR_NUMBER]/services/[SERVICE_ID]\nworkspaces/[HOST_PROJECT_ID_OR_NUMBER]/services/-\n",
+                  "description": "Resource name of the parent Service. Of the form projects/{project_id}/services/{service_id}.",
                   "location": "path",
                   "pattern": "^[^/]+/[^/]+/services/[^/]+$",
                   "required": true,
@@ -1785,7 +1754,7 @@
               ],
               "parameters": {
                 "name": {
-                  "description": "Resource name for this ServiceLevelObjective. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/services/[SERVICE_ID]/serviceLevelObjectives/[SLO_NAME]\n",
+                  "description": "Resource name for this ServiceLevelObjective. Of the form projects/{project_id}/services/{service_id}/serviceLevelObjectives/{slo_name}.",
                   "location": "path",
                   "pattern": "^[^/]+/[^/]+/services/[^/]+/serviceLevelObjectives/[^/]+$",
                   "required": true,
@@ -1848,11 +1817,11 @@
       }
     }
   },
-  "revision": "20200329",
+  "revision": "20200126",
   "rootUrl": "https://monitoring.googleapis.com/",
   "schemas": {
     "Aggregation": {
-      "description": "Describes how to combine multiple time series to provide a different view of the data. Aggregation of time series is done in two steps. First, each time series in the set is aligned to the same time interval boundaries, then the set of time series is optionally reduced in number.Alignment consists of applying the per_series_aligner operation to each time series after its data has been divided into regular alignment_period time intervals. This process takes all of the data points in an alignment period, applies a mathematical transformation such as averaging, minimum, maximum, delta, etc., and converts them into a single data point per period.Reduction is when the aligned and transformed time series can optionally be combined, reducing the number of time series through similar mathematical transformations. Reduction involves applying a cross_series_reducer to all the time series, optionally sorting the time series into subsets with group_by_fields, and applying the reducer to each subset.The raw time series data can contain a huge amount of information from multiple sources. Alignment and reduction transforms this mass of data into a more manageable and representative collection of data, for example \"the 95% latency across the average of all tasks in a cluster\". This representative data can be more easily graphed and comprehended, and the individual time series data is still available for later drilldown. For more details, see Filtering and aggregation (https://cloud.google.com/monitoring/api/v3/aggregation).",
+      "description": "Describes how to combine multiple time series to provide a different view of the data. Aggregation of time series is done in two steps. First, each time series in the set is aligned to the same time interval boundaries, then the set of time series is optionally reduced in number.Alignment consists of applying the per_series_aligner operation to each time series after its data has been divided into regular alignment_period time intervals. This process takes all of the data points in an alignment period, applies a mathematical transformation such as averaging, minimum, maximum, delta, etc., and converts them into a single data point per period.Reduction is when the aligned and transformed time series can optionally be combined, reducing the number of time series through similar mathematical transformations. Reduction involves applying a cross_series_reducer to all the time series, optionally sorting the time series into subsets with group_by_fields, and applying the reducer to each subset.The raw time series data can contain a huge amount of information from multiple sources. Alignment and reduction transforms this mass of data into a more manageable and representative collection of data, for example \"the 95% latency across the average of all tasks in a cluster\". This representative data can be more easily graphed and comprehended, and the individual time series data is still available for later drilldown. For more details, see Aggregating Time Series.",
       "id": "Aggregation",
       "properties": {
         "alignmentPeriod": {
@@ -1953,7 +1922,7 @@
       "type": "object"
     },
     "AlertPolicy": {
-      "description": "A description of the conditions under which some aspect of your system is considered to be \"unhealthy\" and the ways to notify people or services about this state. For an overview of alert policies, see Introduction to Alerting (https://cloud.google.com/monitoring/alerts/).",
+      "description": "A description of the conditions under which some aspect of your system is considered to be \"unhealthy\" and the ways to notify people or services about this state. For an overview of alert policies, see Introduction to Alerting.",
       "id": "AlertPolicy",
       "properties": {
         "combiner": {
@@ -1966,14 +1935,14 @@
           ],
           "enumDescriptions": [
             "An unspecified combiner.",
-            "Combine conditions using the logical AND operator. An incident is created only if all the conditions are met simultaneously. This combiner is satisfied if all conditions are met, even if they are met on completely different resources.",
+            "Combine conditions using the logical AND operator. An incident is created only if all conditions are met simultaneously. This combiner is satisfied if all conditions are met, even if they are met on completely different resources.",
             "Combine conditions using the logical OR operator. An incident is created if any of the listed conditions is met.",
             "Combine conditions using logical AND operator, but unlike the regular AND option, an incident is created only if all conditions are met simultaneously on at least one resource."
           ],
           "type": "string"
         },
         "conditions": {
-          "description": "A list of conditions for the policy. The conditions are combined by AND or OR according to the combiner field. If the combined conditions evaluate to true, then an incident is created. A policy can have from one to six conditions. If condition_time_series_query_language is present, it must be the only condition.",
+          "description": "A list of conditions for the policy. The conditions are combined by AND or OR according to the combiner field. If the combined conditions evaluate to true, then an incident is created. A policy can have from one to six conditions. If |condition_time_series_uery_language| is present, it must be the only |condition|.",
           "items": {
             "$ref": "Condition"
           },
@@ -2000,11 +1969,11 @@
           "description": "A read-only record of the most recent change to the alerting policy. If provided in a call to create or update, this field will be ignored."
         },
         "name": {
-          "description": "Required if the policy exists. The resource name for this policy. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/alertPolicies/[ALERT_POLICY_ID]\n[ALERT_POLICY_ID] is assigned by Stackdriver Monitoring when the policy is created. When calling the alertPolicies.create method, do not include the name field in the alerting policy passed as part of the request.",
+          "description": "Required if the policy exists. The resource name for this policy. The syntax is:\nprojects/[PROJECT_ID]/alertPolicies/[ALERT_POLICY_ID]\n[ALERT_POLICY_ID] is assigned by Stackdriver Monitoring when the policy is created. When calling the alertPolicies.create method, do not include the name field in the alerting policy passed as part of the request.",
           "type": "string"
         },
         "notificationChannels": {
-          "description": "Identifies the notification channels to which notifications should be sent when incidents are opened or closed or when new violations occur on an already opened incident. Each element of this array corresponds to the name field in each of the NotificationChannel objects that are returned from the ListNotificationChannels method. The format of the entries in this field is:\nprojects/[PROJECT_ID_OR_NUMBER]/notificationChannels/[CHANNEL_ID]\n",
+          "description": "Identifies the notification channels to which notifications should be sent when incidents are opened or closed or when new violations occur on an already opened incident. Each element of this array corresponds to the name field in each of the NotificationChannel objects that are returned from the ListNotificationChannels method. The syntax of the entries in this field is:\nprojects/[PROJECT_ID]/notificationChannels/[CHANNEL_ID]\n",
           "items": {
             "type": "string"
           },
@@ -2123,7 +2092,7 @@
       "type": "object"
     },
     "ClusterIstio": {
-      "description": "Istio service scoped to a single Kubernetes cluster. Learn more at http://istio.io.",
+      "description": "Istio service. Learn more at http://istio.io.",
       "id": "ClusterIstio",
       "properties": {
         "clusterName": {
@@ -2276,16 +2245,12 @@
           "$ref": "MetricThreshold",
           "description": "A condition that compares a time series against a threshold."
         },
-        "conditionTimeSeriesQueryLanguage": {
-          "$ref": "TimeSeriesQueryLanguageCondition",
-          "description": "A condition that uses the Monitoring Query Language to define alerts. If set, no other conditions can be present."
-        },
         "displayName": {
           "description": "A short name or phrase used to identify the condition in dashboards, notifications, and incidents. To avoid confusion, don't use the same display name for multiple conditions in the same policy.",
           "type": "string"
         },
         "name": {
-          "description": "Required if the condition exists. The unique resource name for this condition. Its format is:\nprojects/[PROJECT_ID_OR_NUMBER]/alertPolicies/[POLICY_ID]/conditions/[CONDITION_ID]\n[CONDITION_ID] is assigned by Stackdriver Monitoring when the condition is created as part of a new or updated alerting policy.When calling the alertPolicies.create method, do not include the name field in the conditions of the requested alerting policy. Stackdriver Monitoring creates the condition identifiers and includes them in the new policy.When calling the alertPolicies.update method to update a policy, including a condition name causes the existing condition to be updated. Conditions without names are added to the updated policy. Existing conditions are deleted if they are not updated.Best practice is to preserve [CONDITION_ID] if you make only small changes, such as those to condition thresholds, durations, or trigger values. Otherwise, treat the change as a new condition and let the existing condition be deleted.",
+          "description": "Required if the condition exists. The unique resource name for this condition. Its syntax is:\nprojects/[PROJECT_ID]/alertPolicies/[POLICY_ID]/conditions/[CONDITION_ID]\n[CONDITION_ID] is assigned by Stackdriver Monitoring when the condition is created as part of a new or updated alerting policy.When calling the alertPolicies.create method, do not include the name field in the conditions of the requested alerting policy. Stackdriver Monitoring creates the condition identifiers and includes them in the new policy.When calling the alertPolicies.update method to update a policy, including a condition name causes the existing condition to be updated. Conditions without names are added to the updated policy. Existing conditions are deleted if they are not updated.Best practice is to preserve [CONDITION_ID] if you make only small changes, such as those to condition thresholds, durations, or trigger values. Otherwise, treat the change as a new condition and let the existing condition be deleted.",
           "type": "string"
         }
       },
@@ -2365,7 +2330,7 @@
       "id": "CreateTimeSeriesRequest",
       "properties": {
         "timeSeries": {
-          "description": "Required. The new data to be added to a list of time series. Adds at most one data point to each of several time series. The new data point must be more recent than any other point in its time series. Each TimeSeries value must fully specify a unique time series by supplying all label values for the metric and the monitored resource.The maximum number of TimeSeries objects per Create request is 200.",
+          "description": "The new data to be added to a list of time series. Adds at most one data point to each of several time series. The new data point must be more recent than any other point in its time series. Each TimeSeries value must fully specify a unique time series by supplying all label values for the metric and the monitored resource.The maximum number of TimeSeries objects per Create request is 200.",
           "items": {
             "$ref": "TimeSeries"
           },
@@ -2409,7 +2374,7 @@
       "id": "Distribution",
       "properties": {
         "bucketCounts": {
-          "description": "Required in the Cloud Monitoring API v3. The values for each bucket specified in bucket_options. The sum of the values in bucketCounts must equal the value in the count field of the Distribution object. The order of the bucket counts follows the numbering schemes described for the three bucket types. The underflow bucket has number 0; the finite buckets, if any, have numbers 1 through N-2; and the overflow bucket has number N-1. The size of bucket_counts must not be greater than N. If the size is less than N, then the remaining buckets are assigned values of zero.",
+          "description": "Required in the Stackdriver Monitoring API v3. The values for each bucket specified in bucket_options. The sum of the values in bucketCounts must equal the value in the count field of the Distribution object. The order of the bucket counts follows the numbering schemes described for the three bucket types. The underflow bucket has number 0; the finite buckets, if any, have numbers 1 through N-2; and the overflow bucket has number N-1. The size of bucket_counts must not be greater than N. If the size is less than N, then the remaining buckets are assigned values of zero.",
           "items": {
             "format": "int64",
             "type": "string"
@@ -2418,7 +2383,7 @@
         },
         "bucketOptions": {
           "$ref": "BucketOptions",
-          "description": "Required in the Cloud Monitoring API v3. Defines the histogram bucket boundaries."
+          "description": "Required in the Stackdriver Monitoring API v3. Defines the histogram bucket boundaries."
         },
         "count": {
           "description": "The number of values in the population. Must be non-negative. This value must equal the sum of the values in bucket_counts if a histogram is provided.",
@@ -2439,7 +2404,7 @@
         },
         "range": {
           "$ref": "Range",
-          "description": "If specified, contains the range of the population values. The field must not be present if the count is zero. This field is presently ignored by the Cloud Monitoring API v3."
+          "description": "If specified, contains the range of the population values. The field must not be present if the count is zero. This field is presently ignored by the Stackdriver Monitoring API v3."
         },
         "sumOfSquaredDeviation": {
           "description": "The sum of squared deviations from the mean of the values in the population. For values x_i this is:\nSum[i=1..n]((x_i - mean)^2)\nKnuth, \"The Art of Computer Programming\", Vol. 2, page 323, 3rd edition describes Welford's method for accumulating this sum in one pass.If count is zero then this field must be zero.",
@@ -2748,11 +2713,11 @@
           "type": "boolean"
         },
         "name": {
-          "description": "Output only. The name of this group. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/groups/[GROUP_ID]\nWhen creating a group, this field is ignored and a new name is created consisting of the project specified in the call to CreateGroup and a unique [GROUP_ID] that is generated automatically.",
+          "description": "Output only. The name of this group. The format is \"projects/{project_id_or_number}/groups/{group_id}\". When creating a group, this field is ignored and a new name is created consisting of the project specified in the call to CreateGroup and a unique {group_id} that is generated automatically.",
           "type": "string"
         },
         "parentName": {
-          "description": "The name of the group's parent, if it has one. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/groups/[GROUP_ID]\nFor groups with no parent, parent_name is the empty string, \"\".",
+          "description": "The name of the group's parent, if it has one. The format is \"projects/{project_id_or_number}/groups/{group_id}\". For groups with no parent, parentName is the empty string, \"\".",
           "type": "string"
         }
       },
@@ -2810,7 +2775,7 @@
           "type": "string"
         },
         "name": {
-          "description": "A unique resource name for this InternalChecker. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/internalCheckers/[INTERNAL_CHECKER_ID]\n[PROJECT_ID_OR_NUMBER] is the Stackdriver Workspace project for the Uptime check config associated with the internal checker.",
+          "description": "A unique resource name for this InternalChecker. The format is:projects/[PROJECT_ID]/internalCheckers/[INTERNAL_CHECKER_ID].[PROJECT_ID] is the Stackdriver Workspace project for the Uptime check config associated with the internal checker.",
           "type": "string"
         },
         "network": {
@@ -2867,26 +2832,6 @@
       },
       "type": "object"
     },
-    "LabelValue": {
-      "description": "A label value.",
-      "id": "LabelValue",
-      "properties": {
-        "boolValue": {
-          "description": "A bool label value.",
-          "type": "boolean"
-        },
-        "int64Value": {
-          "description": "An int64 label value.",
-          "format": "int64",
-          "type": "string"
-        },
-        "stringValue": {
-          "description": "A string label value.",
-          "type": "string"
-        }
-      },
-      "type": "object"
-    },
     "LatencyCriteria": {
       "description": "Parameters for a latency threshold SLI.",
       "id": "LatencyCriteria",
@@ -2933,7 +2878,7 @@
           "type": "array"
         },
         "nextPageToken": {
-          "description": "If there might be more results than were returned, then this field is set to a non-empty value. To see the additional results, use that value as page_token in the next call to this method.",
+          "description": "If there might be more results than were returned, then this field is set to a non-empty value. To see the additional results, use that value as pageToken in the next call to this method.",
           "type": "string"
         }
       },
@@ -2951,7 +2896,7 @@
           "type": "array"
         },
         "nextPageToken": {
-          "description": "If there are more results than have been returned, then this field is set to a non-empty value. To see the additional results, use that value as page_token in the next call to this method.",
+          "description": "If there are more results than have been returned, then this field is set to a non-empty value. To see the additional results, use that value as pageToken in the next call to this method.",
           "type": "string"
         },
         "totalSize": {
@@ -2974,7 +2919,7 @@
           "type": "array"
         },
         "nextPageToken": {
-          "description": "If there are more results than have been returned, then this field is set to a non-empty value. To see the additional results, use that value as page_token in the next call to this method.",
+          "description": "If there are more results than have been returned, then this field is set to a non-empty value. To see the additional results, use that value as pageToken in the next call to this method.",
           "type": "string"
         }
       },
@@ -2992,7 +2937,7 @@
           "type": "array"
         },
         "nextPageToken": {
-          "description": "If there are more results than have been returned, then this field is set to a non-empty value. To see the additional results, use that value as page_token in the next call to this method.",
+          "description": "If there are more results than have been returned, then this field is set to a non-empty value. To see the additional results, use that value as pageToken in the next call to this method.",
           "type": "string"
         }
       },
@@ -3003,7 +2948,7 @@
       "id": "ListMonitoredResourceDescriptorsResponse",
       "properties": {
         "nextPageToken": {
-          "description": "If there are more results than have been returned, then this field is set to a non-empty value. To see the additional results, use that value as page_token in the next call to this method.",
+          "description": "If there are more results than have been returned, then this field is set to a non-empty value. To see the additional results, use that value as pageToken in the next call to this method.",
           "type": "string"
         },
         "resourceDescriptors": {
@@ -3057,7 +3002,7 @@
       "id": "ListServiceLevelObjectivesResponse",
       "properties": {
         "nextPageToken": {
-          "description": "If there are more results than have been returned, then this field is set to a non-empty value. To see the additional results, use that value as page_token in the next call to this method.",
+          "description": "If there are more results than have been returned, then this field is set to a non-empty value. To see the additional results, use that value as pageToken in the next call to this method.",
           "type": "string"
         },
         "serviceLevelObjectives": {
@@ -3075,7 +3020,7 @@
       "id": "ListServicesResponse",
       "properties": {
         "nextPageToken": {
-          "description": "If there are more results than have been returned, then this field is set to a non-empty value. To see the additional results, use that value as page_token in the next call to this method.",
+          "description": "If there are more results than have been returned, then this field is set to a non-empty value. To see the additional results, use that value as pageToken in the next call to this method.",
           "type": "string"
         },
         "services": {
@@ -3100,7 +3045,7 @@
           "type": "array"
         },
         "nextPageToken": {
-          "description": "If there are more results than have been returned, then this field is set to a non-empty value. To see the additional results, use that value as page_token in the next call to this method.",
+          "description": "If there are more results than have been returned, then this field is set to a non-empty value. To see the additional results, use that value as pageToken in the next call to this method.",
           "type": "string"
         },
         "timeSeries": {
@@ -3154,25 +3099,6 @@
       },
       "type": "object"
     },
-    "MeshIstio": {
-      "description": "Istio service scoped to an Istio mesh",
-      "id": "MeshIstio",
-      "properties": {
-        "meshUid": {
-          "description": "Identifier for the mesh in which this Istio service is defined. Corresponds to the mesh_uid metric label in Istio metrics.",
-          "type": "string"
-        },
-        "serviceName": {
-          "description": "The name of the Istio service underlying this service. Corresponds to the destination_service_name metric label in Istio metrics.",
-          "type": "string"
-        },
-        "serviceNamespace": {
-          "description": "The namespace of the Istio service underlying this service. Corresponds to the destination_service_namespace metric label in Istio metrics.",
-          "type": "string"
-        }
-      },
-      "type": "object"
-    },
     "Metric": {
       "description": "A specific metric, identified by specifying values for all of the labels of a MetricDescriptor.",
       "id": "Metric",
@@ -3196,7 +3122,7 @@
       "id": "MetricAbsence",
       "properties": {
         "aggregations": {
-          "description": "Specifies the alignment of data points in individual time series as well as how to combine the retrieved time series together (such as when aggregating multiple streams on each resource to a single stream for each resource or when aggregating streams across all members of a group of resrouces). Multiple aggregations are applied in the order specified.This field is similar to the one in the ListTimeSeries request (https://cloud.google.com/monitoring/api/ref_v3/rest/v3/projects.timeSeries/list). It is advisable to use the ListTimeSeries method when debugging this field.",
+          "description": "Specifies the alignment of data points in individual time series as well as how to combine the retrieved time series together (such as when aggregating multiple streams on each resource to a single stream for each resource or when aggregating streams across all members of a group of resrouces). Multiple aggregations are applied in the order specified.This field is similar to the one in the ListTimeSeries request. It is advisable to use the ListTimeSeries method when debugging this field.",
           "items": {
             "$ref": "Aggregation"
           },
@@ -3208,7 +3134,7 @@
           "type": "string"
         },
         "filter": {
-          "description": "A filter (https://cloud.google.com/monitoring/api/v3/filters) that identifies which time series should be compared with the threshold.The filter is similar to the one that is specified in the ListTimeSeries request (https://cloud.google.com/monitoring/api/ref_v3/rest/v3/projects.timeSeries/list) (that call is useful to verify the time series that will be retrieved / processed) and must specify the metric type and optionally may contain restrictions on resource type, resource labels, and metric labels. This field may not exceed 2048 Unicode characters in length.",
+          "description": "A filter that identifies which time series should be compared with the threshold.The filter is similar to the one that is specified in the ListTimeSeries request (that call is useful to verify the time series that will be retrieved / processed) and must specify the metric type and optionally may contain restrictions on resource type, resource labels, and metric labels. This field may not exceed 2048 Unicode characters in length.",
           "type": "string"
         },
         "trigger": {
@@ -3241,8 +3167,6 @@
           "description": "Optional. The launch stage of the metric definition.",
           "enum": [
             "LAUNCH_STAGE_UNSPECIFIED",
-            "UNIMPLEMENTED",
-            "PRELAUNCH",
             "EARLY_ACCESS",
             "ALPHA",
             "BETA",
@@ -3251,8 +3175,6 @@
           ],
           "enumDescriptions": [
             "Do not use this default value.",
-            "The feature is not yet implemented. Users can not use it.",
-            "Prelaunch features are hidden from users and are only visible internally.",
             "Early Access features are limited to a closed group of testers. To use these features, you must sign up in advance and sign a Trusted Tester agreement (which includes confidentiality provisions). These features may be unstable, changed in backward-incompatible ways, and are not guaranteed to be released.",
             "Alpha is a limited availability test for releases before they are cleared for widespread use. By Alpha, all significant design issues are resolved and we are in the process of verifying functionality. Alpha customers need to apply for access, agree to applicable terms, and have their projects whitelisted. Alpha releases don’t have to be feature complete, no SLAs are provided, and there are no technical support obligations, but they will be far enough along that customers can actually use them in test environments or for limited-use tests -- just like they would in normal production cases.",
             "Beta is the point at which we are ready to open a release for any customer to use. There are no SLA or technical support obligations in a Beta release. Products will be complete from a feature perspective, but may have some open outstanding issues. Beta releases are suitable for limited production use cases.",
@@ -3338,8 +3260,6 @@
           "description": "Deprecated. Must use the MetricDescriptor.launch_stage instead.",
           "enum": [
             "LAUNCH_STAGE_UNSPECIFIED",
-            "UNIMPLEMENTED",
-            "PRELAUNCH",
             "EARLY_ACCESS",
             "ALPHA",
             "BETA",
@@ -3348,8 +3268,6 @@
           ],
           "enumDescriptions": [
             "Do not use this default value.",
-            "The feature is not yet implemented. Users can not use it.",
-            "Prelaunch features are hidden from users and are only visible internally.",
             "Early Access features are limited to a closed group of testers. To use these features, you must sign up in advance and sign a Trusted Tester agreement (which includes confidentiality provisions). These features may be unstable, changed in backward-incompatible ways, and are not guaranteed to be released.",
             "Alpha is a limited availability test for releases before they are cleared for widespread use. By Alpha, all significant design issues are resolved and we are in the process of verifying functionality. Alpha customers need to apply for access, agree to applicable terms, and have their projects whitelisted. Alpha releases don’t have to be feature complete, no SLAs are provided, and there are no technical support obligations, but they will be far enough along that customers can actually use them in test environments or for limited-use tests -- just like they would in normal production cases.",
             "Beta is the point at which we are ready to open a release for any customer to use. There are no SLA or technical support obligations in a Beta release. Products will be complete from a feature perspective, but may have some open outstanding issues. Beta releases are suitable for limited production use cases.",
@@ -3386,7 +3304,7 @@
       "id": "MetricThreshold",
       "properties": {
         "aggregations": {
-          "description": "Specifies the alignment of data points in individual time series as well as how to combine the retrieved time series together (such as when aggregating multiple streams on each resource to a single stream for each resource or when aggregating streams across all members of a group of resrouces). Multiple aggregations are applied in the order specified.This field is similar to the one in the ListTimeSeries request (https://cloud.google.com/monitoring/api/ref_v3/rest/v3/projects.timeSeries/list). It is advisable to use the ListTimeSeries method when debugging this field.",
+          "description": "Specifies the alignment of data points in individual time series as well as how to combine the retrieved time series together (such as when aggregating multiple streams on each resource to a single stream for each resource or when aggregating streams across all members of a group of resrouces). Multiple aggregations are applied in the order specified.This field is similar to the one in the ListTimeSeries request. It is advisable to use the ListTimeSeries method when debugging this field.",
           "items": {
             "$ref": "Aggregation"
           },
@@ -3422,7 +3340,7 @@
           "type": "array"
         },
         "denominatorFilter": {
-          "description": "A filter (https://cloud.google.com/monitoring/api/v3/filters) that identifies a time series that should be used as the denominator of a ratio that will be compared with the threshold. If a denominator_filter is specified, the time series specified by the filter field will be used as the numerator.The filter must specify the metric type and optionally may contain restrictions on resource type, resource labels, and metric labels. This field may not exceed 2048 Unicode characters in length.",
+          "description": "A filter that identifies a time series that should be used as the denominator of a ratio that will be compared with the threshold. If a denominator_filter is specified, the time series specified by the filter field will be used as the numerator.The filter must specify the metric type and optionally may contain restrictions on resource type, resource labels, and metric labels. This field may not exceed 2048 Unicode characters in length.",
           "type": "string"
         },
         "duration": {
@@ -3431,7 +3349,7 @@
           "type": "string"
         },
         "filter": {
-          "description": "A filter (https://cloud.google.com/monitoring/api/v3/filters) that identifies which time series should be compared with the threshold.The filter is similar to the one that is specified in the ListTimeSeries request (https://cloud.google.com/monitoring/api/ref_v3/rest/v3/projects.timeSeries/list) (that call is useful to verify the time series that will be retrieved / processed) and must specify the metric type and optionally may contain restrictions on resource type, resource labels, and metric labels. This field may not exceed 2048 Unicode characters in length.",
+          "description": "A filter that identifies which time series should be compared with the threshold.The filter is similar to the one that is specified in the ListTimeSeries request (that call is useful to verify the time series that will be retrieved / processed) and must specify the metric type and optionally may contain restrictions on resource type, resource labels, and metric labels. This field may not exceed 2048 Unicode characters in length.",
           "type": "string"
         },
         "thresholdValue": {
@@ -3487,8 +3405,6 @@
           "description": "Optional. The launch stage of the monitored resource definition.",
           "enum": [
             "LAUNCH_STAGE_UNSPECIFIED",
-            "UNIMPLEMENTED",
-            "PRELAUNCH",
             "EARLY_ACCESS",
             "ALPHA",
             "BETA",
@@ -3497,8 +3413,6 @@
           ],
           "enumDescriptions": [
             "Do not use this default value.",
-            "The feature is not yet implemented. Users can not use it.",
-            "Prelaunch features are hidden from users and are only visible internally.",
             "Early Access features are limited to a closed group of testers. To use these features, you must sign up in advance and sign a Trusted Tester agreement (which includes confidentiality provisions). These features may be unstable, changed in backward-incompatible ways, and are not guaranteed to be released.",
             "Alpha is a limited availability test for releases before they are cleared for widespread use. By Alpha, all significant design issues are resolved and we are in the process of verifying functionality. Alpha customers need to apply for access, agree to applicable terms, and have their projects whitelisted. Alpha releases don’t have to be feature complete, no SLAs are provided, and there are no technical support obligations, but they will be far enough along that customers can actually use them in test environments or for limited-use tests -- just like they would in normal production cases.",
             "Beta is the point at which we are ready to open a release for any customer to use. There are no SLA or technical support obligations in a Beta release. Products will be complete from a feature perspective, but may have some open outstanding issues. Beta releases are suitable for limited production use cases.",
@@ -3580,7 +3494,7 @@
           "type": "object"
         },
         "name": {
-          "description": "The full REST resource name for this channel. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/notificationChannels/[CHANNEL_ID]\nThe [CHANNEL_ID] is automatically assigned by the server on creation.",
+          "description": "The full REST resource name for this channel. The syntax is:\nprojects/[PROJECT_ID]/notificationChannels/[CHANNEL_ID]\nThe [CHANNEL_ID] is automatically assigned by the server on creation.",
           "type": "string"
         },
         "type": {
@@ -3634,8 +3548,6 @@
           "description": "The product launch stage for channels of this type.",
           "enum": [
             "LAUNCH_STAGE_UNSPECIFIED",
-            "UNIMPLEMENTED",
-            "PRELAUNCH",
             "EARLY_ACCESS",
             "ALPHA",
             "BETA",
@@ -3644,8 +3556,6 @@
           ],
           "enumDescriptions": [
             "Do not use this default value.",
-            "The feature is not yet implemented. Users can not use it.",
-            "Prelaunch features are hidden from users and are only visible internally.",
             "Early Access features are limited to a closed group of testers. To use these features, you must sign up in advance and sign a Trusted Tester agreement (which includes confidentiality provisions). These features may be unstable, changed in backward-incompatible ways, and are not guaranteed to be released.",
             "Alpha is a limited availability test for releases before they are cleared for widespread use. By Alpha, all significant design issues are resolved and we are in the process of verifying functionality. Alpha customers need to apply for access, agree to applicable terms, and have their projects whitelisted. Alpha releases don’t have to be feature complete, no SLAs are provided, and there are no technical support obligations, but they will be far enough along that customers can actually use them in test environments or for limited-use tests -- just like they would in normal production cases.",
             "Beta is the point at which we are ready to open a release for any customer to use. There are no SLA or technical support obligations in a Beta release. Products will be complete from a feature perspective, but may have some open outstanding issues. Beta releases are suitable for limited production use cases.",
@@ -3655,7 +3565,7 @@
           "type": "string"
         },
         "name": {
-          "description": "The full REST resource name for this descriptor. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/notificationChannelDescriptors/[TYPE]\nIn the above, [TYPE] is the value of the type field.",
+          "description": "The full REST resource name for this descriptor. The syntax is:\nprojects/[PROJECT_ID]/notificationChannelDescriptors/[TYPE]\nIn the above, [TYPE] is the value of the type field.",
           "type": "string"
         },
         "type": {
@@ -3719,73 +3629,6 @@
       },
       "type": "object"
     },
-    "PointData": {
-      "description": "A point's value columns and time interval. Each point has one or more point values corresponding to the entries in point_descriptors field in the TimeSeriesDescriptor associated with this object.",
-      "id": "PointData",
-      "properties": {
-        "timeInterval": {
-          "$ref": "TimeInterval",
-          "description": "The time interval associated with the point."
-        },
-        "values": {
-          "description": "The values that make up the point.",
-          "items": {
-            "$ref": "TypedValue"
-          },
-          "type": "array"
-        }
-      },
-      "type": "object"
-    },
-    "QueryTimeSeriesRequest": {
-      "description": "The QueryTimeSeries request.",
-      "id": "QueryTimeSeriesRequest",
-      "properties": {
-        "pageSize": {
-          "description": "A positive number that is the maximum number of time_series_data to return.",
-          "format": "int32",
-          "type": "integer"
-        },
-        "pageToken": {
-          "description": "If this field is not empty then it must contain the nextPageToken value returned by a previous call to this method. Using this field causes the method to return additional results from the previous method call.",
-          "type": "string"
-        },
-        "query": {
-          "description": "Required. The query in the monitoring query language format. The default time zone is in UTC.",
-          "type": "string"
-        }
-      },
-      "type": "object"
-    },
-    "QueryTimeSeriesResponse": {
-      "description": "The QueryTimeSeries response.",
-      "id": "QueryTimeSeriesResponse",
-      "properties": {
-        "nextPageToken": {
-          "description": "If there are more results than have been returned, then this field is set to a non-empty value. To see the additional results, use that value as page_token in the next call to this method.",
-          "type": "string"
-        },
-        "partialErrors": {
-          "description": "Query execution errors that may have caused the time series data returned to be incomplete. The available data will be available in the response.",
-          "items": {
-            "$ref": "Status"
-          },
-          "type": "array"
-        },
-        "timeSeriesData": {
-          "description": "The time series data.",
-          "items": {
-            "$ref": "TimeSeriesData"
-          },
-          "type": "array"
-        },
-        "timeSeriesDescriptor": {
-          "$ref": "TimeSeriesDescriptor",
-          "description": "The descriptor for the time series data."
-        }
-      },
-      "type": "object"
-    },
     "Range": {
       "description": "The range of the population values.",
       "id": "Range",
@@ -3823,7 +3666,7 @@
       "id": "ResourceGroup",
       "properties": {
         "groupId": {
-          "description": "The group of resources being monitored. Should be only the [GROUP_ID], and not the full-path projects/[PROJECT_ID_OR_NUMBER]/groups/[GROUP_ID].",
+          "description": "The group of resources being monitored. Should be only the [GROUP_ID], and not the full-path projects/[PROJECT_ID]/groups/[GROUP_ID].",
           "type": "string"
         },
         "resourceType": {
@@ -3850,7 +3693,7 @@
       "type": "object"
     },
     "Service": {
-      "description": "A Service is a discrete, autonomous, and network-accessible unit, designed to solve an individual concern (Wikipedia (https://en.wikipedia.org/wiki/Service-orientation)). In Cloud Monitoring, a Service acts as the root resource under which operational aspects of the service are accessible.",
+      "description": "A Service is a discrete, autonomous, and network-accessible unit, designed to solve an individual concern (Wikipedia (https://en.wikipedia.org/wiki/Service-orientation)). In Stackdriver Monitoring, a Service acts as the root resource under which operational aspects of the service are accessible.",
       "id": "Service",
       "properties": {
         "appEngine": {
@@ -3873,12 +3716,8 @@
           "description": "Name used for UI elements listing this Service.",
           "type": "string"
         },
-        "meshIstio": {
-          "$ref": "MeshIstio",
-          "description": "Type used for Istio services scoped to an Istio mesh."
-        },
         "name": {
-          "description": "Resource name for this Service. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/services/[SERVICE_ID]\n",
+          "description": "Resource name for this Service. Of the form projects/{project_id}/services/{service_id}.",
           "type": "string"
         },
         "telemetry": {
@@ -3945,7 +3784,7 @@
           "type": "number"
         },
         "name": {
-          "description": "Resource name for this ServiceLevelObjective. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/services/[SERVICE_ID]/serviceLevelObjectives/[SLO_NAME]\n",
+          "description": "Resource name for this ServiceLevelObjective. Of the form projects/{project_id}/services/{service_id}/serviceLevelObjectives/{slo_name}.",
           "type": "string"
         },
         "rollingPeriod": {
@@ -3972,11 +3811,11 @@
       "type": "object"
     },
     "SpanContext": {
-      "description": "The context of a span, attached to Exemplars in Distribution values during aggregation.It contains the name of a span with format:\nprojects/[PROJECT_ID_OR_NUMBER]/traces/[TRACE_ID]/spans/[SPAN_ID]\n",
+      "description": "The context of a span, attached to google.api.Distribution.Exemplars in google.api.Distribution values during aggregation.It contains the name of a span with format:  projects/PROJECT_ID/traces/TRACE_ID/spans/SPAN_ID",
       "id": "SpanContext",
       "properties": {
         "spanName": {
-          "description": "The resource name of the span. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]/traces/[TRACE_ID]/spans/[SPAN_ID]\n[TRACE_ID] is a unique identifier for a trace within a project; it is a 32-character hexadecimal encoding of a 16-byte array.[SPAN_ID] is a unique identifier for a span within a trace; it is a 16-character hexadecimal encoding of an 8-byte array.",
+          "description": "The resource name of the span in the following format:\nprojects/[PROJECT_ID]/traces/[TRACE_ID]/spans/[SPAN_ID]\nTRACE_ID is a unique identifier for a trace within a project; it is a 32-character hexadecimal encoding of a 16-byte array.SPAN_ID is a unique identifier for a span within a trace; it is a 16-character hexadecimal encoding of an 8-byte array.",
           "type": "string"
         }
       },
@@ -4108,63 +3947,6 @@
             "The value is a Distribution.",
             "The value is money."
           ],
-          "type": "string"
-        }
-      },
-      "type": "object"
-    },
-    "TimeSeriesData": {
-      "description": "Represents the values of a time series associated with a TimeSeriesDescriptor.",
-      "id": "TimeSeriesData",
-      "properties": {
-        "labelValues": {
-          "description": "The values of the labels in the time series identifier, given in the same order as the label_descriptors field of the TimeSeriesDescriptor associated with this object. Each value must have a value of the type given in the corresponding entry of label_descriptors.",
-          "items": {
-            "$ref": "LabelValue"
-          },
-          "type": "array"
-        },
-        "pointData": {
-          "description": "The points in the time series.",
-          "items": {
-            "$ref": "PointData"
-          },
-          "type": "array"
-        }
-      },
-      "type": "object"
-    },
-    "TimeSeriesDescriptor": {
-      "description": "A descriptor for the labels and points in a timeseries.",
-      "id": "TimeSeriesDescriptor",
-      "properties": {
-        "labelDescriptors": {
-          "description": "Descriptors for the labels.",
-          "items": {
-            "$ref": "LabelDescriptor"
-          },
-          "type": "array"
-        },
-        "pointDescriptors": {
-          "description": "Descriptors for the point data value columns.",
-          "items": {
-            "$ref": "ValueDescriptor"
-          },
-          "type": "array"
-        }
-      },
-      "type": "object"
-    },
-    "TimeSeriesQueryLanguageCondition": {
-      "description": "A condition type that allows alert policies to be defined using Monitoring Query Language.",
-      "id": "TimeSeriesQueryLanguageCondition",
-      "properties": {
-        "query": {
-          "description": "Monitoring Query Language query that generates time series data and describes a condition for alerting on that data.",
-          "type": "string"
-        },
-        "summary": {
-          "description": "A short explanation of what the query represents. For example:\"Error ratio exceeds 15% for \u003e5% of servers in \u003e2 regions\"",
           "type": "string"
         }
       },
@@ -4318,7 +4100,7 @@
           "description": "The monitored resource (https://cloud.google.com/monitoring/api/resources) associated with the configuration. The following monitored resource types are supported for Uptime checks:  uptime_url,  gce_instance,  gae_app,  aws_ec2_instance,  aws_elb_load_balancer"
         },
         "name": {
-          "description": "A unique resource name for this Uptime check configuration. The format is:\n projects/[PROJECT_ID_OR_NUMBER]/uptimeCheckConfigs/[UPTIME_CHECK_ID]\nThis field should be omitted when creating the Uptime check configuration; on create, the resource name is assigned by the server and included in the response.",
+          "description": "A unique resource name for this Uptime check configuration. The format is:projects/[PROJECT_ID]/uptimeCheckConfigs/[UPTIME_CHECK_ID].This field should be omitted when creating the Uptime check configuration; on create, the resource name is assigned by the server and included in the response.",
           "type": "string"
         },
         "period": {
@@ -4396,61 +4178,12 @@
       },
       "type": "object"
     },
-    "ValueDescriptor": {
-      "description": "A descriptor for the value columns in a data point.",
-      "id": "ValueDescriptor",
-      "properties": {
-        "key": {
-          "description": "The value key.",
-          "type": "string"
-        },
-        "metricKind": {
-          "description": "The value stream kind.",
-          "enum": [
-            "METRIC_KIND_UNSPECIFIED",
-            "GAUGE",
-            "DELTA",
-            "CUMULATIVE"
-          ],
-          "enumDescriptions": [
-            "Do not use this default value.",
-            "An instantaneous measurement of a value.",
-            "The change in a value during a time interval.",
-            "A value accumulated over a time interval. Cumulative measurements in a time series should have the same start time and increasing end times, until an event resets the cumulative value to zero and sets a new start time for the following points."
-          ],
-          "type": "string"
-        },
-        "valueType": {
-          "description": "The value type.",
-          "enum": [
-            "VALUE_TYPE_UNSPECIFIED",
-            "BOOL",
-            "INT64",
-            "DOUBLE",
-            "STRING",
-            "DISTRIBUTION",
-            "MONEY"
-          ],
-          "enumDescriptions": [
-            "Do not use this default value.",
-            "The value is a boolean. This value type can be used only if the metric kind is GAUGE.",
-            "The value is a signed 64-bit integer.",
-            "The value is a double precision floating point number.",
-            "The value is a text string. This value type can be used only if the metric kind is GAUGE.",
-            "The value is a Distribution.",
-            "The value is money."
-          ],
-          "type": "string"
-        }
-      },
-      "type": "object"
-    },
     "VerifyNotificationChannelRequest": {
       "description": "The VerifyNotificationChannel request.",
       "id": "VerifyNotificationChannelRequest",
       "properties": {
         "code": {
-          "description": "Required. The verification code that was delivered to the channel as a result of invoking the SendNotificationChannelVerificationCode API method or that was retrieved from a verified channel via GetNotificationChannelVerificationCode. For example, one might have \"G-123456\" or \"TKNZGhhd2EyN3I1MnRnMjRv\" (in general, one is only guaranteed that the code is valid UTF-8; one should not make any assumptions regarding the structure or format of the code).",
+          "description": "The verification code that was delivered to the channel as a result of invoking the SendNotificationChannelVerificationCode API method or that was retrieved from a verified channel via GetNotificationChannelVerificationCode. For example, one might have \"G-123456\" or \"TKNZGhhd2EyN3I1MnRnMjRv\" (in general, one is only guaranteed that the code is valid UTF-8; one should not make any assumptions regarding the structure or format of the code).",
           "type": "string"
         }
       },
@@ -4486,7 +4219,7 @@
     }
   },
   "servicePath": "",
-  "title": "Cloud Monitoring API",
+  "title": "Stackdriver Monitoring API",
   "version": "v3",
   "version_module": true
 }
