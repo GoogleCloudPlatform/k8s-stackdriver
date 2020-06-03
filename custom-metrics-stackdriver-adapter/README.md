@@ -67,6 +67,29 @@ Kubernetes monitored resources, including for example `k8s_pod`, `k8s_node`. See
   kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/deploy/production/adapter_new_resource_model.yaml
   ```
 
+If you use Workload Identity in your cluster, additional steps are necessary. In
+the commands below, use your Project ID as **<project-id>** and Google Service Account as
+**<google-service-account>**.
+
+* Make sure your **<google-service-account>** has `monitoring.viewer` IAM role.
+
+* Create IAM Policy Binding:
+
+  ```
+  gcloud iam service-accounts add-iam-policy-binding --role \
+    roles/iam.workloadIdentityUser --member \
+    "serviceAccount:<project-id>.svc.id.goog[custom-metrics/custom-metrics-stackdriver-adapter]" \
+    <google-service-account>@<project-id>.iam.gserviceaccount.com
+  ```
+
+* Annotate the Custom Metrics - Stackdriver Adapter service account:
+
+  ```
+  kubectl annotate serviceaccount --namespace custom-metrics \
+    custom-metrics-stackdriver-adapter \
+    iam.gke.io/gcp-service-account=<google-service-account>@<project-id>.iam.gserviceaccount.com
+  ```
+
 ### Metrics available from Stackdriver
 
 Custom Metrics - Stackdriver Adapter exposes Stackdriver metrics to Kubernetes
