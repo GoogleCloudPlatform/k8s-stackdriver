@@ -117,15 +117,21 @@ Metrics - Stackdriver Adapter:
    adapter exposes *rate* of the metric - the metric change per second computed
    over last 5 minutes.
 
+#### Metric names
+
+Stackdriver metrics have a form of pahths separated by "/" character, but Custom
+Metrics API forbids using "/" character. When using Custom Metrics - Stackdriver
+Adapter either directly via Custom Metrics API or by specifying a custom metric
+in HPA, replace "/" character with "|". For example, to use
+`custom.googleapis.com/my/custom/metric`, specify
+`custom.googleapis.com|my|custom|metric`.
+
 ### Export custom metrics to Stackdriver
 
 To learn how to create your custom metric and write your data to Stackdriver,
 follow [Stackdriver custom metrics documentation]. You can also follow
 [Prometheus to Stackdriver documentation] to export metrics exposed by your pods
 in Prometheus format.
-
-The name of your metric must start with custom.googleapis.com/ prefix followed
-by a simple name, as defined in [custom metric naming rules].
 
 You will report your metric against a appropriate monitored resource for Kubernetes
 objects. To use **legacy resource model**, use monitored resource `gke_container`.
