@@ -1,14 +1,15 @@
-# :exclamation: Note
+# :exclamation: Note 
 
-**For collecting Prometheus metrics on Google Kubernetes Engine (GKE) clusers, use Google Cloud Monitoring
-(fka Stackdriver) supported integration.**
-- [Documentation](https://cloud.google.com/monitoring/kubernetes-engine/prometheus)
-- [Source Code](https://github.com/Stackdriver/stackdriver-prometheus)
+**For collecting Prometheus metrics on Google Kubernetes Engine (GKE) clusters, use
+[Google Cloud Monitoring][cloudMonitoringSite] (fka Stackdriver) supported integration.**
+- [Documentation][cloudMonitoringPromSite]
+- [Source Code][cloudMonitoringPromCode]
 
-Google Cloud Monitoring supported integration is designed to meet the expectations of Prometheus users and to make it easy to run with Prometheus server. It is intended to monitor all your applications, Kubernetes and beyond.
+[Google Cloud Monitoring][cloudMonitoringSite] supported [integration][cloudMonitoringPromSite] is designed to meet the expectations of Prometheus users and to make it easy to run with Prometheus server. It is intended to monitor all your applications, Kubernetes and beyond.
 
 The source code in this directory (`prometheus-to-sd`) is developed for Google Kubernetes Engine to collect metrics from system services in order to support Kubernetes users. We designed the tool to be lean when deployed as a sidecar in your pod. **It's intended to support only the metrics the Kubernetes team at Google needs and is not meant for end-users.**
 
+# :warning: Google internal use only
 # Overview
 prometheus-to-sd is a simple component that can scrape metrics stored in
 [prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/)
@@ -118,3 +119,7 @@ Note that prometheus labels used for the monitored resource are not included as 
 For example, if prom-to-sd scraped the prometheus metric: 
 `container_cpu_usage_seconds{d="my-namespace",e="abc123",f="my-app",g="production"} 1.02030405e+09`
 It would be displayed in stackdriver with the namespace, `my-namespace`, the pod id, `abc123`, and the container name, `my-app`.  The only stackdriver label for this metric would be `g="production"`.
+
+[cloudMonitoringSite]: https://cloud.google.com/monitoring
+[cloudMonitoringPromSite]: https://cloud.google.com/monitoring/kubernetes-engine/prometheus
+[cloudMonitoringPromCode]: https://github.com/Stackdriver/stackdriver-prometheus-sidecar
