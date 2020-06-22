@@ -24,7 +24,7 @@ import (
 	sd "google.golang.org/api/logging/v2"
 
 	"k8s.io/apimachinery/pkg/util/clock"
-	api_v1 "k8s.io/client-go/pkg/api/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 var (
@@ -85,14 +85,14 @@ func newSdSink(writer sdWriter, clock clock.Clock, config *sdSinkConfig, factory
 	}
 }
 
-func (s *sdSink) OnAdd(event *api_v1.Event) {
+func (s *sdSink) OnAdd(event *corev1.Event) {
 	receivedEntryCount.WithLabelValues(event.Source.Component).Inc()
 
 	logEntry := s.logEntryFactory.FromEvent(event)
 	s.logEntryChannel <- logEntry
 }
 
-func (s *sdSink) OnUpdate(oldEvent *api_v1.Event, newEvent *api_v1.Event) {
+func (s *sdSink) OnUpdate(oldEvent *corev1.Event, newEvent *corev1.Event) {
 	var oldCount int32
 	if oldEvent != nil {
 		oldCount = oldEvent.Count
@@ -114,11 +114,11 @@ func (s *sdSink) OnUpdate(oldEvent *api_v1.Event, newEvent *api_v1.Event) {
 	s.logEntryChannel <- logEntry
 }
 
-func (s *sdSink) OnDelete(*api_v1.Event) {
+func (s *sdSink) OnDelete(*corev1.Event) {
 	// Nothing to do here
 }
 
-func (s *sdSink) OnList(list *api_v1.EventList) {
+func (s *sdSink) OnList(list *corev1.EventList) {
 	if s.beforeFirstList {
 		entry := s.logEntryFactory.FromMessage("Event exporter started watching. " +
 			"Some events may have been lost up to this point.")

@@ -40,8 +40,7 @@ type watcher struct {
 }
 
 func (w *watcher) Run(stopCh <-chan struct{}) {
-	w.reflector.Run()
-	<-stopCh
+	w.reflector.Run(stopCh)
 }
 
 // NewWatcher creates a new Kubernetes API watcher using provided configuration.

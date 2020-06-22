@@ -23,12 +23,11 @@ import (
 	"github.com/golang/glog"
 	sd "google.golang.org/api/logging/v2"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/kubernetes/scheme"
-	api_v1 "k8s.io/client-go/pkg/api/v1"
 )
 
 var (
@@ -58,7 +57,7 @@ func newSdLogEntryFactory(clock clock.Clock, resourceFactory *monitoredResourceF
 	}
 }
 
-func (f *sdLogEntryFactory) FromEvent(event *api_v1.Event) *sd.LogEntry {
+func (f *sdLogEntryFactory) FromEvent(event *corev1.Event) *sd.LogEntry {
 	payload, err := f.serializeEvent(event)
 	if err != nil {
 		glog.Warningf("Failed to encode event %+v: %v", event, err)
@@ -82,14 +81,14 @@ func (f *sdLogEntryFactory) FromMessage(msg string) *sd.LogEntry {
 	}
 }
 
-func (f *sdLogEntryFactory) detectSeverity(event *api_v1.Event) string {
+func (f *sdLogEntryFactory) detectSeverity(event *corev1.Event) string {
 	if event.Type == "Warning" {
 		return "WARNING"
 	}
 	return "INFO"
 }
 
-func (f *sdLogEntryFactory) serializeEvent(event *api_v1.Event) ([]byte, error) {
+func (f *sdLogEntryFactory) serializeEvent(event *corev1.Event) ([]byte, error) {
 	bytes, err := runtime.Encode(f.encoder, event)
 	if err != nil {
 		return nil, err
@@ -109,7 +108,6 @@ func (f *sdLogEntryFactory) serializeEvent(event *api_v1.Event) ([]byte, error) 
 }
 
 func newEncoder() runtime.Encoder {
-	jsonSerializer := json.NewSerializer(json.DefaultMetaFactory, scheme.Scheme, scheme.Scheme, false)
-	directCodecFactory := serializer.DirectCodecFactory{CodecFactory: scheme.Codecs}
-	return directCodecFactory.EncoderForVersion(jsonSerializer, api_v1.SchemeGroupVersion)
+	jsonSerializer := json.NewSerializerWithOptions(json.DefaultMetaFactory, scheme.Scheme, scheme.Scheme, json.SerializerOptions{})
+	return scheme.Codecs.EncoderForVersion(jsonSerializer, corev1.SchemeGroupVersion)
 }

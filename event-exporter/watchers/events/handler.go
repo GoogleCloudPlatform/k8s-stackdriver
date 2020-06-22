@@ -19,16 +19,16 @@ package events
 import (
 	"github.com/golang/glog"
 
-	api_v1 "k8s.io/client-go/pkg/api/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
 // EventHandler interface provides a way to act upon signals
 // from watcher that only watches the events resource.
 type EventHandler interface {
-	OnAdd(*api_v1.Event)
-	OnUpdate(*api_v1.Event, *api_v1.Event)
-	OnDelete(*api_v1.Event)
+	OnAdd(*corev1.Event)
+	OnUpdate(*corev1.Event, *corev1.Event)
+	OnDelete(*corev1.Event)
 }
 
 type eventHandlerWrapper struct {
@@ -57,7 +57,7 @@ func (c *eventHandlerWrapper) OnUpdate(oldObj interface{}, newObj interface{}) {
 
 func (c *eventHandlerWrapper) OnDelete(obj interface{}) {
 
-	event, ok := obj.(*api_v1.Event)
+	event, ok := obj.(*corev1.Event)
 
 	// When a delete is dropped, the relist will notice a pod in the store not
 	// in the list, leading to the insertion of a tombstone object which contains
@@ -68,7 +68,7 @@ func (c *eventHandlerWrapper) OnDelete(obj interface{}) {
 			glog.V(2).Infof("Object is neither event nor tombstone: %+v", obj)
 			return
 		}
-		event, ok = tombstone.Obj.(*api_v1.Event)
+		event, ok = tombstone.Obj.(*corev1.Event)
 		if !ok {
 			glog.V(2).Infof("Tombstone contains object that is not a pod: %+v", obj)
 			return
@@ -78,8 +78,8 @@ func (c *eventHandlerWrapper) OnDelete(obj interface{}) {
 	c.handler.OnDelete(event)
 }
 
-func (c *eventHandlerWrapper) convert(obj interface{}) (*api_v1.Event, bool) {
-	if event, ok := obj.(*api_v1.Event); ok {
+func (c *eventHandlerWrapper) convert(obj interface{}) (*corev1.Event, bool) {
+	if event, ok := obj.(*corev1.Event); ok {
 		return event, true
 	}
 	glog.V(2).Infof("Event watch handler received not an event, but %+v", obj)
