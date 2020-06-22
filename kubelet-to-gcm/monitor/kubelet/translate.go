@@ -22,7 +22,7 @@ import (
 
 	"github.com/golang/glog"
 	v3 "google.golang.org/api/monitoring/v3"
-	"k8s.io/kubernetes/pkg/kubelet/api/v1alpha1/stats"
+	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/kubelet-to-gcm/monitor"
 )

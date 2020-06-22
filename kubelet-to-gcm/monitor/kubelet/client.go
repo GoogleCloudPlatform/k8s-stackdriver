@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"k8s.io/kubernetes/pkg/kubelet/api/v1alpha1/stats"
+	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 )
 
 // Client contains all the information and methods to encapsulate
