@@ -17,7 +17,7 @@ limitations under the License.
 package sinks
 
 import (
-	api_v1 "k8s.io/client-go/pkg/api/v1"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/watchers/events"
 )
@@ -31,7 +31,7 @@ import (
 type Sink interface {
 	events.EventHandler
 
-	OnList(*api_v1.EventList)
+	OnList(*corev1.EventList)
 
 	Run(stopCh <-chan struct{})
 }

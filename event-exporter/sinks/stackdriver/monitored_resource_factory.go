@@ -3,7 +3,7 @@ package stackdriver
 import (
 	sd "google.golang.org/api/logging/v2"
 
-	api_v1 "k8s.io/client-go/pkg/api/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 type resourceModelVersion string
@@ -30,7 +30,7 @@ const (
 	nodeName      = "node_name"
 	namespaceName = "namespace_name"
 
-	//api_v1.Event InvolvedObject.Kind:
+	//corev1.Event InvolvedObject.Kind:
 	pod  = "Pod"
 	node = "Node"
 )
@@ -72,7 +72,7 @@ func commonLabels(config *monitoredResourceFactoryConfig) map[string]string {
 	return labels
 }
 
-func (f *monitoredResourceFactory) resourceFromEvent(event *api_v1.Event) *sd.MonitoredResource {
+func (f *monitoredResourceFactory) resourceFromEvent(event *corev1.Event) *sd.MonitoredResource {
 	if f.resourceModel == oldTypes {
 		return f.defaultMonitoredResource()
 	}
@@ -94,7 +94,7 @@ func (f *monitoredResourceFactory) defaultMonitoredResource() *sd.MonitoredResou
 	return f.defaultResource
 }
 
-func (f *monitoredResourceFactory) buildPodMonitoredResource(event *api_v1.Event) *sd.MonitoredResource {
+func (f *monitoredResourceFactory) buildPodMonitoredResource(event *corev1.Event) *sd.MonitoredResource {
 	labels := commonLabels(f.config)
 	labels[podName] = event.InvolvedObject.Name
 	labels[namespaceName] = event.InvolvedObject.Namespace
@@ -105,7 +105,7 @@ func (f *monitoredResourceFactory) buildPodMonitoredResource(event *api_v1.Event
 	}
 }
 
-func (f *monitoredResourceFactory) buildNodeMonitoredResource(event *api_v1.Event) *sd.MonitoredResource {
+func (f *monitoredResourceFactory) buildNodeMonitoredResource(event *corev1.Event) *sd.MonitoredResource {
 	labels := commonLabels(f.config)
 	labels[nodeName] = event.InvolvedObject.Name
 

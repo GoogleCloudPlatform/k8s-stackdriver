@@ -23,7 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
-	api_v1 "k8s.io/client-go/pkg/api/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/watchers"
@@ -40,7 +40,7 @@ const (
 
 // OnListFunc represent an action on the initial list of object received
 // from the Kubernetes API server before starting watching for the updates.
-type OnListFunc func(*api_v1.EventList)
+type OnListFunc func(*corev1.EventList)
 
 // EventWatcherConfig represents the configuration for the watcher that
 // only watches the events resource.
@@ -69,7 +69,7 @@ func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) wa
 				return client.CoreV1().Events(meta_v1.NamespaceAll).Watch(options)
 			},
 		},
-		ExpectedType: &api_v1.Event{},
+		ExpectedType: &corev1.Event{},
 		StoreConfig: &watchers.WatcherStoreConfig{
 			KeyFunc:     cache.DeletionHandlingMetaNamespaceKeyFunc,
 			Handler:     newEventHandlerWrapper(config.Handler),
