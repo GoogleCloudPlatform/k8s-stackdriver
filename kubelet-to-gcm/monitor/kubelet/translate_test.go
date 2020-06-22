@@ -23,8 +23,8 @@ import (
 
 	fuzz "github.com/google/gofuzz"
 
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/kubelet/api/v1alpha1/stats"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 )
 
 const (
@@ -335,7 +335,7 @@ func TestTranslateContainers(t *testing.T) {
 func getPodStats(containers ...stats.ContainerStats) stats.PodStats {
 	return stats.PodStats{
 		PodRef:      stats.PodReference{Name: "test-pod", Namespace: "test-namespace", UID: "UID_test-pod"},
-		StartTime:   unversioned.NewTime(time.Now()),
+		StartTime:   metav1.NewTime(time.Now()),
 		Containers:  containers,
 		Network:     getNetworkStats(),
 		VolumeStats: []stats.VolumeStats{*getVolumeStats()},
