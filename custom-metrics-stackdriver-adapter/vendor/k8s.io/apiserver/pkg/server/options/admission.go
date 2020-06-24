@@ -32,13 +32,11 @@ import (
 	mutatingwebhook "k8s.io/apiserver/pkg/admission/plugin/webhook/mutating"
 	validatingwebhook "k8s.io/apiserver/pkg/admission/plugin/webhook/validating"
 	apiserverapi "k8s.io/apiserver/pkg/apis/apiserver"
-	apiserverapiv1 "k8s.io/apiserver/pkg/apis/apiserver/v1"
 	apiserverapiv1alpha1 "k8s.io/apiserver/pkg/apis/apiserver/v1alpha1"
 	"k8s.io/apiserver/pkg/server"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/component-base/featuregate"
 )
 
 var configScheme = runtime.NewScheme()
@@ -46,7 +44,6 @@ var configScheme = runtime.NewScheme()
 func init() {
 	utilruntime.Must(apiserverapi.AddToScheme(configScheme))
 	utilruntime.Must(apiserverapiv1alpha1.AddToScheme(configScheme))
-	utilruntime.Must(apiserverapiv1.AddToScheme(configScheme))
 }
 
 // AdmissionOptions holds the admission options
@@ -120,7 +117,6 @@ func (a *AdmissionOptions) ApplyTo(
 	c *server.Config,
 	informers informers.SharedInformerFactory,
 	kubeAPIServerClientConfig *rest.Config,
-	features featuregate.FeatureGate,
 	pluginInitializers ...admission.PluginInitializer,
 ) error {
 	if a == nil {
@@ -143,7 +139,7 @@ func (a *AdmissionOptions) ApplyTo(
 	if err != nil {
 		return err
 	}
-	genericInitializer := initializer.New(clientset, informers, c.Authorization.Authorizer, features)
+	genericInitializer := initializer.New(clientset, informers, c.Authorization.Authorizer)
 	initializersChain := admission.PluginInitializers{}
 	pluginInitializers = append(pluginInitializers, genericInitializer)
 	initializersChain = append(initializersChain, pluginInitializers...)

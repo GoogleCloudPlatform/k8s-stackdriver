@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/kube-openapi/pkg/schemaconv"
 	"k8s.io/kube-openapi/pkg/util/proto"
-	"sigs.k8s.io/structured-merge-diff/v2/typed"
+	"sigs.k8s.io/structured-merge-diff/typed"
 )
 
 // groupVersionKindExtensionKey is the key used to lookup the
@@ -35,17 +35,16 @@ type gvkParser struct {
 	parser typed.Parser
 }
 
-func (p *gvkParser) Type(gvk schema.GroupVersionKind) *typed.ParseableType {
+func (p *gvkParser) Type(gvk schema.GroupVersionKind) typed.ParseableType {
 	typeName, ok := p.gvks[gvk]
 	if !ok {
 		return nil
 	}
-	t := p.parser.Type(typeName)
-	return &t
+	return p.parser.Type(typeName)
 }
 
-func newGVKParser(models proto.Models, preserveUnknownFields bool) (*gvkParser, error) {
-	typeSchema, err := schemaconv.ToSchemaWithPreserveUnknownFields(models, preserveUnknownFields)
+func newGVKParser(models proto.Models) (*gvkParser, error) {
+	typeSchema, err := schemaconv.ToSchema(models)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert models to schema: %v", err)
 	}
