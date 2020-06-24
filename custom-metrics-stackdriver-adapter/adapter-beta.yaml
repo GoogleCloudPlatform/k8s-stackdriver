@@ -49,7 +49,7 @@ subjects:
   name: custom-metrics-stackdriver-adapter
   namespace: custom-metrics
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: custom-metrics-stackdriver-adapter

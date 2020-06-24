@@ -1,26 +1,7 @@
-# Change history of go-restful
+## Change history of go-restful
 
-
-v2.12.0
-
-- support describing response headers (#426)
-- fix openapi examples (#425)
-- merge v3 fix (#422)
-
-v2.11.1
-
-- fix WriteError return value (#415)
-
-v2.11.0 
-
-- allow prefix and suffix in path variable expression (#414)
-
-v2.9.6
-
-- support google custome verb (#413)
 
 v2.9.5
-
 - fix panic in Response.WriteError if err == nil
 
 v2.9.4

@@ -316,7 +316,7 @@ func (c *Container) HandleWithFilter(pattern string, handler http.Handler) {
 		}
 
 		chain := FilterChain{Filters: c.containerFilters, Target: func(req *Request, resp *Response) {
-			handler.ServeHTTP(resp, req.Request)
+			handler.ServeHTTP(httpResponse, httpRequest)
 		}}
 		chain.ProcessFilter(NewRequest(httpRequest), NewResponse(httpResponse))
 	}
