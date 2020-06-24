@@ -22,9 +22,9 @@ import (
 
 	sd "google.golang.org/api/logging/v2"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/apimachinery/pkg/util/wait"
-	corev1 "k8s.io/api/core/v1"
 )
 
 type fakeSdWriter struct {
