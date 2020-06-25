@@ -1,3 +1,6 @@
+# Avoid adding OWNERS in vendor directories
+OWNERS
+
 # OSX leaves these everywhere on SMB shares
 ._*
 
