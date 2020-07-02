@@ -118,7 +118,7 @@ func (p *StackdriverProvider) getRootScopedMetricByName(groupResource schema.Gro
 	if err != nil {
 		return nil, err
 	}
-	metricKind, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName))
+	metricKind, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName), metricSelector)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +146,7 @@ func (p *StackdriverProvider) getRootScopedMetricBySelector(groupResource schema
 	if err != nil {
 		return nil, err
 	}
-	metricKind, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName))
+	metricKind, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName), metricSelector)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +180,7 @@ func (p *StackdriverProvider) getNamespacedMetricByName(groupResource schema.Gro
 	if err != nil {
 		return nil, err
 	}
-	metricKind, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName))
+	metricKind, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName), metricSelector)
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +205,7 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 	if err != nil {
 		return nil, err
 	}
-	metricKind, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName))
+	metricKind, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName), metricSelector)
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +251,7 @@ func (p *StackdriverProvider) ListAllMetrics() []provider.CustomMetricInfo {
 func (p *StackdriverProvider) GetExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 	metricNameEscaped := info.Metric
 	metricName := getExternalMetricName(metricNameEscaped)
-	metricKind, err := p.translator.GetMetricKind(metricName)
+	metricKind, err := p.translator.GetMetricKind(metricName, metricSelector)
 	if err != nil {
 		return nil, err
 	}

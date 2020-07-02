@@ -252,8 +252,22 @@ func (t *Translator) GetMetricsFromSDDescriptorsResp(response *stackdriver.ListM
 }
 
 // GetMetricKind returns metricKind for metric metricName, obtained from Stackdriver Monitoring API.
-func (t *Translator) GetMetricKind(metricName string) (string, error) {
-	response, err := t.service.Projects.MetricDescriptors.Get(fmt.Sprintf("projects/%s/metricDescriptors/%s", t.config.Project, metricName)).Do()
+func (t *Translator) GetMetricKind(metricName string, metricSelector labels.Selector) (string, error) {
+	metricProj := t.config.Project
+	requirements, selectable := metricSelector.Requirements()
+	if !selectable {
+		return "", apierr.NewBadRequest(fmt.Sprintf("Label selector is impossible to match: %s", metricSelector))
+	}
+	for _, req := range requirements {
+		if req.Key() == "resource.labels.project_id" {
+			if req.Operator() == selection.Equals || req.Operator() == selection.DoubleEquals {
+				metricProj = req.Values().List()[0]
+				break
+			}
+			return "", NewLabelNotAllowedError(fmt.Sprintf("Project selector must use '=' or '==': You used %s", req.Operator()))
+		}
+	}
+	response, err := t.service.Projects.MetricDescriptors.Get(fmt.Sprintf("projects/%s/metricDescriptors/%s", metricProj, metricName)).Do()
 	if err != nil {
 		return "", NewNoSuchMetricError(metricName, err)
 	}
