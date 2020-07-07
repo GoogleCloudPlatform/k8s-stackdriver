@@ -155,7 +155,11 @@ func main() {
 		}
 		glog.Infof("Created a client with the default credentials")
 	} else {
-		client = oauth2.NewClient(context.Background(), google.ComputeTokenSource(""))
+		ts, err := google.DefaultTokenSource(context.Background(), "")
+		if err != nil {
+			glog.Fatalf("Error creating default token source: %v", err)
+		}
+		client = oauth2.NewClient(context.Background(), ts)
 	}
 
 	stackdriverService, err := v3.New(client)
