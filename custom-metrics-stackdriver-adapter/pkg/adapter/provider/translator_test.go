@@ -214,6 +214,186 @@ func TestTranslator_GetSDReqForPods_MultipleWithMetricSelctor(t *testing.T) {
 	}
 }
 
+func TestTranslator_GetSDReqForContainers_Single(t *testing.T) {
+	translator, sdService :=
+		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+			Name:        "my-pod-name",
+		},
+	}
+	metricName := "my/custom/metric"
+	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", labels.Everything(), "default")
+	if err != nil {
+		t.Errorf("Translation error: %s", err)
+	}
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter("metric.type = \"my/custom/metric\" " +
+			"AND resource.labels.project_id = \"my-project\" " +
+			"AND resource.labels.cluster_name = \"my-cluster\" " +
+			"AND resource.labels.location = \"my-zone\" " +
+			"AND resource.labels.namespace_name = \"default\" " +
+			"AND resource.labels.pod_name = \"my-pod-name\" " +
+			"AND resource.type = \"k8s_container\"").
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:02:00Z").
+		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+		AggregationAlignmentPeriod("120s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+	}
+}
+func TestTranslator_GetSDReqForContainers_OldResourceModel(t *testing.T) {
+	translator, _ :=
+		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), false)
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+			Name:        "my-pod-name",
+		},
+	}
+	metricName := "my/custom/metric"
+	_, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", labels.Everything(), "default")
+	if err == nil {
+		t.Errorf("OldResourceModel should not work with GetSDReqForContainers")
+	}
+}
+
+func TestTranslator_GetSDReqForContainers_SingleWithMetricSelector(t *testing.T) {
+	translator, sdService :=
+		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+			Name:        "my-pod-name",
+		},
+	}
+	metricName := "my/custom/metric"
+	metricSelector, _ := labels.Parse("metric.labels.custom=test")
+	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", metricSelector, "default")
+	if err != nil {
+		t.Errorf("Translation error: %s", err)
+	}
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter("metric.labels.custom = \"test\" " +
+			"AND metric.type = \"my/custom/metric\" " +
+			"AND resource.labels.project_id = \"my-project\" " +
+			"AND resource.labels.cluster_name = \"my-cluster\" " +
+			"AND resource.labels.location = \"my-zone\" " +
+			"AND resource.labels.namespace_name = \"default\" " +
+			"AND resource.labels.pod_name = \"my-pod-name\" " +
+			"AND resource.type = \"k8s_container\"").
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:02:00Z").
+		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+		AggregationAlignmentPeriod("120s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+	}
+}
+
+func TestTranslator_GetSDReqForContainers_SingleWithInvalidMetricSelector(t *testing.T) {
+	translator, _ :=
+		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+			Name:        "my-pod-name",
+		},
+	}
+	metricName := "my/custom/metric"
+	metricSelector, _ := labels.Parse("resource.labels.type=container")
+	_, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", metricSelector, "default")
+	if err == nil {
+		t.Error("No translation error")
+	}
+}
+
+func TestTranslator_GetSDReqForContainers_Multiple(t *testing.T) {
+	translator, sdService :=
+		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	pod1 := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id-1",
+			Name:        "my-pod-name-1",
+		},
+	}
+	pod2 := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id-2",
+			Name:        "my-pod-name-2",
+		},
+	}
+	metricName := "my/custom/metric"
+	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "GAUGE", labels.Everything(), "default")
+	if err != nil {
+		t.Fatalf("Translation error: %s", err)
+	}
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter("metric.type = \"my/custom/metric\" " +
+			"AND resource.labels.project_id = \"my-project\" " +
+			"AND resource.labels.cluster_name = \"my-cluster\" " +
+			"AND resource.labels.location = \"my-zone\" " +
+			"AND resource.labels.namespace_name = \"default\" " +
+			"AND resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
+			"AND resource.type = \"k8s_container\"").
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:02:00Z").
+		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+		AggregationAlignmentPeriod("120s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", *expectedRequest, *request)
+	}
+}
+
+func TestTranslator_GetSDReqForContainers_MultipleWithMetricSelctor(t *testing.T) {
+	translator, sdService :=
+		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	pod1 := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id-1",
+			Name:        "my-pod-name-1",
+		},
+	}
+	pod2 := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id-2",
+			Name:        "my-pod-name-2",
+		},
+	}
+	metricName := "my/custom/metric"
+	metricSelector, _ := labels.Parse("metric.labels.custom=test")
+	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "GAUGE", metricSelector, "default")
+	if err != nil {
+		t.Fatalf("Translation error: %s", err)
+	}
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter("metric.labels.custom = \"test\" " +
+			"AND metric.type = \"my/custom/metric\" " +
+			"AND resource.labels.project_id = \"my-project\" " +
+			"AND resource.labels.cluster_name = \"my-cluster\" " +
+			"AND resource.labels.location = \"my-zone\" " +
+			"AND resource.labels.namespace_name = \"default\" " +
+			"AND resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
+			"AND resource.type = \"k8s_container\"").
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:02:00Z").
+		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+		AggregationAlignmentPeriod("120s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", *expectedRequest, *request)
+	}
+}
+
 func TestTranslator_GetSDReqForNodes(t *testing.T) {
 	translator, sdService :=
 		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
@@ -512,7 +692,7 @@ func TestTranslator_GetRespForCustomMetric_MultiplePoints(t *testing.T) {
 func TestTranslator_ListMetricDescriptors(t *testing.T) {
 	translator, sdService :=
 		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
-	request := translator.ListMetricDescriptors()
+	request := translator.ListMetricDescriptors(false)
 	expectedRequest := sdService.Projects.MetricDescriptors.List("projects/my-project").
 		Filter("resource.labels.project_id = \"my-project\" " +
 			"AND resource.labels.cluster_name = \"my-cluster\" " +
@@ -523,10 +703,24 @@ func TestTranslator_ListMetricDescriptors(t *testing.T) {
 	}
 }
 
+func TestTranslator_ListMetricDescriptors_containerMetrics(t *testing.T) {
+	translator, sdService :=
+		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	request := translator.ListMetricDescriptors(true)
+	expectedRequest := sdService.Projects.MetricDescriptors.List("projects/my-project").
+		Filter("resource.labels.project_id = \"my-project\" " +
+			"AND resource.labels.cluster_name = \"my-cluster\" " +
+			"AND resource.labels.location = \"my-zone\" " +
+			"AND resource.type = one_of(\"k8s_pod\",\"k8s_node\",\"k8s_container\")")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", *expectedRequest, *request)
+	}
+}
+
 func TestTranslator_ListMetricDescriptors_legacyResourceType(t *testing.T) {
 	translator, sdService :=
 		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), false)
-	request := translator.ListMetricDescriptors()
+	request := translator.ListMetricDescriptors(false)
 	expectedRequest := sdService.Projects.MetricDescriptors.List("projects/my-project").
 		Filter("resource.labels.project_id = \"my-project\" " +
 			"AND resource.labels.cluster_name = \"my-cluster\" " +

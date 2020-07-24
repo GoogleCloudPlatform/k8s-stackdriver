@@ -55,6 +55,7 @@ extra-cpu
 extra-memory
 extra-storage
 fake-e2e
+fallback-for-container-metrics
 fixes-issue-reassign
 flush-delay
 forward-services

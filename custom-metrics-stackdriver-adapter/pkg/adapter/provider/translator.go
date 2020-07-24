@@ -103,6 +103,36 @@ func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName string, met
 	return t.createListTimeseriesRequest(joinFilters(filterForSelector, filter), metricKind), nil
 }
 
+// GetSDReqForContainers returns Stackdriver request for container resource from multiple pods.
+// podList is required to be no longer than oneOfMax items. This is enforced by limitation of
+// "one_of()" operator in Stackdriver filters, see documentation:
+// https://cloud.google.com/monitoring/api/v3/filters
+func (t *Translator) GetSDReqForContainers(podList *v1.PodList, metricName string, metricKind string, metricSelector labels.Selector, namespace string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
+	if len(podList.Items) == 0 {
+		return nil, apierr.NewBadRequest("No objects matched provided selector")
+	}
+	if len(podList.Items) > oneOfMax {
+		return nil, apierr.NewInternalError(fmt.Errorf("GetSDReqForContainers called with %v pod list, but allowed limit is %v pods", len(podList.Items), oneOfMax))
+	}
+	if !t.useNewResourceModel {
+		return nil, apierr.NewInternalError(fmt.Errorf("Illegal state! Container metrics works only with new resource model"))
+	}
+	resourceNames := getPodNames(podList)
+	filter := joinFilters(
+		t.filterForMetric(metricName),
+		t.filterForCluster(),
+		t.filterForPods(resourceNames, namespace),
+		t.filterForAnyContainer())
+	if metricSelector.Empty() {
+		return t.createListTimeseriesRequest(filter, metricKind), nil
+	}
+	filterForSelector, err := t.filterForSelector(metricSelector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
+	if err != nil {
+		return nil, err
+	}
+	return t.createListTimeseriesRequest(joinFilters(filterForSelector, filter), metricKind), nil
+}
+
 // GetSDReqForNodes returns Stackdriver request for query for multiple nodes.
 // nodeList is required to be no longer than oneOfMax items. This is enforced by limitation of
 // "one_of()" operator in Stackdriver filters, see documentation:
@@ -221,10 +251,10 @@ func (t *Translator) GetRespForExternalMetric(response *stackdriver.ListTimeSeri
 }
 
 // ListMetricDescriptors returns Stackdriver request for all custom metrics descriptors.
-func (t *Translator) ListMetricDescriptors() *stackdriver.ProjectsMetricDescriptorsListCall {
+func (t *Translator) ListMetricDescriptors(fallbackForContainerMetrics bool) *stackdriver.ProjectsMetricDescriptorsListCall {
 	var filter string
 	if t.useNewResourceModel {
-		filter = joinFilters(t.filterForCluster(), t.filterForAnyResource())
+		filter = joinFilters(t.filterForCluster(), t.filterForAnyResource(fallbackForContainerMetrics))
 	} else {
 		filter = joinFilters(t.legacyFilterForCluster(), t.legacyFilterForAnyPod())
 	}
@@ -366,7 +396,14 @@ func (t *Translator) filterForAnyNode() string {
 	return "resource.type = \"k8s_node\""
 }
 
-func (t *Translator) filterForAnyResource() string {
+func (t *Translator) filterForAnyContainer() string {
+	return "resource.type = \"k8s_container\""
+}
+
+func (t *Translator) filterForAnyResource(fallbackForContainerMetrics bool) string {
+	if fallbackForContainerMetrics {
+		return "resource.type = one_of(\"k8s_pod\",\"k8s_node\",\"k8s_container\")"
+	}
 	return "resource.type = one_of(\"k8s_pod\",\"k8s_node\")"
 }
 
@@ -521,6 +558,31 @@ func (t *Translator) createListTimeseriesRequestProject(filter string, metricKin
 		AggregationAlignmentPeriod(fmt.Sprintf("%vs", int64(alignmentPeriod.Seconds())))
 }
 
+// checkMetricUniquenessForPod checks if each pod has at most one container with given metric
+func (t *Translator) checkMetricUniquenessForPod(response *stackdriver.ListTimeSeriesResponse, metricName string) error {
+	metricContainer := make(map[string]string)
+	for _, series := range response.TimeSeries {
+		name, err := t.metricKey(series)
+		if err != nil {
+			return err
+		}
+
+		containerName, ok := series.Resource.Labels["container_name"]
+		if !ok {
+			return apierr.NewInternalError(fmt.Errorf("container_name is missing"))
+		}
+		metricContainerName, ok := metricContainer[name]
+		if !ok {
+			metricContainer[name] = containerName
+		} else {
+			if metricContainerName != containerName {
+				return apierr.NewBadRequest(fmt.Sprintf("Only one container in pod can have specific metric. Containers %x %x have the same metric %x in pod %x", metricContainerName, containerName, metricName, name))
+			}
+		}
+	}
+	return nil
+}
+
 func (t *Translator) getMetricValuesFromResponse(groupResource schema.GroupResource, response *stackdriver.ListTimeSeriesResponse, metricName string) (map[string]resource.Quantity, error) {
 	metricValues := make(map[string]resource.Quantity)
 	for _, series := range response.TimeSeries {
@@ -540,7 +602,6 @@ func (t *Translator) getMetricValuesFromResponse(groupResource schema.GroupResou
 		if !ok {
 			currentQuantity = *resource.NewQuantity(0, resource.DecimalSI)
 		}
-
 		switch {
 		case value.Int64Value != nil:
 			currentQuantity.Add(*resource.NewQuantity(*value.Int64Value, resource.DecimalSI))
@@ -599,7 +660,6 @@ func (t *Translator) metricsFor(values map[string]resource.Quantity, groupResour
 		}
 		res = append(res, *value)
 	}
-
 	return res, nil
 }
 
@@ -630,6 +690,9 @@ func (t *Translator) metricKey(timeSeries *stackdriver.TimeSeries) (string, erro
 	if t.useNewResourceModel {
 		switch timeSeries.Resource.Type {
 		case "k8s_pod":
+			return timeSeries.Resource.Labels["namespace_name"] + ":" + timeSeries.Resource.Labels["pod_name"], nil
+		case "k8s_container":
+			// The same key as pod, because only one container in pod can provide specific metric. Uniqueness is checked in checkMetricUniquenessForPod.
 			return timeSeries.Resource.Labels["namespace_name"] + ":" + timeSeries.Resource.Labels["pod_name"], nil
 		case "k8s_node":
 			return ":" + timeSeries.Resource.Labels["node_name"], nil
