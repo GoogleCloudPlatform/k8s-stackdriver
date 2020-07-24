@@ -21,7 +21,7 @@ RUN apk update \
     && apk add --no-cache govendor \
     && govendor license +vendor > /NOTICES
 
-FROM gcr.io/google-containers/debian-base-amd64:1.0.0
+FROM gcr.io/google-containers/debian-base-amd64:v2.0.0
 
 COPY --from=builder /adapter adapter
 
