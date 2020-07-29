@@ -52,29 +52,31 @@ func (c realClock) Now() time.Time {
 
 // StackdriverProvider is a provider of custom metrics from Stackdriver.
 type StackdriverProvider struct {
-	kubeClient          *corev1.CoreV1Client
-	stackdriverService  *stackdriver.Service
-	config              *config.GceConfig
-	rateInterval        time.Duration
-	translator          *Translator
-	useNewResourceModel bool
-	mu                  sync.Mutex
-	metricsCacheSet     bool
-	metricsCache        []provider.CustomMetricInfo
+	kubeClient                  *corev1.CoreV1Client
+	stackdriverService          *stackdriver.Service
+	config                      *config.GceConfig
+	rateInterval                time.Duration
+	translator                  *Translator
+	useNewResourceModel         bool
+	mu                          sync.Mutex
+	metricsCacheSet             bool
+	metricsCache                []provider.CustomMetricInfo
+	fallbackForContainerMetrics bool
 }
 
 // NewStackdriverProvider creates a StackdriverProvider
-func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.RESTMapper, stackdriverService *stackdriver.Service, rateInterval, alignmentPeriod time.Duration, useNewResourceModel bool) provider.MetricsProvider {
+func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.RESTMapper, stackdriverService *stackdriver.Service, rateInterval, alignmentPeriod time.Duration, useNewResourceModel bool, fallbackForContainerMetrics bool) provider.MetricsProvider {
 	gceConf, err := config.GetGceConfig()
 	if err != nil {
 		klog.Fatalf("Failed to retrieve GCE config: %v", err)
 	}
 
 	return &StackdriverProvider{
-		kubeClient:         kubeClient,
-		stackdriverService: stackdriverService,
-		config:             gceConf,
-		rateInterval:       rateInterval,
+		kubeClient:                  kubeClient,
+		stackdriverService:          stackdriverService,
+		config:                      gceConf,
+		rateInterval:                rateInterval,
+		fallbackForContainerMetrics: fallbackForContainerMetrics,
 		translator: &Translator{
 			service:             stackdriverService,
 			config:              gceConf,
@@ -192,6 +194,21 @@ func (p *StackdriverProvider) getNamespacedMetricByName(groupResource schema.Gro
 	if err != nil {
 		return nil, err
 	}
+
+	if p.fallbackForContainerMetrics && len(stackdriverResponse.TimeSeries) == 0 {
+		stackdriverRequest, err = p.translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{*matchingPod}}, getCustomMetricName(escapedMetricName), metricKind, metricSelector, namespace)
+		if err != nil {
+			return nil, err
+		}
+		stackdriverResponse, err = stackdriverRequest.Do()
+		if err != nil {
+			return nil, err
+		}
+		err = p.translator.checkMetricUniquenessForPod(stackdriverResponse, escapedMetricName)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return p.translator.GetRespForSingleObject(stackdriverResponse, groupResource, escapedMetricName, metricSelector, namespace, name)
 }
 
@@ -226,6 +243,30 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 		}
 		result = append(result, slice...)
 	}
+
+	if p.fallbackForContainerMetrics && len(result) == 0 {
+		for i := 0; i < len(matchingPods.Items); i += oneOfMax {
+			podsSlice := &v1.PodList{Items: matchingPods.Items[i:min(i+oneOfMax, len(matchingPods.Items))]}
+			stackdriverRequest, err := p.translator.GetSDReqForContainers(podsSlice, getCustomMetricName(escapedMetricName), metricKind, metricSelector, namespace)
+			if err != nil {
+				return nil, err
+			}
+			stackdriverResponse, err := stackdriverRequest.Do()
+			if err != nil {
+				return nil, err
+			}
+			err = p.translator.checkMetricUniquenessForPod(stackdriverResponse, escapedMetricName)
+			if err != nil {
+				return nil, err
+			}
+			slice, err := p.translator.GetRespForMultipleObjects(stackdriverResponse, p.translator.getPodItems(matchingPods), groupResource, escapedMetricName, metricSelector)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, slice...)
+		}
+	}
+
 	return &custom_metrics.MetricValueList{Items: result}, nil
 }
 
@@ -235,7 +276,7 @@ func (p *StackdriverProvider) ListAllMetrics() []provider.CustomMetricInfo {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if !p.metricsCacheSet {
-		stackdriverRequest := p.translator.ListMetricDescriptors()
+		stackdriverRequest := p.translator.ListMetricDescriptors(p.fallbackForContainerMetrics)
 		response, err := stackdriverRequest.Do()
 		if err != nil {
 			klog.Errorf("Failed request to stackdriver api: %s", err)

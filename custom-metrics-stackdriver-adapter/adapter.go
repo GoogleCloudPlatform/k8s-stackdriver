@@ -47,6 +47,8 @@ type stackdriverAdapterServerOptions struct {
 	EnableCustomMetricsAPI bool
 	// EnableExternalMetricsAPI switches on sample apiserver for External Metrics API
 	EnableExternalMetricsAPI bool
+	// FallbackForContainerMetrics provides metrics from container when metric is not present in pod
+	FallbackForContainerMetrics bool
 }
 
 func (a *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptions) provider.MetricsProvider {
@@ -75,7 +77,7 @@ func (a *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOption
 		klog.Fatalf("Failed to create Stackdriver client: %v", err)
 	}
 
-	return adapter.NewStackdriverProvider(client, mapper, stackdriverService, 5*time.Minute, time.Minute, o.UseNewResourceModel)
+	return adapter.NewStackdriverProvider(client, mapper, stackdriverService, 5*time.Minute, time.Minute, o.UseNewResourceModel, o.FallbackForContainerMetrics)
 }
 
 func main() {
@@ -92,9 +94,10 @@ func main() {
 	flags.AddGoFlagSet(flag.CommandLine) // make sure we get the klog flags
 
 	serverOptions := stackdriverAdapterServerOptions{
-		UseNewResourceModel:      false,
-		EnableCustomMetricsAPI:   true,
-		EnableExternalMetricsAPI: true,
+		UseNewResourceModel:         false,
+		EnableCustomMetricsAPI:      true,
+		EnableExternalMetricsAPI:    true,
+		FallbackForContainerMetrics: false,
 	}
 
 	flags.BoolVar(&serverOptions.UseNewResourceModel, "use-new-resource-model", serverOptions.UseNewResourceModel,
@@ -103,8 +106,14 @@ func main() {
 		"whether to enable Custom Metrics API")
 	flags.BoolVar(&serverOptions.EnableExternalMetricsAPI, "enable-external-metrics-api", serverOptions.EnableExternalMetricsAPI,
 		"whether to enable External Metrics API")
+	flags.BoolVar(&serverOptions.FallbackForContainerMetrics, "fallback-for-container-metrics", serverOptions.FallbackForContainerMetrics,
+		"If true, fallbacks to k8s_container resource when given metric is not present on k8s_pod. At most one container with given metric is allowed for each pod.")
 
 	flags.Parse(os.Args)
+
+	if !serverOptions.UseNewResourceModel && serverOptions.FallbackForContainerMetrics {
+		klog.Fatalf("Container metrics work only with new resource model")
+	}
 
 	metricsProvider := cmd.makeProviderOrDie(&serverOptions)
 	if serverOptions.EnableCustomMetricsAPI {
