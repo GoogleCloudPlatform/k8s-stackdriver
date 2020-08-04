@@ -28,13 +28,12 @@ import (
 )
 
 var (
-	receivedEntryCount = prometheus.NewCounterVec(
+	receivedEntryCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name:      "received_entry_count",
 			Help:      "Number of entries received by the Stackdriver sink",
 			Subsystem: "stackdriver_sink",
 		},
-		[]string{"component"},
 	)
 
 	successfullySentEntryCount = prometheus.NewCounter(
@@ -86,7 +85,7 @@ func newSdSink(writer sdWriter, clock clock.Clock, config *sdSinkConfig, factory
 }
 
 func (s *sdSink) OnAdd(event *corev1.Event) {
-	receivedEntryCount.WithLabelValues(event.Source.Component).Inc()
+	receivedEntryCount.Inc()
 
 	logEntry := s.logEntryFactory.FromEvent(event)
 	s.logEntryChannel <- logEntry
@@ -108,7 +107,7 @@ func (s *sdSink) OnUpdate(oldEvent *corev1.Event, newEvent *corev1.Event) {
 			"\tOld event: %+v\n\tNew event: %+v", newEvent.Count-oldCount, oldEvent, newEvent)
 	}
 
-	receivedEntryCount.WithLabelValues(newEvent.Source.Component).Inc()
+	receivedEntryCount.Inc()
 
 	logEntry := s.logEntryFactory.FromEvent(newEvent)
 	s.logEntryChannel <- logEntry
