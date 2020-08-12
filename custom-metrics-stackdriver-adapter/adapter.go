@@ -28,7 +28,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/component-base/logs"
 	"k8s.io/klog"
+	"sigs.k8s.io/metrics-server/pkg/api"
 
+	coreadapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/coreprovider"
 	adapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/provider"
 	basecmd "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
@@ -49,10 +51,12 @@ type stackdriverAdapterServerOptions struct {
 	EnableExternalMetricsAPI bool
 	// FallbackForContainerMetrics provides metrics from container when metric is not present in pod
 	FallbackForContainerMetrics bool
+	// EnableCoreMetricsAPI provides core metrics. Experimental, do not use.
+	EnableCoreMetricsAPI bool
 }
 
-func (a *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptions) provider.MetricsProvider {
-	config, err := a.ClientConfig()
+func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptions) provider.MetricsProvider {
+	config, err := sa.ClientConfig()
 	if err != nil {
 		klog.Fatalf("unable to construct client config: %v", err)
 	}
@@ -62,7 +66,7 @@ func (a *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOption
 		klog.Fatalf("unable to construct client: %v", err)
 	}
 
-	mapper, err := a.RESTMapper()
+	mapper, err := sa.RESTMapper()
 	if err != nil {
 		klog.Fatalf("unable to construct discovery REST mapper: %v", err)
 	}
@@ -78,6 +82,25 @@ func (a *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOption
 	}
 
 	return adapter.NewStackdriverProvider(client, mapper, stackdriverService, 5*time.Minute, time.Minute, o.UseNewResourceModel, o.FallbackForContainerMetrics)
+}
+
+func (sa *StackdriverAdapter) withCoreMetrics() error {
+	provider := coreadapter.NewCoreProvider()
+	informers, err := sa.Informers()
+	if err != nil {
+		return err
+	}
+
+	server, err := sa.Server()
+	if err != nil {
+		return err
+	}
+
+	if err := api.Install(provider, informers.Core().V1(), server.GenericAPIServer); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func main() {
@@ -98,6 +121,7 @@ func main() {
 		EnableCustomMetricsAPI:      true,
 		EnableExternalMetricsAPI:    true,
 		FallbackForContainerMetrics: false,
+		EnableCoreMetricsAPI:        false,
 	}
 
 	flags.BoolVar(&serverOptions.UseNewResourceModel, "use-new-resource-model", serverOptions.UseNewResourceModel,
@@ -108,11 +132,16 @@ func main() {
 		"whether to enable External Metrics API")
 	flags.BoolVar(&serverOptions.FallbackForContainerMetrics, "fallback-for-container-metrics", serverOptions.FallbackForContainerMetrics,
 		"If true, fallbacks to k8s_container resource when given metric is not present on k8s_pod. At most one container with given metric is allowed for each pod.")
+	flags.BoolVar(&serverOptions.EnableCoreMetricsAPI, "enable-core-metrics-api", serverOptions.EnableCoreMetricsAPI,
+		"Experimental, do not use. Whether to enable Core Metrics API.")
 
 	flags.Parse(os.Args)
 
 	if !serverOptions.UseNewResourceModel && serverOptions.FallbackForContainerMetrics {
 		klog.Fatalf("Container metrics work only with new resource model")
+	}
+	if !serverOptions.UseNewResourceModel && serverOptions.EnableCoreMetricsAPI {
+		klog.Fatalf("Core metrics work only with new resource model")
 	}
 
 	metricsProvider := cmd.makeProviderOrDie(&serverOptions)
@@ -121,6 +150,11 @@ func main() {
 	}
 	if serverOptions.EnableExternalMetricsAPI {
 		cmd.WithExternalMetrics(metricsProvider)
+	}
+	if serverOptions.EnableCoreMetricsAPI {
+		if err := cmd.withCoreMetrics(); err != nil {
+			klog.Fatalf("unable to install resource metrics API: %v", err)
+		}
 	}
 
 	if err := cmd.Run(wait.NeverStop); err != nil {

@@ -42,6 +42,7 @@ dump-nginx-configuration
 dynamic-source
 e2e-status-context
 election-namespace
+enable-core-metrics-api
 enable-custom-metrics-api
 enable-external-metrics-api
 enable-md-yaml
