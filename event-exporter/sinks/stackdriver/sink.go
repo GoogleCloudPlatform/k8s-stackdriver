@@ -100,7 +100,7 @@ func (s *sdSink) OnUpdate(oldEvent *corev1.Event, newEvent *corev1.Event) {
 	if newEvent.Count != oldCount+1 {
 		// Sink doesn't send a LogEntry to Stackdriver, b/c event compression might
 		// indicate that part of the watch history was lost, which may result in
-		// multiple events being compressed. This may create an unecessary
+		// multiple events being compressed. This may create an unnecessary
 		// flood in Stackdriver. Also this is a perfectly valid behavior for the
 		// configuration with empty backing storage.
 		glog.V(2).Infof("Event count has increased by %d != 1.\n"+
