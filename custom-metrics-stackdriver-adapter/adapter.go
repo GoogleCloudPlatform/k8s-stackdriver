@@ -18,12 +18,15 @@ package main
 
 import (
 	"flag"
+	"os"
+	"time"
+
+	gceconfig "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
+	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	stackdriver "google.golang.org/api/monitoring/v3"
 	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
-	"os"
-	"time"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/component-base/logs"
@@ -33,7 +36,6 @@ import (
 	coreadapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/coreprovider"
 	adapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/provider"
 	basecmd "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd"
-	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 )
 
 // StackdriverAdapter is an adapter for Stackdriver
@@ -55,7 +57,7 @@ type stackdriverAdapterServerOptions struct {
 	EnableCoreMetricsAPI bool
 }
 
-func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptions) provider.MetricsProvider {
+func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptions, rateInterval time.Duration, alignmentPeriod time.Duration) provider.MetricsProvider {
 	config, err := sa.ClientConfig()
 	if err != nil {
 		klog.Fatalf("unable to construct client config: %v", err)
@@ -80,8 +82,12 @@ func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptio
 	if err != nil {
 		klog.Fatalf("Failed to create Stackdriver client: %v", err)
 	}
-
-	return adapter.NewStackdriverProvider(client, mapper, stackdriverService, 5*time.Minute, time.Minute, o.UseNewResourceModel, o.FallbackForContainerMetrics)
+	gceConf, err := gceconfig.GetGceConfig()
+	if err != nil {
+		klog.Fatalf("Failed to retrieve GCE config: %v", err)
+	}
+	translator := adapter.NewTranslator(stackdriverService, gceConf, rateInterval, alignmentPeriod, realClock{}, mapper, o.UseNewResourceModel)
+	return adapter.NewStackdriverProvider(client, mapper, gceConf, stackdriverService, translator, rateInterval, o.UseNewResourceModel, o.FallbackForContainerMetrics)
 }
 
 func (sa *StackdriverAdapter) withCoreMetrics() error {
@@ -144,7 +150,7 @@ func main() {
 		klog.Fatalf("Core metrics work only with new resource model")
 	}
 
-	metricsProvider := cmd.makeProviderOrDie(&serverOptions)
+	metricsProvider := cmd.makeProviderOrDie(&serverOptions, 5*time.Minute, 1*time.Minute)
 	if serverOptions.EnableCustomMetricsAPI {
 		cmd.WithCustomMetrics(metricsProvider)
 	}

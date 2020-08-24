@@ -40,16 +40,6 @@ import (
 // TODO(kawych):
 // * Support long responses from Stackdriver (pagination).
 
-type clock interface {
-	Now() time.Time
-}
-
-type realClock struct{}
-
-func (c realClock) Now() time.Time {
-	return time.Now()
-}
-
 // StackdriverProvider is a provider of custom metrics from Stackdriver.
 type StackdriverProvider struct {
 	kubeClient                  *corev1.CoreV1Client
@@ -65,27 +55,15 @@ type StackdriverProvider struct {
 }
 
 // NewStackdriverProvider creates a StackdriverProvider
-func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.RESTMapper, stackdriverService *stackdriver.Service, rateInterval, alignmentPeriod time.Duration, useNewResourceModel bool, fallbackForContainerMetrics bool) provider.MetricsProvider {
-	gceConf, err := config.GetGceConfig()
-	if err != nil {
-		klog.Fatalf("Failed to retrieve GCE config: %v", err)
-	}
-
+func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.RESTMapper, gceConf *config.GceConfig, stackdriverService *stackdriver.Service, translator *Translator, rateInterval time.Duration, useNewResourceModel bool, fallbackForContainerMetrics bool) provider.MetricsProvider {
 	return &StackdriverProvider{
 		kubeClient:                  kubeClient,
 		stackdriverService:          stackdriverService,
 		config:                      gceConf,
 		rateInterval:                rateInterval,
+		translator:                  translator,
+		useNewResourceModel:         useNewResourceModel,
 		fallbackForContainerMetrics: fallbackForContainerMetrics,
-		translator: &Translator{
-			service:             stackdriverService,
-			config:              gceConf,
-			reqWindow:           rateInterval,
-			alignmentPeriod:     alignmentPeriod,
-			clock:               realClock{},
-			mapper:              mapper,
-			useNewResourceModel: useNewResourceModel,
-		},
 	}
 }
 
