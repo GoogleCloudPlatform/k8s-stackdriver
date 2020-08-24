@@ -221,8 +221,8 @@ func TestTranslateContainers(t *testing.T) {
 	noLogStatsContainer.Logs = nil
 	noRootfsStatsContainer := *getContainerStats(false)
 	noRootfsStatsContainer.Rootfs = nil
-	legacyTsPerContainer := 11
-	tsPerContainer := 8
+	legacyTsPerContainer := 10
+	tsPerContainer := 7
 	testCases := []struct {
 		name                  string
 		ExpectedLegacyTSCount int
