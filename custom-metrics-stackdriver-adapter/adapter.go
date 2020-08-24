@@ -57,7 +57,7 @@ type stackdriverAdapterServerOptions struct {
 	EnableCoreMetricsAPI bool
 }
 
-func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptions, rateInterval time.Duration, alignmentPeriod time.Duration) provider.MetricsProvider {
+func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptions, rateInterval time.Duration, alignmentPeriod time.Duration) (provider.MetricsProvider, *translator.Translator) {
 	config, err := sa.ClientConfig()
 	if err != nil {
 		klog.Fatalf("unable to construct client config: %v", err)
@@ -87,11 +87,11 @@ func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptio
 		klog.Fatalf("Failed to retrieve GCE config: %v", err)
 	}
 	translator := translator.NewTranslator(stackdriverService, gceConf, rateInterval, alignmentPeriod, mapper, o.UseNewResourceModel)
-	return adapter.NewStackdriverProvider(client, mapper, gceConf, stackdriverService, translator, rateInterval, o.UseNewResourceModel, o.FallbackForContainerMetrics)
+	return adapter.NewStackdriverProvider(client, mapper, gceConf, stackdriverService, translator, rateInterval, o.UseNewResourceModel, o.FallbackForContainerMetrics), translator
 }
 
-func (sa *StackdriverAdapter) withCoreMetrics() error {
-	provider := coreadapter.NewCoreProvider()
+func (sa *StackdriverAdapter) withCoreMetrics(translator *translator.Translator) error {
+	provider := coreadapter.NewCoreProvider(translator)
 	informers, err := sa.Informers()
 	if err != nil {
 		return err
@@ -150,7 +150,8 @@ func main() {
 		klog.Fatalf("Core metrics work only with new resource model")
 	}
 
-	metricsProvider := cmd.makeProviderOrDie(&serverOptions, 5*time.Minute, 1*time.Minute)
+	// TODO(holubwicz): move duration config to server options
+	metricsProvider, translator := cmd.makeProviderOrDie(&serverOptions, 5*time.Minute, 1*time.Minute)
 	if serverOptions.EnableCustomMetricsAPI {
 		cmd.WithCustomMetrics(metricsProvider)
 	}
@@ -158,7 +159,7 @@ func main() {
 		cmd.WithExternalMetrics(metricsProvider)
 	}
 	if serverOptions.EnableCoreMetricsAPI {
-		if err := cmd.withCoreMetrics(); err != nil {
+		if err := cmd.withCoreMetrics(translator); err != nil {
 			klog.Fatalf("unable to install resource metrics API: %v", err)
 		}
 	}

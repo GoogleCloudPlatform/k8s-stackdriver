@@ -17,11 +17,13 @@ custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"project_id":   projectId,
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		// namespace_id and instance_id don't matter
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:	projectName := fmt.Sprintf("projects/%s", resourceLabels["project_id"])
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder.go:			return fmt.Sprintf("resource.labels.pod_name = %s", podNames[0])
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder.go:		if req.Key() == "resource.labels.project_id" {
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder.go:		if req.Key() == "resource.labels.project_id" {
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder.go:		return fmt.Sprintf("resource.labels.namespace_name = %q AND resource.labels.pod_name = %s", namespace, podNames[0])
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder.go:		return fmt.Sprintf("resource.labels.node_name = %s", nodeNames[0])
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder.go:		return fmt.Sprintf("resource.labels.pod_id = %s", podIDs[0])
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder.go:		return fmt.Sprintf("resource.labels.pod_name = one_of(%s)", strings.Join(podNames, ","))
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder.go:	clusterFilter := fmt.Sprintf("resource.labels.cluster_name = %q", t.config.Cluster)
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder.go:	clusterFilter := fmt.Sprintf("resource.labels.cluster_name = %q", t.config.Cluster)
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder.go:	projectFilter := fmt.Sprintf("resource.labels.project_id = %q", t.config.Project)
@@ -82,6 +84,7 @@ custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator.go:			return ":" + timeSeries.Resource.Labels["node_name"], nil
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator.go:			return timeSeries.Resource.Labels["namespace_name"] + ":" + timeSeries.Resource.Labels["pod_name"], nil
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator.go:			return timeSeries.Resource.Labels["namespace_name"] + ":" + timeSeries.Resource.Labels["pod_name"], nil
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator.go:		nodeName := series.Resource.Labels["node_name"]
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator.go:		return timeSeries.Resource.Labels["pod_id"], nil
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:				"resource.labels.pod_id": "my-pod-id",
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:				"resource.labels.pod_id": "my-pod-id",

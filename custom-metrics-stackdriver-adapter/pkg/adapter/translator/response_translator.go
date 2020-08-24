@@ -32,6 +32,7 @@ import (
 	"k8s.io/klog"
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 	"k8s.io/metrics/pkg/apis/external_metrics"
+	"sigs.k8s.io/metrics-server/pkg/api"
 )
 
 // GetRespForSingleObject returns translates Stackdriver response to a Custom Metric associated with
@@ -118,6 +119,96 @@ func (t *Translator) GetMetricsFromSDDescriptorsResp(response *stackdriver.ListM
 		}
 	}
 	return metrics
+}
+
+// GetCoreContainerMetricFromResponse for each pod extracts map from container name to value of metric and TimeInfo.
+func (t *Translator) GetCoreContainerMetricFromResponse(response *stackdriver.ListTimeSeriesResponse) (map[string]map[string]resource.Quantity, map[string]api.TimeInfo, error) {
+	containerMetric := make(map[string]map[string]resource.Quantity)
+	timeInfo := make(map[string]api.TimeInfo)
+
+	for _, series := range response.TimeSeries {
+		if len(series.Points) <= 0 {
+			// This shouldn't happen with correct query to Stackdriver
+			return nil, nil, apierr.NewInternalError(fmt.Errorf("Empty time series returned from Stackdriver"))
+		}
+		// TODO(holubowicz): consider changing request window for core metrics
+		// Points in a time series are returned in reverse time order
+		point := *series.Points[0]
+		metricValue, err := getQuantityValue(point)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		podKey, err := t.metricKey(series)
+		if err != nil {
+			return nil, nil, err
+		}
+		_, ok := containerMetric[podKey]
+		if !ok {
+			containerMetric[podKey] = make(map[string]resource.Quantity, 0)
+
+			intervalEndTime, err := time.Parse(time.RFC3339, point.Interval.EndTime)
+			if err != nil {
+				return nil, nil, err
+			}
+			timeInfo[podKey] = api.TimeInfo{Timestamp: intervalEndTime, Window: t.alignmentPeriod}
+		}
+
+		containerName, ok := series.Resource.Labels["container_name"]
+		if !ok {
+			return nil, nil, apierr.NewInternalError(fmt.Errorf("Container name is not present."))
+		}
+		_, ok = containerMetric[podKey][containerName]
+		if ok {
+			return nil, nil, apierr.NewInternalError(fmt.Errorf("The same container appered two time in the response."))
+		}
+		containerMetric[podKey][containerName] = *metricValue
+	}
+	return containerMetric, timeInfo, nil
+}
+
+// GetCoreNodeMetricFromResponse for each node extracts value of metric and TimeInfo.
+func (t *Translator) GetCoreNodeMetricFromResponse(response *stackdriver.ListTimeSeriesResponse) (map[string]resource.Quantity, map[string]api.TimeInfo, error) {
+	nodeMetric := make(map[string]resource.Quantity)
+	timeInfo := make(map[string]api.TimeInfo)
+
+	for _, series := range response.TimeSeries {
+		if len(series.Points) <= 0 {
+			// This shouldn't happen with correct query to Stackdriver
+			return nil, nil, apierr.NewInternalError(fmt.Errorf("Empty time series returned from Stackdriver"))
+		}
+		// Points in a time series are returned in reverse time order
+		point := *series.Points[0]
+		metricValue, err := getQuantityValue(point)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		nodeName := series.Resource.Labels["node_name"]
+		_, ok := nodeMetric[nodeName]
+		if ok {
+			return nil, nil, apierr.NewInternalError(fmt.Errorf("The same node appered two time in the response."))
+		}
+		nodeMetric[nodeName] = *metricValue
+
+		intervalEndTime, err := time.Parse(time.RFC3339, point.Interval.EndTime)
+		if err != nil {
+			return nil, nil, err
+		}
+		timeInfo[nodeName] = api.TimeInfo{Timestamp: intervalEndTime, Window: t.alignmentPeriod}
+	}
+	return nodeMetric, timeInfo, nil
+}
+
+func getQuantityValue(p stackdriver.Point) (*resource.Quantity, error) {
+	switch {
+	case p.Value.Int64Value != nil:
+		return resource.NewQuantity(*p.Value.Int64Value, resource.DecimalSI), nil
+	case p.Value.DoubleValue != nil:
+		return resource.NewScaledQuantity(int64(*p.Value.DoubleValue*1000*1000), -6), nil
+	default:
+		return nil, apierr.NewBadRequest(fmt.Sprintf("Expected metric of type DoubleValue or Int64Value, but received TypedValue: %v", p.Value))
+	}
 }
 
 // CheckMetricUniquenessForPod checks if each pod has at most one container with given metric
