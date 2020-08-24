@@ -16,13 +16,12 @@ FROM golang:1.13-alpine as builder
 WORKDIR ${GOPATH}/src/github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter
 COPY . ./
 RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -o /adapter
+RUN ! ldd cluster-addons-bootstrap # Assert that the compiled bin is statically linked
 
 RUN apk update \
     && apk add --no-cache govendor \
     && govendor license +vendor > /NOTICES
 
-FROM gcr.io/google-containers/debian-base-amd64:v2.0.0
+FROM gcr.io/distroless/static
 
 COPY --from=builder /adapter adapter
-
-RUN clean-install ca-certificates
