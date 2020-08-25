@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/translator"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 	stackdriver "google.golang.org/api/monitoring/v3"
@@ -40,13 +41,18 @@ import (
 // TODO(kawych):
 // * Support long responses from Stackdriver (pagination).
 
+const (
+	nodeResource = "nodes"
+	podResource  = "pods"
+)
+
 // StackdriverProvider is a provider of custom metrics from Stackdriver.
 type StackdriverProvider struct {
 	kubeClient                  *corev1.CoreV1Client
 	stackdriverService          *stackdriver.Service
 	config                      *config.GceConfig
 	rateInterval                time.Duration
-	translator                  *Translator
+	translator                  *translator.Translator
 	useNewResourceModel         bool
 	mu                          sync.Mutex
 	metricsCacheSet             bool
@@ -55,7 +61,7 @@ type StackdriverProvider struct {
 }
 
 // NewStackdriverProvider creates a StackdriverProvider
-func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.RESTMapper, gceConf *config.GceConfig, stackdriverService *stackdriver.Service, translator *Translator, rateInterval time.Duration, useNewResourceModel bool, fallbackForContainerMetrics bool) provider.MetricsProvider {
+func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.RESTMapper, gceConf *config.GceConfig, stackdriverService *stackdriver.Service, translator *translator.Translator, rateInterval time.Duration, useNewResourceModel bool, fallbackForContainerMetrics bool) provider.MetricsProvider {
 	return &StackdriverProvider{
 		kubeClient:                  kubeClient,
 		stackdriverService:          stackdriverService,
@@ -88,7 +94,7 @@ func (p *StackdriverProvider) GetMetricBySelector(namespace string, selector lab
 // getRootScopedMetricByName queries Stackdriver for metrics identified by name and not associated
 // with any namespace. Current implementation doesn't support root scoped metrics.
 func (p *StackdriverProvider) getRootScopedMetricByName(groupResource schema.GroupResource, name string, escapedMetricName string, metricSelector labels.Selector) (*custom_metrics.MetricValue, error) {
-	if !p.translator.useNewResourceModel {
+	if !p.useNewResourceModel {
 		return nil, NewOperationNotSupportedError("Get root scoped metric by name")
 	}
 	if groupResource.Resource != nodeResource {
@@ -116,7 +122,7 @@ func (p *StackdriverProvider) getRootScopedMetricByName(groupResource schema.Gro
 // getRootScopedMetricBySelector queries Stackdriver for metrics identified by selector and not
 // associated with any namespace. Current implementation doesn't support root scoped metrics.
 func (p *StackdriverProvider) getRootScopedMetricBySelector(groupResource schema.GroupResource, selector labels.Selector, escapedMetricName string, metricSelector labels.Selector) (*custom_metrics.MetricValueList, error) {
-	if !p.translator.useNewResourceModel {
+	if !p.useNewResourceModel {
 		return nil, NewOperationNotSupportedError("Get root scoped metric by selector")
 	}
 	if groupResource.Resource != nodeResource {
@@ -131,8 +137,9 @@ func (p *StackdriverProvider) getRootScopedMetricBySelector(groupResource schema
 		return nil, err
 	}
 	result := []custom_metrics.MetricValue{}
-	for i := 0; i < len(matchingNodes.Items); i += oneOfMax {
-		nodesSlice := &v1.NodeList{Items: matchingNodes.Items[i:min(i+oneOfMax, len(matchingNodes.Items))]}
+	for i := 0; i < len(matchingNodes.Items); i += translator.MaxNumOfArgsInOneOfFilter {
+		sliceSegmentEnd := min(i+translator.MaxNumOfArgsInOneOfFilter, len(matchingNodes.Items))
+		nodesSlice := &v1.NodeList{Items: matchingNodes.Items[i:sliceSegmentEnd]}
 		stackdriverRequest, err := p.translator.GetSDReqForNodes(nodesSlice, getCustomMetricName(escapedMetricName), metricKind, metricSelector)
 		if err != nil {
 			return nil, err
@@ -141,7 +148,7 @@ func (p *StackdriverProvider) getRootScopedMetricBySelector(groupResource schema
 		if err != nil {
 			return nil, err
 		}
-		slice, err := p.translator.GetRespForMultipleObjects(stackdriverResponse, p.translator.getNodeItems(matchingNodes), groupResource, escapedMetricName, metricSelector)
+		slice, err := p.translator.GetRespForMultipleObjects(stackdriverResponse, p.translator.GetNodeItems(matchingNodes), groupResource, escapedMetricName, metricSelector)
 		if err != nil {
 			return nil, err
 		}
@@ -182,7 +189,8 @@ func (p *StackdriverProvider) getNamespacedMetricByName(groupResource schema.Gro
 		if err != nil {
 			return nil, err
 		}
-		err = p.translator.checkMetricUniquenessForPod(stackdriverResponse, escapedMetricName)
+
+		err = p.translator.CheckMetricUniquenessForPod(stackdriverResponse, escapedMetricName)
 		if err != nil {
 			return nil, err
 		}
@@ -205,8 +213,9 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 		return nil, err
 	}
 	result := []custom_metrics.MetricValue{}
-	for i := 0; i < len(matchingPods.Items); i += oneOfMax {
-		podsSlice := &v1.PodList{Items: matchingPods.Items[i:min(i+oneOfMax, len(matchingPods.Items))]}
+	for i := 0; i < len(matchingPods.Items); i += translator.MaxNumOfArgsInOneOfFilter {
+		sliceSegmentEnd := min(i+translator.MaxNumOfArgsInOneOfFilter, len(matchingPods.Items))
+		podsSlice := &v1.PodList{Items: matchingPods.Items[i:sliceSegmentEnd]}
 		stackdriverRequest, err := p.translator.GetSDReqForPods(podsSlice, getCustomMetricName(escapedMetricName), metricKind, metricSelector, namespace)
 		if err != nil {
 			return nil, err
@@ -215,7 +224,7 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 		if err != nil {
 			return nil, err
 		}
-		slice, err := p.translator.GetRespForMultipleObjects(stackdriverResponse, p.translator.getPodItems(matchingPods), groupResource, escapedMetricName, metricSelector)
+		slice, err := p.translator.GetRespForMultipleObjects(stackdriverResponse, p.translator.GetPodItems(matchingPods), groupResource, escapedMetricName, metricSelector)
 		if err != nil {
 			return nil, err
 		}
@@ -223,8 +232,9 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 	}
 
 	if p.fallbackForContainerMetrics && len(result) == 0 {
-		for i := 0; i < len(matchingPods.Items); i += oneOfMax {
-			podsSlice := &v1.PodList{Items: matchingPods.Items[i:min(i+oneOfMax, len(matchingPods.Items))]}
+		for i := 0; i < len(matchingPods.Items); i += translator.MaxNumOfArgsInOneOfFilter {
+			sliceSegmentEnd := min(i+translator.MaxNumOfArgsInOneOfFilter, len(matchingPods.Items))
+			podsSlice := &v1.PodList{Items: matchingPods.Items[i:sliceSegmentEnd]}
 			stackdriverRequest, err := p.translator.GetSDReqForContainers(podsSlice, getCustomMetricName(escapedMetricName), metricKind, metricSelector, namespace)
 			if err != nil {
 				return nil, err
@@ -233,11 +243,11 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 			if err != nil {
 				return nil, err
 			}
-			err = p.translator.checkMetricUniquenessForPod(stackdriverResponse, escapedMetricName)
+			err = p.translator.CheckMetricUniquenessForPod(stackdriverResponse, escapedMetricName)
 			if err != nil {
 				return nil, err
 			}
-			slice, err := p.translator.GetRespForMultipleObjects(stackdriverResponse, p.translator.getPodItems(matchingPods), groupResource, escapedMetricName, metricSelector)
+			slice, err := p.translator.GetRespForMultipleObjects(stackdriverResponse, p.translator.GetPodItems(matchingPods), groupResource, escapedMetricName, metricSelector)
 			if err != nil {
 				return nil, err
 			}

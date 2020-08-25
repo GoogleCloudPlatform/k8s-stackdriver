@@ -21,6 +21,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/translator"
 	gceconfig "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 	"golang.org/x/oauth2"
@@ -44,8 +45,7 @@ type StackdriverAdapter struct {
 }
 
 type stackdriverAdapterServerOptions struct {
-	// UseNewResourceModel is a flag that indicates whether new Stackdriver resource model should be
-	// used
+	// UseNewResourceModel is a flag that indicates whether new Stackdriver resource model should be used
 	UseNewResourceModel bool
 	// EnableCustomMetricsAPI switches on sample apiserver for Custom Metrics API
 	EnableCustomMetricsAPI bool
@@ -86,7 +86,7 @@ func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptio
 	if err != nil {
 		klog.Fatalf("Failed to retrieve GCE config: %v", err)
 	}
-	translator := adapter.NewTranslator(stackdriverService, gceConf, rateInterval, alignmentPeriod, realClock{}, mapper, o.UseNewResourceModel)
+	translator := translator.NewTranslator(stackdriverService, gceConf, rateInterval, alignmentPeriod, mapper, o.UseNewResourceModel)
 	return adapter.NewStackdriverProvider(client, mapper, gceConf, stackdriverService, translator, rateInterval, o.UseNewResourceModel, o.FallbackForContainerMetrics)
 }
 
