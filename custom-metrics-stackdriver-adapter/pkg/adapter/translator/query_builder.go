@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package provider
+package translator
 
 import (
 	"fmt"
@@ -44,10 +44,8 @@ var (
 )
 
 const (
-	// oneOfMax is the maximum value of one_of() function allowed in Stackdriver Filters
-	oneOfMax     = 100
-	nodeResource = "nodes"
-	podResource  = "pods"
+	// MaxNumOfArgsInOneOfFilter is the maximum value of one_of() function allowed in Stackdriver Filters
+	MaxNumOfArgsInOneOfFilter = 100
 )
 
 type clock interface {
@@ -71,6 +69,7 @@ type Translator struct {
 	useNewResourceModel bool
 }
 
+// NewTranslator creates a Translator
 func NewTranslator(service *stackdriver.Service, gceConf *config.GceConfig, rateInterval time.Duration, alignmentPeriod time.Duration, mapper apimeta.RESTMapper, useNewResourceModel bool) *Translator {
 	return &Translator{
 		service:             service,
@@ -84,15 +83,15 @@ func NewTranslator(service *stackdriver.Service, gceConf *config.GceConfig, rate
 }
 
 // GetSDReqForPods returns Stackdriver request for query for multiple pods.
-// podList is required to be no longer than oneOfMax items. This is enforced by limitation of
+// podList is required to be no longer than MaxNumOfArgsInOneOfFilter items. This is enforced by limitation of
 // "one_of()" operator in Stackdriver filters, see documentation:
 // https://cloud.google.com/monitoring/api/v3/filters
 func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName string, metricKind string, metricSelector labels.Selector, namespace string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
 	if len(podList.Items) == 0 {
 		return nil, apierr.NewBadRequest("No objects matched provided selector")
 	}
-	if len(podList.Items) > oneOfMax {
-		return nil, apierr.NewInternalError(fmt.Errorf("GetSDReqForPods called with %v pod list, but allowed limit is %v pods", len(podList.Items), oneOfMax))
+	if len(podList.Items) > MaxNumOfArgsInOneOfFilter {
+		return nil, apierr.NewInternalError(fmt.Errorf("GetSDReqForPods called with %v pod list, but allowed limit is %v pods", len(podList.Items), MaxNumOfArgsInOneOfFilter))
 	}
 	var filter string
 	if t.useNewResourceModel {
@@ -120,15 +119,15 @@ func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName string, met
 }
 
 // GetSDReqForContainers returns Stackdriver request for container resource from multiple pods.
-// podList is required to be no longer than oneOfMax items. This is enforced by limitation of
+// podList is required to be no longer than MaxNumOfArgsInOneOfFilter items. This is enforced by limitation of
 // "one_of()" operator in Stackdriver filters, see documentation:
 // https://cloud.google.com/monitoring/api/v3/filters
 func (t *Translator) GetSDReqForContainers(podList *v1.PodList, metricName string, metricKind string, metricSelector labels.Selector, namespace string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
 	if len(podList.Items) == 0 {
 		return nil, apierr.NewBadRequest("No objects matched provided selector")
 	}
-	if len(podList.Items) > oneOfMax {
-		return nil, apierr.NewInternalError(fmt.Errorf("GetSDReqForContainers called with %v pod list, but allowed limit is %v pods", len(podList.Items), oneOfMax))
+	if len(podList.Items) > MaxNumOfArgsInOneOfFilter {
+		return nil, apierr.NewInternalError(fmt.Errorf("GetSDReqForContainers called with %v pod list, but allowed limit is %v pods", len(podList.Items), MaxNumOfArgsInOneOfFilter))
 	}
 	if !t.useNewResourceModel {
 		return nil, apierr.NewInternalError(fmt.Errorf("Illegal state! Container metrics works only with new resource model"))
@@ -150,15 +149,15 @@ func (t *Translator) GetSDReqForContainers(podList *v1.PodList, metricName strin
 }
 
 // GetSDReqForNodes returns Stackdriver request for query for multiple nodes.
-// nodeList is required to be no longer than oneOfMax items. This is enforced by limitation of
+// nodeList is required to be no longer than MaxNumOfArgsInOneOfFilter items. This is enforced by limitation of
 // "one_of()" operator in Stackdriver filters, see documentation:
 // https://cloud.google.com/monitoring/api/v3/filters
 func (t *Translator) GetSDReqForNodes(nodeList *v1.NodeList, metricName string, metricKind string, metricSelector labels.Selector) (*stackdriver.ProjectsTimeSeriesListCall, error) {
 	if len(nodeList.Items) == 0 {
 		return nil, apierr.NewBadRequest("No objects matched provided selector")
 	}
-	if len(nodeList.Items) > oneOfMax {
-		return nil, apierr.NewInternalError(fmt.Errorf("GetSDReqForNodes called with %v node list, but allowed limit is %v nodes", len(nodeList.Items), oneOfMax))
+	if len(nodeList.Items) > MaxNumOfArgsInOneOfFilter {
+		return nil, apierr.NewInternalError(fmt.Errorf("GetSDReqForNodes called with %v node list, but allowed limit is %v nodes", len(nodeList.Items), MaxNumOfArgsInOneOfFilter))
 	}
 	var filter string
 	if !t.useNewResourceModel {
@@ -488,7 +487,8 @@ func (t *Translator) createListTimeseriesRequestProject(filter string, metricKin
 		AggregationAlignmentPeriod(fmt.Sprintf("%vs", int64(alignmentPeriod.Seconds())))
 }
 
-func (t *Translator) getPodItems(list *v1.PodList) []metav1.ObjectMeta {
+// GetPodItems returns list Pod Objects
+func (t *Translator) GetPodItems(list *v1.PodList) []metav1.ObjectMeta {
 	items := []metav1.ObjectMeta{}
 	for _, item := range list.Items {
 		items = append(items, item.ObjectMeta)
@@ -496,7 +496,8 @@ func (t *Translator) getPodItems(list *v1.PodList) []metav1.ObjectMeta {
 	return items
 }
 
-func (t *Translator) getNodeItems(list *v1.NodeList) []metav1.ObjectMeta {
+// GetNodeItems returns list Node Objects
+func (t *Translator) GetNodeItems(list *v1.NodeList) []metav1.ObjectMeta {
 	items := []metav1.ObjectMeta{}
 	for _, item := range list.Items {
 		items = append(items, item.ObjectMeta)

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package provider
+package translator
 
 import (
 	"fmt"
@@ -120,8 +120,8 @@ func (t *Translator) GetMetricsFromSDDescriptorsResp(response *stackdriver.ListM
 	return metrics
 }
 
-// checkMetricUniquenessForPod checks if each pod has at most one container with given metric
-func (t *Translator) checkMetricUniquenessForPod(response *stackdriver.ListTimeSeriesResponse, metricName string) error {
+// CheckMetricUniquenessForPod checks if each pod has at most one container with given metric
+func (t *Translator) CheckMetricUniquenessForPod(response *stackdriver.ListTimeSeriesResponse, metricName string) error {
 	metricContainer := make(map[string]string)
 	for _, series := range response.TimeSeries {
 		name, err := t.metricKey(series)
@@ -238,7 +238,7 @@ func (t *Translator) metricKey(timeSeries *stackdriver.TimeSeries) (string, erro
 		case "k8s_pod":
 			return timeSeries.Resource.Labels["namespace_name"] + ":" + timeSeries.Resource.Labels["pod_name"], nil
 		case "k8s_container":
-			// The same key as pod, because only one container in pod can provide specific metric. Uniqueness is checked in checkMetricUniquenessForPod.
+			// The same key as pod, because only one container in pod can provide specific metric. Uniqueness is checked in CheckMetricUniquenessForPod.
 			return timeSeries.Resource.Labels["namespace_name"] + ":" + timeSeries.Resource.Labels["pod_name"], nil
 		case "k8s_node":
 			return ":" + timeSeries.Resource.Labels["node_name"], nil

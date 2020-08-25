@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package provider
+package translator
 
 import (
 	"reflect"
@@ -69,7 +69,7 @@ func TestTranslator_GetRespForNodes_Aggregation(t *testing.T) {
 		},
 	}
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
-	metrics, err := translator.GetRespForMultipleObjects(response, translator.getNodeItems(&v1.NodeList{Items: []v1.Node{node}}), schema.GroupResource{Resource: "Node"}, "my|custom|metric", metricSelector)
+	metrics, err := translator.GetRespForMultipleObjects(response, translator.GetNodeItems(&v1.NodeList{Items: []v1.Node{node}}), schema.GroupResource{Resource: "Node"}, "my|custom|metric", metricSelector)
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -150,7 +150,7 @@ func TestTranslator_GetRespForPods_legacyResourceType(t *testing.T) {
 		},
 	}
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
-	metrics, err := translator.GetRespForMultipleObjects(response, translator.getPodItems(&v1.PodList{Items: []v1.Pod{pod}}), schema.GroupResource{Resource: "Pod"}, "my/custom/metric", metricSelector)
+	metrics, err := translator.GetRespForMultipleObjects(response, translator.GetPodItems(&v1.PodList{Items: []v1.Pod{pod}}), schema.GroupResource{Resource: "Pod"}, "my/custom/metric", metricSelector)
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
@@ -202,7 +202,7 @@ func TestTranslator_GetRespForCustomMetric_MultiplePoints(t *testing.T) {
 		},
 	}
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
-	metrics, err := translator.GetRespForMultipleObjects(response, translator.getPodItems(&v1.PodList{Items: []v1.Pod{pod}}), schema.GroupResource{Resource: "Pod"}, "my/custom/metric", metricSelector)
+	metrics, err := translator.GetRespForMultipleObjects(response, translator.GetPodItems(&v1.PodList{Items: []v1.Pod{pod}}), schema.GroupResource{Resource: "Pod"}, "my/custom/metric", metricSelector)
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
