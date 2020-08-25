@@ -18,14 +18,13 @@ package main
 
 import (
 	"flag"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
-	stackdriver "google.golang.org/api/monitoring/v3"
-	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
+	"fmt"
+	"net/http"
 	"os"
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/wait"
+	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/component-base/logs"
 	"k8s.io/klog"
 	"sigs.k8s.io/metrics-server/pkg/api"
@@ -34,6 +33,10 @@ import (
 	adapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/provider"
 	basecmd "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
+	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	stackdriver "google.golang.org/api/monitoring/v3"
 )
 
 // StackdriverAdapter is an adapter for Stackdriver
@@ -103,6 +106,12 @@ func (sa *StackdriverAdapter) withCoreMetrics() error {
 	return nil
 }
 
+func runPrometheusMetricsServer() {
+	http.Handle("/metrics", prometheus.Handler())
+	err := http.ListenAndServe(fmt.Sprintf("localhost:8080"), nil)
+	klog.Fatalf("Failed server: %s", err)
+}
+
 func main() {
 	logs.InitLogs()
 	defer logs.FlushLogs()
@@ -157,6 +166,7 @@ func main() {
 		}
 	}
 
+	go runPrometheusMetricsServer()
 	if err := cmd.Run(wait.NeverStop); err != nil {
 		klog.Fatalf("unable to run custom metrics adapter: %v", err)
 	}
