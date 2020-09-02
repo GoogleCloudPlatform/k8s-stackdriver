@@ -48,6 +48,8 @@ custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.container_name = \"\" AND resource.labels.pod_id != \"\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.node_name = \"my-node-name-1\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.node_name = \"my-node-name-1\" " +
@@ -57,10 +59,14 @@ custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = \"my-pod-name\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = \"my-pod-name\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = \"my-pod-name\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = \"my-pod-name\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.project_id = \"my-project\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.project_id = \"my-project\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.project_id = \"my-project\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.project_id = \"my-project\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.project_id = \"my-project\" " +
@@ -86,10 +92,28 @@ custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator.go
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator.go:			return timeSeries.Resource.Labels["namespace_name"] + ":" + timeSeries.Resource.Labels["pod_name"], nil
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator.go:		nodeName := series.Resource.Labels["node_name"]
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator.go:		return timeSeries.Resource.Labels["pod_id"], nil
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:					Labels: map[string]string{"container_name": "container1", "namespace_name": "namespace1", "pod_name": "pod1"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:					Labels: map[string]string{"container_name": "container1", "namespace_name": "namespace1", "pod_name": "pod1"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:					Labels: map[string]string{"container_name": "container1", "namespace_name": "namespace1", "pod_name": "pod1"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:					Labels: map[string]string{"container_name": "container1", "namespace_name": "namespace1", "pod_name": "pod1"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:					Labels: map[string]string{"container_name": "container1", "namespace_name": "namespace1", "pod_name": "pod1"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:					Labels: map[string]string{"container_name": "container1", "namespace_name": "namespace1", "pod_name": "pod1"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:					Labels: map[string]string{"container_name": "container1", "namespace_name": "namespace1", "pod_name": "pod2"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:					Labels: map[string]string{"container_name": "container1", "namespace_name": "namespace2", "pod_name": "pod1"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:					Labels: map[string]string{"container_name": "container2", "namespace_name": "namespace1", "pod_name": "pod1"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:					Labels: map[string]string{"container_name": "container2", "namespace_name": "namespace1", "pod_name": "pod2"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:					Labels: map[string]string{"container_name": "container3", "namespace_name": "namespace1", "pod_name": "pod1"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:				"resource.labels.pod_id": "my-pod-id",
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:				"resource.labels.pod_id": "my-pod-id",
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:				Resource:   &sd.MonitoredResource{Type: "k8s_node", Labels: map[string]string{"node_name": "my-node-name"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:				Resource:   &sd.MonitoredResource{Type: "k8s_node", Labels: map[string]string{"node_name": "my-node-name"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:				Resource:   &sd.MonitoredResource{Type: "k8s_node", Labels: map[string]string{"node_name": "my-node-name"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:				Resource:   &sd.MonitoredResource{Type: "k8s_node", Labels: map[string]string{"node_name": "my-node-name"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:				Resource:   &sd.MonitoredResource{Type: "k8s_node", Labels: map[string]string{"node_name": "my-node-name"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:				Resource:   &sd.MonitoredResource{Type: "k8s_node", Labels: map[string]string{"node_name": "my-node-name1"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:				Resource:   &sd.MonitoredResource{Type: "k8s_node", Labels: map[string]string{"node_name": "my-node-name1"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:				Resource:   &sd.MonitoredResource{Type: "k8s_node", Labels: map[string]string{"node_name": "my-node-name1"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:				Resource:   &sd.MonitoredResource{Type: "k8s_node", Labels: map[string]string{"node_name": "my-node-name2"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:			Resource:   &sd.MonitoredResource{Type: "gke_container", Labels: map[string]string{"pod_id": "my-pod-id"}},
