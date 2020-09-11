@@ -44,6 +44,8 @@ var (
 )
 
 const (
+	// AllNamespaces is constant to indicate that there is no namespace filter in query
+	AllNamespaces = ""
 	// MaxNumOfArgsInOneOfFilter is the maximum value of one_of() function allowed in Stackdriver Filters
 	MaxNumOfArgsInOneOfFilter = 100
 )
@@ -123,16 +125,23 @@ func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName string, met
 // "one_of()" operator in Stackdriver filters, see documentation:
 // https://cloud.google.com/monitoring/api/v3/filters
 func (t *Translator) GetSDReqForContainers(podList *v1.PodList, metricName string, metricKind string, metricSelector labels.Selector, namespace string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
-	if len(podList.Items) == 0 {
+	resourceNames := getPodNames(podList)
+	return t.GetSDReqForContainersWithNames(resourceNames, metricName, metricKind, metricSelector, namespace)
+}
+
+// GetSDReqForContainersWithNames instead of PodList takes array of Pod names as first argument.
+// Request for PodList is expensive and not always necessary so it's better to use this method.
+// Assumes that resourceNames are double-quoted string.
+func (t *Translator) GetSDReqForContainersWithNames(resourceNames []string, metricName string, metricKind string, metricSelector labels.Selector, namespace string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
+	if len(resourceNames) == 0 {
 		return nil, apierr.NewBadRequest("No objects matched provided selector")
 	}
-	if len(podList.Items) > MaxNumOfArgsInOneOfFilter {
-		return nil, apierr.NewInternalError(fmt.Errorf("GetSDReqForContainers called with %v pod list, but allowed limit is %v pods", len(podList.Items), MaxNumOfArgsInOneOfFilter))
+	if len(resourceNames) > MaxNumOfArgsInOneOfFilter {
+		return nil, apierr.NewInternalError(fmt.Errorf("GetSDReqForContainers called with %v pod list, but allowed limit is %v pods", len(resourceNames), MaxNumOfArgsInOneOfFilter))
 	}
 	if !t.useNewResourceModel {
 		return nil, apierr.NewInternalError(fmt.Errorf("Illegal state! Container metrics works only with new resource model"))
 	}
-	resourceNames := getPodNames(podList)
 	filter := joinFilters(
 		t.filterForMetric(metricName),
 		t.filterForCluster(),
@@ -153,17 +162,24 @@ func (t *Translator) GetSDReqForContainers(podList *v1.PodList, metricName strin
 // "one_of()" operator in Stackdriver filters, see documentation:
 // https://cloud.google.com/monitoring/api/v3/filters
 func (t *Translator) GetSDReqForNodes(nodeList *v1.NodeList, metricName string, metricKind string, metricSelector labels.Selector) (*stackdriver.ProjectsTimeSeriesListCall, error) {
-	if len(nodeList.Items) == 0 {
+	resourceNames := getNodeNames(nodeList)
+	return t.GetSDReqForNodesWithNames(resourceNames, metricName, metricKind, metricSelector)
+}
+
+// GetSDReqForNodesWithNames instead of NodeList takes array of Node names as first argument.
+// Request for NodeList could be expensive and not always necessary so it's better to use this method.
+// Assumes that resourceNames are double-quoted string.
+func (t *Translator) GetSDReqForNodesWithNames(resourceNames []string, metricName string, metricKind string, metricSelector labels.Selector) (*stackdriver.ProjectsTimeSeriesListCall, error) {
+	if len(resourceNames) == 0 {
 		return nil, apierr.NewBadRequest("No objects matched provided selector")
 	}
-	if len(nodeList.Items) > MaxNumOfArgsInOneOfFilter {
-		return nil, apierr.NewInternalError(fmt.Errorf("GetSDReqForNodes called with %v node list, but allowed limit is %v nodes", len(nodeList.Items), MaxNumOfArgsInOneOfFilter))
+	if len(resourceNames) > MaxNumOfArgsInOneOfFilter {
+		return nil, apierr.NewInternalError(fmt.Errorf("GetSDReqForNodes called with %v node list, but allowed limit is %v nodes", len(resourceNames), MaxNumOfArgsInOneOfFilter))
 	}
 	var filter string
 	if !t.useNewResourceModel {
 		return nil, NewOperationNotSupportedError("Root scoped metrics are not supported without new Stackdriver resource model enabled")
 	}
-	resourceNames := getNodeNames(nodeList)
 	filter = joinFilters(
 		t.filterForMetric(metricName),
 		t.filterForCluster(),
@@ -336,11 +352,18 @@ func (t *Translator) filterForAnyResource(fallbackForContainerMetrics bool) stri
 	return "resource.type = one_of(\"k8s_pod\",\"k8s_node\")"
 }
 
+// The namespace string can be empty. If so, all namespaces are allowed.
 func (t *Translator) filterForPods(podNames []string, namespace string) string {
 	if len(podNames) == 0 {
 		klog.Fatalf("createFilterForPods called with empty list of pod names")
 	} else if len(podNames) == 1 {
+		if namespace == AllNamespaces {
+			return fmt.Sprintf("resource.labels.pod_name = %s", podNames[0])
+		}
 		return fmt.Sprintf("resource.labels.namespace_name = %q AND resource.labels.pod_name = %s", namespace, podNames[0])
+	}
+	if namespace == AllNamespaces {
+		return fmt.Sprintf("resource.labels.pod_name = one_of(%s)", strings.Join(podNames, ","))
 	}
 	return fmt.Sprintf("resource.labels.namespace_name = %q AND resource.labels.pod_name = one_of(%s)", namespace, strings.Join(podNames, ","))
 }
@@ -477,7 +500,7 @@ func (t *Translator) createListTimeseriesRequestProject(filter string, metricKin
 	aligner := "ALIGN_NEXT_OLDER"
 	alignmentPeriod := t.reqWindow
 	if metricKind == "DELTA" || metricKind == "CUMULATIVE" {
-		aligner = "ALIGN_RATE"
+		aligner = "ALIGN_RATE" // Calculates integral of metric on segment and divide it by segment length.
 		alignmentPeriod = t.alignmentPeriod
 	}
 	return t.service.Projects.TimeSeries.List(project).Filter(filter).
