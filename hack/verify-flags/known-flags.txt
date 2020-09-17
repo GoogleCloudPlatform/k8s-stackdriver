@@ -172,6 +172,7 @@ skip-nodes-with-system-pods
 source-file
 ssl-ca-cert
 ssl-cert
+stackdriver-endpoint
 stackdriver-prefix
 stackdriver-resource-model
 start-from

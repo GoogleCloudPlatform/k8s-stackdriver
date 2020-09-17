@@ -20,7 +20,7 @@ push: docker
 	gcloud docker -- push ${PREFIX}/custom-metrics-stackdriver-adapter:$(TAG)
 
 test: $(PKG)
-	CGO_ENABLED=0 go test -mod vendor ./pkg/...
+	CGO_ENABLED=0 go test -mod vendor ./...
 
 clean:
 	rm -rf build
