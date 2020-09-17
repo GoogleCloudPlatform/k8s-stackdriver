@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"net/url"
 	"os"
 	"time"
 
@@ -55,6 +56,8 @@ type stackdriverAdapterServerOptions struct {
 	FallbackForContainerMetrics bool
 	// EnableCoreMetricsAPI provides core metrics. Experimental, do not use.
 	EnableCoreMetricsAPI bool
+	// StackdriverEndpoint to change default Stackdriver endpoint (useful in sandbox).
+	StackdriverEndpoint string
 }
 
 func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptions, rateInterval time.Duration, alignmentPeriod time.Duration) (provider.MetricsProvider, *translator.Translator) {
@@ -82,6 +85,13 @@ func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptio
 	if err != nil {
 		klog.Fatalf("Failed to create Stackdriver client: %v", err)
 	}
+	if o.StackdriverEndpoint != "" {
+		if !validateUrl(o.StackdriverEndpoint) {
+			klog.Fatalf("Provided StackdriverEndpoint %v is not correct url", o.StackdriverEndpoint)
+		}
+		stackdriverService.BasePath = o.StackdriverEndpoint
+	}
+
 	gceConf, err := gceconfig.GetGceConfig()
 	if err != nil {
 		klog.Fatalf("Failed to retrieve GCE config: %v", err)
@@ -140,6 +150,8 @@ func main() {
 		"If true, fallbacks to k8s_container resource when given metric is not present on k8s_pod. At most one container with given metric is allowed for each pod.")
 	flags.BoolVar(&serverOptions.EnableCoreMetricsAPI, "enable-core-metrics-api", serverOptions.EnableCoreMetricsAPI,
 		"Experimental, do not use. Whether to enable Core Metrics API.")
+	flags.String(serverOptions.StackdriverEndpoint, "stackdriver-endpoint",
+		"Stackdriver Endpoint used by adapter. Default is https://monitoring.googleapis.com/")
 
 	flags.Parse(os.Args)
 
@@ -167,4 +179,10 @@ func main() {
 	if err := cmd.Run(wait.NeverStop); err != nil {
 		klog.Fatalf("unable to run custom metrics adapter: %v", err)
 	}
+}
+
+// validateUrl returns true if url is correct
+func validateUrl(s string) bool {
+	u, err := url.Parse(s)
+	return err == nil && u.Scheme != "" && u.Host != ""
 }
