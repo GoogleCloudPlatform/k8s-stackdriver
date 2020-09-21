@@ -52,6 +52,7 @@ func (r *PodResult) AddCoreContainerMetricFromResponse(response *stackdriver.Lis
 		// TODO(holubowicz): consider changing request window for core metrics
 		// Points in a time series are returned in reverse time order
 		point := *series.Points[0]
+
 		metricValue, err := getQuantityValue(point)
 		if err != nil {
 			return err

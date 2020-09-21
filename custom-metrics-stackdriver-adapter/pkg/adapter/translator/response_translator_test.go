@@ -37,7 +37,7 @@ import (
 
 func TestTranslator_GetRespForNodes_Aggregation(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	var valPart1 float64 = 101
 	var valPart2 float64 = 50
 	response := &sd.ListTimeSeriesResponse{
@@ -100,7 +100,7 @@ func TestTranslator_GetRespForNodes_Aggregation(t *testing.T) {
 
 func TestTranslator_GetRespForPod_legacyResourceType(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), false)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), false)
 	var metricValue int64 = 151
 	response := &sd.ListTimeSeriesResponse{
 		TimeSeries: []*sd.TimeSeries{{
@@ -133,7 +133,7 @@ func TestTranslator_GetRespForPod_legacyResourceType(t *testing.T) {
 
 func TestTranslator_GetRespForPods_legacyResourceType(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), false)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), false)
 	var val int64 = 151
 	response := &sd.ListTimeSeriesResponse{
 		TimeSeries: []*sd.TimeSeries{{
@@ -181,7 +181,7 @@ func TestTranslator_GetRespForPods_legacyResourceType(t *testing.T) {
 
 func TestTranslator_GetRespForCustomMetric_MultiplePoints(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), false)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), false)
 	var val1 int64 = 151
 	var val2 int64 = 117
 	response := &sd.ListTimeSeriesResponse{
@@ -233,7 +233,7 @@ func TestTranslator_GetRespForCustomMetric_MultiplePoints(t *testing.T) {
 
 func TestTranslator_GetMetricsFromSDDescriptorsResp(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), false)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), false)
 	response := &sd.ListMetricDescriptorsResponse{
 		MetricDescriptors: []*sd.MetricDescriptor{
 			{Type: "custom.googleapis.com/qps-int", MetricKind: "GAUGE", ValueType: "INT64"},
@@ -342,7 +342,7 @@ func TestTranslator_GetRespForExternalMetric_MultiplePoints(t *testing.T) {
 
 func TestTranslator_GetCoreNodeMetricFromResponse_SingleRAM(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	var value int64 = 101
 	timeInterval1 := &sd.TimeInterval{StartTime: "2017-01-02T13:01:00Z", EndTime: "2017-01-02T13:02:00Z"}
 	endTime, err := time.Parse(time.RFC3339, timeInterval1.EndTime)
@@ -378,7 +378,7 @@ func TestTranslator_GetCoreNodeMetricFromResponse_SingleRAM(t *testing.T) {
 }
 func TestTranslator_GetCoreNodeMetricFromResponse_SingleCPU(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	var value float64 = 0.000001
 	timeInterval1 := &sd.TimeInterval{StartTime: "2017-01-02T13:01:00Z", EndTime: "2017-01-02T13:02:00Z"}
 	endTime, err := time.Parse(time.RFC3339, timeInterval1.EndTime)
@@ -415,7 +415,7 @@ func TestTranslator_GetCoreNodeMetricFromResponse_SingleCPU(t *testing.T) {
 
 func TestTranslator_GetCoreNodeMetricFromResponse_MultiplePoints(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	var value1 int64 = 1
 	var value2 int64 = 2
 	timeInterval2 := &sd.TimeInterval{StartTime: "2017-01-02T13:01:00Z", EndTime: "2017-01-02T13:02:00Z"}
@@ -455,7 +455,7 @@ func TestTranslator_GetCoreNodeMetricFromResponse_MultiplePoints(t *testing.T) {
 
 func TestTranslator_GetCoreNodeMetricFromResponse_Empty(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 
 	response := &sd.ListTimeSeriesResponse{
 		TimeSeries: []*sd.TimeSeries{},
@@ -476,7 +476,7 @@ func TestTranslator_GetCoreNodeMetricFromResponse_Empty(t *testing.T) {
 
 func TestTranslator_GetCoreNodeMetricFromResponse_Multiple(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	var value1 int64 = 101
 	var value2 float64 = 101
 	timeInterval := &sd.TimeInterval{StartTime: "2017-01-02T13:01:00Z", EndTime: "2017-01-02T13:02:00Z"}
@@ -521,7 +521,7 @@ func TestTranslator_GetCoreNodeMetricFromResponse_Multiple(t *testing.T) {
 
 func TestTranslator_GetCoreNodeMetricFromResponse_MultipleSame(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	var value1 int64 = 101
 	var value2 float64 = 101.1
 
@@ -555,7 +555,7 @@ func TestTranslator_GetCoreNodeMetricFromResponse_MultipleSame(t *testing.T) {
 
 func TestTranslator_GetCoreContainerMetricFromResponse_SingleRAM(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	var value int64 = 101
 	timeInterval := &sd.TimeInterval{StartTime: "2017-01-02T13:01:00Z", EndTime: "2017-01-02T13:02:00Z"}
 	endTime, err := time.Parse(time.RFC3339, timeInterval.EndTime)
@@ -595,7 +595,7 @@ func TestTranslator_GetCoreContainerMetricFromResponse_SingleRAM(t *testing.T) {
 
 func TestTranslator_GetCoreContainerMetricFromResponse_SingleCPU(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	var value float64 = 0.1
 	timeInterval := &sd.TimeInterval{StartTime: "2017-01-02T13:01:00Z", EndTime: "2017-01-02T13:02:00Z"}
 	endTime, err := time.Parse(time.RFC3339, timeInterval.EndTime)
@@ -635,7 +635,7 @@ func TestTranslator_GetCoreContainerMetricFromResponse_SingleCPU(t *testing.T) {
 
 func TestTranslator_GetCoreContainerMetricFromResponse_MultipleContainers(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	var value1 int64 = 101
 	var value2 int64 = 102
 	var value3 int64 = 103
@@ -694,7 +694,7 @@ func TestTranslator_GetCoreContainerMetricFromResponse_MultipleContainers(t *tes
 
 func TestTranslator_GetCoreContainerMetricFromResponse_MultiplePods(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	var value1 int64 = 101
 	var value2 int64 = 102
 	var value3 int64 = 103
@@ -776,7 +776,7 @@ func TestTranslator_GetCoreContainerMetricFromResponse_MultiplePods(t *testing.T
 
 func TestTranslator_GetCoreContainerMetricFromResponse_SameContainers(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	var value1 int64 = 101
 	timeInterval1 := &sd.TimeInterval{StartTime: "2017-01-02T13:01:00Z", EndTime: "2017-01-02T13:02:00Z"}
 
@@ -812,7 +812,7 @@ func TestTranslator_GetCoreContainerMetricFromResponse_SameContainers(t *testing
 
 func TestTranslator_GetCoreContainerMetricFromResponse_Empty(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 
 	response := &sd.ListTimeSeriesResponse{
 		TimeSeries: []*sd.TimeSeries{},
@@ -832,7 +832,7 @@ func TestTranslator_GetCoreContainerMetricFromResponse_Empty(t *testing.T) {
 
 func TestTranslator_GetCoreContainerMetricFromResponse_MultiplePoints(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	var value2 int64 = 101
 	timeInterval2 := &sd.TimeInterval{StartTime: "2017-01-02T13:01:00Z", EndTime: "2017-01-02T13:02:00Z"}
 	var value1 int64 = 101

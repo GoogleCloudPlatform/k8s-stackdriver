@@ -22,6 +22,10 @@ custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"project_id":   projectId,
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		// namespace_id and instance_id don't matter
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:	projectName := fmt.Sprintf("projects/%s", resourceLabels["project_id"])
+custom-metrics-stackdriver-adapter/pkg/adapter/coreprovider/client_test.go:			Resource:   &sd.MonitoredResource{Type: "k8s_pod", Labels: map[string]string{"container_name": fmt.Sprintf("container%v_", containerId), "pod_name": podName, "namespace_name": "all"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/coreprovider/client_test.go:			Resource:   &sd.MonitoredResource{Type: "k8s_pod", Labels: map[string]string{"container_name": fmt.Sprintf("container%v_", containerId), "pod_name": podName, "namespace_name": "all"}},
+custom-metrics-stackdriver-adapter/pkg/adapter/coreprovider/client_test.go:			Resource:   &sd.MonitoredResource{Type: "k8s_pod", Labels: map[string]string{"node_name": nodeName}},
+custom-metrics-stackdriver-adapter/pkg/adapter/coreprovider/client_test.go:			Resource:   &sd.MonitoredResource{Type: "k8s_pod", Labels: map[string]string{"node_name": nodeName}},
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder.go:			return fmt.Sprintf("resource.labels.pod_name = %s", podNames[0])
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder.go:		if req.Key() == "resource.labels.project_id" {
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder.go:		if req.Key() == "resource.labels.project_id" {

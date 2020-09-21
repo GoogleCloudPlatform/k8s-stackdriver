@@ -30,7 +30,7 @@ import (
 
 func TestTranslator_GetSDReqForPods_Single(t *testing.T) {
 	translator, sdService :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			ClusterName: "my-cluster",
@@ -62,7 +62,7 @@ func TestTranslator_GetSDReqForPods_Single(t *testing.T) {
 
 func TestTranslator_GetSDReqForPods_SingleWithMetricSelector(t *testing.T) {
 	translator, sdService :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			ClusterName: "my-cluster",
@@ -96,7 +96,7 @@ func TestTranslator_GetSDReqForPods_SingleWithMetricSelector(t *testing.T) {
 
 func TestTranslator_GetSDReqForPods_SingleWithInvalidMetricSelector(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			ClusterName: "my-cluster",
@@ -114,7 +114,7 @@ func TestTranslator_GetSDReqForPods_SingleWithInvalidMetricSelector(t *testing.T
 
 func TestTranslator_GetSDReqForPods_Multiple(t *testing.T) {
 	translator, sdService :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod1 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			ClusterName: "my-cluster",
@@ -153,7 +153,7 @@ func TestTranslator_GetSDReqForPods_Multiple(t *testing.T) {
 
 func TestTranslator_GetSDReqForPods_MultipleWithMetricSelctor(t *testing.T) {
 	translator, sdService :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod1 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			ClusterName: "my-cluster",
@@ -194,7 +194,7 @@ func TestTranslator_GetSDReqForPods_MultipleWithMetricSelctor(t *testing.T) {
 
 func TestTranslator_GetSDReqForContainers_Single(t *testing.T) {
 	translator, sdService :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			ClusterName: "my-cluster",
@@ -226,7 +226,7 @@ func TestTranslator_GetSDReqForContainers_Single(t *testing.T) {
 
 func TestTranslator_GetSDReqForContainers_SingleWithEmptyNamespace(t *testing.T) {
 	translator, sdService :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			ClusterName: "my-cluster",
@@ -257,7 +257,7 @@ func TestTranslator_GetSDReqForContainers_SingleWithEmptyNamespace(t *testing.T)
 
 func TestTranslator_GetSDReqForContainers_OldResourceModel(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), false)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), false)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			ClusterName: "my-cluster",
@@ -274,7 +274,7 @@ func TestTranslator_GetSDReqForContainers_OldResourceModel(t *testing.T) {
 
 func TestTranslator_GetSDReqForContainers_SingleWithMetricSelector(t *testing.T) {
 	translator, sdService :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			ClusterName: "my-cluster",
@@ -308,7 +308,7 @@ func TestTranslator_GetSDReqForContainers_SingleWithMetricSelector(t *testing.T)
 
 func TestTranslator_GetSDReqForContainers_SingleWithInvalidMetricSelector(t *testing.T) {
 	translator, _ :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			ClusterName: "my-cluster",
@@ -326,7 +326,7 @@ func TestTranslator_GetSDReqForContainers_SingleWithInvalidMetricSelector(t *tes
 
 func TestTranslator_GetSDReqForContainers_Multiple(t *testing.T) {
 	translator, sdService :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod1 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			ClusterName: "my-cluster",
@@ -365,7 +365,7 @@ func TestTranslator_GetSDReqForContainers_Multiple(t *testing.T) {
 
 func TestTranslator_GetSDReqForContainers_MultipleEmptyNamespace(t *testing.T) {
 	translator, sdService :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod1 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			ClusterName: "my-cluster",
@@ -403,7 +403,7 @@ func TestTranslator_GetSDReqForContainers_MultipleEmptyNamespace(t *testing.T) {
 
 func TestTranslator_GetSDReqForContainers_MultipleWithMetricSelctor(t *testing.T) {
 	translator, sdService :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod1 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			ClusterName: "my-cluster",
@@ -444,7 +444,7 @@ func TestTranslator_GetSDReqForContainers_MultipleWithMetricSelctor(t *testing.T
 
 func TestTranslator_GetSDReqForNodes(t *testing.T) {
 	translator, sdService :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	node := v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			ClusterName: "my-cluster",
@@ -475,7 +475,7 @@ func TestTranslator_GetSDReqForNodes(t *testing.T) {
 
 func TestTranslator_GetSDReqForNodes_withMetricSelector(t *testing.T) {
 	translator, sdService :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	node := v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			ClusterName: "my-cluster",
@@ -508,7 +508,7 @@ func TestTranslator_GetSDReqForNodes_withMetricSelector(t *testing.T) {
 
 func TestTranslator_GetSDReqForPods_legacyResourceModel(t *testing.T) {
 	translator, sdService :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), false)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), false)
 	pod1 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			ClusterName: "my-cluster",
@@ -543,7 +543,7 @@ func TestTranslator_GetSDReqForPods_legacyResourceModel(t *testing.T) {
 
 func TestTranslator_ListMetricDescriptors(t *testing.T) {
 	translator, sdService :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	request := translator.ListMetricDescriptors(false)
 	expectedRequest := sdService.Projects.MetricDescriptors.List("projects/my-project").
 		Filter("resource.labels.project_id = \"my-project\" " +
@@ -557,7 +557,7 @@ func TestTranslator_ListMetricDescriptors(t *testing.T) {
 
 func TestTranslator_ListMetricDescriptors_containerMetrics(t *testing.T) {
 	translator, sdService :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	request := translator.ListMetricDescriptors(true)
 	expectedRequest := sdService.Projects.MetricDescriptors.List("projects/my-project").
 		Filter("resource.labels.project_id = \"my-project\" " +
@@ -571,7 +571,7 @@ func TestTranslator_ListMetricDescriptors_containerMetrics(t *testing.T) {
 
 func TestTranslator_ListMetricDescriptors_legacyResourceType(t *testing.T) {
 	translator, sdService :=
-		newFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), false)
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), false)
 	request := translator.ListMetricDescriptors(false)
 	expectedRequest := sdService.Projects.MetricDescriptors.List("projects/my-project").
 		Filter("resource.labels.project_id = \"my-project\" " +
