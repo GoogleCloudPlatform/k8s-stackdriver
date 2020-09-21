@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"net/http"
 	"net/url"
 	"os"
 	"time"
@@ -38,6 +39,7 @@ import (
 	coreadapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/coreprovider"
 	adapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/provider"
 	basecmd "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // StackdriverAdapter is an adapter for Stackdriver
@@ -56,6 +58,8 @@ type stackdriverAdapterServerOptions struct {
 	FallbackForContainerMetrics bool
 	// EnableCoreMetricsAPI provides core metrics. Experimental, do not use.
 	EnableCoreMetricsAPI bool
+	// MetricsAddress is endpoint and port on which Prometheus metrics server should be enabled.
+	MetricsAddress string
 	// StackdriverEndpoint to change default Stackdriver endpoint (useful in sandbox).
 	StackdriverEndpoint string
 }
@@ -96,6 +100,12 @@ func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptio
 	if err != nil {
 		klog.Fatalf("Failed to retrieve GCE config: %v", err)
 	}
+	conf, err := sa.Config()
+	if err != nil {
+		klog.Fatalf("Unable to get StackdriverAdapter apiserver config %v", err)
+	}
+	conf.GenericConfig.EnableMetrics = true
+
 	translator := translator.NewTranslator(stackdriverService, gceConf, rateInterval, alignmentPeriod, mapper, o.UseNewResourceModel)
 	return adapter.NewStackdriverProvider(client, mapper, gceConf, stackdriverService, translator, rateInterval, o.UseNewResourceModel, o.FallbackForContainerMetrics), translator
 }
@@ -150,7 +160,9 @@ func main() {
 		"If true, fallbacks to k8s_container resource when given metric is not present on k8s_pod. At most one container with given metric is allowed for each pod.")
 	flags.BoolVar(&serverOptions.EnableCoreMetricsAPI, "enable-core-metrics-api", serverOptions.EnableCoreMetricsAPI,
 		"Experimental, do not use. Whether to enable Core Metrics API.")
-	flags.String(serverOptions.StackdriverEndpoint, "stackdriver-endpoint",
+	flags.StringVar(&serverOptions.MetricsAddress, "metrics-address", "",
+		"Endpoint with port on which Prometheus metrics server should be enabled. Example: localhost:8080. If there is no flag, Prometheus metric server is disabled and monitoring metrics are not collected.")
+	flags.StringVar(&serverOptions.StackdriverEndpoint, "stackdriver-endpoint", "",
 		"Stackdriver Endpoint used by adapter. Default is https://monitoring.googleapis.com/")
 
 	flags.Parse(os.Args)
@@ -175,10 +187,18 @@ func main() {
 			klog.Fatalf("unable to install resource metrics API: %v", err)
 		}
 	}
-
+	if serverOptions.MetricsAddress != "" {
+		go runPrometheusMetricsServer(serverOptions.MetricsAddress)
+	}
 	if err := cmd.Run(wait.NeverStop); err != nil {
 		klog.Fatalf("unable to run custom metrics adapter: %v", err)
 	}
+}
+
+func runPrometheusMetricsServer(addr string) {
+	http.Handle("/metrics", prometheus.Handler())
+	err := http.ListenAndServe(addr, nil)
+	klog.Fatalf("Failed server: %s", err)
 }
 
 // validateUrl returns true if url is correct

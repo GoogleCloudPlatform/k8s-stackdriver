@@ -105,6 +105,7 @@ max-total-unready-percentage
 metric-descriptors-resolution
 metric-name
 metric-labels
+metrics-address
 metrics-resolution
 min-pr-number
 min-replica-count
