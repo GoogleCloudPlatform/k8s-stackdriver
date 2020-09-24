@@ -15,7 +15,7 @@
 OUT_DIR = build
 PACKAGE = github.com/GoogleCloudPlatform/k8s-stackdriver/kubelet-to-gcm
 PREFIX = staging-k8s.gcr.io
-TAG = 1.3.2
+TAG = 1.3.3
 
 # Rules for building the real image for deployment to gcr.io
 
