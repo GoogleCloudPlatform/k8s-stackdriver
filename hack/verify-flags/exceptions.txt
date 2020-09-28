@@ -8,6 +8,11 @@ custom-metrics-stackdriver-adapter/README.md:       project_id, err := gce.Proje
 custom-metrics-stackdriver-adapter/README.md:     - `namespace_id` and `instance_id` (for **legacy resource model**) are not
 custom-metrics-stackdriver-adapter/README.md:     - `pod_id`, `pod_name`, `namespace_name` can be obtained via downward API.
 custom-metrics-stackdriver-adapter/README.md:     - `project_id`, `zone`, `location`, `cluster_name` - can be obtained by your
+custom-metrics-stackdriver-adapter/cp:			return ":" + timeSeries.Resource.Labels["node_name"], nil
+custom-metrics-stackdriver-adapter/cp:			return timeSeries.Resource.Labels["namespace_name"] + ":" + timeSeries.Resource.Labels["pod_name"], nil
+custom-metrics-stackdriver-adapter/cp:			return timeSeries.Resource.Labels["namespace_name"] + ":" + timeSeries.Resource.Labels["pod_name"], nil
+custom-metrics-stackdriver-adapter/cp:		nodeName := series.Resource.Labels["node_name"]
+custom-metrics-stackdriver-adapter/cp:		return timeSeries.Resource.Labels["pod_id"], nil
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"cluster_name":   clusterName,
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"cluster_name": clusterName,
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"namespace_id": "default",
@@ -90,8 +95,9 @@ custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator.go:			return ":" + timeSeries.Resource.Labels["node_name"], nil
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator.go:			return timeSeries.Resource.Labels["namespace_name"] + ":" + timeSeries.Resource.Labels["pod_name"], nil
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator.go:			return timeSeries.Resource.Labels["namespace_name"] + ":" + timeSeries.Resource.Labels["pod_name"], nil
-custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator.go:		nodeName := series.Resource.Labels["node_name"]
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator.go:		return timeSeries.Resource.Labels["pod_id"], nil
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_core.go:		nodeName := series.Resource.Labels["node_name"]
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:					Labels: map[string]string{"container_name": "container1", "namespace_name": "namespace1", "pod_name": "pod1"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:					Labels: map[string]string{"container_name": "container1", "namespace_name": "namespace1", "pod_name": "pod1"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:					Labels: map[string]string{"container_name": "container1", "namespace_name": "namespace1", "pod_name": "pod1"}},
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/response_translator_test.go:					Labels: map[string]string{"container_name": "container1", "namespace_name": "namespace1", "pod_name": "pod1"}},
