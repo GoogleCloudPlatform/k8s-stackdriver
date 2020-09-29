@@ -40,7 +40,8 @@ func (f fakeClock) Now() time.Time {
 	return f.time
 }
 
-func newFakeTranslator(reqWindow, alignmentPeriod time.Duration, project, cluster, location string, currentTime time.Time, useNewResourceModel bool) (*Translator, *sd.Service) {
+// NewFakeTranslator creates a Translator for testing purposes
+func NewFakeTranslator(reqWindow, alignmentPeriod time.Duration, project, cluster, location string, currentTime time.Time, useNewResourceModel bool) (*Translator, *sd.Service) {
 	sdService, err := sd.New(http.DefaultClient)
 	if err != nil {
 		klog.Fatal("Unexpected error creating stackdriver Service client")
@@ -66,5 +67,5 @@ func newFakeTranslator(reqWindow, alignmentPeriod time.Duration, project, cluste
 // newFakeTranslatorForExternalMetrics returns a simplified translator, where only the fields used
 // for External Metrics API need to be specified. Other fields are initialized to zeros.
 func newFakeTranslatorForExternalMetrics(reqWindow, alignmentPeriod time.Duration, project string, currentTime time.Time) (*Translator, *sd.Service) {
-	return newFakeTranslator(reqWindow, alignmentPeriod, project, "", "", currentTime, false)
+	return NewFakeTranslator(reqWindow, alignmentPeriod, project, "", "", currentTime, false)
 }
