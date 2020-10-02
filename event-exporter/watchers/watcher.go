@@ -24,10 +24,11 @@ import (
 
 // WatcherConfig represents the configuration of the Kubernetes API watcher.
 type WatcherConfig struct {
-	ListerWatcher cache.ListerWatcher
-	ExpectedType  interface{}
-	StoreConfig   *WatcherStoreConfig
-	ResyncPeriod  time.Duration
+	ListerWatcher     cache.ListerWatcher
+	ExpectedType      interface{}
+	StoreConfig       *WatcherStoreConfig
+	ResyncPeriod      time.Duration
+	WatchListPageSize int64
 }
 
 // Watcher is an interface of the generic proactive API watcher.
@@ -45,12 +46,14 @@ func (w *watcher) Run(stopCh <-chan struct{}) {
 
 // NewWatcher creates a new Kubernetes API watcher using provided configuration.
 func NewWatcher(config *WatcherConfig) Watcher {
+	r := cache.NewReflector(
+		config.ListerWatcher,
+		config.ExpectedType,
+		newWatcherStore(config.StoreConfig),
+		config.ResyncPeriod,
+	)
+	r.WatchListPageSize = config.WatchListPageSize
 	return &watcher{
-		reflector: cache.NewReflector(
-			config.ListerWatcher,
-			config.ExpectedType,
-			newWatcherStore(config.StoreConfig),
-			config.ResyncPeriod,
-		),
+		reflector: r,
 	}
 }

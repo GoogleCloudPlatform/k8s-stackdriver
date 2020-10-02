@@ -36,6 +36,14 @@ const (
 	// the hour, since it takes some time to deliver this event via watch.
 	// 2 hours ought to be enough for anybody.
 	eventStorageTTL = 2 * time.Hour
+
+	// Large clusters can have up to 1M events. Fetching them using default
+	// 500 page requires 2000 requests and is not able to finish before
+	// continuation token will expire.
+	// Value 10000 translates to ~100 requests that each takes 0.5s-1s,
+	// so in total listing should take ~1m, which is still below 2.5m-5m
+	// token expiration time.
+	eventWatchListPageSize = 10000
 )
 
 // OnListFunc represent an action on the initial list of object received
@@ -76,6 +84,7 @@ func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) wa
 			StorageType: watchers.TTLStorage,
 			StorageTTL:  eventStorageTTL,
 		},
-		ResyncPeriod: config.ResyncPeriod,
+		ResyncPeriod:      config.ResyncPeriod,
+		WatchListPageSize: eventWatchListPageSize,
 	})
 }
