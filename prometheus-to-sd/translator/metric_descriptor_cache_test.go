@@ -27,6 +27,14 @@ import (
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/config"
 )
 
+var testConfig = &config.CommonConfig{
+	SourceConfig: &config.SourceConfig{
+		Component:     "test-component",
+		MetricsPrefix: "container.googleapis.com",
+		PodConfig:     config.NewPodConfig("", "", "pod", "namespace", "container"),
+	},
+}
+
 var equalDescriptor = "equal"
 var differentDescription = "differentDescription"
 var differentLabels = "differentLabels"
@@ -65,9 +73,9 @@ var otherDescriptors = map[*v3.MetricDescriptor]bool{
 func TestDescriptorChanged(t *testing.T) {
 	for descriptor, result := range otherDescriptors {
 		if result {
-			assert.True(t, descriptorChanged(&originalDescriptor, descriptor))
+			assert.True(t, descriptorChanged(&originalDescriptor, descriptor, testConfig))
 		} else {
-			assert.False(t, descriptorChanged(&originalDescriptor, descriptor))
+			assert.False(t, descriptorChanged(&originalDescriptor, descriptor, testConfig))
 		}
 	}
 }
@@ -168,16 +176,37 @@ func TestValidateMetricDescriptors(t *testing.T) {
 			missing: false,
 			broken:  false,
 		},
+		{
+			description: "Non-metric labels are ignored during validation",
+			descriptors: []*v3.MetricDescriptor{
+				{
+					Name: "descriptor1",
+				},
+			},
+			metricFamily: &dto.MetricFamily{
+				Name: stringPtr("descriptor1"),
+				Metric: []*dto.Metric{
+					{
+						Counter: &dto.Counter{
+							Value: floatPtr(100.0),
+						},
+						Label: []*dto.LabelPair{
+							{
+								Name:  stringPtr("pod"),
+								Value: stringPtr("test-pod"),
+							},
+						},
+					},
+				},
+			},
+			missing: false,
+			broken:  false,
+		},
 	}
 
 	for _, tc := range testCases {
 		// Init cache
-		cache := NewMetricDescriptorCache(nil, &config.CommonConfig{
-			SourceConfig: &config.SourceConfig{
-				Component:     "test-component",
-				MetricsPrefix: "container.googleapis.com",
-			},
-		})
+		cache := NewMetricDescriptorCache(nil, testConfig)
 		cache.fresh = true
 		var whitelisted []string
 		for _, descriptor := range tc.descriptors {

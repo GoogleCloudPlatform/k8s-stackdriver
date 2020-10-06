@@ -82,7 +82,7 @@ func (cache *MetricDescriptorCache) ValidateMetricDescriptors(metrics map[string
 			continue
 		}
 		updatedMetricDescriptor := MetricFamilyToMetricDescriptor(cache.config, metricFamily, metricDescriptor)
-		if descriptorLabelSetChanged(metricDescriptor, updatedMetricDescriptor) {
+		if descriptorLabelSetChanged(metricDescriptor, updatedMetricDescriptor, cache.config) {
 			cache.broken[metricFamily.GetName()] = true
 			metricFamilyDropped.WithLabelValues(cache.config.SourceConfig.Component, metricFamily.GetName()).Set(1.0)
 			glog.Warningf("Definition of the metric %s was changed and metric is not going to be pushed", metricFamily.GetName())
@@ -124,7 +124,7 @@ func isMetricWhitelisted(metric string, whitelisted []string) bool {
 func (cache *MetricDescriptorCache) updateMetricDescriptorIfStale(metricFamily *dto.MetricFamily) {
 	metricDescriptor, ok := cache.descriptors[metricFamily.GetName()]
 	updatedMetricDescriptor := MetricFamilyToMetricDescriptor(cache.config, metricFamily, metricDescriptor)
-	if !ok || descriptorChanged(metricDescriptor, updatedMetricDescriptor) {
+	if !ok || descriptorChanged(metricDescriptor, updatedMetricDescriptor, cache.config) {
 		if updateMetricDescriptorInStackdriver(cache.service, cache.config.GceConfig, updatedMetricDescriptor) {
 			cache.descriptors[metricFamily.GetName()] = updatedMetricDescriptor
 		} else {
@@ -141,8 +141,8 @@ func (cache *MetricDescriptorCache) getMetricDescriptor(metric string) *v3.Metri
 	return value
 }
 
-func descriptorChanged(original *v3.MetricDescriptor, checked *v3.MetricDescriptor) bool {
-	return descriptorDescriptionChanged(original, checked) || descriptorLabelSetChanged(original, checked)
+func descriptorChanged(original *v3.MetricDescriptor, checked *v3.MetricDescriptor, config *config.CommonConfig) bool {
+	return descriptorDescriptionChanged(original, checked) || descriptorLabelSetChanged(original, checked, config)
 }
 
 func descriptorDescriptionChanged(original *v3.MetricDescriptor, checked *v3.MetricDescriptor) bool {
@@ -153,8 +153,11 @@ func descriptorDescriptionChanged(original *v3.MetricDescriptor, checked *v3.Met
 	return false
 }
 
-func descriptorLabelSetChanged(original *v3.MetricDescriptor, checked *v3.MetricDescriptor) bool {
+func descriptorLabelSetChanged(original *v3.MetricDescriptor, checked *v3.MetricDescriptor, config *config.CommonConfig) bool {
 	for _, label := range checked.Labels {
+		if config.SourceConfig.PodConfig != nil && !config.SourceConfig.PodConfig.IsMetricLabel(label.Key) {
+			continue
+		}
 		found := false
 		for _, labelFromOriginal := range original.Labels {
 			if label.Key == labelFromOriginal.Key {
