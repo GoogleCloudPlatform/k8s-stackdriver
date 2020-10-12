@@ -18,20 +18,28 @@ package main
 
 import (
 	"flag"
+	"net/http"
+	"net/url"
+	"os"
+	"time"
+
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/translator"
+	gceconfig "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
+	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	stackdriver "google.golang.org/api/monitoring/v3"
 	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
-	"os"
-	"time"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/component-base/logs"
 	"k8s.io/klog"
+	"sigs.k8s.io/metrics-server/pkg/api"
 
+	coreadapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/coreprovider"
 	adapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/provider"
 	basecmd "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd"
-	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // StackdriverAdapter is an adapter for Stackdriver
@@ -40,17 +48,24 @@ type StackdriverAdapter struct {
 }
 
 type stackdriverAdapterServerOptions struct {
-	// UseNewResourceModel is a flag that indicates whether new Stackdriver resource model should be
-	// used
+	// UseNewResourceModel is a flag that indicates whether new Stackdriver resource model should be used
 	UseNewResourceModel bool
 	// EnableCustomMetricsAPI switches on sample apiserver for Custom Metrics API
 	EnableCustomMetricsAPI bool
 	// EnableExternalMetricsAPI switches on sample apiserver for External Metrics API
 	EnableExternalMetricsAPI bool
+	// FallbackForContainerMetrics provides metrics from container when metric is not present in pod
+	FallbackForContainerMetrics bool
+	// EnableCoreMetricsAPI provides core metrics. Experimental, do not use.
+	EnableCoreMetricsAPI bool
+	// MetricsAddress is endpoint and port on which Prometheus metrics server should be enabled.
+	MetricsAddress string
+	// StackdriverEndpoint to change default Stackdriver endpoint (useful in sandbox).
+	StackdriverEndpoint string
 }
 
-func (a *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptions) provider.MetricsProvider {
-	config, err := a.ClientConfig()
+func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptions, rateInterval time.Duration, alignmentPeriod time.Duration) (provider.MetricsProvider, *translator.Translator) {
+	config, err := sa.ClientConfig()
 	if err != nil {
 		klog.Fatalf("unable to construct client config: %v", err)
 	}
@@ -60,7 +75,7 @@ func (a *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOption
 		klog.Fatalf("unable to construct client: %v", err)
 	}
 
-	mapper, err := a.RESTMapper()
+	mapper, err := sa.RESTMapper()
 	if err != nil {
 		klog.Fatalf("unable to construct discovery REST mapper: %v", err)
 	}
@@ -74,8 +89,44 @@ func (a *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOption
 	if err != nil {
 		klog.Fatalf("Failed to create Stackdriver client: %v", err)
 	}
+	if o.StackdriverEndpoint != "" {
+		if !validateUrl(o.StackdriverEndpoint) {
+			klog.Fatalf("Provided StackdriverEndpoint %v is not correct url", o.StackdriverEndpoint)
+		}
+		stackdriverService.BasePath = o.StackdriverEndpoint
+	}
 
-	return adapter.NewStackdriverProvider(client, mapper, stackdriverService, 5*time.Minute, time.Minute, o.UseNewResourceModel)
+	gceConf, err := gceconfig.GetGceConfig()
+	if err != nil {
+		klog.Fatalf("Failed to retrieve GCE config: %v", err)
+	}
+	conf, err := sa.Config()
+	if err != nil {
+		klog.Fatalf("Unable to get StackdriverAdapter apiserver config %v", err)
+	}
+	conf.GenericConfig.EnableMetrics = true
+
+	translator := translator.NewTranslator(stackdriverService, gceConf, rateInterval, alignmentPeriod, mapper, o.UseNewResourceModel)
+	return adapter.NewStackdriverProvider(client, mapper, gceConf, stackdriverService, translator, rateInterval, o.UseNewResourceModel, o.FallbackForContainerMetrics), translator
+}
+
+func (sa *StackdriverAdapter) withCoreMetrics(translator *translator.Translator) error {
+	provider := coreadapter.NewCoreProvider(translator)
+	informers, err := sa.Informers()
+	if err != nil {
+		return err
+	}
+
+	server, err := sa.Server()
+	if err != nil {
+		return err
+	}
+
+	if err := api.Install(provider, informers.Core().V1(), server.GenericAPIServer); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func main() {
@@ -92,9 +143,11 @@ func main() {
 	flags.AddGoFlagSet(flag.CommandLine) // make sure we get the klog flags
 
 	serverOptions := stackdriverAdapterServerOptions{
-		UseNewResourceModel:      false,
-		EnableCustomMetricsAPI:   true,
-		EnableExternalMetricsAPI: true,
+		UseNewResourceModel:         false,
+		EnableCustomMetricsAPI:      true,
+		EnableExternalMetricsAPI:    true,
+		FallbackForContainerMetrics: false,
+		EnableCoreMetricsAPI:        false,
 	}
 
 	flags.BoolVar(&serverOptions.UseNewResourceModel, "use-new-resource-model", serverOptions.UseNewResourceModel,
@@ -103,18 +156,53 @@ func main() {
 		"whether to enable Custom Metrics API")
 	flags.BoolVar(&serverOptions.EnableExternalMetricsAPI, "enable-external-metrics-api", serverOptions.EnableExternalMetricsAPI,
 		"whether to enable External Metrics API")
+	flags.BoolVar(&serverOptions.FallbackForContainerMetrics, "fallback-for-container-metrics", serverOptions.FallbackForContainerMetrics,
+		"If true, fallbacks to k8s_container resource when given metric is not present on k8s_pod. At most one container with given metric is allowed for each pod.")
+	flags.BoolVar(&serverOptions.EnableCoreMetricsAPI, "enable-core-metrics-api", serverOptions.EnableCoreMetricsAPI,
+		"Experimental, do not use. Whether to enable Core Metrics API.")
+	flags.StringVar(&serverOptions.MetricsAddress, "metrics-address", "",
+		"Endpoint with port on which Prometheus metrics server should be enabled. Example: localhost:8080. If there is no flag, Prometheus metric server is disabled and monitoring metrics are not collected.")
+	flags.StringVar(&serverOptions.StackdriverEndpoint, "stackdriver-endpoint", "",
+		"Stackdriver Endpoint used by adapter. Default is https://monitoring.googleapis.com/")
 
 	flags.Parse(os.Args)
 
-	metricsProvider := cmd.makeProviderOrDie(&serverOptions)
+	if !serverOptions.UseNewResourceModel && serverOptions.FallbackForContainerMetrics {
+		klog.Fatalf("Container metrics work only with new resource model")
+	}
+	if !serverOptions.UseNewResourceModel && serverOptions.EnableCoreMetricsAPI {
+		klog.Fatalf("Core metrics work only with new resource model")
+	}
+
+	// TODO(holubwicz): move duration config to server options
+	metricsProvider, translator := cmd.makeProviderOrDie(&serverOptions, 5*time.Minute, 1*time.Minute)
 	if serverOptions.EnableCustomMetricsAPI {
 		cmd.WithCustomMetrics(metricsProvider)
 	}
 	if serverOptions.EnableExternalMetricsAPI {
 		cmd.WithExternalMetrics(metricsProvider)
 	}
-
+	if serverOptions.EnableCoreMetricsAPI {
+		if err := cmd.withCoreMetrics(translator); err != nil {
+			klog.Fatalf("unable to install resource metrics API: %v", err)
+		}
+	}
+	if serverOptions.MetricsAddress != "" {
+		go runPrometheusMetricsServer(serverOptions.MetricsAddress)
+	}
 	if err := cmd.Run(wait.NeverStop); err != nil {
 		klog.Fatalf("unable to run custom metrics adapter: %v", err)
 	}
+}
+
+func runPrometheusMetricsServer(addr string) {
+	http.Handle("/metrics", prometheus.Handler())
+	err := http.ListenAndServe(addr, nil)
+	klog.Fatalf("Failed server: %s", err)
+}
+
+// validateUrl returns true if url is correct
+func validateUrl(s string) bool {
+	u, err := url.Parse(s)
+	return err == nil && u.Scheme != "" && u.Host != ""
 }

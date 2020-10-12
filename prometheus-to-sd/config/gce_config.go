@@ -103,6 +103,17 @@ func GetGceConfig(project, cluster, clusterLocation, zone, node string) (*GceCon
 		}
 	}
 
+	if clusterLocation == "" {
+		clusterLocation, err = gce.InstanceAttributeValue("cluster-location")
+		if err != nil {
+			return nil, fmt.Errorf("error while getting cluster location: %v", err)
+		}
+		clusterLocation = strings.TrimSpace(clusterLocation)
+		if clusterLocation == "" {
+			return nil, fmt.Errorf("cluster-location metadata was empty")
+		}
+	}
+
 	return &GceConfig{
 		Project:         project,
 		Zone:            zone,

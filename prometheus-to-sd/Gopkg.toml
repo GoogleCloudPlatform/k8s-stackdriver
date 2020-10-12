@@ -1,7 +1,0 @@
-[prune]
-  go-tests = true
-  unused-packages = true
-
-[[constraint]]
-  name = "k8s.io/client-go"
-  branch = "master"

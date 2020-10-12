@@ -50,7 +50,8 @@ func newSystemStopChannel() chan struct{} {
 		sig := <-c
 		glog.Infof("Received signal %s, terminating", sig.String())
 
-		ch <- struct{}{}
+		// Close stop channel to make sure every goroutine will receive stop signal.
+		close(ch)
 	}()
 
 	return ch

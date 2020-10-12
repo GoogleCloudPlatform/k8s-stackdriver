@@ -7,7 +7,7 @@ import (
 	"bytes"
 	"fmt"
 	sd "google.golang.org/api/logging/v2"
-	api_v1 "k8s.io/client-go/pkg/api/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 func TestMonitoredResourceFromEvent(t *testing.T) {
@@ -16,7 +16,7 @@ func TestMonitoredResourceFromEvent(t *testing.T) {
 
 	tests := []struct {
 		config *monitoredResourceFactoryConfig
-		event  *api_v1.Event
+		event  *corev1.Event
 		wanted *sd.MonitoredResource
 	}{
 		{
@@ -32,8 +32,8 @@ func TestMonitoredResourceFromEvent(t *testing.T) {
 		},
 		{
 			config: newTypesConfig,
-			event: &api_v1.Event{
-				InvolvedObject: api_v1.ObjectReference{Kind: pod, Name: "test_pod_name", Namespace: "test_pod_namespace"},
+			event: &corev1.Event{
+				InvolvedObject: corev1.ObjectReference{Kind: pod, Name: "test_pod_name", Namespace: "test_pod_namespace"},
 			},
 			wanted: &sd.MonitoredResource{
 				Type: k8sPod,
@@ -48,8 +48,8 @@ func TestMonitoredResourceFromEvent(t *testing.T) {
 		},
 		{
 			config: newTypesConfig,
-			event: &api_v1.Event{
-				InvolvedObject: api_v1.ObjectReference{Kind: node, Name: "test_node_name"},
+			event: &corev1.Event{
+				InvolvedObject: corev1.ObjectReference{Kind: node, Name: "test_node_name"},
 			},
 			wanted: &sd.MonitoredResource{
 				Type: k8sNode,
@@ -63,8 +63,8 @@ func TestMonitoredResourceFromEvent(t *testing.T) {
 		},
 		{
 			config: newTypesConfig,
-			event: &api_v1.Event{
-				InvolvedObject: api_v1.ObjectReference{Kind: "somethingElse"},
+			event: &corev1.Event{
+				InvolvedObject: corev1.ObjectReference{Kind: "somethingElse"},
 			},
 			wanted: &sd.MonitoredResource{
 				Type: k8sCluster,

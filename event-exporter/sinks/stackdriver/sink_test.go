@@ -22,9 +22,9 @@ import (
 
 	sd "google.golang.org/api/logging/v2"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/apimachinery/pkg/util/wait"
-	api_v1 "k8s.io/client-go/pkg/api/v1"
 )
 
 type fakeSdWriter struct {
@@ -55,7 +55,7 @@ func TestMaxConcurrency(t *testing.T) {
 	defer close(done)
 
 	for i := 0; i < c.MaxConcurrency*(c.MaxBufferSize+2); i++ {
-		s.OnAdd(&api_v1.Event{})
+		s.OnAdd(&corev1.Event{})
 	}
 
 	want := c.MaxConcurrency
@@ -69,7 +69,7 @@ func TestBatchTimeout(t *testing.T) {
 	_, s, q, done := createSink()
 	defer close(done)
 
-	s.OnAdd(&api_v1.Event{})
+	s.OnAdd(&corev1.Event{})
 
 	want := 1
 	got := waitWritesCount(q, want)
@@ -85,7 +85,7 @@ func TestBatchSizeLimit(t *testing.T) {
 	defer close(done)
 
 	for i := 0; i < 15; i++ {
-		s.OnAdd(&api_v1.Event{})
+		s.OnAdd(&corev1.Event{})
 	}
 
 	want := 1
@@ -101,7 +101,7 @@ func TestInitialList(t *testing.T) {
 	})
 	defer close(done)
 
-	s.OnList(&api_v1.EventList{})
+	s.OnList(&corev1.EventList{})
 
 	want := 1
 	got := waitWritesCount(q, want)
@@ -109,7 +109,7 @@ func TestInitialList(t *testing.T) {
 		t.Fatalf("Write called %d times, want %d", got, want)
 	}
 
-	s.OnList(&api_v1.EventList{})
+	s.OnList(&corev1.EventList{})
 
 	got = waitWritesCount(q, want)
 	if got != want {
@@ -120,20 +120,20 @@ func TestInitialList(t *testing.T) {
 func TestOnUpdate(t *testing.T) {
 	tcs := []struct {
 		desc      string
-		old       *api_v1.Event
-		new       *api_v1.Event
+		old       *corev1.Event
+		new       *corev1.Event
 		wantEntry bool
 	}{
 		{
 			"old=nil,new=event",
 			nil,
-			&api_v1.Event{},
+			&corev1.Event{},
 			true,
 		},
 		{
 			"old=event,new=event",
-			&api_v1.Event{},
-			&api_v1.Event{},
+			&corev1.Event{},
+			&corev1.Event{},
 			true,
 		},
 	}

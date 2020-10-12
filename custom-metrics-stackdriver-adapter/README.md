@@ -67,6 +67,29 @@ Kubernetes monitored resources, including for example `k8s_pod`, `k8s_node`. See
   kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/deploy/production/adapter_new_resource_model.yaml
   ```
 
+If you use Workload Identity in your cluster, additional steps are necessary. In
+the commands below, use your Project ID as **<project-id>** and Google Service Account as
+**<google-service-account>**.
+
+* Make sure your **<google-service-account>** has `monitoring.viewer` IAM role.
+
+* Create IAM Policy Binding:
+
+  ```
+  gcloud iam service-accounts add-iam-policy-binding --role \
+    roles/iam.workloadIdentityUser --member \
+    "serviceAccount:<project-id>.svc.id.goog[custom-metrics/custom-metrics-stackdriver-adapter]" \
+    <google-service-account>@<project-id>.iam.gserviceaccount.com
+  ```
+
+* Annotate the Custom Metrics - Stackdriver Adapter service account:
+
+  ```
+  kubectl annotate serviceaccount --namespace custom-metrics \
+    custom-metrics-stackdriver-adapter \
+    iam.gke.io/gcp-service-account=<google-service-account>@<project-id>.iam.gserviceaccount.com
+  ```
+
 ### Metrics available from Stackdriver
 
 Custom Metrics - Stackdriver Adapter exposes Stackdriver metrics to Kubernetes
@@ -94,6 +117,23 @@ Metrics - Stackdriver Adapter:
    adapter exposes *rate* of the metric - the metric change per second computed
    over last 5 minutes.
 
+#### Metric names
+
+Stackdriver metrics have a form of pahths separated by "/" character, but Custom
+Metrics API forbids using "/" character. When using Custom Metrics - Stackdriver
+Adapter either directly via Custom Metrics API or by specifying a custom metric
+in HPA, replace "/" character with "|". For example, to use
+`custom.googleapis.com/my/custom/metric`, specify
+`custom.googleapis.com|my|custom|metric`.
+
+#### Fallback for container metrics
+
+Flag `fallback-for-container-metrics` enables metrics from k8s_container, but in
+limited scope. In particular, adapter will fallback to k8s_container resource 
+when given metric is not present on k8s_pod.
+At most one container with given metric is allowed for each pod.
+Works only with **new resource model**.
+
 ### Export custom metrics to Stackdriver
 
 To learn how to create your custom metric and write your data to Stackdriver,
@@ -101,13 +141,12 @@ follow [Stackdriver custom metrics documentation]. You can also follow
 [Prometheus to Stackdriver documentation] to export metrics exposed by your pods
 in Prometheus format.
 
-The name of your metric must start with custom.googleapis.com/ prefix followed
-by a simple name, as defined in [custom metric naming rules].
-
 You will report your metric against a appropriate monitored resource for Kubernetes
 objects. To use **legacy resource model**, use monitored resource `gke_container`.
 To use **new resource model**, use one of monitored resources: `k8s_pod` or
-`k8s_node` - corresponding to Kubernetes objects `Pod` and `Node`.
+`k8s_node` - corresponding to Kubernetes objects `Pod` and `Node`. With 
+[fallback-for-container-metrics] also `k8s_container` resource corresponding to 
+`Container` object is available.
 
 1. Define your custom metric by following [Stackdriver custom metrics documentation].
    Your metric descriptor needs to meet following requirements:
@@ -270,3 +309,5 @@ https://github.com/GoogleCloudPlatform/k8s-stackdriver/tree/master/prometheus-to
 https://prometheus.io/docs/instrumenting/exposition_formats
 [existing metrics from other GCP services]:
 https://cloud.google.com/monitoring/api/metrics_gcp
+[fallback-for-container-metrics]:
+https://github.com/znirzej/k8s-stackdriver/tree/adapter-container-metrics/custom-metrics-stackdriver-adapter#fallback-for-container-metrics

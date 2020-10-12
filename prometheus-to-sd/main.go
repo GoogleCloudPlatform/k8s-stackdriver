@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"expvar"
 	"flag"
 	"fmt"
 	"net/http"
@@ -73,7 +74,10 @@ var (
 		"To note: 'namespace-name', 'pod-name', and 'container-name' should not be provided in this flag and they will always be overwritten by values in other command line flags.")
 	omitComponentName = flag.Bool("omit-component-name", true,
 		"If metric name starts with the component name then this substring is removed to keep metric name shorter.")
-	debugPort      = flag.Uint("port", 6061, "Port on which debug information is exposed.")
+	metricsPort    = flag.Uint("port", 6061, "Port on which metrics are exposed.")
+	listenAddress  = flag.String("listen-address", "", "Interface on which  metrics are exposed.")
+	debugPort      = flag.Uint("debug-port", 16061, "Port on which debug information is exposed.")
+	debugAddress   = flag.String("debug-address", "localhost", "Interface on which debug information is exposed.")
 	dynamicSources = flags.Uris{}
 	scrapeInterval = flag.Duration("scrape-interval", 60*time.Second,
 		"The interval between metric scrapes. If there are multiple scrapes between two exports, the last present value is exported, even when missing from last scraping.")
@@ -133,7 +137,11 @@ func main() {
 
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
-		glog.Error(http.ListenAndServe(fmt.Sprintf(":%d", *debugPort), nil))
+		glog.Error(http.ListenAndServe(fmt.Sprintf("%s:%d", *listenAddress, *metricsPort), nil))
+	}()
+
+	go func() {
+		glog.Error(http.ListenAndServe(fmt.Sprintf("%s:%d", *debugAddress, *debugPort), expvar.Handler()))
 	}()
 
 	var client *http.Client
@@ -147,7 +155,11 @@ func main() {
 		}
 		glog.Infof("Created a client with the default credentials")
 	} else {
-		client = oauth2.NewClient(context.Background(), google.ComputeTokenSource(""))
+		ts, err := google.DefaultTokenSource(context.Background(), "")
+		if err != nil {
+			glog.Fatalf("Error creating default token source: %v", err)
+		}
+		client = oauth2.NewClient(context.Background(), ts)
 	}
 
 	stackdriverService, err := v3.New(client)

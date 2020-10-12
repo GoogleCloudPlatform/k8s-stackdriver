@@ -19,28 +19,28 @@ package events
 import (
 	"testing"
 
-	api_v1 "k8s.io/client-go/pkg/api/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 type fakeEventHandler struct {
-	onAddFunc    func(*api_v1.Event)
-	onUpdateFunc func(*api_v1.Event, *api_v1.Event)
-	onDeleteFunc func(*api_v1.Event)
+	onAddFunc    func(*corev1.Event)
+	onUpdateFunc func(*corev1.Event, *corev1.Event)
+	onDeleteFunc func(*corev1.Event)
 }
 
-func (c *fakeEventHandler) OnAdd(event *api_v1.Event) {
+func (c *fakeEventHandler) OnAdd(event *corev1.Event) {
 	if c.onAddFunc != nil {
 		c.onAddFunc(event)
 	}
 }
 
-func (c *fakeEventHandler) OnUpdate(oldEvent, newEvent *api_v1.Event) {
+func (c *fakeEventHandler) OnUpdate(oldEvent, newEvent *corev1.Event) {
 	if c.onUpdateFunc != nil {
 		c.onUpdateFunc(oldEvent, newEvent)
 	}
 }
 
-func (c *fakeEventHandler) OnDelete(event *api_v1.Event) {
+func (c *fakeEventHandler) OnDelete(event *corev1.Event) {
 	if c.onDeleteFunc != nil {
 		c.onDeleteFunc(event)
 	}
@@ -64,7 +64,7 @@ func TestEventWatchHandlerAdd(t *testing.T) {
 		},
 		{
 			"obj=event",
-			&api_v1.Event{},
+			&corev1.Event{},
 			true,
 		},
 	}
@@ -73,7 +73,7 @@ func TestEventWatchHandlerAdd(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			isTriggered := false
 			fakeHandler := &fakeEventHandler{
-				onAddFunc: func(*api_v1.Event) { isTriggered = true },
+				onAddFunc: func(*corev1.Event) { isTriggered = true },
 			}
 
 			c := newEventHandlerWrapper(fakeHandler)
@@ -96,31 +96,31 @@ func TestEventWatchHandlerUpdate(t *testing.T) {
 		{
 			"oldObj=nil,newObj=event",
 			nil,
-			&api_v1.Event{},
+			&corev1.Event{},
 			true,
 		},
 		{
 			"oldObj=non-event,newObj=event",
 			42,
-			&api_v1.Event{},
+			&corev1.Event{},
 			false,
 		},
 		{
 			"oldObj=event,newObj=nil",
-			&api_v1.Event{},
+			&corev1.Event{},
 			nil,
 			false,
 		},
 		{
 			"oldObj=event,newObj=non-event",
-			&api_v1.Event{},
+			&corev1.Event{},
 			42,
 			false,
 		},
 		{
 			"oldObj=event,newObj=event",
-			&api_v1.Event{},
-			&api_v1.Event{},
+			&corev1.Event{},
+			&corev1.Event{},
 			true,
 		},
 	}
@@ -129,7 +129,7 @@ func TestEventWatchHandlerUpdate(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			isTriggered := false
 			fakeHandler := &fakeEventHandler{
-				onUpdateFunc: func(*api_v1.Event, *api_v1.Event) { isTriggered = true },
+				onUpdateFunc: func(*corev1.Event, *corev1.Event) { isTriggered = true },
 			}
 
 			c := newEventHandlerWrapper(fakeHandler)
@@ -160,7 +160,7 @@ func TestEventWatchHandlerDelete(t *testing.T) {
 		},
 		{
 			"obj=event",
-			&api_v1.Event{},
+			&corev1.Event{},
 			true,
 		},
 	}
@@ -169,7 +169,7 @@ func TestEventWatchHandlerDelete(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			isTriggered := false
 			fakeHandler := &fakeEventHandler{
-				onDeleteFunc: func(*api_v1.Event) { isTriggered = true },
+				onDeleteFunc: func(*corev1.Event) { isTriggered = true },
 			}
 
 			c := newEventHandlerWrapper(fakeHandler)

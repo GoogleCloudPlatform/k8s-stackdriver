@@ -19,11 +19,11 @@ package events
 import (
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
-	api_v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/watchers"
@@ -36,11 +36,19 @@ const (
 	// the hour, since it takes some time to deliver this event via watch.
 	// 2 hours ought to be enough for anybody.
 	eventStorageTTL = 2 * time.Hour
+
+	// Large clusters can have up to 1M events. Fetching them using default
+	// 500 page requires 2000 requests and is not able to finish before
+	// continuation token will expire.
+	// Value 10000 translates to ~100 requests that each takes 0.5s-1s,
+	// so in total listing should take ~1m, which is still below 2.5m-5m
+	// token expiration time.
+	eventWatchListPageSize = 10000
 )
 
 // OnListFunc represent an action on the initial list of object received
 // from the Kubernetes API server before starting watching for the updates.
-type OnListFunc func(*api_v1.EventList)
+type OnListFunc func(*corev1.EventList)
 
 // EventWatcherConfig represents the configuration for the watcher that
 // only watches the events resource.
@@ -69,13 +77,14 @@ func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) wa
 				return client.CoreV1().Events(meta_v1.NamespaceAll).Watch(options)
 			},
 		},
-		ExpectedType: &api_v1.Event{},
+		ExpectedType: &corev1.Event{},
 		StoreConfig: &watchers.WatcherStoreConfig{
 			KeyFunc:     cache.DeletionHandlingMetaNamespaceKeyFunc,
 			Handler:     newEventHandlerWrapper(config.Handler),
 			StorageType: watchers.TTLStorage,
 			StorageTTL:  eventStorageTTL,
 		},
-		ResyncPeriod: config.ResyncPeriod,
+		ResyncPeriod:      config.ResyncPeriod,
+		WatchListPageSize: eventWatchListPageSize,
 	})
 }

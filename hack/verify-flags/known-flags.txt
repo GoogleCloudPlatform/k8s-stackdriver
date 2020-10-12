@@ -23,6 +23,7 @@ configuration-name
 current-release-pr
 custom-error-service
 datasource
+debug-address
 default-backend-service
 default-return-code
 default-ssl-certificate
@@ -41,6 +42,7 @@ dump-nginx-configuration
 dynamic-source
 e2e-status-context
 election-namespace
+enable-core-metrics-api
 enable-custom-metrics-api
 enable-external-metrics-api
 enable-md-yaml
@@ -54,6 +56,7 @@ extra-cpu
 extra-memory
 extra-storage
 fake-e2e
+fallback-for-container-metrics
 fixes-issue-reassign
 flush-delay
 forward-services
@@ -102,6 +105,7 @@ max-total-unready-percentage
 metric-descriptors-resolution
 metric-name
 metric-labels
+metrics-address
 metrics-resolution
 min-pr-number
 min-replica-count
@@ -169,6 +173,7 @@ skip-nodes-with-system-pods
 source-file
 ssl-ca-cert
 ssl-cert
+stackdriver-endpoint
 stackdriver-prefix
 stackdriver-resource-model
 start-from
