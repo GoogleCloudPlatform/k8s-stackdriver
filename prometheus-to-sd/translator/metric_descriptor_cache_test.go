@@ -27,6 +27,8 @@ import (
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/config"
 )
 
+var counterType = dto.MetricType_COUNTER
+
 var equalDescriptor = "equal"
 var differentDescription = "differentDescription"
 var differentLabels = "differentLabels"
@@ -41,6 +43,7 @@ var label3 = &v3.LabelDescriptor{Key: "label3"}
 var originalDescriptor = v3.MetricDescriptor{
 	Name:        equalDescriptor,
 	Description: description1,
+	MetricKind:  "GAUGE",
 	Labels:      []*v3.LabelDescriptor{label1, label2},
 }
 
@@ -48,17 +51,26 @@ var otherDescriptors = map[*v3.MetricDescriptor]bool{
 	{
 		Name:        equalDescriptor,
 		Description: description1,
+		MetricKind:  "GAUGE",
 		Labels:      []*v3.LabelDescriptor{label1, label2},
 	}: false,
 	{
 		Name:        differentDescription,
 		Description: description2,
+		MetricKind:  "GAUGE",
 		Labels:      []*v3.LabelDescriptor{label1, label2},
 	}: true,
 	{
 		Name:        differentLabels,
 		Description: description1,
+		MetricKind:  "GAUGE",
 		Labels:      []*v3.LabelDescriptor{label3},
+	}: true,
+	{
+		Name:        equalDescriptor,
+		Description: description1,
+		MetricKind:  "CUMULATIVE",
+		Labels:      []*v3.LabelDescriptor{label1, label2},
 	}: true,
 }
 
@@ -84,11 +96,13 @@ func TestValidateMetricDescriptors(t *testing.T) {
 			description: "Metric is broken if new label was added",
 			descriptors: []*v3.MetricDescriptor{
 				{
-					Name: "descriptor1",
+					Name:       "descriptor1",
+					MetricKind: "CUMULATIVE",
 				},
 			},
 			metricFamily: &dto.MetricFamily{
 				Name: stringPtr("descriptor1"),
+				Type: &counterType,
 				Metric: []*dto.Metric{
 					{
 						Counter: &dto.Counter{
@@ -107,14 +121,38 @@ func TestValidateMetricDescriptors(t *testing.T) {
 			broken:  true,
 		},
 		{
-			description: "Metric family hasn't changed",
+			description: "Metric is broken if metric kind was changed",
 			descriptors: []*v3.MetricDescriptor{
 				{
-					Name: "descriptor1",
+					Name:       "descriptor1",
+					MetricKind: "GAUGE",
 				},
 			},
 			metricFamily: &dto.MetricFamily{
 				Name: stringPtr("descriptor1"),
+				Type: &counterType,
+				Metric: []*dto.Metric{
+					{
+						Counter: &dto.Counter{
+							Value: floatPtr(100.0),
+						},
+					},
+				},
+			},
+			missing: false,
+			broken:  true,
+		},
+		{
+			description: "Metric family hasn't changed",
+			descriptors: []*v3.MetricDescriptor{
+				{
+					Name:       "descriptor1",
+					MetricKind: "CUMULATIVE",
+				},
+			},
+			metricFamily: &dto.MetricFamily{
+				Name: stringPtr("descriptor1"),
+				Type: &counterType,
 				Metric: []*dto.Metric{
 					{
 						Counter: &dto.Counter{
@@ -130,11 +168,13 @@ func TestValidateMetricDescriptors(t *testing.T) {
 			description: "Metric is not in the cache",
 			descriptors: []*v3.MetricDescriptor{
 				{
-					Name: "descriptor1",
+					Name:       "descriptor1",
+					MetricKind: "CUMULATIVE",
 				},
 			},
 			metricFamily: &dto.MetricFamily{
 				Name: stringPtr("descriptor2"),
+				Type: &counterType,
 				Metric: []*dto.Metric{
 					{
 						Counter: &dto.Counter{
@@ -152,10 +192,12 @@ func TestValidateMetricDescriptors(t *testing.T) {
 				{
 					Name:        "descriptor1",
 					Description: "original description",
+					MetricKind:  "CUMULATIVE",
 				},
 			},
 			metricFamily: &dto.MetricFamily{
 				Name: stringPtr("descriptor1"),
+				Type: &counterType,
 				Help: stringPtr("changed description"),
 				Metric: []*dto.Metric{
 					{
