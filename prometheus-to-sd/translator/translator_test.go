@@ -66,12 +66,12 @@ var metricTypeCounter = dto.MetricType_COUNTER
 var metricTypeHistogram = dto.MetricType_HISTOGRAM
 var metricTypeUntyped = dto.MetricType_UNTYPED
 
-var testMetricName = "test_name"
+var intMetricName = "test_name"
 var booleanMetricName = "boolean_metric"
 var floatMetricName = "float_metric"
 var intSummaryMetricName = "int_summary_metric"
 var floatSummaryMetricName = "float_summary_metric"
-var testMetricHistogram = "test_histogram"
+var histogramMetricName = "test_histogram"
 var unrelatedMetric = "unrelated_metric"
 var testMetricDescription = "Description 1"
 var testMetricHistogramDescription = "Description 2"
@@ -109,8 +109,8 @@ untyped_metric 98.6
 }
 
 var metrics = map[string]*dto.MetricFamily{
-	testMetricName: {
-		Name: &testMetricName,
+	intMetricName: {
+		Name: &intMetricName,
 		Type: &metricTypeCounter,
 		Help: &testMetricDescription,
 		Metric: []*dto.Metric{
@@ -194,8 +194,8 @@ var metrics = map[string]*dto.MetricFamily{
 			},
 		},
 	},
-	testMetricHistogram: {
-		Name: &testMetricHistogram,
+	histogramMetricName: {
+		Name: &histogramMetricName,
 		Type: &metricTypeHistogram,
 		Help: &testMetricHistogramDescription,
 		Metric: []*dto.Metric{
@@ -239,7 +239,7 @@ var metrics = map[string]*dto.MetricFamily{
 }
 
 var metricDescriptors = map[string]*v3.MetricDescriptor{
-	testMetricName: {
+	intMetricName: {
 		Type:        "container.googleapis.com/master/testcomponent/test_name",
 		Description: testMetricDescription,
 		MetricKind:  "CUMULATIVE",
@@ -275,7 +275,7 @@ var metricDescriptors = map[string]*v3.MetricDescriptor{
 		MetricKind: "GAUGE",
 		ValueType:  "INT64",
 	},
-	testMetricHistogram: {
+	histogramMetricName: {
 		Type:        "container.googleapis.com/master/testcomponent/test_histogram",
 		Description: testMetricHistogramDescription,
 		MetricKind:  "CUMULATIVE",
@@ -553,7 +553,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	cache := buildCacheForTesting()
 
-	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName}), cache)
+	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName}), cache)
 	tsb.Update(metricsResponse, now)
 	ts, timestamp, err := tsb.Build()
 	assert.Equal(t, timestamp, now)
@@ -668,7 +668,7 @@ func TestTranslatePrometheusToStackdriverWithLabelFiltering(t *testing.T) {
 			PodConfig:            config.NewPodConfig("machine", "", "", "", ""),
 			Component:            "testcomponent",
 			MetricsPrefix:        "container.googleapis.com/master",
-			Whitelisted:          []string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName},
+			Whitelisted:          []string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName},
 			WhitelistedLabelsMap: whitelistedLabelsMap,
 		},
 	}
@@ -932,7 +932,7 @@ func createDoublePoint(d float64, start time.Time, end time.Time) *v3.Point {
 }
 
 func TestUpdateScrapes(t *testing.T) {
-	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{testMetricName, floatMetricName}), buildCacheForTesting())
+	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{intMetricName, floatMetricName}), buildCacheForTesting())
 	scrape := &PrometheusResponse{rawResponse: `
 # TYPE test_name counter
 test_name{labelName="labelValue1"} 42.0
@@ -1023,7 +1023,7 @@ func TestOmitComponentName(t *testing.T) {
 func TestBuildWithoutUpdate(t *testing.T) {
 	cache := buildCacheForTesting()
 
-	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName}), cache)
+	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName}), cache)
 	ts, _, err := tsb.Build()
 
 	assert.Equal(t, err, nil)
