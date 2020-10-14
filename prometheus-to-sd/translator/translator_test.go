@@ -1184,6 +1184,67 @@ func TestDowncaseMetricNames(t *testing.T) {
 	}
 }
 
+func TestTranslateWithSkipEmptyLabels(t *testing.T) {
+	var metricsResponse = &PrometheusResponse{rawResponse: `
+# TYPE test_name counter
+test_name{labelName="labelValue1", emptyLabelName=""} 42.0
+	`,
+	}
+	tcs := []struct{
+		description     string
+		skipEmptyLabels bool
+		expectedLabels  []string
+	}{
+		{
+			description:     "By default preserve all labels",
+			skipEmptyLabels: false,
+			expectedLabels: []string{"labelName", "emptyLabelName"},
+		},
+		{
+			description:     "With skipEmptyLabels empty label should be dropped",
+			skipEmptyLabels: true,
+			expectedLabels: []string{"labelName"},
+		},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.description, func(t *testing.T) {
+			c := CommonConfigWithMetrics()
+			c.SourceConfig.Whitelisted = []string{intMetricName}
+			c.SourceConfig.MetricsPrefix = customMetricsPrefix
+			c.SourceConfig.SkipEmptyLabels = tc.skipEmptyLabels
+			cache := testCache(c, []string{}, true)
+			tsb := NewTimeSeriesBuilder(c, cache)
+			tsb.Update(metricsResponse, now)
+			ts, timestamp, err := tsb.Build()
+			assert.Equal(t, timestamp, now)
+			assert.Equal(t, err, nil)
+
+			assert.Equal(t, 1, len(tsb.cache.descriptors))
+			assert.Equal(t, 1, len(ts))
+			assert.Equal(t, tc.expectedLabels, labelKeys(ts[0].Metric.Labels))
+
+			assert.Contains(t, tsb.cache.descriptors, "test_name")
+			assert.Equal(t, tc.expectedLabels, descriptorLabels(tsb.cache.descriptors["test_name"].Labels))
+		})
+	}
+}
+
+func descriptorLabels(labels []*v3.LabelDescriptor) []string {
+	keys := []string{}
+	for _, d := range labels {
+		keys = append(keys, d.Key)
+	}
+	return keys
+}
+
+func labelKeys(labels map[string]string) []string {
+	keys := []string{}
+	for key := range labels {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
 
 type stackdriverMock struct {}
 

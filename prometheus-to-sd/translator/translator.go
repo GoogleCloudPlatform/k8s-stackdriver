@@ -94,6 +94,7 @@ func (t *TimeSeriesBuilder) Build() ([]*v3.TimeSeries, time.Time, error) {
 	startTime := t.getStartTime(metricFamilies)
 	metricFamilies = filterWhitelistedMetrics(metricFamilies, t.config.SourceConfig.Whitelisted)
 	metricFamilies = filterWhitelistedLabels(metricFamilies, t.config.SourceConfig.WhitelistedLabelsMap)
+	metricFamilies = filterSkipEmptyLabels(metricFamilies, t.config.SourceConfig.SkipEmptyLabels)
 	if strings.HasPrefix(t.config.SourceConfig.MetricsPrefix, customMetricsPrefix) {
 		t.cache.UpdateMetricDescriptors(metricFamilies)
 	} else {
@@ -262,6 +263,26 @@ func filterWhitelistedLabels(allMetrics map[string]*dto.MetricFamily, whiteliste
 		}
 	}
 	return res
+}
+
+func filterSkipEmptyLabels(allMetrics map[string]*dto.MetricFamily, skipEmptyLabels bool) map[string]*dto.MetricFamily {
+	if !skipEmptyLabels {
+		return allMetrics
+	}
+	glog.V(4).Infof("Exporting only non-empty labels")
+	for _, metricFamily := range allMetrics {
+		for _, metric := range metricFamily.Metric {
+			labels := metric.GetLabel()
+			newLabels := make([]*dto.LabelPair, 0, len(labels))
+			for _, label := range labels {
+				if len(*label.Value) != 0 {
+					newLabels = append(newLabels, label)
+				}
+			}
+			metric.Label = newLabels
+		}
+	}
+	return allMetrics
 }
 
 func translateFamily(config *config.CommonConfig,

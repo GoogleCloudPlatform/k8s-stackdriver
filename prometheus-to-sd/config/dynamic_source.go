@@ -109,6 +109,10 @@ func mapToSourceConfig(componentName string, url url.URL, ip string, podId, name
 	metricsPrefix := values.Get("metricsPrefix")
 	customResource := values.Get("customResourceType")
 	customLabels := getMap(values, "customLabels")
+	skipEmptyLabels, err := getBool(values, "skipEmptyLabels")
+	if err != nil {
+		return nil, fmt.Errorf("Failed parsing skipEmptyLabels: %v", err)
+	}
 	auth, err := parseAuthConfig(url)
 	if err != nil {
 		return nil, err
@@ -118,5 +122,5 @@ func mapToSourceConfig(componentName string, url url.URL, ip string, podId, name
 	if err != nil {
 		return nil, err
 	}
-	return newSourceConfig(componentName, protocol, ip, port, url.Path, *auth, whitelisted, metricsPrefix, podConfig, whitelistedLabelsMap, customResource, customLabels)
+	return newSourceConfig(componentName, protocol, ip, port, url.Path, *auth, whitelisted, metricsPrefix, podConfig, whitelistedLabelsMap, customResource, customLabels, skipEmptyLabels)
 }

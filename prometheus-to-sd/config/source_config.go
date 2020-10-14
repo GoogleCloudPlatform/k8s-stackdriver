@@ -42,6 +42,7 @@ type SourceConfig struct {
 	MetricsPrefix        string
 	CustomResourceType   string
 	CustomLabels         map[string]string
+	SkipEmptyLabels      bool
 }
 
 const defaultMetricsPath = "/metrics"
@@ -49,7 +50,7 @@ const defaultMetricsPath = "/metrics"
 var validWhitelistedLabels = map[string]bool{"containerNameLabel": true, "namespaceIdLabel": true, "podIdLabel": true}
 
 // newSourceConfig creates a new SourceConfig based on string representation of fields.
-func newSourceConfig(component, protocol, host, port, path string, auth AuthConfig, whitelisted, metricsPrefix string, podConfig PodConfig, whitelistedLabelsMap map[string]map[string]bool, customResourceType string, customLabels map[string]string) (*SourceConfig, error) {
+func newSourceConfig(component, protocol, host, port, path string, auth AuthConfig, whitelisted, metricsPrefix string, podConfig PodConfig, whitelistedLabelsMap map[string]map[string]bool, customResourceType string, customLabels map[string]string, skipEmptyLabels bool) (*SourceConfig, error) {
 	if port == "" {
 		return nil, fmt.Errorf("No port provided.")
 	}
@@ -88,6 +89,7 @@ func newSourceConfig(component, protocol, host, port, path string, auth AuthConf
 		MetricsPrefix:        metricsPrefix,
 		CustomResourceType:   customResourceType,
 		CustomLabels:         customLabels,
+		SkipEmptyLabels:      skipEmptyLabels,
 	}, nil
 }
 
@@ -108,6 +110,10 @@ func parseSourceConfig(uri flags.Uri, podId, namespaceId string) (*SourceConfig,
 	containerNameLabel := values.Get("containerNameLabel")
 	metricsPrefix := values.Get("metricsPrefix")
 	customResource := values.Get("customResourceType")
+	skipEmptyLabels, err := getBool(values, "skipEmptyLabels")
+	if err != nil {
+		return nil, fmt.Errorf("Failed parsing skipEmptyLabels: %v", err)
+	}
 	customLabels := getMap(values, "customLabels")
 	auth, err := parseAuthConfig(uri.Val)
 	if err != nil {
@@ -119,7 +125,7 @@ func parseSourceConfig(uri flags.Uri, podId, namespaceId string) (*SourceConfig,
 	if err != nil {
 		return nil, err
 	}
-	return newSourceConfig(component, protocol, host, port, path, *auth, whitelisted, metricsPrefix, podConfig, whitelistedLabelsMap, customResource, customLabels)
+	return newSourceConfig(component, protocol, host, port, path, *auth, whitelisted, metricsPrefix, podConfig, whitelistedLabelsMap, customResource, customLabels, skipEmptyLabels)
 }
 
 func getMap(v url.Values, name string) map[string]string {
@@ -141,6 +147,18 @@ func getMap(v url.Values, name string) map[string]string {
 		}
 	}
 	return m
+}
+
+func getBool(v url.Values, name string) (bool, error) {
+	str := v.Get(name)
+	switch strings.ToLower(str) {
+	case "true", "t", "yes", "y":
+		return true, nil
+	case "", "false", "f", "no", "n":
+		return false, nil
+	default:
+		return false, fmt.Errorf("invalid bool value: %s", str)
+	}
 }
 
 // UpdateWhitelistedMetrics sets passed list as a list of whitelisted metrics.
