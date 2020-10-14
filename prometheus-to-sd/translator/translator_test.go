@@ -551,7 +551,11 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 }
 
 func TestTranslatePrometheusToStackdriver(t *testing.T) {
-	cache := buildCacheForTesting()
+	cache := NewMetricDescriptorCache(nil, commonConfig)
+	cache.descriptors[intMetricName] = metricDescriptors[intMetricName]
+	cache.descriptors[histogramMetricName] = metricDescriptors[histogramMetricName]
+	cache.descriptors[booleanMetricName] = metricDescriptors[booleanMetricName]
+	cache.descriptors[floatMetricName] = metricDescriptors[floatMetricName]
 
 	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName}), cache)
 	tsb.Update(metricsResponse, now)
@@ -674,7 +678,7 @@ func testBool(t *testing.T, metric *v3.TimeSeries) {
 }
 
 func TestTranslatePrometheusToStackdriverWithLabelFiltering(t *testing.T) {
-	cache := buildCacheForTesting()
+	cache := NewMetricDescriptorCache(nil, commonConfig)
 
 	whitelistedLabelsMap := map[string]map[string]bool{testLabelName: {testLabelValue1: true, testLabelValue2: true}}
 	commonConfigWithFiltering := &config.CommonConfig{
@@ -881,7 +885,9 @@ int_summary_metric_count{label="l2"} 10
 
 	for _, tt := range sts {
 		t.Run(tt.description, func(t *testing.T) {
-			cache := buildCacheForTesting()
+			cache := NewMetricDescriptorCache(nil, commonConfig)
+			cache.descriptors[intSummaryMetricName+"_sum"] = metricDescriptors[intSummaryMetricName+"_sum"]
+			cache.descriptors[floatSummaryMetricName+"_sum"] = metricDescriptors[floatSummaryMetricName+"_sum"]
 
 			tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{tt.summaryMetricName + "_sum", tt.summaryMetricName + "_count"}), cache)
 			tsb.Update(tt.prometheusResponse, end)
@@ -952,7 +958,9 @@ func createDoublePoint(d float64, start time.Time, end time.Time) *v3.Point {
 }
 
 func TestUpdateScrapes(t *testing.T) {
-	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{intMetricName, floatMetricName}), buildCacheForTesting())
+	cache := NewMetricDescriptorCache(nil, commonConfig)
+
+	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{intMetricName, floatMetricName}), cache)
 	scrape := &PrometheusResponse{rawResponse: `
 # TYPE test_name counter
 test_name{labelName="labelValue1"} 42.0
@@ -1041,7 +1049,7 @@ func TestOmitComponentName(t *testing.T) {
 }
 
 func TestBuildWithoutUpdate(t *testing.T) {
-	cache := buildCacheForTesting()
+	cache := NewMetricDescriptorCache(nil, commonConfig)
 
 	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName}), cache)
 	ts, _, err := tsb.Build()
@@ -1054,18 +1062,6 @@ func CommonConfigWithMetrics(whitelisted []string) *config.CommonConfig {
 	commonConfigCopy := *commonConfig
 	commonConfigCopy.SourceConfig.Whitelisted = whitelisted
 	return &commonConfigCopy
-}
-
-func buildCacheForTesting() *MetricDescriptorCache {
-	cache := NewMetricDescriptorCache(nil, commonConfig)
-	cache.descriptors[booleanMetricName] = metricDescriptors[booleanMetricName]
-	cache.descriptors[floatMetricName] = metricDescriptors[floatMetricName]
-	cache.descriptors[unrelatedMetric] = metricDescriptors[unrelatedMetric]
-	cache.descriptors[intSummaryMetricName+"_sum"] = metricDescriptors[intSummaryMetricName+"_sum"]
-	cache.descriptors[floatSummaryMetricName+"_sum"] = metricDescriptors[floatSummaryMetricName+"_sum"]
-	cache.descriptors[untypedMetricName] = metricDescriptors[untypedMetricName]
-
-	return cache
 }
 
 func getOriginalDescriptor(metric string) *v3.MetricDescriptor {
