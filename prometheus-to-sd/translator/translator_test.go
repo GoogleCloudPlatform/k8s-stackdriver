@@ -550,51 +550,64 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 	}
 }
 
-func TestTranslatePrometheusToStackdriver(t *testing.T) {
-	cache := NewMetricDescriptorCache(nil, commonConfig)
-	cache.descriptors[intMetricName] = metricDescriptors[intMetricName]
-	cache.descriptors[histogramMetricName] = metricDescriptors[histogramMetricName]
-	cache.descriptors[booleanMetricName] = metricDescriptors[booleanMetricName]
-	cache.descriptors[floatMetricName] = metricDescriptors[floatMetricName]
+func TestTranslate(t *testing.T) {
+	tcs := []struct{
+		description string
+		whitelisted []string
+		cache func() *MetricDescriptorCache
+		validate func(*testing.T, []*v3.TimeSeries)
+	}{
+		{
+			description: "Container metrics with prefilled cache",
+			whitelisted: []string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName},
+			cache: func() *MetricDescriptorCache {
+				cache := NewMetricDescriptorCache(nil, commonConfig)
+				cache.descriptors[intMetricName] = metricDescriptors[intMetricName]
+				cache.descriptors[histogramMetricName] = metricDescriptors[histogramMetricName]
+				cache.descriptors[booleanMetricName] = metricDescriptors[booleanMetricName]
+				cache.descriptors[floatMetricName] = metricDescriptors[floatMetricName]
+				return cache
+			},
+			validate: func(t *testing.T, ts []*v3.TimeSeries) {
+				assert.Equal(t, 7, len(ts))
+				sort.Sort(ByMetricTypeReversed(ts))
 
-	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName}), cache)
-	tsb.Update(metricsResponse, now)
-	ts, timestamp, err := tsb.Build()
-	assert.Equal(t, timestamp, now)
+				testInt(t, ts[0])
+				testInt(t, ts[1])
+				testInt(t, ts[2])
+				testHistogram(t, ts[3])
+				testFloat(t, ts[4])
+				testBool(t, ts[5])
+				testBool(t, ts[6])
+			},
+		},
+		{
+			description: "Container metrics with empty cache",
+			whitelisted: []string{intMetricName, histogramMetricName},
+			cache: func() *MetricDescriptorCache {
+				return NewMetricDescriptorCache(nil, commonConfig)
+			},
+			validate: func(t *testing.T, ts []*v3.TimeSeries) {
+				assert.Equal(t, 4, len(ts))
+				sort.Sort(ByMetricTypeReversed(ts))
 
-	assert.Equal(t, err, nil)
-
-	assert.Equal(t, 7, len(ts))
-	// TranslatePrometheusToStackdriver uses maps to represent data, so order of output is randomized.
-	sort.Sort(ByMetricTypeReversed(ts))
-
-	testInt(t, ts[0])
-	testInt(t, ts[1])
-	testInt(t, ts[2])
-	testHistogram(t, ts[3])
-	testFloat(t, ts[4])
-	testBool(t, ts[5])
-	testBool(t, ts[6])
-}
-
-func TestTranslatePrometheusToStackdriverWithoutCache(t *testing.T) {
-	cache := NewMetricDescriptorCache(nil, commonConfig)
-
-	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{intMetricName, histogramMetricName}), cache)
-	tsb.Update(metricsResponse, now)
-	ts, timestamp, err := tsb.Build()
-	assert.Equal(t, timestamp, now)
-
-	assert.Equal(t, err, nil)
-
-	assert.Equal(t, 4, len(ts))
-	// TranslatePrometheusToStackdriver uses maps to represent data, so order of output is randomized.
-	sort.Sort(ByMetricTypeReversed(ts))
-
-	testInt(t, ts[0])
-	testInt(t, ts[1])
-	testInt(t, ts[2])
-	testHistogram(t, ts[3])
+				testInt(t, ts[0])
+				testInt(t, ts[1])
+				testInt(t, ts[2])
+				testHistogram(t, ts[3])
+			},
+		},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.description, func(t *testing.T) {
+			tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics(tc.whitelisted), tc.cache())
+			tsb.Update(metricsResponse, now)
+			ts, timestamp, err := tsb.Build()
+			assert.Equal(t, timestamp, now)
+			assert.Equal(t, err, nil)
+			tc.validate(t, ts)
+		})
+	}
 }
 
 func testInt(t *testing.T, metric *v3.TimeSeries) {
