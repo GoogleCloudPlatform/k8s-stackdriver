@@ -550,11 +550,13 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 	}
 }
 
-func testCache(commonConfig *config.CommonConfig, precachedMetrics []string) *MetricDescriptorCache {
+func testCache(commonConfig *config.CommonConfig, precachedMetrics []string, fresh bool) *MetricDescriptorCache {
 	c := NewMetricDescriptorCache(nil, commonConfig)
 	for _, metric := range precachedMetrics {
 		c.descriptors[metric] = metricDescriptors[metric]
 	}
+	c.fresh = fresh
+	c.client = &stackdriverMock{}
 	return c
 }
 
@@ -563,8 +565,10 @@ func TestTranslate(t *testing.T) {
 		description        string
 		metricsWhitelisted []string
 		prefix             string
+		cacheFresh         bool
 		metricsPrecached   []string
 		expectedMetricTypes []string
+		expectedCacheSize   int
 	}{
 		{
 			description:        "Container metrics with prefilled cache",
@@ -572,6 +576,7 @@ func TestTranslate(t *testing.T) {
 			prefix:             "container.googleapis.com/master",
 			metricsPrecached:   []string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName},
 			expectedMetricTypes: []string{"int", "int", "int", "histogram", "float", "bool", "bool"},
+			expectedCacheSize:   4,
 		},
 		{
 			description:        "Container metrics with empty cache",
@@ -587,18 +592,36 @@ func TestTranslate(t *testing.T) {
 			metricsPrecached:   []string{},
 			expectedMetricTypes: []string{"int", "int", "int", "histogram"},
 		},
+		{
+			description:        "Container metrics with fresh empty cache",
+			cacheFresh: true,
+			metricsWhitelisted: []string{intMetricName, histogramMetricName},
+			prefix:             "container.googleapis.com/master",
+			metricsPrecached:   []string{},
+			expectedMetricTypes: []string{"int", "int", "int", "histogram"},
+		},
+		{
+			description:        "Custom metrics with fresh empty cache",
+			cacheFresh: true,
+			metricsWhitelisted: []string{intMetricName, histogramMetricName},
+			prefix:             customMetricsPrefix,
+			metricsPrecached:   []string{},
+			expectedMetricTypes: []string{"int", "int", "int", "histogram"},
+			expectedCacheSize:   2,
+		},
 	}
 	for _, tc := range tcs {
 		t.Run(tc.description, func(t *testing.T) {
 			c := CommonConfigWithMetrics()
 			c.SourceConfig.Whitelisted = tc.metricsWhitelisted
 			c.SourceConfig.MetricsPrefix = tc.prefix
-			tsb := NewTimeSeriesBuilder(c, testCache(c, tc.metricsPrecached))
+			tsb := NewTimeSeriesBuilder(c, testCache(c, tc.metricsPrecached, tc.cacheFresh))
 			tsb.Update(metricsResponse, now)
 			ts, timestamp, err := tsb.Build()
 			assert.Equal(t, timestamp, now)
 			assert.Equal(t, err, nil)
 
+			assert.Equal(t, tc.expectedCacheSize, len(tsb.cache.descriptors))
 			assert.Equal(t, len(tc.expectedMetricTypes), len(ts))
 			sort.Sort(ByMetricTypeReversed(ts))
 			for i, typ := range tc.expectedMetricTypes {
@@ -1159,4 +1182,17 @@ func TestDowncaseMetricNames(t *testing.T) {
 			}
 		})
 	}
+}
+
+
+type stackdriverMock struct {}
+
+var _ stackdriver = (*stackdriverMock)(nil)
+
+func (c *stackdriverMock) UpdateMetricDescriptor(metricDescriptor *v3.MetricDescriptor) bool {
+	return true
+}
+
+func (c *stackdriverMock) GetMetricDescriptors(config *config.CommonConfig) (map[string]*v3.MetricDescriptor, error) {
+	return map[string]*v3.MetricDescriptor{}, nil
 }
