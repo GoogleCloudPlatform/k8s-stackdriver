@@ -76,9 +76,23 @@ func (t *TimeSeriesBuilder) Build() ([]*v3.TimeSeries, time.Time, error) {
 		return ts, time.Now(), nil
 	}
 	defer func() { t.batch = nil }()
-	metricFamilies, err := t.batch.metrics.Build(t.config, t.cache)
+	metricFamilies, err := t.batch.metrics.Build()
 	if err != nil {
 		return ts, time.Now(), err
+	}
+	if t.config.OmitComponentName {
+		metricFamilies = OmitComponentName(metricFamilies, t.config.SourceConfig.Component)
+	}
+	if t.config.DowncaseMetricNames {
+		metricFamilies = DowncaseMetricNames(metricFamilies)
+	}
+	// Convert summary metrics into metric family types we can easily import, since summary types
+	// map to multiple stackdriver metrics.
+	metricFamilies = FlattenSummaryMetricFamilies(metricFamilies)
+	if strings.HasPrefix(t.config.SourceConfig.MetricsPrefix, customMetricsPrefix) {
+		t.cache.UpdateMetricDescriptors(metricFamilies, t.config.SourceConfig.Whitelisted)
+	} else {
+		t.cache.ValidateMetricDescriptors(metricFamilies, t.config.SourceConfig.Whitelisted)
 	}
 	// Get start time before whitelisting, because process start time
 	// metric is likely not to be whitelisted.

@@ -95,25 +95,7 @@ func doPrometheusRequest(url string, auth config.AuthConfig) (resp *http.Respons
 }
 
 // Build performs parsing and processing of the prometheus metrics response.
-func (p *PrometheusResponse) Build(config *config.CommonConfig, metricDescriptorCache *MetricDescriptorCache) (map[string]*dto.MetricFamily, error) {
+func (p *PrometheusResponse) Build() (map[string]*dto.MetricFamily, error) {
 	parser := &expfmt.TextParser{}
-	metrics, err := parser.TextToMetricFamilies(strings.NewReader(p.rawResponse))
-	if err != nil {
-		return nil, err
-	}
-	if config.OmitComponentName {
-		metrics = OmitComponentName(metrics, config.SourceConfig.Component)
-	}
-	if config.DowncaseMetricNames {
-		metrics = DowncaseMetricNames(metrics)
-	}
-	// Convert summary metrics into metric family types we can easily import, since summary types
-	// map to multiple stackdriver metrics.
-	metrics = FlattenSummaryMetricFamilies(metrics)
-	if strings.HasPrefix(config.SourceConfig.MetricsPrefix, customMetricsPrefix) {
-		metricDescriptorCache.UpdateMetricDescriptors(metrics, config.SourceConfig.Whitelisted)
-	} else {
-		metricDescriptorCache.ValidateMetricDescriptors(metrics, config.SourceConfig.Whitelisted)
-	}
-	return metrics, nil
+	return parser.TextToMetricFamilies(strings.NewReader(p.rawResponse))
 }
