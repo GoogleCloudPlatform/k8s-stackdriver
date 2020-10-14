@@ -571,7 +571,7 @@ func TestTranslate(t *testing.T) {
 		expectedCacheSize   int
 	}{
 		{
-			description:        "Container metrics with prefilled cache",
+			description:        "[Container] Prefilled cache",
 			metricsWhitelisted: []string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName},
 			prefix:             "container.googleapis.com/master",
 			metricsPrecached:   []string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName},
@@ -579,21 +579,21 @@ func TestTranslate(t *testing.T) {
 			expectedCacheSize:   4,
 		},
 		{
-			description:        "Container metrics with empty cache",
+			description:        "[Container] Empty cache",
 			metricsWhitelisted: []string{intMetricName, histogramMetricName},
 			prefix:             "container.googleapis.com/master",
 			metricsPrecached:   []string{},
 			expectedMetricTypes: []string{"int", "int", "int", "histogram"},
 		},
 		{
-			description:        "Custom metrics with empty cache",
+			description:        "[Custom] Empty cache",
 			metricsWhitelisted: []string{intMetricName, histogramMetricName},
 			prefix:             customMetricsPrefix,
 			metricsPrecached:   []string{},
 			expectedMetricTypes: []string{"int", "int", "int", "histogram"},
 		},
 		{
-			description:        "Container metrics with fresh empty cache",
+			description:        "[Container] Fresh empty cache",
 			cacheFresh: true,
 			metricsWhitelisted: []string{intMetricName, histogramMetricName},
 			prefix:             "container.googleapis.com/master",
@@ -601,10 +601,26 @@ func TestTranslate(t *testing.T) {
 			expectedMetricTypes: []string{"int", "int", "int", "histogram"},
 		},
 		{
-			description:        "Custom metrics with fresh empty cache",
+			description:        "[Custom] Fresh empty cache",
 			cacheFresh: true,
 			metricsWhitelisted: []string{intMetricName, histogramMetricName},
 			prefix:             customMetricsPrefix,
+			metricsPrecached:   []string{},
+			expectedMetricTypes: []string{"int", "int", "int", "histogram"},
+			expectedCacheSize:   2,
+		},
+		{
+			description:        "[External] Empty cache",
+			metricsWhitelisted: []string{intMetricName, histogramMetricName},
+			prefix:             "external.googleapis.com/prometheus",
+			metricsPrecached:   []string{},
+			expectedMetricTypes: []string{"int", "int", "int", "histogram"},
+		},
+		{
+			description:        "[External] Fresh empty cache",
+			cacheFresh: true,
+			metricsWhitelisted: []string{intMetricName, histogramMetricName},
+			prefix:             "external.googleapis.com/prometheus",
 			metricsPrecached:   []string{},
 			expectedMetricTypes: []string{"int", "int", "int", "histogram"},
 			expectedCacheSize:   2,
@@ -1192,17 +1208,32 @@ test_name{labelName="labelValue1", emptyLabelName=""} 42.0
 	}
 	tcs := []struct{
 		description     string
+		prefix          string
 		skipEmptyLabels bool
 		expectedLabels  []string
 	}{
 		{
-			description:     "By default preserve all labels",
+			description:     "[Custom] By default preserve all labels",
 			skipEmptyLabels: false,
+			prefix:          customMetricsPrefix,
 			expectedLabels: []string{"labelName", "emptyLabelName"},
 		},
 		{
-			description:     "With skipEmptyLabels empty label should be dropped",
+			description:     "[Custom] With skipEmptyLabels empty label should be dropped",
 			skipEmptyLabels: true,
+			prefix:          customMetricsPrefix,
+			expectedLabels: []string{"labelName"},
+		},
+		{
+			description:     "[External] By default preserve all labels",
+			skipEmptyLabels: false,
+			prefix:          "external.googleapis.com/prometheus",
+			expectedLabels: []string{"labelName", "emptyLabelName"},
+		},
+		{
+			description:     "[External] With skipEmptyLabels empty label should be dropped",
+			skipEmptyLabels: true,
+			prefix:          "external.googleapis.com/prometheus",
 			expectedLabels: []string{"labelName"},
 		},
 	}
@@ -1210,7 +1241,7 @@ test_name{labelName="labelValue1", emptyLabelName=""} 42.0
 		t.Run(tc.description, func(t *testing.T) {
 			c := CommonConfigWithMetrics()
 			c.SourceConfig.Whitelisted = []string{intMetricName}
-			c.SourceConfig.MetricsPrefix = customMetricsPrefix
+			c.SourceConfig.MetricsPrefix = tc.prefix
 			c.SourceConfig.SkipEmptyLabels = tc.skipEmptyLabels
 			cache := testCache(c, []string{}, true)
 			tsb := NewTimeSeriesBuilder(c, cache)

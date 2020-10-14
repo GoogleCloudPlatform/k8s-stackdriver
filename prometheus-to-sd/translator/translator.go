@@ -32,6 +32,8 @@ import (
 const (
 	// Built-in Prometheus metric exporting process start time.
 	processStartTimeMetric = "process_start_time_seconds"
+	customMetricsPrefix = "custom.googleapis.com"
+	externalMetricsPrefix = "external.googleapis.com"
 )
 
 var supportedMetricTypes = map[dto.MetricType]bool{
@@ -95,7 +97,7 @@ func (t *TimeSeriesBuilder) Build() ([]*v3.TimeSeries, time.Time, error) {
 	metricFamilies = filterWhitelistedMetrics(metricFamilies, t.config.SourceConfig.Whitelisted)
 	metricFamilies = filterWhitelistedLabels(metricFamilies, t.config.SourceConfig.WhitelistedLabelsMap)
 	metricFamilies = filterSkipEmptyLabels(metricFamilies, t.config.SourceConfig.SkipEmptyLabels)
-	if strings.HasPrefix(t.config.SourceConfig.MetricsPrefix, customMetricsPrefix) {
+	if canUpdateMetricDescriptors(t.config.SourceConfig.MetricsPrefix) {
 		t.cache.UpdateMetricDescriptors(metricFamilies)
 	} else {
 		t.cache.ValidateMetricDescriptors(metricFamilies)
@@ -113,6 +115,10 @@ func (t *TimeSeriesBuilder) Build() ([]*v3.TimeSeries, time.Time, error) {
 		}
 	}
 	return ts, t.batch.timestamp, nil
+}
+
+func canUpdateMetricDescriptors(prefix string) bool {
+	return strings.HasPrefix(prefix, customMetricsPrefix) || strings.HasPrefix(prefix, externalMetricsPrefix)
 }
 
 // OmitComponentName removes from the metric names prefix that is equal to component name.

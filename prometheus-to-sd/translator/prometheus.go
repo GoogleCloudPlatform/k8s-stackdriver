@@ -30,8 +30,6 @@ import (
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/config"
 )
 
-const customMetricsPrefix = "custom.googleapis.com"
-
 // PrometheusResponse represents unprocessed response from Prometheus endpoint.
 type PrometheusResponse struct {
 	rawResponse string
