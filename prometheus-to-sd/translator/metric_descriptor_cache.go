@@ -70,16 +70,13 @@ func (cache *MetricDescriptorCache) MarkStale() {
 // ValidateMetricDescriptors checks if metric descriptors differs from the values kept in the cache.
 // If the value has changed then metric family is marked is broken. Use this method to verify that
 // metrics with prefix "container.googleapis.com" haven't changed.
-func (cache *MetricDescriptorCache) ValidateMetricDescriptors(metrics map[string]*dto.MetricFamily, whitelisted []string) {
+func (cache *MetricDescriptorCache) ValidateMetricDescriptors(metrics map[string]*dto.MetricFamily) {
 	// Perform cache operation only if cache was recently refreshed. This is done mostly from the optimization point
 	// of view, we don't want to check all metric descriptors too often, as they should change rarely.
 	if !cache.fresh {
 		return
 	}
 	for _, metricFamily := range metrics {
-		if !isMetricWhitelisted(metricFamily.GetName(), whitelisted) {
-			continue
-		}
 		metricDescriptor, ok := cache.descriptors[metricFamily.GetName()]
 		if !ok {
 			continue
@@ -96,30 +93,15 @@ func (cache *MetricDescriptorCache) ValidateMetricDescriptors(metrics map[string
 }
 
 // UpdateMetricDescriptors iterates over all metricFamilies and updates metricDescriptors in the Stackdriver if required.
-func (cache *MetricDescriptorCache) UpdateMetricDescriptors(metrics map[string]*dto.MetricFamily, whitelisted []string) {
+func (cache *MetricDescriptorCache) UpdateMetricDescriptors(metrics map[string]*dto.MetricFamily) {
 	// Perform cache operation only if cache was recently refreshed. This is done mostly from the optimization point
 	// of view, we don't want to check all metric descriptors too often, as they should change rarely.
 	if !cache.fresh {
 		return
 	}
 	for _, metricFamily := range metrics {
-		if isMetricWhitelisted(metricFamily.GetName(), whitelisted) {
-			cache.updateMetricDescriptorIfStale(metricFamily)
-		}
+		cache.updateMetricDescriptorIfStale(metricFamily)
 	}
-}
-
-func isMetricWhitelisted(metric string, whitelisted []string) bool {
-	// Empty list means that we want to fetch all metrics.
-	if len(whitelisted) == 0 {
-		return true
-	}
-	for _, whitelistedMetric := range whitelisted {
-		if whitelistedMetric == metric {
-			return true
-		}
-	}
-	return false
 }
 
 // updateMetricDescriptorIfStale checks if descriptor created from MetricFamily object differs from the existing one

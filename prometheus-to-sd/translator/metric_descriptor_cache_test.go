@@ -179,16 +179,14 @@ func TestValidateMetricDescriptors(t *testing.T) {
 			},
 		})
 		cache.fresh = true
-		var whitelisted []string
 		for _, descriptor := range tc.descriptors {
 			cache.descriptors[descriptor.Name] = descriptor
 			cache.broken[descriptor.Name] = false
-			whitelisted = append(whitelisted, descriptor.Name)
 			metrics := make(map[string]*dto.MetricFamily)
 			metricName := tc.metricFamily.GetName()
 			metrics[metricName] = tc.metricFamily
 
-			cache.ValidateMetricDescriptors(metrics, whitelisted)
+			cache.ValidateMetricDescriptors(metrics)
 			res, ok := cache.broken[metricName]
 
 			if tc.missing {
