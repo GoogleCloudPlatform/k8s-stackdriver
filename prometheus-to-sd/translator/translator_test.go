@@ -564,57 +564,28 @@ func TestTranslate(t *testing.T) {
 		metricsWhitelisted []string
 		prefix             string
 		metricsPrecached   []string
-		validate           func(*testing.T, []*v3.TimeSeries)
+		expectedMetricTypes []string
 	}{
 		{
 			description:        "Container metrics with prefilled cache",
 			metricsWhitelisted: []string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName},
 			prefix:             "container.googleapis.com/master",
 			metricsPrecached:   []string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName},
-			validate: func(t *testing.T, ts []*v3.TimeSeries) {
-				assert.Equal(t, 7, len(ts))
-				sort.Sort(ByMetricTypeReversed(ts))
-
-				containerMasterPrefix := "container.googleapis.com/master"
-				testInt(t, containerMasterPrefix, ts[0])
-				testInt(t, containerMasterPrefix, ts[1])
-				testInt(t,  containerMasterPrefix, ts[2])
-				testHistogram(t, containerMasterPrefix, ts[3])
-				testFloat(t, containerMasterPrefix, ts[4])
-				testBool(t,containerMasterPrefix, ts[5])
-				testBool(t,containerMasterPrefix, ts[6])
-			},
+			expectedMetricTypes: []string{"int", "int", "int", "histogram", "float", "bool", "bool"},
 		},
 		{
 			description:        "Container metrics with empty cache",
 			metricsWhitelisted: []string{intMetricName, histogramMetricName},
 			prefix:             "container.googleapis.com/master",
 			metricsPrecached:   []string{},
-			validate: func(t *testing.T, ts []*v3.TimeSeries) {
-				assert.Equal(t, 4, len(ts))
-				sort.Sort(ByMetricTypeReversed(ts))
-
-				containerMasterPrefix := "container.googleapis.com/master"
-				testInt(t, containerMasterPrefix, ts[0])
-				testInt(t, containerMasterPrefix, ts[1])
-				testInt(t, containerMasterPrefix, ts[2])
-				testHistogram(t, containerMasterPrefix, ts[3])
-			},
+			expectedMetricTypes: []string{"int", "int", "int", "histogram"},
 		},
 		{
 			description:        "Custom metrics with empty cache",
 			metricsWhitelisted: []string{intMetricName, histogramMetricName},
 			prefix:             customMetricsPrefix,
 			metricsPrecached:   []string{},
-			validate: func(t *testing.T, ts []*v3.TimeSeries) {
-				assert.Equal(t, 4, len(ts))
-				sort.Sort(ByMetricTypeReversed(ts))
-
-				testInt(t, customMetricsPrefix, ts[0])
-				testInt(t, customMetricsPrefix, ts[1])
-				testInt(t, customMetricsPrefix, ts[2])
-				testHistogram(t, customMetricsPrefix, ts[3])
-			},
+			expectedMetricTypes: []string{"int", "int", "int", "histogram"},
 		},
 	}
 	for _, tc := range tcs {
@@ -627,7 +598,23 @@ func TestTranslate(t *testing.T) {
 			ts, timestamp, err := tsb.Build()
 			assert.Equal(t, timestamp, now)
 			assert.Equal(t, err, nil)
-			tc.validate(t, ts)
+
+			assert.Equal(t, len(tc.expectedMetricTypes), len(ts))
+			sort.Sort(ByMetricTypeReversed(ts))
+			for i, typ := range tc.expectedMetricTypes {
+				switch typ {
+				case "int":
+					testInt(t, tc.prefix, ts[i])
+				case "histogram":
+					testHistogram(t, tc.prefix, ts[i])
+				case "float":
+					testFloat(t, tc.prefix, ts[i])
+				case "bool":
+					testBool(t, tc.prefix, ts[i])
+				default:
+					panic("Unexpected metric type")
+				}
+			}
 		})
 	}
 }
