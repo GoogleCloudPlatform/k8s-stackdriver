@@ -554,12 +554,14 @@ func TestTranslate(t *testing.T) {
 	tcs := []struct{
 		description string
 		whitelisted []string
+		prefix string
 		cache func() *MetricDescriptorCache
 		validate func(*testing.T, []*v3.TimeSeries)
 	}{
 		{
 			description: "Container metrics with prefilled cache",
 			whitelisted: []string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName},
+			prefix: "container.googleapis.com/master",
 			cache: func() *MetricDescriptorCache {
 				cache := NewMetricDescriptorCache(nil, commonConfig)
 				cache.descriptors[intMetricName] = metricDescriptors[intMetricName]
@@ -572,18 +574,20 @@ func TestTranslate(t *testing.T) {
 				assert.Equal(t, 7, len(ts))
 				sort.Sort(ByMetricTypeReversed(ts))
 
-				testInt(t, ts[0])
-				testInt(t, ts[1])
-				testInt(t, ts[2])
-				testHistogram(t, ts[3])
-				testFloat(t, ts[4])
-				testBool(t, ts[5])
-				testBool(t, ts[6])
+				containerMasterPrefix := "container.googleapis.com/master"
+				testInt(t, containerMasterPrefix, ts[0])
+				testInt(t, containerMasterPrefix, ts[1])
+				testInt(t,  containerMasterPrefix, ts[2])
+				testHistogram(t, containerMasterPrefix, ts[3])
+				testFloat(t, containerMasterPrefix, ts[4])
+				testBool(t,containerMasterPrefix, ts[5])
+				testBool(t,containerMasterPrefix, ts[6])
 			},
 		},
 		{
 			description: "Container metrics with empty cache",
 			whitelisted: []string{intMetricName, histogramMetricName},
+			prefix: "container.googleapis.com/master",
 			cache: func() *MetricDescriptorCache {
 				return NewMetricDescriptorCache(nil, commonConfig)
 			},
@@ -591,10 +595,28 @@ func TestTranslate(t *testing.T) {
 				assert.Equal(t, 4, len(ts))
 				sort.Sort(ByMetricTypeReversed(ts))
 
-				testInt(t, ts[0])
-				testInt(t, ts[1])
-				testInt(t, ts[2])
-				testHistogram(t, ts[3])
+				containerMasterPrefix := "container.googleapis.com/master"
+				testInt(t, containerMasterPrefix, ts[0])
+				testInt(t, containerMasterPrefix, ts[1])
+				testInt(t, containerMasterPrefix, ts[2])
+				testHistogram(t, containerMasterPrefix, ts[3])
+			},
+		},
+		{
+			description: "Custom metrics with empty cache",
+			whitelisted: []string{intMetricName, histogramMetricName},
+			prefix: customMetricsPrefix,
+			cache: func() *MetricDescriptorCache {
+				return NewMetricDescriptorCache(nil, commonConfig)
+			},
+			validate: func(t *testing.T, ts []*v3.TimeSeries) {
+				assert.Equal(t, 4, len(ts))
+				sort.Sort(ByMetricTypeReversed(ts))
+
+				testInt(t, customMetricsPrefix, ts[0])
+				testInt(t, customMetricsPrefix, ts[1])
+				testInt(t, customMetricsPrefix, ts[2])
+				testHistogram(t, customMetricsPrefix, ts[3])
 			},
 		},
 	}
@@ -602,6 +624,7 @@ func TestTranslate(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			c := CommonConfigWithMetrics()
 			c.SourceConfig.Whitelisted = tc.whitelisted
+			c.SourceConfig.MetricsPrefix = tc.prefix
 			tsb := NewTimeSeriesBuilder(c, tc.cache())
 			tsb.Update(metricsResponse, now)
 			ts, timestamp, err := tsb.Build()
@@ -612,9 +635,9 @@ func TestTranslate(t *testing.T) {
 	}
 }
 
-func testInt(t *testing.T, metric *v3.TimeSeries) {
+func testInt(t *testing.T, prefix string, metric *v3.TimeSeries) {
 	assert.Equal(t, "gke_container", metric.Resource.Type)
-	assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", metric.Metric.Type)
+	assert.Equal(t, prefix + "/testcomponent/test_name", metric.Metric.Type)
 	assert.Equal(t, "INT64", metric.ValueType)
 	assert.Equal(t, "CUMULATIVE", metric.MetricKind)
 
@@ -635,9 +658,9 @@ func testInt(t *testing.T, metric *v3.TimeSeries) {
 	}
 }
 
-func testFloat(t *testing.T, metric *v3.TimeSeries) {
+func testFloat(t *testing.T, prefix string, metric *v3.TimeSeries) {
 	assert.Equal(t, "gke_container", metric.Resource.Type)
-	assert.Equal(t, "container.googleapis.com/master/testcomponent/float_metric", metric.Metric.Type)
+	assert.Equal(t, prefix + "/testcomponent/float_metric", metric.Metric.Type)
 	assert.Equal(t, "DOUBLE", metric.ValueType)
 	assert.Equal(t, "CUMULATIVE", metric.MetricKind)
 	assert.InEpsilon(t, 123.17, *(metric.Points[0].Value.DoubleValue), epsilon)
@@ -645,10 +668,10 @@ func testFloat(t *testing.T, metric *v3.TimeSeries) {
 	assert.Equal(t, "2009-02-13T23:31:30Z", metric.Points[0].Interval.StartTime)
 }
 
-func testHistogram(t *testing.T, metric *v3.TimeSeries) {
+func testHistogram(t *testing.T, prefix string, metric *v3.TimeSeries) {
 	t.Helper()
 	assert.Equal(t, "gke_container", metric.Resource.Type)
-	assert.Equal(t, "container.googleapis.com/master/testcomponent/test_histogram", metric.Metric.Type)
+	assert.Equal(t, prefix + "/testcomponent/test_histogram", metric.Metric.Type)
 	assert.Equal(t, "DISTRIBUTION", metric.ValueType)
 	assert.Equal(t, "CUMULATIVE", metric.MetricKind)
 	assert.Equal(t, 1, len(metric.Points))
@@ -675,9 +698,9 @@ func testHistogram(t *testing.T, metric *v3.TimeSeries) {
 	assert.Equal(t, int64(1), counts[3])
 }
 
-func testBool(t *testing.T, metric *v3.TimeSeries) {
+func testBool(t *testing.T, prefix string, metric *v3.TimeSeries) {
 	assert.Equal(t, "gke_container", metric.Resource.Type)
-	assert.Equal(t, "container.googleapis.com/master/testcomponent/boolean_metric", metric.Metric.Type)
+	assert.Equal(t, prefix + "/testcomponent/boolean_metric", metric.Metric.Type)
 	assert.Equal(t, "BOOL", metric.ValueType)
 	assert.Equal(t, "GAUGE", metric.MetricKind)
 
