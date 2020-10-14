@@ -573,6 +573,26 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	testBool(t, ts[6])
 }
 
+func TestTranslatePrometheusToStackdriverWithoutCache(t *testing.T) {
+	cache := NewMetricDescriptorCache(nil, commonConfig)
+
+	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{intMetricName, histogramMetricName}), cache)
+	tsb.Update(metricsResponse, now)
+	ts, timestamp, err := tsb.Build()
+	assert.Equal(t, timestamp, now)
+
+	assert.Equal(t, err, nil)
+
+	assert.Equal(t, 4, len(ts))
+	// TranslatePrometheusToStackdriver uses maps to represent data, so order of output is randomized.
+	sort.Sort(ByMetricTypeReversed(ts))
+
+	testInt(t, ts[0])
+	testInt(t, ts[1])
+	testInt(t, ts[2])
+	testHistogram(t, ts[3])
+}
+
 func testInt(t *testing.T, metric *v3.TimeSeries) {
 	assert.Equal(t, "gke_container", metric.Resource.Type)
 	assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", metric.Metric.Type)
