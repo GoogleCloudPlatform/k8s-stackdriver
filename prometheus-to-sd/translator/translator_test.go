@@ -600,7 +600,9 @@ func TestTranslate(t *testing.T) {
 	}
 	for _, tc := range tcs {
 		t.Run(tc.description, func(t *testing.T) {
-			tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics(tc.whitelisted), tc.cache())
+			c := CommonConfigWithMetrics()
+			c.SourceConfig.Whitelisted = tc.whitelisted
+			tsb := NewTimeSeriesBuilder(c, tc.cache())
 			tsb.Update(metricsResponse, now)
 			ts, timestamp, err := tsb.Build()
 			assert.Equal(t, timestamp, now)
@@ -902,7 +904,9 @@ int_summary_metric_count{label="l2"} 10
 			cache.descriptors[intSummaryMetricName+"_sum"] = metricDescriptors[intSummaryMetricName+"_sum"]
 			cache.descriptors[floatSummaryMetricName+"_sum"] = metricDescriptors[floatSummaryMetricName+"_sum"]
 
-			tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{tt.summaryMetricName + "_sum", tt.summaryMetricName + "_count"}), cache)
+			c := CommonConfigWithMetrics()
+			c.SourceConfig.Whitelisted = []string{tt.summaryMetricName + "_sum", tt.summaryMetricName + "_count"}
+			tsb := NewTimeSeriesBuilder(c, cache)
 			tsb.Update(tt.prometheusResponse, end)
 			tss, timestamp, err := tsb.Build()
 			assert.Equal(t, timestamp, end)
@@ -973,7 +977,10 @@ func createDoublePoint(d float64, start time.Time, end time.Time) *v3.Point {
 func TestUpdateScrapes(t *testing.T) {
 	cache := NewMetricDescriptorCache(nil, commonConfig)
 
-	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{intMetricName, floatMetricName}), cache)
+	c := CommonConfigWithMetrics()
+	c.SourceConfig.Whitelisted = []string{intMetricName, floatMetricName}
+	tsb := NewTimeSeriesBuilder(c, cache)
+
 	scrape := &PrometheusResponse{rawResponse: `
 # TYPE test_name counter
 test_name{labelName="labelValue1"} 42.0
@@ -1063,17 +1070,24 @@ func TestOmitComponentName(t *testing.T) {
 
 func TestBuildWithoutUpdate(t *testing.T) {
 	cache := NewMetricDescriptorCache(nil, commonConfig)
-
-	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName}), cache)
+	c := CommonConfigWithMetrics()
+	c.SourceConfig.Whitelisted = []string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName}
+	tsb := NewTimeSeriesBuilder(c, cache)
 	ts, _, err := tsb.Build()
 
 	assert.Equal(t, err, nil)
 	assert.Equal(t, 0, len(ts))
 }
 
-func CommonConfigWithMetrics(whitelisted []string) *config.CommonConfig {
+func CommonConfigWithMetrics() *config.CommonConfig {
 	commonConfigCopy := *commonConfig
-	commonConfigCopy.SourceConfig.Whitelisted = whitelisted
+
+	sourceConfigCopy := *commonConfig.SourceConfig
+	commonConfigCopy.SourceConfig = &sourceConfigCopy
+
+	gceConfigCopy := *commonConfig.GceConfig
+	commonConfigCopy.GceConfig = &gceConfigCopy
+
 	return &commonConfigCopy
 }
 
