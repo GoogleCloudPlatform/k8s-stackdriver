@@ -550,26 +550,27 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 	}
 }
 
+func testCache(commonConfig *config.CommonConfig, precachedMetrics []string) *MetricDescriptorCache {
+	c := NewMetricDescriptorCache(nil, commonConfig)
+	for _, metric := range precachedMetrics {
+		c.descriptors[metric] = metricDescriptors[metric]
+	}
+	return c
+}
+
 func TestTranslate(t *testing.T) {
 	tcs := []struct{
-		description string
-		whitelisted []string
-		prefix string
-		cache func() *MetricDescriptorCache
-		validate func(*testing.T, []*v3.TimeSeries)
+		description        string
+		metricsWhitelisted []string
+		prefix             string
+		metricsPrecached   []string
+		validate           func(*testing.T, []*v3.TimeSeries)
 	}{
 		{
-			description: "Container metrics with prefilled cache",
-			whitelisted: []string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName},
-			prefix: "container.googleapis.com/master",
-			cache: func() *MetricDescriptorCache {
-				cache := NewMetricDescriptorCache(nil, commonConfig)
-				cache.descriptors[intMetricName] = metricDescriptors[intMetricName]
-				cache.descriptors[histogramMetricName] = metricDescriptors[histogramMetricName]
-				cache.descriptors[booleanMetricName] = metricDescriptors[booleanMetricName]
-				cache.descriptors[floatMetricName] = metricDescriptors[floatMetricName]
-				return cache
-			},
+			description:        "Container metrics with prefilled cache",
+			metricsWhitelisted: []string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName},
+			prefix:             "container.googleapis.com/master",
+			metricsPrecached:   []string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName},
 			validate: func(t *testing.T, ts []*v3.TimeSeries) {
 				assert.Equal(t, 7, len(ts))
 				sort.Sort(ByMetricTypeReversed(ts))
@@ -585,12 +586,10 @@ func TestTranslate(t *testing.T) {
 			},
 		},
 		{
-			description: "Container metrics with empty cache",
-			whitelisted: []string{intMetricName, histogramMetricName},
-			prefix: "container.googleapis.com/master",
-			cache: func() *MetricDescriptorCache {
-				return NewMetricDescriptorCache(nil, commonConfig)
-			},
+			description:        "Container metrics with empty cache",
+			metricsWhitelisted: []string{intMetricName, histogramMetricName},
+			prefix:             "container.googleapis.com/master",
+			metricsPrecached:   []string{},
 			validate: func(t *testing.T, ts []*v3.TimeSeries) {
 				assert.Equal(t, 4, len(ts))
 				sort.Sort(ByMetricTypeReversed(ts))
@@ -603,12 +602,10 @@ func TestTranslate(t *testing.T) {
 			},
 		},
 		{
-			description: "Custom metrics with empty cache",
-			whitelisted: []string{intMetricName, histogramMetricName},
-			prefix: customMetricsPrefix,
-			cache: func() *MetricDescriptorCache {
-				return NewMetricDescriptorCache(nil, commonConfig)
-			},
+			description:        "Custom metrics with empty cache",
+			metricsWhitelisted: []string{intMetricName, histogramMetricName},
+			prefix:             customMetricsPrefix,
+			metricsPrecached:   []string{},
 			validate: func(t *testing.T, ts []*v3.TimeSeries) {
 				assert.Equal(t, 4, len(ts))
 				sort.Sort(ByMetricTypeReversed(ts))
@@ -623,9 +620,9 @@ func TestTranslate(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.description, func(t *testing.T) {
 			c := CommonConfigWithMetrics()
-			c.SourceConfig.Whitelisted = tc.whitelisted
+			c.SourceConfig.Whitelisted = tc.metricsWhitelisted
 			c.SourceConfig.MetricsPrefix = tc.prefix
-			tsb := NewTimeSeriesBuilder(c, tc.cache())
+			tsb := NewTimeSeriesBuilder(c, testCache(c, tc.metricsPrecached))
 			tsb.Update(metricsResponse, now)
 			ts, timestamp, err := tsb.Build()
 			assert.Equal(t, timestamp, now)
