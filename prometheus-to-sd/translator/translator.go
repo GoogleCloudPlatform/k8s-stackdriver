@@ -32,8 +32,8 @@ import (
 const (
 	// Built-in Prometheus metric exporting process start time.
 	processStartTimeMetric = "process_start_time_seconds"
-	customMetricsPrefix = "custom.googleapis.com"
-	externalMetricsPrefix = "external.googleapis.com"
+	customMetricsPrefix    = "custom.googleapis.com"
+	externalMetricsPrefix  = "external.googleapis.com"
 )
 
 var supportedMetricTypes = map[dto.MetricType]bool{

@@ -97,7 +97,7 @@ type stackdriver interface {
 
 type stackdriverClient struct {
 	service *v3.Service
-	config *config.GceConfig
+	config  *config.GceConfig
 }
 
 var _ stackdriver = (*stackdriverClient)(nil)

@@ -131,7 +131,7 @@ func TestNewSourceConfig(t *testing.T) {
 				PodConfig:            podConfig,
 				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
 				CustomLabels:         map[string]string{},
-				SkipEmptyLabels: true,
+				SkipEmptyLabels:      true,
 			},
 		},
 	}
@@ -320,32 +320,32 @@ func TestParseSourceConfig(t *testing.T) {
 			},
 		},
 		{
-		flags.Uri{
-			Key: "testComponent",
-			Val: url.URL{
-				Scheme:   "https",
-				Host:     "hostname:1234",
-				Path:     defaultMetricsPath,
-				RawQuery: "whitelisted=a,b,c,d&skipEmptyLabels=t",
+			flags.Uri{
+				Key: "testComponent",
+				Val: url.URL{
+					Scheme:   "https",
+					Host:     "hostname:1234",
+					Path:     defaultMetricsPath,
+					RawQuery: "whitelisted=a,b,c,d&skipEmptyLabels=t",
+				},
+			},
+			SourceConfig{
+
+				Component:            "testComponent",
+				Protocol:             "https",
+				Host:                 "hostname",
+				Port:                 1234,
+				Path:                 defaultMetricsPath,
+				Whitelisted:          []string{"a", "b", "c", "d"},
+				PodConfig:            NewPodConfig(podId, namespaceId, "", "", ""),
+				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
+				CustomLabels:         map[string]string{},
+				SkipEmptyLabels:      true,
 			},
 		},
-		SourceConfig{
+	}
 
-			Component:            "testComponent",
-			Protocol:             "https",
-			Host:                 "hostname",
-			Port:                 1234,
-			Path:                 defaultMetricsPath,
-			Whitelisted:          []string{"a", "b", "c", "d"},
-			PodConfig:            NewPodConfig(podId, namespaceId, "", "", ""),
-			WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
-			CustomLabels:         map[string]string{},
-			SkipEmptyLabels: true,
-		},
-	},
-}
-
-for _, c := range correct {
+	for _, c := range correct {
 		res, err := parseSourceConfig(c.in, podId, namespaceId)
 		if assert.NoError(t, err) {
 			assert.Equal(t, c.output, *res)

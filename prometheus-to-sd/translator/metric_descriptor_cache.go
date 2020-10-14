@@ -42,8 +42,8 @@ func NewMetricDescriptorCache(service *v3.Service, config *config.CommonConfig) 
 			service: service,
 			config:  config.GceConfig,
 		},
-		config:      config,
-		fresh:       false,
+		config: config,
+		fresh:  false,
 	}
 }
 

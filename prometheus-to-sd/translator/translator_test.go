@@ -561,67 +561,67 @@ func testCache(commonConfig *config.CommonConfig, precachedMetrics []string, fre
 }
 
 func TestTranslate(t *testing.T) {
-	tcs := []struct{
-		description        string
-		metricsWhitelisted []string
-		prefix             string
-		cacheFresh         bool
-		metricsPrecached   []string
+	tcs := []struct {
+		description         string
+		metricsWhitelisted  []string
+		prefix              string
+		cacheFresh          bool
+		metricsPrecached    []string
 		expectedMetricTypes []string
 		expectedCacheSize   int
 	}{
 		{
-			description:        "[Container] Prefilled cache",
-			metricsWhitelisted: []string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName},
-			prefix:             "container.googleapis.com/master",
-			metricsPrecached:   []string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName},
+			description:         "[Container] Prefilled cache",
+			metricsWhitelisted:  []string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName},
+			prefix:              "container.googleapis.com/master",
+			metricsPrecached:    []string{intMetricName, histogramMetricName, booleanMetricName, floatMetricName},
 			expectedMetricTypes: []string{"int", "int", "int", "histogram", "float", "bool", "bool"},
 			expectedCacheSize:   4,
 		},
 		{
-			description:        "[Container] Empty cache",
-			metricsWhitelisted: []string{intMetricName, histogramMetricName},
-			prefix:             "container.googleapis.com/master",
-			metricsPrecached:   []string{},
+			description:         "[Container] Empty cache",
+			metricsWhitelisted:  []string{intMetricName, histogramMetricName},
+			prefix:              "container.googleapis.com/master",
+			metricsPrecached:    []string{},
 			expectedMetricTypes: []string{"int", "int", "int", "histogram"},
 		},
 		{
-			description:        "[Custom] Empty cache",
-			metricsWhitelisted: []string{intMetricName, histogramMetricName},
-			prefix:             customMetricsPrefix,
-			metricsPrecached:   []string{},
+			description:         "[Custom] Empty cache",
+			metricsWhitelisted:  []string{intMetricName, histogramMetricName},
+			prefix:              customMetricsPrefix,
+			metricsPrecached:    []string{},
 			expectedMetricTypes: []string{"int", "int", "int", "histogram"},
 		},
 		{
-			description:        "[Container] Fresh empty cache",
-			cacheFresh: true,
-			metricsWhitelisted: []string{intMetricName, histogramMetricName},
-			prefix:             "container.googleapis.com/master",
-			metricsPrecached:   []string{},
+			description:         "[Container] Fresh empty cache",
+			cacheFresh:          true,
+			metricsWhitelisted:  []string{intMetricName, histogramMetricName},
+			prefix:              "container.googleapis.com/master",
+			metricsPrecached:    []string{},
 			expectedMetricTypes: []string{"int", "int", "int", "histogram"},
 		},
 		{
-			description:        "[Custom] Fresh empty cache",
-			cacheFresh: true,
-			metricsWhitelisted: []string{intMetricName, histogramMetricName},
-			prefix:             customMetricsPrefix,
-			metricsPrecached:   []string{},
+			description:         "[Custom] Fresh empty cache",
+			cacheFresh:          true,
+			metricsWhitelisted:  []string{intMetricName, histogramMetricName},
+			prefix:              customMetricsPrefix,
+			metricsPrecached:    []string{},
 			expectedMetricTypes: []string{"int", "int", "int", "histogram"},
 			expectedCacheSize:   2,
 		},
 		{
-			description:        "[External] Empty cache",
-			metricsWhitelisted: []string{intMetricName, histogramMetricName},
-			prefix:             "external.googleapis.com/prometheus",
-			metricsPrecached:   []string{},
+			description:         "[External] Empty cache",
+			metricsWhitelisted:  []string{intMetricName, histogramMetricName},
+			prefix:              "external.googleapis.com/prometheus",
+			metricsPrecached:    []string{},
 			expectedMetricTypes: []string{"int", "int", "int", "histogram"},
 		},
 		{
-			description:        "[External] Fresh empty cache",
-			cacheFresh: true,
-			metricsWhitelisted: []string{intMetricName, histogramMetricName},
-			prefix:             "external.googleapis.com/prometheus",
-			metricsPrecached:   []string{},
+			description:         "[External] Fresh empty cache",
+			cacheFresh:          true,
+			metricsWhitelisted:  []string{intMetricName, histogramMetricName},
+			prefix:              "external.googleapis.com/prometheus",
+			metricsPrecached:    []string{},
 			expectedMetricTypes: []string{"int", "int", "int", "histogram"},
 			expectedCacheSize:   2,
 		},
@@ -660,7 +660,7 @@ func TestTranslate(t *testing.T) {
 
 func testInt(t *testing.T, prefix string, metric *v3.TimeSeries) {
 	assert.Equal(t, "gke_container", metric.Resource.Type)
-	assert.Equal(t, prefix + "/testcomponent/test_name", metric.Metric.Type)
+	assert.Equal(t, prefix+"/testcomponent/test_name", metric.Metric.Type)
 	assert.Equal(t, "INT64", metric.ValueType)
 	assert.Equal(t, "CUMULATIVE", metric.MetricKind)
 
@@ -683,7 +683,7 @@ func testInt(t *testing.T, prefix string, metric *v3.TimeSeries) {
 
 func testFloat(t *testing.T, prefix string, metric *v3.TimeSeries) {
 	assert.Equal(t, "gke_container", metric.Resource.Type)
-	assert.Equal(t, prefix + "/testcomponent/float_metric", metric.Metric.Type)
+	assert.Equal(t, prefix+"/testcomponent/float_metric", metric.Metric.Type)
 	assert.Equal(t, "DOUBLE", metric.ValueType)
 	assert.Equal(t, "CUMULATIVE", metric.MetricKind)
 	assert.InEpsilon(t, 123.17, *(metric.Points[0].Value.DoubleValue), epsilon)
@@ -694,7 +694,7 @@ func testFloat(t *testing.T, prefix string, metric *v3.TimeSeries) {
 func testHistogram(t *testing.T, prefix string, metric *v3.TimeSeries) {
 	t.Helper()
 	assert.Equal(t, "gke_container", metric.Resource.Type)
-	assert.Equal(t, prefix + "/testcomponent/test_histogram", metric.Metric.Type)
+	assert.Equal(t, prefix+"/testcomponent/test_histogram", metric.Metric.Type)
 	assert.Equal(t, "DISTRIBUTION", metric.ValueType)
 	assert.Equal(t, "CUMULATIVE", metric.MetricKind)
 	assert.Equal(t, 1, len(metric.Points))
@@ -723,7 +723,7 @@ func testHistogram(t *testing.T, prefix string, metric *v3.TimeSeries) {
 
 func testBool(t *testing.T, prefix string, metric *v3.TimeSeries) {
 	assert.Equal(t, "gke_container", metric.Resource.Type)
-	assert.Equal(t, prefix + "/testcomponent/boolean_metric", metric.Metric.Type)
+	assert.Equal(t, prefix+"/testcomponent/boolean_metric", metric.Metric.Type)
 	assert.Equal(t, "BOOL", metric.ValueType)
 	assert.Equal(t, "GAUGE", metric.MetricKind)
 
@@ -1206,7 +1206,7 @@ func TestTranslateWithSkipEmptyLabels(t *testing.T) {
 test_name{labelName="labelValue1", emptyLabelName=""} 42.0
 	`,
 	}
-	tcs := []struct{
+	tcs := []struct {
 		description     string
 		prefix          string
 		skipEmptyLabels bool
@@ -1216,25 +1216,25 @@ test_name{labelName="labelValue1", emptyLabelName=""} 42.0
 			description:     "[Custom] By default preserve all labels",
 			skipEmptyLabels: false,
 			prefix:          customMetricsPrefix,
-			expectedLabels: []string{"labelName", "emptyLabelName"},
+			expectedLabels:  []string{"labelName", "emptyLabelName"},
 		},
 		{
 			description:     "[Custom] With skipEmptyLabels empty label should be dropped",
 			skipEmptyLabels: true,
 			prefix:          customMetricsPrefix,
-			expectedLabels: []string{"labelName"},
+			expectedLabels:  []string{"labelName"},
 		},
 		{
 			description:     "[External] By default preserve all labels",
 			skipEmptyLabels: false,
 			prefix:          "external.googleapis.com/prometheus",
-			expectedLabels: []string{"labelName", "emptyLabelName"},
+			expectedLabels:  []string{"labelName", "emptyLabelName"},
 		},
 		{
 			description:     "[External] With skipEmptyLabels empty label should be dropped",
 			skipEmptyLabels: true,
 			prefix:          "external.googleapis.com/prometheus",
-			expectedLabels: []string{"labelName"},
+			expectedLabels:  []string{"labelName"},
 		},
 	}
 	for _, tc := range tcs {
@@ -1276,8 +1276,7 @@ func labelKeys(labels map[string]string) []string {
 	return keys
 }
 
-
-type stackdriverMock struct {}
+type stackdriverMock struct{}
 
 var _ stackdriver = (*stackdriverMock)(nil)
 
