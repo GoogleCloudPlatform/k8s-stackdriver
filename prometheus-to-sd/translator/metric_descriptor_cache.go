@@ -28,9 +28,9 @@ import (
 type MetricDescriptorCache struct {
 	descriptors map[string]*v3.MetricDescriptor
 	broken      map[string]bool
-	service     *v3.Service
 	config      *config.CommonConfig
 	fresh       bool
+	client      stackdriver
 }
 
 // NewMetricDescriptorCache creates empty metric descriptor cache for the given component.
@@ -38,7 +38,10 @@ func NewMetricDescriptorCache(service *v3.Service, config *config.CommonConfig) 
 	return &MetricDescriptorCache{
 		descriptors: make(map[string]*v3.MetricDescriptor),
 		broken:      make(map[string]bool),
-		service:     service,
+		client: &stackdriverClient{
+			service: service,
+			config:  config.GceConfig,
+		},
 		config:      config,
 		fresh:       false,
 	}
@@ -125,7 +128,7 @@ func (cache *MetricDescriptorCache) updateMetricDescriptorIfStale(metricFamily *
 	metricDescriptor, ok := cache.descriptors[metricFamily.GetName()]
 	updatedMetricDescriptor := MetricFamilyToMetricDescriptor(cache.config, metricFamily, metricDescriptor)
 	if !ok || descriptorChanged(metricDescriptor, updatedMetricDescriptor) {
-		if updateMetricDescriptorInStackdriver(cache.service, cache.config.GceConfig, updatedMetricDescriptor) {
+		if cache.client.UpdateMetricDescriptor(updatedMetricDescriptor) {
 			cache.descriptors[metricFamily.GetName()] = updatedMetricDescriptor
 		} else {
 			cache.broken[metricFamily.GetName()] = true
@@ -173,7 +176,7 @@ func descriptorLabelSetChanged(original *v3.MetricDescriptor, checked *v3.Metric
 // Refresh function fetches all metric descriptors of all metrics defined for given component with a defined prefix
 // and puts them into cache.
 func (cache *MetricDescriptorCache) Refresh() {
-	metricDescriptors, err := getMetricDescriptors(cache.service, cache.config)
+	metricDescriptors, err := cache.client.GetMetricDescriptors(cache.config)
 	if err == nil {
 		cache.descriptors = metricDescriptors
 		cache.broken = make(map[string]bool)

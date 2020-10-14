@@ -72,40 +72,6 @@ func SendToStackdriver(service *v3.Service, config *config.CommonConfig, ts []*v
 	timeseriesDropped.WithLabelValues(config.SourceConfig.Component).Add(float64(failedTs))
 }
 
-func getMetricDescriptors(service *v3.Service, config *config.CommonConfig) (map[string]*v3.MetricDescriptor, error) {
-	proj := createProjectName(config.GceConfig)
-	filter := fmt.Sprintf("metric.type = starts_with(\"%s/%s\")", config.SourceConfig.MetricsPrefix, config.SourceConfig.Component)
-	metrics := make(map[string]*v3.MetricDescriptor)
-	fn := func(page *v3.ListMetricDescriptorsResponse) error {
-		for _, metricDescriptor := range page.MetricDescriptors {
-			if _, metricName, err := parseMetricType(config, metricDescriptor.Type); err == nil {
-				metrics[metricName] = metricDescriptor
-			} else {
-				glog.Warningf("Unable to parse %v: %v", metricDescriptor.Type, err)
-			}
-		}
-		return nil
-	}
-	err := service.Projects.MetricDescriptors.List(proj).Filter(filter).Pages(nil, fn)
-	if err != nil {
-		glog.Warningf("Error while fetching metric descriptors for %v: %v", config.SourceConfig.Component, err)
-	}
-	return metrics, err
-}
-
-// updateMetricDescriptorInStackdriver writes metric descriptor to the stackdriver.
-func updateMetricDescriptorInStackdriver(service *v3.Service, config *config.GceConfig, metricDescriptor *v3.MetricDescriptor) bool {
-	glog.V(4).Infof("Updating metric descriptor: %+v", metricDescriptor)
-
-	projectName := createProjectName(config)
-	_, err := service.Projects.MetricDescriptors.Create(projectName, metricDescriptor).Do()
-	if err != nil {
-		glog.Errorf("Error in attempt to update metric descriptor %v", err)
-		return false
-	}
-	return true
-}
-
 // parseMetricType extracts component and metricName from Metric.Type (e.g. output of getMetricType).
 func parseMetricType(config *config.CommonConfig, metricType string) (component, metricName string, err error) {
 	if !strings.HasPrefix(metricType, fmt.Sprintf("%s/", config.SourceConfig.MetricsPrefix)) {
@@ -122,4 +88,49 @@ func parseMetricType(config *config.CommonConfig, metricType string) (component,
 		return "", split[0], nil
 	}
 	return split[0], split[1], nil
+}
+
+type stackdriver interface {
+	UpdateMetricDescriptor(metricDescriptor *v3.MetricDescriptor) bool
+	GetMetricDescriptors(config *config.CommonConfig) (map[string]*v3.MetricDescriptor, error)
+}
+
+type stackdriverClient struct {
+	service *v3.Service
+	config *config.GceConfig
+}
+
+var _ stackdriver = (*stackdriverClient)(nil)
+
+func (c *stackdriverClient) UpdateMetricDescriptor(metricDescriptor *v3.MetricDescriptor) bool {
+	glog.V(4).Infof("Updating metric descriptor: %+v", metricDescriptor)
+
+	projectName := createProjectName(c.config)
+	_, err := c.service.Projects.MetricDescriptors.Create(projectName, metricDescriptor).Do()
+	if err != nil {
+		glog.Errorf("Error in attempt to update metric descriptor %v", err)
+		return false
+	}
+	return true
+}
+
+func (c *stackdriverClient) GetMetricDescriptors(config *config.CommonConfig) (map[string]*v3.MetricDescriptor, error) {
+	proj := createProjectName(config.GceConfig)
+	filter := fmt.Sprintf("metric.type = starts_with(\"%s/%s\")", config.SourceConfig.MetricsPrefix, config.SourceConfig.Component)
+	metrics := make(map[string]*v3.MetricDescriptor)
+	fn := func(page *v3.ListMetricDescriptorsResponse) error {
+		for _, metricDescriptor := range page.MetricDescriptors {
+			if _, metricName, err := parseMetricType(config, metricDescriptor.Type); err == nil {
+				metrics[metricName] = metricDescriptor
+			} else {
+				glog.Warningf("Unable to parse %v: %v", metricDescriptor.Type, err)
+			}
+		}
+		return nil
+	}
+	err := c.service.Projects.MetricDescriptors.List(proj).Filter(filter).Pages(nil, fn)
+	if err != nil {
+		glog.Warningf("Error while fetching metric descriptors for %v: %v", config.SourceConfig.Component, err)
+	}
+	return metrics, err
 }
