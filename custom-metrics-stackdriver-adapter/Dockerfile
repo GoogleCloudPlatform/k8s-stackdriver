@@ -22,6 +22,15 @@ RUN apk update \
     && apk add --no-cache govendor \
     && govendor license +vendor > /NOTICES
 
+FROM debian:buster as builder2
+WORKDIR /workspace
+RUN apt-get update && apt-get install -y -q --no-install-recommends --no-install-suggests --fix-missing gcc git libc6-dev make
+RUN git clone git://git.kernel.org/pub/scm/linux/kernel/git/morgan/libcap.git
+RUN cd libcap/progs && make
+
 FROM gcr.io/distroless/static
 
 COPY --from=builder /adapter adapter
+COPY --from=builder2 /workspace/libcap/progs/setcap setcap
+
+RUN ["/setcap", "cap_net_bind_service=+ep", "/adapter"]
