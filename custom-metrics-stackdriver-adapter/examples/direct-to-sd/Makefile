@@ -1,4 +1,4 @@
-TAG = v0.2.0
+TAG = v0.2.1
 PREFIX = staging-k8s.gcr.io
 
 build: sd_dummy_exporter
