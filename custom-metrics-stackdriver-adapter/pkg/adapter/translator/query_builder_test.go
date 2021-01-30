@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -668,5 +668,283 @@ func TestTranslator_GetExternalMetricRequest_OneInvalidRequirement(t *testing.T)
 	expectedError := errors.NewBadRequest("Label selector with operator DoesNotExist is not allowed")
 	if *err.(*errors.StatusError) != *expectedError {
 		t.Errorf("Expected status error: %s, but received: %s", expectedError, err)
+	}
+}
+
+func TestTranslator_GetSDReqForPods_Single_Distribution(t *testing.T) {
+	translator, sdService :=
+		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+			Name:        "my-pod-name",
+		},
+	}
+	metricName := "my/custom/metric"
+	selector, _ := labels.Parse("reducer=PERCENTILE_50")
+	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", selector, "default")
+	if err != nil {
+		t.Errorf("Translation error: %s", err)
+	}
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter("metric.type = \"my/custom/metric\" " +
+			"AND resource.labels.project_id = \"my-project\" " +
+			"AND resource.labels.cluster_name = \"my-cluster\" " +
+			"AND resource.labels.location = \"my-zone\" " +
+			"AND resource.labels.namespace_name = \"default\" " +
+			"AND resource.labels.pod_name = \"my-pod-name\" " +
+			"AND resource.type = \"k8s_pod\"").
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:02:00Z").
+		AggregationPerSeriesAligner("ALIGN_DELTA").
+		AggregationCrossSeriesReducer("REDUCE_PERCENTILE_50").
+		AggregationAlignmentPeriod("60s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+	}
+}
+
+func TestTranslator_GetSDReqForPods_NoSupportDistributions(t *testing.T) {
+	translator, sdService :=
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+			Name:        "my-pod-name",
+		},
+	}
+	metricName := "my/custom/metric"
+	req, _ := labels.NewRequirement("reducer", selection.Equals, []string{"PERCENTILE_50"})
+	selector := labels.NewSelector().Add(*req)
+	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", selector, "default")
+	if err != nil {
+		t.Errorf("Translation error: %s", err)
+	}
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter("reducer = \"PERCENTILE_50\" " +
+			"AND metric.type = \"my/custom/metric\" " +
+			"AND resource.labels.project_id = \"my-project\" " +
+			"AND resource.labels.cluster_name = \"my-cluster\" " +
+			"AND resource.labels.location = \"my-zone\" " +
+			"AND resource.labels.namespace_name = \"default\" " +
+			"AND resource.labels.pod_name = \"my-pod-name\" " +
+			"AND resource.type = \"k8s_pod\"").
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:02:00Z").
+		AggregationPerSeriesAligner("ALIGN_RATE").
+		AggregationAlignmentPeriod("60s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+	}
+}
+
+func TestTranslator_GetSDReqForPods_BadPercentile(t *testing.T) {
+	translator, _ :=
+		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+			Name:        "my-pod-name",
+		},
+	}
+	metricName := "my/custom/metric"
+	selector, _ := labels.Parse("reducer=PERCENTILE_52")
+	_, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", selector, "default")
+	expectedError := NewLabelNotAllowedError("Reducer must use a supported percentile (PERCENTILE_50, PERCENTILE_95, PERCENTILE_99). You used: PERCENTILE_52")
+	if *err.(*errors.StatusError) != *expectedError {
+		t.Errorf("Expected status error: %s, but received: %s", expectedError, err)
+	}
+}
+
+func TestTranslator_GetSDReqForPods_TooManyPercentiles(t *testing.T) {
+	translator, _ :=
+		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+			Name:        "my-pod-name",
+		},
+	}
+	metricName := "my/custom/metric"
+	selector, _ := labels.Parse("reducer in (PERCENTILE_50,PERCENTILE_99)")
+	_, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", selector, "default")
+	expectedError := NewLabelNotAllowedError("Reducer must use '=' or '==': You used in")
+	if *err.(*errors.StatusError) != *expectedError {
+		t.Errorf("Expected status error: %s, but received: %s", expectedError, err)
+	}
+}
+
+func TestTranslator_GetSDReqForPods_SingleWithMetricSelector_Distribution(t *testing.T) {
+	translator, sdService :=
+		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+			Name:        "my-pod-name",
+		},
+	}
+	metricName := "my/custom/metric"
+	metricSelector, _ := labels.Parse("metric.labels.custom=test,reducer=PERCENTILE_99")
+	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", metricSelector, "default")
+	if err != nil {
+		t.Errorf("Translation error: %s", err)
+	}
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter("metric.labels.custom = \"test\" " +
+			"AND metric.type = \"my/custom/metric\" " +
+			"AND resource.labels.project_id = \"my-project\" " +
+			"AND resource.labels.cluster_name = \"my-cluster\" " +
+			"AND resource.labels.location = \"my-zone\" " +
+			"AND resource.labels.namespace_name = \"default\" " +
+			"AND resource.labels.pod_name = \"my-pod-name\" " +
+			"AND resource.type = \"k8s_pod\"").
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:02:00Z").
+		AggregationPerSeriesAligner("ALIGN_DELTA").
+		AggregationCrossSeriesReducer("REDUCE_PERCENTILE_99").
+		AggregationAlignmentPeriod("60s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+	}
+}
+
+func TestTranslator_GetSDReqForContainers_Single_Distribution(t *testing.T) {
+	translator, sdService :=
+		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+			Name:        "my-pod-name",
+		},
+	}
+	metricName := "my/custom/metric"
+	selector, _ := labels.Parse("reducer=PERCENTILE_50")
+	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", selector, "default")
+	if err != nil {
+		t.Errorf("Translation error: %s", err)
+	}
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter("metric.type = \"my/custom/metric\" " +
+			"AND resource.labels.project_id = \"my-project\" " +
+			"AND resource.labels.cluster_name = \"my-cluster\" " +
+			"AND resource.labels.location = \"my-zone\" " +
+			"AND resource.labels.namespace_name = \"default\" " +
+			"AND resource.labels.pod_name = \"my-pod-name\" " +
+			"AND resource.type = \"k8s_container\"").
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:02:00Z").
+		AggregationPerSeriesAligner("ALIGN_DELTA").
+		AggregationCrossSeriesReducer("REDUCE_PERCENTILE_50").
+		AggregationAlignmentPeriod("60s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+	}
+}
+
+func TestTranslator_GetSDReqForContainer_SingleWithMetricSelector_Distribution(t *testing.T) {
+	translator, sdService :=
+		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+			Name:        "my-pod-name",
+		},
+	}
+	metricName := "my/custom/metric"
+	metricSelector, _ := labels.Parse("metric.labels.custom=test,reducer=PERCENTILE_99")
+	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", metricSelector, "default")
+	if err != nil {
+		t.Errorf("Translation error: %s", err)
+	}
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter("metric.labels.custom = \"test\" " +
+			"AND metric.type = \"my/custom/metric\" " +
+			"AND resource.labels.project_id = \"my-project\" " +
+			"AND resource.labels.cluster_name = \"my-cluster\" " +
+			"AND resource.labels.location = \"my-zone\" " +
+			"AND resource.labels.namespace_name = \"default\" " +
+			"AND resource.labels.pod_name = \"my-pod-name\" " +
+			"AND resource.type = \"k8s_container\"").
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:02:00Z").
+		AggregationPerSeriesAligner("ALIGN_DELTA").
+		AggregationCrossSeriesReducer("REDUCE_PERCENTILE_99").
+		AggregationAlignmentPeriod("60s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+	}
+}
+
+func TestTranslator_GetSDReqForNodes_Single_Distribution(t *testing.T) {
+	translator, sdService :=
+		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	node := v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-node-id",
+			Name:        "my-node-name",
+		},
+	}
+	metricName := "my/custom/metric"
+	metricSelector, _ := labels.Parse("reducer=PERCENTILE_95")
+	request, err := translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{node}}, metricName, "DELTA", metricSelector)
+	if err != nil {
+		t.Errorf("Translation error: %s", err)
+	}
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter("metric.type = \"my/custom/metric\" " +
+			"AND resource.labels.project_id = \"my-project\" " +
+			"AND resource.labels.cluster_name = \"my-cluster\" " +
+			"AND resource.labels.location = \"my-zone\" " +
+			"AND resource.labels.node_name = \"my-node-name\" " +
+			"AND resource.type = \"k8s_node\"").
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:02:00Z").
+		AggregationPerSeriesAligner("ALIGN_DELTA").
+		AggregationCrossSeriesReducer("REDUCE_PERCENTILE_95").
+		AggregationAlignmentPeriod("60s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+	}
+}
+
+func TestTranslator_GetSDReqForNodes_SingleWithMetricSelector_Distribution(t *testing.T) {
+	translator, sdService :=
+		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	node := v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-node-id",
+			Name:        "my-node-name",
+		},
+	}
+	metricName := "my/custom/metric"
+	metricSelector, _ := labels.Parse("metric.labels.custom=test,reducer=PERCENTILE_95")
+	request, err := translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{node}}, metricName, "DELTA", metricSelector)
+	if err != nil {
+		t.Errorf("Translation error: %s", err)
+	}
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter("metric.labels.custom = \"test\" " +
+			"AND metric.type = \"my/custom/metric\" " +
+			"AND resource.labels.project_id = \"my-project\" " +
+			"AND resource.labels.cluster_name = \"my-cluster\" " +
+			"AND resource.labels.location = \"my-zone\" " +
+			"AND resource.labels.node_name = \"my-node-name\" " +
+			"AND resource.type = \"k8s_node\"").
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:02:00Z").
+		AggregationPerSeriesAligner("ALIGN_DELTA").
+		AggregationCrossSeriesReducer("REDUCE_PERCENTILE_95").
+		AggregationAlignmentPeriod("60s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
 	}
 }

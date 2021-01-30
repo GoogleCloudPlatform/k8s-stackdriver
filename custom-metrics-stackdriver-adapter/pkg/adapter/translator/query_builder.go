@@ -37,10 +37,16 @@ var (
 	// allowedExternalMetricsLabelPrefixes and allowedExternalMetricsFullLabelNames specify all metric labels allowed for querying
 	// External Metrics API.
 	allowedExternalMetricsLabelPrefixes  = []string{"metric.labels", "resource.labels", "metadata.system_labels", "metadata.user_labels"}
-	allowedExternalMetricsFullLabelNames = []string{"resource.type"}
+	allowedExternalMetricsFullLabelNames = []string{"resource.type", "reducer"}
 	// allowedCustomMetricsLabelPrefixes and allowedCustomMetricsFullLabelNames specify all metric labels allowed for querying
 	allowedCustomMetricsLabelPrefixes  = []string{"metric.labels"}
-	allowedCustomMetricsFullLabelNames = []string{}
+	allowedCustomMetricsFullLabelNames = []string{"reducer"}
+
+	percentilesToReducers = map[string]string{
+		p99: "REDUCE_PERCENTILE_99",
+		p95: "REDUCE_PERCENTILE_95",
+		p50: "REDUCE_PERCENTILE_50",
+	}
 )
 
 const (
@@ -48,6 +54,11 @@ const (
 	AllNamespaces = ""
 	// MaxNumOfArgsInOneOfFilter is the maximum value of one_of() function allowed in Stackdriver Filters
 	MaxNumOfArgsInOneOfFilter = 100
+
+	// distribution percentiles
+	p99 = "PERCENTILE_99"
+	p95 = "PERCENTILE_95"
+	p50 = "PERCENTILE_50"
 )
 
 type clock interface {
@@ -62,25 +73,27 @@ func (c realClock) Now() time.Time {
 
 // Translator is a structure used to translate between Custom Metrics API and Stackdriver API
 type Translator struct {
-	service             *stackdriver.Service
-	config              *config.GceConfig
-	reqWindow           time.Duration
-	alignmentPeriod     time.Duration
-	clock               clock
-	mapper              apimeta.RESTMapper
-	useNewResourceModel bool
+	service              *stackdriver.Service
+	config               *config.GceConfig
+	reqWindow            time.Duration
+	alignmentPeriod      time.Duration
+	clock                clock
+	mapper               apimeta.RESTMapper
+	useNewResourceModel  bool
+	supportDistributions bool
 }
 
 // NewTranslator creates a Translator
-func NewTranslator(service *stackdriver.Service, gceConf *config.GceConfig, rateInterval time.Duration, alignmentPeriod time.Duration, mapper apimeta.RESTMapper, useNewResourceModel bool) *Translator {
+func NewTranslator(service *stackdriver.Service, gceConf *config.GceConfig, rateInterval time.Duration, alignmentPeriod time.Duration, mapper apimeta.RESTMapper, useNewResourceModel, supportDistributions bool) *Translator {
 	return &Translator{
-		service:             service,
-		config:              gceConf,
-		reqWindow:           rateInterval,
-		alignmentPeriod:     alignmentPeriod,
-		clock:               realClock{},
-		mapper:              mapper,
-		useNewResourceModel: useNewResourceModel,
+		service:              service,
+		config:               gceConf,
+		reqWindow:            rateInterval,
+		alignmentPeriod:      alignmentPeriod,
+		clock:                realClock{},
+		mapper:               mapper,
+		useNewResourceModel:  useNewResourceModel,
+		supportDistributions: supportDistributions,
 	}
 }
 
@@ -113,6 +126,22 @@ func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName string, met
 	if metricSelector.Empty() {
 		return t.createListTimeseriesRequest(filter, metricKind), nil
 	}
+
+	if t.supportDistributions && isDistribution(metricSelector) {
+		reducer, selector, err := reducerAndSelectorForDistribution(metricSelector)
+		if err != nil {
+			return nil, err
+		}
+		if selector.Empty() {
+			return t.createDistributionPercentileRequestProject(filter, reducer), nil
+		}
+		filterForSelector, err := t.filterForSelector(selector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
+		if err != nil {
+			return nil, err
+		}
+		return t.createDistributionPercentileRequestProject(joinFilters(filterForSelector, filter), reducer), nil
+	}
+
 	filterForSelector, err := t.filterForSelector(metricSelector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
 	if err != nil {
 		return nil, err
@@ -149,6 +178,20 @@ func (t *Translator) GetSDReqForContainersWithNames(resourceNames []string, metr
 		t.filterForAnyContainer())
 	if metricSelector.Empty() {
 		return t.createListTimeseriesRequest(filter, metricKind), nil
+	}
+	if t.supportDistributions && isDistribution(metricSelector) {
+		reducer, selector, err := reducerAndSelectorForDistribution(metricSelector)
+		if err != nil {
+			return nil, err
+		}
+		if selector.Empty() {
+			return t.createDistributionPercentileRequestProject(filter, reducer), nil
+		}
+		filterForSelector, err := t.filterForSelector(selector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
+		if err != nil {
+			return nil, err
+		}
+		return t.createDistributionPercentileRequestProject(joinFilters(filterForSelector, filter), reducer), nil
 	}
 	filterForSelector, err := t.filterForSelector(metricSelector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
 	if err != nil {
@@ -188,6 +231,20 @@ func (t *Translator) GetSDReqForNodesWithNames(resourceNames []string, metricNam
 	if metricSelector.Empty() {
 		return t.createListTimeseriesRequest(filter, metricKind), nil
 	}
+	if t.supportDistributions && isDistribution(metricSelector) {
+		reducer, selector, err := reducerAndSelectorForDistribution(metricSelector)
+		if err != nil {
+			return nil, err
+		}
+		if selector.Empty() {
+			return t.createDistributionPercentileRequestProject(filter, reducer), nil
+		}
+		filterForSelector, err := t.filterForSelector(selector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
+		if err != nil {
+			return nil, err
+		}
+		return t.createDistributionPercentileRequestProject(joinFilters(filterForSelector, filter), reducer), nil
+	}
 	filterForSelector, err := t.filterForSelector(metricSelector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
 	if err != nil {
 		return nil, err
@@ -205,6 +262,20 @@ func (t *Translator) GetExternalMetricRequest(metricName string, metricKind stri
 	filterForMetric := t.filterForMetric(metricName)
 	if metricSelector.Empty() {
 		return t.createListTimeseriesRequest(filterForMetric, metricKind), nil
+	}
+	if t.supportDistributions && isDistribution(metricSelector) {
+		reducer, selector, err := reducerAndSelectorForDistribution(metricSelector)
+		if err != nil {
+			return nil, err
+		}
+		if selector.Empty() {
+			return t.createDistributionPercentileRequestProject(filterForMetric, reducer), nil
+		}
+		filterForSelector, err := t.filterForSelector(selector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
+		if err != nil {
+			return nil, err
+		}
+		return t.createDistributionPercentileRequestProject(joinFilters(filterForSelector, filterForMetric), reducer), nil
 	}
 	filterForSelector, err := t.filterForSelector(metricSelector, allowedExternalMetricsLabelPrefixes, allowedExternalMetricsFullLabelNames)
 	if err != nil {
@@ -510,6 +581,19 @@ func (t *Translator) createListTimeseriesRequestProject(filter string, metricKin
 		AggregationAlignmentPeriod(fmt.Sprintf("%vs", int64(alignmentPeriod.Seconds())))
 }
 
+func (t *Translator) createDistributionPercentileRequestProject(filter, reducer string) *stackdriver.ProjectsTimeSeriesListCall {
+	project := fmt.Sprintf("projects/%s", t.config.Project)
+	endTime := t.clock.Now()
+	startTime := endTime.Add(-t.reqWindow)
+
+	return t.service.Projects.TimeSeries.List(project).Filter(filter).
+		IntervalStartTime(startTime.Format(time.RFC3339)).
+		IntervalEndTime(endTime.Format(time.RFC3339)).
+		AggregationPerSeriesAligner("ALIGN_DELTA").
+		AggregationAlignmentPeriod(fmt.Sprintf("%vs", int64(t.alignmentPeriod.Seconds()))).
+		AggregationCrossSeriesReducer(reducer)
+}
+
 // GetPodItems returns list Pod Objects
 func (t *Translator) GetPodItems(list *v1.PodList) []metav1.ObjectMeta {
 	items := []metav1.ObjectMeta{}
@@ -526,4 +610,42 @@ func (t *Translator) GetNodeItems(list *v1.NodeList) []metav1.ObjectMeta {
 		items = append(items, item.ObjectMeta)
 	}
 	return items
+}
+
+func isDistribution(metricSelector labels.Selector) bool {
+	requirements, _ := metricSelector.Requirements()
+	for _, req := range requirements {
+		if req.Key() == "reducer" {
+			return true
+		}
+	}
+	return false
+}
+
+func reducerAndSelectorForDistribution(metricSelector labels.Selector) (string, labels.Selector, error) {
+	reducer := percentilesToReducers[p50]
+	requirements, _ := metricSelector.Requirements()
+	newSelector := labels.NewSelector()
+	for _, req := range requirements {
+		if req.Key() == "reducer" {
+			if req.Operator() != selection.Equals && req.Operator() != selection.DoubleEquals {
+				return "", nil, NewLabelNotAllowedError(fmt.Sprintf("Reducer must use '=' or '==': You used %s", req.Operator()))
+			}
+			if req.Values().Len() != 1 {
+				return "", nil, NewLabelNotAllowedError("Reducer must select a single value")
+			}
+			percentile, found := req.Values().PopAny()
+			if !found {
+				return "", nil, NewLabelNotAllowedError("Reducer must specify a percentile")
+			}
+			r, ok := percentilesToReducers[percentile]
+			if !ok {
+				return "", nil, NewLabelNotAllowedError("Reducer must use a supported percentile (PERCENTILE_50, PERCENTILE_95, PERCENTILE_99). You used: " + percentile)
+			}
+			reducer = r
+			continue
+		}
+		newSelector = newSelector.Add(*req.DeepCopy())
+	}
+	return reducer, newSelector, nil
 }

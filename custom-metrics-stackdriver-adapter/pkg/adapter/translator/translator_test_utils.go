@@ -22,7 +22,7 @@ import (
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
 	sd "google.golang.org/api/monitoring/v3"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/klog"
@@ -42,6 +42,22 @@ func (f fakeClock) Now() time.Time {
 
 // NewFakeTranslator creates a Translator for testing purposes
 func NewFakeTranslator(reqWindow, alignmentPeriod time.Duration, project, cluster, location string, currentTime time.Time, useNewResourceModel bool) (*Translator, *sd.Service) {
+	return newFakeTranslator(reqWindow, alignmentPeriod, project, cluster, location, currentTime, useNewResourceModel, false /* do not support distributions */)
+}
+
+// newFakeTranslatorForExternalMetrics returns a simplified translator, where only the fields used
+// for External Metrics API need to be specified. Other fields are initialized to zeros.
+func newFakeTranslatorForExternalMetrics(reqWindow, alignmentPeriod time.Duration, project string, currentTime time.Time) (*Translator, *sd.Service) {
+	return newFakeTranslator(reqWindow, alignmentPeriod, project, "", "", currentTime, false /* don't use new resouce model */, false /* don't support distributions */)
+}
+
+// newFakeTranslatorForDistributions creates a Translator that supports Distributions for testing purposes.
+// This
+func newFakeTranslatorForDistributions(reqWindow, alignmentPeriod time.Duration, project, cluster, location string, currentTime time.Time, useNewResourceModel bool) (*Translator, *sd.Service) {
+	return newFakeTranslator(reqWindow, alignmentPeriod, project, cluster, location, currentTime, useNewResourceModel, true /* support distributions */)
+}
+
+func newFakeTranslator(reqWindow, alignmentPeriod time.Duration, project, cluster, location string, currentTime time.Time, useNewResourceModel, supportDistributions bool) (*Translator, *sd.Service) {
 	sdService, err := sd.New(http.DefaultClient)
 	if err != nil {
 		klog.Fatal("Unexpected error creating stackdriver Service client")
@@ -58,14 +74,9 @@ func NewFakeTranslator(reqWindow, alignmentPeriod time.Duration, project, cluste
 			Cluster:  cluster,
 			Location: location,
 		},
-		clock:               fakeClock{currentTime},
-		mapper:              restMapper,
-		useNewResourceModel: useNewResourceModel,
+		clock:                fakeClock{currentTime},
+		mapper:               restMapper,
+		useNewResourceModel:  useNewResourceModel,
+		supportDistributions: supportDistributions,
 	}, sdService
-}
-
-// newFakeTranslatorForExternalMetrics returns a simplified translator, where only the fields used
-// for External Metrics API need to be specified. Other fields are initialized to zeros.
-func newFakeTranslatorForExternalMetrics(reqWindow, alignmentPeriod time.Duration, project string, currentTime time.Time) (*Translator, *sd.Service) {
-	return NewFakeTranslator(reqWindow, alignmentPeriod, project, "", "", currentTime, false)
 }
