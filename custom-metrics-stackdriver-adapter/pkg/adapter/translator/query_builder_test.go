@@ -753,7 +753,7 @@ func TestTranslator_GetSDReqForPods_BadPercentile(t *testing.T) {
 	metricName := "my/custom/metric"
 	selector, _ := labels.Parse("reducer=PERCENTILE_52")
 	_, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", selector, "default")
-	expectedError := NewLabelNotAllowedError("Reducer must use a supported percentile (PERCENTILE_50, PERCENTILE_95, PERCENTILE_99). You used: PERCENTILE_52")
+	expectedError := NewLabelNotAllowedError("Reducer must use a supported percentile (PERCENTILE_05, PERCENTILE_50, PERCENTILE_95, PERCENTILE_99). You used: PERCENTILE_52")
 	if *err.(*errors.StatusError) != *expectedError {
 		t.Errorf("Expected status error: %s, but received: %s", expectedError, err)
 	}

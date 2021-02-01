@@ -46,6 +46,7 @@ var (
 		p99: "REDUCE_PERCENTILE_99",
 		p95: "REDUCE_PERCENTILE_95",
 		p50: "REDUCE_PERCENTILE_50",
+		p05: "REDUCE_PERCENTILE_05",
 	}
 )
 
@@ -59,6 +60,7 @@ const (
 	p99 = "PERCENTILE_99"
 	p95 = "PERCENTILE_95"
 	p50 = "PERCENTILE_50"
+	p05 = "PERCENTILE_05"
 )
 
 type clock interface {
@@ -640,7 +642,7 @@ func reducerAndSelectorForDistribution(metricSelector labels.Selector) (string, 
 			}
 			r, ok := percentilesToReducers[percentile]
 			if !ok {
-				return "", nil, NewLabelNotAllowedError("Reducer must use a supported percentile (PERCENTILE_50, PERCENTILE_95, PERCENTILE_99). You used: " + percentile)
+				return "", nil, NewLabelNotAllowedError("Reducer must use a supported percentile (PERCENTILE_05, PERCENTILE_50, PERCENTILE_95, PERCENTILE_99). You used: " + percentile)
 			}
 			reducer = r
 			continue
