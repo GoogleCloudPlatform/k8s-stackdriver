@@ -130,18 +130,7 @@ func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName string, met
 	}
 
 	if t.supportDistributions && isDistribution(metricSelector) {
-		reducer, selector, err := reducerAndSelectorForDistribution(metricSelector)
-		if err != nil {
-			return nil, err
-		}
-		if selector.Empty() {
-			return t.createDistributionPercentileRequestProject(filter, reducer), nil
-		}
-		filterForSelector, err := t.filterForSelector(selector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
-		if err != nil {
-			return nil, err
-		}
-		return t.createDistributionPercentileRequestProject(joinFilters(filterForSelector, filter), reducer), nil
+		return t.handleDistribution(metricSelector, filter)
 	}
 
 	filterForSelector, err := t.filterForSelector(metricSelector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
@@ -182,18 +171,7 @@ func (t *Translator) GetSDReqForContainersWithNames(resourceNames []string, metr
 		return t.createListTimeseriesRequest(filter, metricKind), nil
 	}
 	if t.supportDistributions && isDistribution(metricSelector) {
-		reducer, selector, err := reducerAndSelectorForDistribution(metricSelector)
-		if err != nil {
-			return nil, err
-		}
-		if selector.Empty() {
-			return t.createDistributionPercentileRequestProject(filter, reducer), nil
-		}
-		filterForSelector, err := t.filterForSelector(selector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
-		if err != nil {
-			return nil, err
-		}
-		return t.createDistributionPercentileRequestProject(joinFilters(filterForSelector, filter), reducer), nil
+		return t.handleDistribution(metricSelector, filter)
 	}
 	filterForSelector, err := t.filterForSelector(metricSelector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
 	if err != nil {
@@ -234,18 +212,7 @@ func (t *Translator) GetSDReqForNodesWithNames(resourceNames []string, metricNam
 		return t.createListTimeseriesRequest(filter, metricKind), nil
 	}
 	if t.supportDistributions && isDistribution(metricSelector) {
-		reducer, selector, err := reducerAndSelectorForDistribution(metricSelector)
-		if err != nil {
-			return nil, err
-		}
-		if selector.Empty() {
-			return t.createDistributionPercentileRequestProject(filter, reducer), nil
-		}
-		filterForSelector, err := t.filterForSelector(selector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
-		if err != nil {
-			return nil, err
-		}
-		return t.createDistributionPercentileRequestProject(joinFilters(filterForSelector, filter), reducer), nil
+		return t.handleDistribution(metricSelector, filter)
 	}
 	filterForSelector, err := t.filterForSelector(metricSelector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
 	if err != nil {
@@ -266,18 +233,7 @@ func (t *Translator) GetExternalMetricRequest(metricName string, metricKind stri
 		return t.createListTimeseriesRequest(filterForMetric, metricKind), nil
 	}
 	if t.supportDistributions && isDistribution(metricSelector) {
-		reducer, selector, err := reducerAndSelectorForDistribution(metricSelector)
-		if err != nil {
-			return nil, err
-		}
-		if selector.Empty() {
-			return t.createDistributionPercentileRequestProject(filterForMetric, reducer), nil
-		}
-		filterForSelector, err := t.filterForSelector(selector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
-		if err != nil {
-			return nil, err
-		}
-		return t.createDistributionPercentileRequestProject(joinFilters(filterForSelector, filterForMetric), reducer), nil
+		return t.handleDistribution(metricSelector, filterForMetric)
 	}
 	filterForSelector, err := t.filterForSelector(metricSelector, allowedExternalMetricsLabelPrefixes, allowedExternalMetricsFullLabelNames)
 	if err != nil {
@@ -650,4 +606,19 @@ func reducerAndSelectorForDistribution(metricSelector labels.Selector) (string, 
 		newSelector = newSelector.Add(*req.DeepCopy())
 	}
 	return reducer, newSelector, nil
+}
+
+func (t *Translator) handleDistribution(metricSelector labels.Selector, filter string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
+	reducer, selector, err := reducerAndSelectorForDistribution(metricSelector)
+	if err != nil {
+		return nil, err
+	}
+	if selector.Empty() {
+		return t.createDistributionPercentileRequestProject(filter, reducer), nil
+	}
+	filterForSelector, err := t.filterForSelector(selector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
+	if err != nil {
+		return nil, err
+	}
+	return t.createDistributionPercentileRequestProject(joinFilters(filterForSelector, filter), reducer), nil
 }
