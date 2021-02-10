@@ -66,7 +66,7 @@ Kubernetes monitored resources, including for example `k8s_pod`, `k8s_node`. See
   ```sh
   kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/deploy/production/adapter_new_resource_model.yaml
   ```
-#### For Workload Identity enabled clusters
+### For Workload Identity enabled clusters
 
 If you use Workload Identity in your cluster, additional steps are necessary. In
 the commands below, replace **\<project-id\>** with your Project ID and **\<google-service-account\>** with the Google Service Account.
