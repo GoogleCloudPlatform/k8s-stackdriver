@@ -71,7 +71,12 @@ Kubernetes monitored resources, including for example `k8s_pod`, `k8s_node`. See
 If you use Workload Identity in your cluster, additional steps are necessary. In
 the commands below, replace **\<project-id\>** with your Project ID and **\<google-service-account\>** with the Google Service Account.
 
-* Make sure your **\<google-service-account\>** has `monitoring.editor` IAM role.
+* Make sure your **\<google-service-account\>** has `monitoring.editor` IAM role:
+```
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member "serviceAccount:<google-service-account>@<project-id>.iam.gserviceaccount.com" \
+    --role "roles/monitoring.editor"
+```
 
 * Create IAM Policy Binding:
 
