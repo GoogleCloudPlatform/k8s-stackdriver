@@ -1,5 +1,5 @@
-TAG = v0.1.0
-PREFIX = gcr.io/google-containers
+TAG = v0.1.1
+PREFIX = staging-k8s.gcr.io
 
 build: prometheus_dummy_exporter
 
