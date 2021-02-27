@@ -11,8 +11,10 @@ import (
 )
 
 const (
-	metricKindCPU = "CUMULATIVE"
-	metricKindRAM = "GUAGE"
+	metricKindCPU      = "CUMULATIVE"
+	metricKindRAM      = "GAUGE"
+	metricValueTypeCPU = "DOUBLE"
+	metricValueTypeRAM = "INT64"
 
 	containerCPUMetricName = "kubernetes.io/container/cpu/core_usage_time"
 	containerRAMMetricName = "kubernetes.io/container/memory/used_bytes"
@@ -42,14 +44,14 @@ func newClient(translator *translator.Translator) *stackdriverCoreClient {
 	}
 }
 
-func (p *stackdriverCoreClient) getPodMetric(podsNames []string, metricName string, metricKind string, labels labels.Selector) (map[string]map[string]resource.Quantity, map[string]api.TimeInfo, error) {
+func (p *stackdriverCoreClient) getPodMetric(podsNames []string, metricName, metricKind, metricValueType string, labels labels.Selector) (map[string]map[string]resource.Quantity, map[string]api.TimeInfo, error) {
 	numOfRequests := (len(podsNames) + translator.MaxNumOfArgsInOneOfFilter - 1) / translator.MaxNumOfArgsInOneOfFilter // ceil
 	r := translator.NewPodResult(p.translator)
 
 	for i := 0; i < numOfRequests; i++ {
 		segmentBeg := i * translator.MaxNumOfArgsInOneOfFilter
 		segmentEnd := min((i+1)*translator.MaxNumOfArgsInOneOfFilter, len(podsNames))
-		stackdriverRequest, err := p.translator.GetSDReqForContainersWithNames(podsNames[segmentBeg:segmentEnd], metricName, metricKind, labels, translator.AllNamespaces)
+		stackdriverRequest, err := p.translator.GetSDReqForContainersWithNames(podsNames[segmentBeg:segmentEnd], metricName, metricKind, metricValueType, labels, translator.AllNamespaces)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -67,21 +69,21 @@ func (p *stackdriverCoreClient) getPodMetric(podsNames []string, metricName stri
 }
 
 func (p *stackdriverCoreClient) getContainerCPU(podsNames []string) (map[string]map[string]resource.Quantity, map[string]api.TimeInfo, error) {
-	return p.getPodMetric(podsNames, containerCPUMetricName, metricKindCPU, labels.Everything())
+	return p.getPodMetric(podsNames, containerCPUMetricName, metricKindCPU, metricValueTypeCPU, labels.Everything())
 }
 
 func (p *stackdriverCoreClient) getContainerRAM(podsNames []string) (map[string]map[string]resource.Quantity, map[string]api.TimeInfo, error) {
-	return p.getPodMetric(podsNames, containerRAMMetricName, metricKindRAM, ramNonEvictableLabel())
+	return p.getPodMetric(podsNames, containerRAMMetricName, metricKindRAM, metricValueTypeRAM, ramNonEvictableLabel())
 }
 
-func (p *stackdriverCoreClient) getNodeMetric(nodeNames []string, metricName string, metricKind string, labels labels.Selector) (map[string]resource.Quantity, map[string]api.TimeInfo, error) {
+func (p *stackdriverCoreClient) getNodeMetric(nodeNames []string, metricName, metricKind, metricValueType string, labels labels.Selector) (map[string]resource.Quantity, map[string]api.TimeInfo, error) {
 	numOfRequests := (len(nodeNames) + translator.MaxNumOfArgsInOneOfFilter - 1) / translator.MaxNumOfArgsInOneOfFilter // ceil
 	r := translator.NewNodeResult(p.translator)
 
 	for i := 0; i < numOfRequests; i++ {
 		segmentBeg := i * translator.MaxNumOfArgsInOneOfFilter
 		segmentEnd := min((i+1)*translator.MaxNumOfArgsInOneOfFilter, len(nodeNames))
-		stackdriverRequest, err := p.translator.GetSDReqForNodesWithNames(nodeNames[segmentBeg:segmentEnd], metricName, metricKind, labels)
+		stackdriverRequest, err := p.translator.GetSDReqForNodesWithNames(nodeNames[segmentBeg:segmentEnd], metricName, metricKind, metricValueType, labels)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -99,11 +101,11 @@ func (p *stackdriverCoreClient) getNodeMetric(nodeNames []string, metricName str
 }
 
 func (p *stackdriverCoreClient) getNodeCPU(nodesNames []string) (map[string]resource.Quantity, map[string]api.TimeInfo, error) {
-	return p.getNodeMetric(nodesNames, nodeCPUMetricName, metricKindCPU, labels.Everything())
+	return p.getNodeMetric(nodesNames, nodeCPUMetricName, metricKindCPU, metricValueTypeCPU, labels.Everything())
 }
 
 func (p *stackdriverCoreClient) getNodeRAM(nodesNames []string) (map[string]resource.Quantity, map[string]api.TimeInfo, error) {
-	return p.getNodeMetric(nodesNames, nodeRAMMetricName, metricKindRAM, ramNonEvictableLabel())
+	return p.getNodeMetric(nodesNames, nodeRAMMetricName, metricKindRAM, metricValueTypeRAM, ramNonEvictableLabel())
 }
 
 func ramNonEvictableLabel() labels.Selector {

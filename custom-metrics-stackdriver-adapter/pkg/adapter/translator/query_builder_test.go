@@ -39,7 +39,7 @@ func TestTranslator_GetSDReqForPods_Single(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", labels.Everything(), "default")
+	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", "INT64", labels.Everything(), "default")
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -72,7 +72,7 @@ func TestTranslator_GetSDReqForPods_SingleWithMetricSelector(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
-	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", metricSelector, "default")
+	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", "INT64", metricSelector, "default")
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -106,7 +106,7 @@ func TestTranslator_GetSDReqForPods_SingleWithInvalidMetricSelector(t *testing.T
 	}
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("resource.labels.type=container")
-	_, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", metricSelector, "default")
+	_, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", "INT64", metricSelector, "default")
 	if err == nil {
 		t.Error("No translation error")
 	}
@@ -130,7 +130,7 @@ func TestTranslator_GetSDReqForPods_Multiple(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "GAUGE", labels.Everything(), "default")
+	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "GAUGE", "INT64", labels.Everything(), "default")
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
@@ -170,7 +170,7 @@ func TestTranslator_GetSDReqForPods_MultipleWithMetricSelctor(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
-	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "GAUGE", metricSelector, "default")
+	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "GAUGE", "INT64", metricSelector, "default")
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
@@ -203,7 +203,7 @@ func TestTranslator_GetSDReqForContainers_Single(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", labels.Everything(), "default")
+	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", "INT64", labels.Everything(), "default")
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -235,7 +235,7 @@ func TestTranslator_GetSDReqForContainers_SingleWithEmptyNamespace(t *testing.T)
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", labels.Everything(), AllNamespaces)
+	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", "INT64", labels.Everything(), AllNamespaces)
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -266,7 +266,7 @@ func TestTranslator_GetSDReqForContainers_OldResourceModel(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	_, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", labels.Everything(), "default")
+	_, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", "INT64", labels.Everything(), "default")
 	if err == nil {
 		t.Errorf("OldResourceModel should not work with GetSDReqForContainers")
 	}
@@ -284,7 +284,7 @@ func TestTranslator_GetSDReqForContainers_SingleWithMetricSelector(t *testing.T)
 	}
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
-	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", metricSelector, "default")
+	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", "INT64", metricSelector, "default")
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -318,7 +318,7 @@ func TestTranslator_GetSDReqForContainers_SingleWithInvalidMetricSelector(t *tes
 	}
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("resource.labels.type=container")
-	_, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", metricSelector, "default")
+	_, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", "INT64", metricSelector, "default")
 	if err == nil {
 		t.Error("No translation error")
 	}
@@ -342,7 +342,7 @@ func TestTranslator_GetSDReqForContainers_Multiple(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "GAUGE", labels.Everything(), "default")
+	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "GAUGE", "INT64", labels.Everything(), "default")
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
@@ -381,7 +381,7 @@ func TestTranslator_GetSDReqForContainers_MultipleEmptyNamespace(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "GAUGE", labels.Everything(), AllNamespaces)
+	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "GAUGE", "INT64", labels.Everything(), AllNamespaces)
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
@@ -420,7 +420,7 @@ func TestTranslator_GetSDReqForContainers_MultipleWithMetricSelctor(t *testing.T
 	}
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
-	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "GAUGE", metricSelector, "default")
+	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "GAUGE", "INT64", metricSelector, "default")
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
@@ -453,7 +453,7 @@ func TestTranslator_GetSDReqForNodes(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{node}}, metricName, "GAUGE", labels.Everything())
+	request, err := translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{node}}, metricName, "GAUGE", "INT64", labels.Everything())
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -485,7 +485,7 @@ func TestTranslator_GetSDReqForNodes_withMetricSelector(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
-	request, err := translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{node}}, metricName, "GAUGE", metricSelector)
+	request, err := translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{node}}, metricName, "GAUGE", "INT64", metricSelector)
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -522,7 +522,7 @@ func TestTranslator_GetSDReqForPods_legacyResourceModel(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "GAUGE", labels.Everything(), "default")
+	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "GAUGE", "INT64", labels.Everything(), "default")
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
@@ -584,7 +584,7 @@ func TestTranslator_ListMetricDescriptors_legacyResourceType(t *testing.T) {
 }
 func TestTranslator_GetExternalMetricRequest_NoSelector(t *testing.T) {
 	translator, sdService := newFakeTranslatorForExternalMetrics(2*time.Minute, time.Minute, "my-project", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC))
-	request, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "GAUGE", labels.NewSelector())
+	request, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "GAUGE", "INT64", labels.NewSelector())
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
@@ -606,7 +606,7 @@ func TestTranslator_GetExternalMetricRequest_CorrectSelector_Cumulative(t *testi
 	req3, _ := labels.NewRequirement("resource.labels.pod_name", selection.Exists, []string{})
 	req4, _ := labels.NewRequirement("resource.labels.namespace_name", selection.NotIn, []string{"default", "kube-system"})
 	req5, _ := labels.NewRequirement("metric.labels.my_label", selection.GreaterThan, []string{"86"})
-	request, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "CUMULATIVE", labels.NewSelector().Add(*req1, *req2, *req3, *req4, *req5))
+	request, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "CUMULATIVE", "INT64", labels.NewSelector().Add(*req1, *req2, *req3, *req4, *req5))
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
@@ -630,7 +630,7 @@ func TestTranslator_GetExternalMetricRequest_DifferentProject(t *testing.T) {
 	translator, sdService := newFakeTranslatorForExternalMetrics(2*time.Minute, time.Minute, "my-project", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC))
 	req1, _ := labels.NewRequirement("resource.type", selection.Equals, []string{"k8s_pod"})
 	req2, _ := labels.NewRequirement("resource.labels.project_id", selection.Equals, []string{"other-project"})
-	request, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "CUMULATIVE", labels.NewSelector().Add(*req1, *req2))
+	request, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "CUMULATIVE", "INT64", labels.NewSelector().Add(*req1, *req2))
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
@@ -649,7 +649,7 @@ func TestTranslator_GetExternalMetricRequest_DifferentProject(t *testing.T) {
 
 func TestTranslator_GetExternalMetricRequest_InvalidLabel(t *testing.T) {
 	translator, _ := newFakeTranslatorForExternalMetrics(2*time.Minute, time.Minute, "my-project", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC))
-	_, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "GAUGE", labels.SelectorFromSet(labels.Set{
+	_, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "GAUGE", "INT64", labels.SelectorFromSet(labels.Set{
 		"arbitrary-label": "foo",
 	}))
 	expectedError := NewLabelNotAllowedError("arbitrary-label")
@@ -664,7 +664,7 @@ func TestTranslator_GetExternalMetricRequest_OneInvalidRequirement(t *testing.T)
 	req2, _ := labels.NewRequirement("resource.labels.pod_name", selection.Exists, []string{})
 	req3, _ := labels.NewRequirement("resource.labels.namespace_name", selection.NotIn, []string{"default", "kube-system"})
 	req4, _ := labels.NewRequirement("metric.labels.my_label", selection.DoesNotExist, []string{})
-	_, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "GAUGE", labels.NewSelector().Add(*req1, *req2, *req3, *req4))
+	_, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "GAUGE", "INT64", labels.NewSelector().Add(*req1, *req2, *req3, *req4))
 	expectedError := errors.NewBadRequest("Label selector with operator DoesNotExist is not allowed")
 	if *err.(*errors.StatusError) != *expectedError {
 		t.Errorf("Expected status error: %s, but received: %s", expectedError, err)
@@ -682,8 +682,8 @@ func TestTranslator_GetSDReqForPods_Single_Distribution(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	selector, _ := labels.Parse("reducer=PERCENTILE_50")
-	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", selector, "default")
+	selector, _ := labels.Parse("reducer=REDUCE_PERCENTILE_50")
+	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", "DISTRIBUTION", selector, "default")
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -706,7 +706,7 @@ func TestTranslator_GetSDReqForPods_Single_Distribution(t *testing.T) {
 }
 
 func TestTranslator_GetSDReqForPods_NoSupportDistributions(t *testing.T) {
-	translator, sdService :=
+	translator, _ :=
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -716,27 +716,11 @@ func TestTranslator_GetSDReqForPods_NoSupportDistributions(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	req, _ := labels.NewRequirement("reducer", selection.Equals, []string{"PERCENTILE_50"})
+	req, _ := labels.NewRequirement("reducer", selection.Equals, []string{"REDUCE_PERCENTILE_50"})
 	selector := labels.NewSelector().Add(*req)
-	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", selector, "default")
-	if err != nil {
-		t.Errorf("Translation error: %s", err)
-	}
-	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter("reducer = \"PERCENTILE_50\" " +
-			"AND metric.type = \"my/custom/metric\" " +
-			"AND resource.labels.project_id = \"my-project\" " +
-			"AND resource.labels.cluster_name = \"my-cluster\" " +
-			"AND resource.labels.location = \"my-zone\" " +
-			"AND resource.labels.namespace_name = \"default\" " +
-			"AND resource.labels.pod_name = \"my-pod-name\" " +
-			"AND resource.type = \"k8s_pod\"").
-		IntervalStartTime("2017-01-02T13:00:00Z").
-		IntervalEndTime("2017-01-02T13:02:00Z").
-		AggregationPerSeriesAligner("ALIGN_RATE").
-		AggregationAlignmentPeriod("60s")
-	if !reflect.DeepEqual(*request, *expectedRequest) {
-		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+	_, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", "DISTRIBUTION", selector, "default")
+	if err == nil {
+		t.Errorf("Expected error, as distributions should not be suppoted; was suceessful")
 	}
 }
 
@@ -752,8 +736,8 @@ func TestTranslator_GetSDReqForPods_BadPercentile(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	selector, _ := labels.Parse("reducer=PERCENTILE_52")
-	_, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", selector, "default")
-	expectedError := NewLabelNotAllowedError("Reducer must use a supported percentile (PERCENTILE_05, PERCENTILE_50, PERCENTILE_95, PERCENTILE_99). You used: PERCENTILE_52")
+	_, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", "DISTRIBUTION", selector, "default")
+	expectedError := NewLabelNotAllowedError("Specified reducer is not supported: PERCENTILE_52")
 	if *err.(*errors.StatusError) != *expectedError {
 		t.Errorf("Expected status error: %s, but received: %s", expectedError, err)
 	}
@@ -771,7 +755,7 @@ func TestTranslator_GetSDReqForPods_TooManyPercentiles(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	selector, _ := labels.Parse("reducer in (PERCENTILE_50,PERCENTILE_99)")
-	_, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", selector, "default")
+	_, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", "INT64", selector, "default")
 	expectedError := NewLabelNotAllowedError("Reducer must use '=' or '==': You used in")
 	if *err.(*errors.StatusError) != *expectedError {
 		t.Errorf("Expected status error: %s, but received: %s", expectedError, err)
@@ -789,8 +773,8 @@ func TestTranslator_GetSDReqForPods_SingleWithMetricSelector_Distribution(t *tes
 		},
 	}
 	metricName := "my/custom/metric"
-	metricSelector, _ := labels.Parse("metric.labels.custom=test,reducer=PERCENTILE_99")
-	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", metricSelector, "default")
+	metricSelector, _ := labels.Parse("metric.labels.custom=test,reducer=REDUCE_PERCENTILE_99")
+	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", "DISTRIBUTION", metricSelector, "default")
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -824,8 +808,8 @@ func TestTranslator_GetSDReqForContainers_Single_Distribution(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	selector, _ := labels.Parse("reducer=PERCENTILE_50")
-	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", selector, "default")
+	selector, _ := labels.Parse("reducer=REDUCE_PERCENTILE_50")
+	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", "DISTRIBUTION", selector, "default")
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -858,8 +842,8 @@ func TestTranslator_GetSDReqForContainer_SingleWithMetricSelector_Distribution(t
 		},
 	}
 	metricName := "my/custom/metric"
-	metricSelector, _ := labels.Parse("metric.labels.custom=test,reducer=PERCENTILE_99")
-	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", metricSelector, "default")
+	metricSelector, _ := labels.Parse("metric.labels.custom=test,reducer=REDUCE_PERCENTILE_99")
+	request, err := translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", "DISTRIBUTION", metricSelector, "default")
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -893,8 +877,8 @@ func TestTranslator_GetSDReqForNodes_Single_Distribution(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	metricSelector, _ := labels.Parse("reducer=PERCENTILE_95")
-	request, err := translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{node}}, metricName, "DELTA", metricSelector)
+	metricSelector, _ := labels.Parse("reducer=REDUCE_PERCENTILE_95")
+	request, err := translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{node}}, metricName, "DELTA", "DISTRIBUTION", metricSelector)
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -926,8 +910,8 @@ func TestTranslator_GetSDReqForNodes_SingleWithMetricSelector_Distribution(t *te
 		},
 	}
 	metricName := "my/custom/metric"
-	metricSelector, _ := labels.Parse("metric.labels.custom=test,reducer=PERCENTILE_95")
-	request, err := translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{node}}, metricName, "DELTA", metricSelector)
+	metricSelector, _ := labels.Parse("metric.labels.custom=test,reducer=REDUCE_PERCENTILE_95")
+	request, err := translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{node}}, metricName, "DELTA", "DISTRIBUTION", metricSelector)
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
