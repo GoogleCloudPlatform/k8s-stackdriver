@@ -15,7 +15,7 @@
 # This Dockerfile will build an image of a manual fluent-gcp scaler, allowing
 # customers to override our resource request/limit defaults.
 
-FROM gcr.io/k8s-staging-build-image/debian-base-amd64:v2.1.2
+FROM gcr.io/k8s-staging-build-image/debian-base-amd64:buster-v1.3.0
 
 # Download latest stable version of kubectl
 RUN \
