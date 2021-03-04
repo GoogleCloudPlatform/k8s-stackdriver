@@ -41,21 +41,21 @@ var (
 	// allowedCustomMetricsLabelPrefixes and allowedCustomMetricsFullLabelNames specify all metric labels allowed for querying
 	allowedCustomMetricsLabelPrefixes  = []string{"metric.labels"}
 	allowedCustomMetricsFullLabelNames = []string{"reducer"}
-	allowedReducers                    = []string{
-		"REDUCE_NONE",
-		"REDUCE_MEAN",
-		"REDUCE_MIN",
-		"REDUCE_MAX",
-		"REDUCE_SUM",
-		"REDUCE_STDDEV",
-		"REDUCE_COUNT",
-		"REDUCE_COUNT_TRUE",
-		"REDUCE_COUNT_FALSE",
-		"REDUCE_FRACTION_TRUE",
-		"REDUCE_PERCENTILE_99",
-		"REDUCE_PERCENTILE_95",
-		"REDUCE_PERCENTILE_50",
-		"REDUCE_PERCENTILE_05",
+	allowedReducers                    = map[string]bool{
+		"REDUCE_NONE":          true,
+		"REDUCE_MEAN":          true,
+		"REDUCE_MIN":           true,
+		"REDUCE_MAX":           true,
+		"REDUCE_SUM":           true,
+		"REDUCE_STDDEV":        true,
+		"REDUCE_COUNT":         true,
+		"REDUCE_COUNT_TRUE":    true,
+		"REDUCE_COUNT_FALSE":   true,
+		"REDUCE_FRACTION_TRUE": true,
+		"REDUCE_PERCENTILE_99": true,
+		"REDUCE_PERCENTILE_95": true,
+		"REDUCE_PERCENTILE_50": true,
+		"REDUCE_PERCENTILE_05": true,
 	}
 )
 
@@ -309,15 +309,6 @@ func getNodeNames(list *v1.NodeList) []string {
 	return resourceNames
 }
 
-func isAlloedReducer(reducer string) bool {
-	for _, r := range allowedReducers {
-		if reducer == r {
-			return true
-		}
-	}
-	return false
-}
-
 func isAllowedLabelName(labelName string, allowedLabelPrefixes []string, allowedFullLabelNames []string) bool {
 	for _, prefix := range allowedLabelPrefixes {
 		if strings.HasPrefix(labelName, prefix+".") {
@@ -462,7 +453,7 @@ func (t *Translator) filterForSelector(metricSelector labels.Selector, allowedLa
 			if !found {
 				return "", "", NewLabelNotAllowedError("Reducer must specify a value")
 			}
-			if !isAlloedReducer(r) {
+			if !allowedReducers[r] {
 				return "", "", NewLabelNotAllowedError("Specified reducer is not supported: " + r)
 			}
 			reducer = r
