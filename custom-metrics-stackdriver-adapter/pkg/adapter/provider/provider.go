@@ -104,11 +104,11 @@ func (p *StackdriverProvider) getRootScopedMetricByName(groupResource schema.Gro
 	if err != nil {
 		return nil, err
 	}
-	metricKind, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName), metricSelector)
+	metricKind, metricValueType, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName), metricSelector)
 	if err != nil {
 		return nil, err
 	}
-	stackdriverRequest, err := p.translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{*matchingNode}}, getCustomMetricName(escapedMetricName), metricKind, metricSelector)
+	stackdriverRequest, err := p.translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{*matchingNode}}, getCustomMetricName(escapedMetricName), metricKind, metricValueType, metricSelector)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +132,7 @@ func (p *StackdriverProvider) getRootScopedMetricBySelector(groupResource schema
 	if err != nil {
 		return nil, err
 	}
-	metricKind, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName), metricSelector)
+	metricKind, metricValueType, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName), metricSelector)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +140,7 @@ func (p *StackdriverProvider) getRootScopedMetricBySelector(groupResource schema
 	for i := 0; i < len(matchingNodes.Items); i += translator.MaxNumOfArgsInOneOfFilter {
 		sliceSegmentEnd := min(i+translator.MaxNumOfArgsInOneOfFilter, len(matchingNodes.Items))
 		nodesSlice := &v1.NodeList{Items: matchingNodes.Items[i:sliceSegmentEnd]}
-		stackdriverRequest, err := p.translator.GetSDReqForNodes(nodesSlice, getCustomMetricName(escapedMetricName), metricKind, metricSelector)
+		stackdriverRequest, err := p.translator.GetSDReqForNodes(nodesSlice, getCustomMetricName(escapedMetricName), metricKind, metricValueType, metricSelector)
 		if err != nil {
 			return nil, err
 		}
@@ -167,11 +167,11 @@ func (p *StackdriverProvider) getNamespacedMetricByName(groupResource schema.Gro
 	if err != nil {
 		return nil, err
 	}
-	metricKind, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName), metricSelector)
+	metricKind, metricValueType, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName), metricSelector)
 	if err != nil {
 		return nil, err
 	}
-	stackdriverRequest, err := p.translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{*matchingPod}}, getCustomMetricName(escapedMetricName), metricKind, metricSelector, namespace)
+	stackdriverRequest, err := p.translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{*matchingPod}}, getCustomMetricName(escapedMetricName), metricKind, metricValueType, metricSelector, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +181,7 @@ func (p *StackdriverProvider) getNamespacedMetricByName(groupResource schema.Gro
 	}
 
 	if p.fallbackForContainerMetrics && len(stackdriverResponse.TimeSeries) == 0 {
-		stackdriverRequest, err = p.translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{*matchingPod}}, getCustomMetricName(escapedMetricName), metricKind, metricSelector, namespace)
+		stackdriverRequest, err = p.translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{*matchingPod}}, getCustomMetricName(escapedMetricName), metricKind, metricValueType, metricSelector, namespace)
 		if err != nil {
 			return nil, err
 		}
@@ -208,7 +208,7 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 	if err != nil {
 		return nil, err
 	}
-	metricKind, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName), metricSelector)
+	metricKind, metricValueType, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName), metricSelector)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +216,7 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 	for i := 0; i < len(matchingPods.Items); i += translator.MaxNumOfArgsInOneOfFilter {
 		sliceSegmentEnd := min(i+translator.MaxNumOfArgsInOneOfFilter, len(matchingPods.Items))
 		podsSlice := &v1.PodList{Items: matchingPods.Items[i:sliceSegmentEnd]}
-		stackdriverRequest, err := p.translator.GetSDReqForPods(podsSlice, getCustomMetricName(escapedMetricName), metricKind, metricSelector, namespace)
+		stackdriverRequest, err := p.translator.GetSDReqForPods(podsSlice, getCustomMetricName(escapedMetricName), metricKind, metricValueType, metricSelector, namespace)
 		if err != nil {
 			return nil, err
 		}
@@ -235,7 +235,7 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 		for i := 0; i < len(matchingPods.Items); i += translator.MaxNumOfArgsInOneOfFilter {
 			sliceSegmentEnd := min(i+translator.MaxNumOfArgsInOneOfFilter, len(matchingPods.Items))
 			podsSlice := &v1.PodList{Items: matchingPods.Items[i:sliceSegmentEnd]}
-			stackdriverRequest, err := p.translator.GetSDReqForContainers(podsSlice, getCustomMetricName(escapedMetricName), metricKind, metricSelector, namespace)
+			stackdriverRequest, err := p.translator.GetSDReqForContainers(podsSlice, getCustomMetricName(escapedMetricName), metricKind, metricValueType, metricSelector, namespace)
 			if err != nil {
 				return nil, err
 			}
@@ -280,11 +280,11 @@ func (p *StackdriverProvider) ListAllMetrics() []provider.CustomMetricInfo {
 func (p *StackdriverProvider) GetExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 	metricNameEscaped := info.Metric
 	metricName := getExternalMetricName(metricNameEscaped)
-	metricKind, err := p.translator.GetMetricKind(metricName, metricSelector)
+	metricKind, metricValueType, err := p.translator.GetMetricKind(metricName, metricSelector)
 	if err != nil {
 		return nil, err
 	}
-	stackdriverRequest, err := p.translator.GetExternalMetricRequest(metricName, metricKind, metricSelector)
+	stackdriverRequest, err := p.translator.GetExternalMetricRequest(metricName, metricKind, metricValueType, metricSelector)
 	if err != nil {
 		return nil, err
 	}

@@ -62,6 +62,9 @@ type stackdriverAdapterServerOptions struct {
 	MetricsAddress string
 	// StackdriverEndpoint to change default Stackdriver endpoint (useful in sandbox).
 	StackdriverEndpoint string
+	// EnableDistributionSupport is a flag that indicates whether or not to allow distributions can
+	// be used (with special reducer labels) in the adapter
+	EnableDistributionSupport bool
 }
 
 func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptions, rateInterval time.Duration, alignmentPeriod time.Duration) (provider.MetricsProvider, *translator.Translator) {
@@ -106,7 +109,7 @@ func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptio
 	}
 	conf.GenericConfig.EnableMetrics = true
 
-	translator := translator.NewTranslator(stackdriverService, gceConf, rateInterval, alignmentPeriod, mapper, o.UseNewResourceModel)
+	translator := translator.NewTranslator(stackdriverService, gceConf, rateInterval, alignmentPeriod, mapper, o.UseNewResourceModel, o.EnableDistributionSupport)
 	return adapter.NewStackdriverProvider(client, mapper, gceConf, stackdriverService, translator, rateInterval, o.UseNewResourceModel, o.FallbackForContainerMetrics), translator
 }
 
@@ -148,6 +151,7 @@ func main() {
 		EnableExternalMetricsAPI:    true,
 		FallbackForContainerMetrics: false,
 		EnableCoreMetricsAPI:        false,
+		EnableDistributionSupport:   false,
 	}
 
 	flags.BoolVar(&serverOptions.UseNewResourceModel, "use-new-resource-model", serverOptions.UseNewResourceModel,
@@ -164,6 +168,8 @@ func main() {
 		"Endpoint with port on which Prometheus metrics server should be enabled. Example: localhost:8080. If there is no flag, Prometheus metric server is disabled and monitoring metrics are not collected.")
 	flags.StringVar(&serverOptions.StackdriverEndpoint, "stackdriver-endpoint", "",
 		"Stackdriver Endpoint used by adapter. Default is https://monitoring.googleapis.com/")
+	flags.BoolVar(&serverOptions.EnableDistributionSupport, "enable-distribution-support", serverOptions.EnableDistributionSupport,
+		"enables support for scaling based on distribution values")
 
 	flags.Parse(os.Args)
 

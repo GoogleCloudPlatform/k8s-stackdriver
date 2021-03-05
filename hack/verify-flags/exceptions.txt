@@ -8,11 +8,6 @@ custom-metrics-stackdriver-adapter/README.md:       project_id, err := gce.Proje
 custom-metrics-stackdriver-adapter/README.md:     - `namespace_id` and `instance_id` (for **legacy resource model**) are not
 custom-metrics-stackdriver-adapter/README.md:     - `pod_id`, `pod_name`, `namespace_name` can be obtained via downward API.
 custom-metrics-stackdriver-adapter/README.md:     - `project_id`, `zone`, `location`, `cluster_name` - can be obtained by your
-custom-metrics-stackdriver-adapter/cp:			return ":" + timeSeries.Resource.Labels["node_name"], nil
-custom-metrics-stackdriver-adapter/cp:			return timeSeries.Resource.Labels["namespace_name"] + ":" + timeSeries.Resource.Labels["pod_name"], nil
-custom-metrics-stackdriver-adapter/cp:			return timeSeries.Resource.Labels["namespace_name"] + ":" + timeSeries.Resource.Labels["pod_name"], nil
-custom-metrics-stackdriver-adapter/cp:		nodeName := series.Resource.Labels["node_name"]
-custom-metrics-stackdriver-adapter/cp:		return timeSeries.Resource.Labels["pod_id"], nil
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"cluster_name":   clusterName,
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"cluster_name": clusterName,
 custom-metrics-stackdriver-adapter/examples/direct-to-sd/sd_dummy_exporter.go:		"namespace_id": "default",
@@ -59,9 +54,17 @@ custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.cluster_name = \"my-cluster\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.container_name = \"\" AND resource.labels.pod_id != \"\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.node_name = \"my-node-name-1\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.node_name = \"my-node-name-1\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.node_name = \"my-node-name\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.node_name = \"my-node-name\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_id != \"machine\"")
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_id = one_of(\"my-pod-id-1\",\"my-pod-id-2\")").
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = \"my-pod-name\" " +
@@ -69,11 +72,21 @@ custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = \"my-pod-name\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = \"my-pod-name\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = \"my-pod-name\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = \"my-pod-name\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = \"my-pod-name\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = \"my-pod-name\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = \"my-pod-name\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.project_id = \"my-project\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.project_id = \"my-project\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.project_id = \"my-project\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.project_id = \"my-project\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.project_id = \"my-project\" " +
+custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.project_id = \"my-project\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.project_id = \"my-project\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.project_id = \"my-project\" " +
 custom-metrics-stackdriver-adapter/pkg/adapter/translator/query_builder_test.go:			"AND resource.labels.project_id = \"my-project\" " +

@@ -44,6 +44,7 @@ e2e-status-context
 election-namespace
 enable-core-metrics-api
 enable-custom-metrics-api
+enable-distribution-support
 enable-external-metrics-api
 enable-md-yaml
 enable-output-coloring
