@@ -155,7 +155,7 @@ func main() {
 		}
 		glog.Infof("Created a client with the default credentials")
 	} else {
-		ts, err := google.DefaultTokenSource(context.Background(), "")
+		ts, err := google.DefaultTokenSource(context.Background(), "https://www.googleapis.com/auth/cloud-platform")
 		if err != nil {
 			glog.Fatalf("Error creating default token source: %v", err)
 		}
