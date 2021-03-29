@@ -55,7 +55,7 @@ var (
 	kubeletInstance = flag.String("kubelet-instance", "use-gce", "The instance name the kubelet resides on.")
 	kubeletHost     = flag.String("kubelet-host", "use-gce", "The kubelet's host name.")
 	kubeletPort     = flag.Uint("kubelet-port", 10255, "The kubelet's port.")
-	ctrlPort        = flag.Uint("controller-manager-port", 10252, "The kube-controller's port.")
+	ctrlPort        = flag.Uint("controller-manager-port", 10252, "The kube-controller's port. Can be set to 0 to disable kube-controller-manager metrics collection.")
 	// Flags to control runtime behavior.
 	res         = flag.Uint("resolution", 10, "The time, in seconds, to poll the Kubelet.")
 	gcmEndpoint = flag.String("gcm-endpoint", "", "The GCM endpoint to hit. Defaults to the default endpoint.")
@@ -85,12 +85,15 @@ func main() {
 	}
 	log.Infof("The kubelet source is initialized with config %v.", kubeletCfg)
 
-	// Create objects for kube-controller monitoring.
-	ctrlSrc, err := controller.NewSource(ctrlCfg)
-	if err != nil {
-		log.Fatalf("Failed to create a kube-controller source with config %v: %v", ctrlCfg, err)
+	var ctrlSrc *controller.Source
+	if *ctrlPort != 0 {
+		// Create objects for kube-controller monitoring.
+		ctrlSrc, err = controller.NewSource(ctrlCfg)
+		if err != nil {
+			log.Fatalf("Failed to create a kube-controller source with config %v: %v", ctrlCfg, err)
+		}
+		log.Infof("The kube-controller source is initialized with config %v.", ctrlCfg)
 	}
-	log.Infof("The kube-controller source is initialized with config %v.", ctrlCfg)
 
 	// Create a GCM client.
 	client, err := google.DefaultClient(context.Background(), scope)
@@ -114,7 +117,9 @@ func main() {
 
 	for {
 		go monitor.Once(kubeletSrc, service)
-		go monitor.Once(ctrlSrc, service)
+		if *ctrlPort != 0 {
+			go monitor.Once(ctrlSrc, service)
+		}
 		time.Sleep(resolution)
 	}
 }
