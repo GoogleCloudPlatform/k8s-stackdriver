@@ -435,6 +435,10 @@ func translateCPU(cpu *stats.CPUStats, tsFactory *timeSeriesFactory, startTime t
 	if cpu.UsageCoreNanoSeconds == nil {
 		return nil, fmt.Errorf("UsageCoreNanoSeconds missing from CPUStats %v", cpu)
 	}
+	// Only send cpu usage metric if start time is before current time. Right after container is started, kubelet can return start time == end time.
+	if !cpu.Time.Time.After(startTime) {
+		return nil, nil
+	}
 
 	// Total CPU utilization for all time. Convert from nanosec to sec.
 	cpuTotalPoint := tsFactory.newPoint(&v3.TypedValue{
@@ -519,7 +523,7 @@ func translateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, st
 		return nil, fmt.Errorf("Memory information missing.")
 	}
 
-	// Only send page fault metric if start time is before current time. Right after container is started, kubelet can return start time == end time. This doesn't seem to happen with other metrics.
+	// Only send page fault metric if start time is before current time. Right after container is started, kubelet can return start time == end time.
 	if pageFaultsMD != nil && memory.Time.Time.After(startTime) {
 		if memory.MajorPageFaults == nil {
 			return nil, fmt.Errorf("MajorPageFaults missing in MemoryStats %v", memory)

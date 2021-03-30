@@ -221,8 +221,9 @@ func TestTranslateContainers(t *testing.T) {
 	noLogStatsContainer.Logs = nil
 	noRootfsStatsContainer := *getContainerStats(false)
 	noRootfsStatsContainer.Rootfs = nil
-	badTimestampOnPageFaultContrainer := *getContainerStats(false)
-	badTimestampOnPageFaultContrainer.Memory.Time = badTimestampOnPageFaultContrainer.StartTime
+	badTimestampOnCumulativeMetricsContrainer := *getContainerStats(false)
+	badTimestampOnCumulativeMetricsContrainer.Memory.Time = badTimestampOnCumulativeMetricsContrainer.StartTime
+	badTimestampOnCumulativeMetricsContrainer.CPU.Time = badTimestampOnCumulativeMetricsContrainer.StartTime
 	legacyTsPerContainer := 11
 	tsPerContainer := 8
 	testCases := []struct {
@@ -310,12 +311,12 @@ func TestTranslateContainers(t *testing.T) {
 			},
 		},
 		{
-			name:                  "bad timestamp for page_fault_count",
-			ExpectedLegacyTSCount: legacyTsPerContainer - 2,
-			ExpectedTSCount:       tsPerContainer - 2,
+			name:                  "bad timestamp for cumulative metrics",
+			ExpectedLegacyTSCount: legacyTsPerContainer - 3,
+			ExpectedTSCount:       tsPerContainer - 3,
 			pods: []stats.PodStats{
 				getPodStats(
-					badTimestampOnPageFaultContrainer,
+					badTimestampOnCumulativeMetricsContrainer,
 				),
 			},
 		},
@@ -363,6 +364,9 @@ func getContainerStats(skipUsageNanoCores bool) *stats.ContainerStats {
 	}
 	if v.Memory.Time.Time.Before(v.StartTime.Time) {
 		v.Memory.Time, v.StartTime = v.StartTime, v.Memory.Time
+	}
+	if v.CPU.Time.Time.Before(v.StartTime.Time) {
+		v.CPU.Time, v.StartTime = v.StartTime, v.CPU.Time
 	}
 	return v
 }
