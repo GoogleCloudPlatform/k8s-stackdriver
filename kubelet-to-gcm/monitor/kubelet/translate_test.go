@@ -221,6 +221,8 @@ func TestTranslateContainers(t *testing.T) {
 	noLogStatsContainer.Logs = nil
 	noRootfsStatsContainer := *getContainerStats(false)
 	noRootfsStatsContainer.Rootfs = nil
+	badTimestampOnPageFaultContrainer := *getContainerStats(false)
+	badTimestampOnPageFaultContrainer.Memory.Time = badTimestampOnPageFaultContrainer.StartTime
 	legacyTsPerContainer := 11
 	tsPerContainer := 8
 	testCases := []struct {
@@ -307,6 +309,16 @@ func TestTranslateContainers(t *testing.T) {
 				),
 			},
 		},
+		{
+			name:                  "bad timestamp for page_fault_count",
+			ExpectedLegacyTSCount: legacyTsPerContainer - 2,
+			ExpectedTSCount:       tsPerContainer - 2,
+			pods: []stats.PodStats{
+				getPodStats(
+					badTimestampOnPageFaultContrainer,
+				),
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -348,6 +360,9 @@ func getContainerStats(skipUsageNanoCores bool) *stats.ContainerStats {
 	f.Fuzz(v)
 	if skipUsageNanoCores {
 		v.CPU.UsageNanoCores = nil
+	}
+	if v.Memory.Time.Time.Before(v.StartTime.Time) {
+		v.Memory.Time, v.StartTime = v.StartTime, v.Memory.Time
 	}
 	return v
 }

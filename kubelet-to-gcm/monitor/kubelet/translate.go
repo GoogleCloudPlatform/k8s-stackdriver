@@ -519,7 +519,8 @@ func translateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, st
 		return nil, fmt.Errorf("Memory information missing.")
 	}
 
-	if pageFaultsMD != nil {
+	// Only send page fault metric if start time is before current time. Right after container is started, kubelet can return start time == end time. This doesn't seem to happen with other metrics.
+	if pageFaultsMD != nil && memory.Time.Time.After(startTime) {
 		if memory.MajorPageFaults == nil {
 			return nil, fmt.Errorf("MajorPageFaults missing in MemoryStats %v", memory)
 		}
