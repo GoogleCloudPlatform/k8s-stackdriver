@@ -16,11 +16,19 @@ spec:
         run: custom-metric-sd
     spec:
       containers:
-      - command:
-        - /bin/sh
-        - -c
-        - ./sd_dummy_exporter --metric-name=foo --metric-labels=bar=1 --metric-value=40 --use-new-resource-model --use-old-resource-model --pod-id=$(POD_ID) --pod-name=$(POD_NAME) --namespace=$(NAMESPACE)
-        image: gcr.io/google-containers/sd-dummy-exporter:v0.2.0
+      - command: ["./sd-dummy-exporter"]
+        args:
+        - --use-new-resource-model=true
+        - --use-old-resource-model=false
+        - --metric-name=foo
+        - --metric-labels=bar=1
+        - --metric-value=40
+        - --use-new-resource-model
+        - --use-old-resource-model
+        - --pod-id=$(POD_ID)
+        - --pod-name=$(POD_NAME)
+        - --namespace=$(NAMESPACE)                
+        image: gcr.io/google-samples/sd-dummy-exporter:v0.3.0        
         name: sd-dummy-exporter
         resources:
           requests:
