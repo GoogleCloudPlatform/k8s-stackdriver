@@ -16,11 +16,12 @@ spec:
         run: custom-metric-prometheus-sd
     spec:
       containers:
-      - command:
-        - /bin/sh
-        - -c
-        - ./prometheus_dummy_exporter --metric-name=foo --metric-value=40 --port=8080
-        image: gcr.io/google-containers/prometheus-dummy-exporter:v0.1.0
+      - command: ["./prometheus-dummy-exporter"]
+        args:
+        - --metric-name=foo
+        - --metric-value=40
+        - --port=8080
+        image: gcr.io/google-samples/prometheus-dummy-exporter:v0.2.0
         name: prometheus-dummy-exporter
         resources:
           requests:
@@ -44,14 +45,14 @@ spec:
               fieldRef:
                 fieldPath: metadata.namespace
 ---
-apiVersion: autoscaling/v2beta1
+apiVersion: autoscaling/v2beta2
 kind: HorizontalPodAutoscaler
 metadata:
   name: custom-metric-prometheus-sd
   namespace: default
 spec:
   scaleTargetRef:
-    apiVersion: apps/v1beta1
+    apiVersion: apps/v1
     kind: Deployment
     name: custom-metric-prometheus-sd
   minReplicas: 1
@@ -59,7 +60,10 @@ spec:
   metrics:
   - type: Pods
     pods:
-      metricName: foo
-      targetAverageValue: 20
+      metric:
+        name: foo
+      target:
+        type: AverageValue
+        averageValue: 20
 
  
