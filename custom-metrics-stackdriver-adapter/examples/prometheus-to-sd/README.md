@@ -143,7 +143,7 @@ Make sure that:
 * the HPA config has the right scaling target
 ```yaml
 scaleTargetRef:
-    apiVersion: apps/v1beta1
+    apiVersion: apps/v1
     kind: Deployment
     name: <deployment-name>
 ```
@@ -152,8 +152,11 @@ scaleTargetRef:
 metrics:
   - type: Pods
     pods:
-      metricName: <metric-name>
-      targetAverageValue: <target-value>
+      metric:
+        name: <metric-name>
+      target:
+        type: AverageValue
+        averageValue:  <target-value>
 ```
 
 

@@ -23,6 +23,7 @@ import (
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // Prometheus Dummy Exporter is a testing utility that exposes a prometheus format metric of constant value.
@@ -43,7 +44,7 @@ func main() {
 	prometheus.MustRegister(metric)
 	metric.Set(float64(*metricValue))
 
-	http.Handle("/metrics", prometheus.Handler())
+	http.Handle("/metrics", promhttp.Handler())
 	log.Printf("Starting to listen on :%d", *port)
 	err := http.ListenAndServe(fmt.Sprintf(":%d", *port), nil)
 	log.Fatalf("Failed to start serving metrics: %v", err)
