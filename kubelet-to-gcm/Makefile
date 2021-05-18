@@ -37,3 +37,7 @@ docker: build
 
 push: docker
 	gcloud docker -- push ${PREFIX}/kubelet-to-gcm:$(TAG)
+
+coverage:
+	rm -f coverage.out
+	go test -coverpkg=./... -coverprofile=coverage.out ./...

@@ -25,3 +25,6 @@ test: $(PKG)
 clean:
 	rm -rf build
 
+coverage:
+	rm -f coverage.out
+	go test -coverpkg=./... -coverprofile=coverage.out ./...

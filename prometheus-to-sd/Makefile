@@ -32,3 +32,7 @@ push: container
 
 clean:
 	rm -rf monitor
+
+coverage:
+	rm -f coverage.out
+	go test -coverpkg=./... -coverprofile=coverage.out ./...
