@@ -33,7 +33,7 @@ const (
 
 // NewConfigs returns the SourceConfigs for all monitored endpoints, and
 // hits the GCE Metadata server if required.
-func NewConfigs(zone, projectID, cluster, clusterLocation, host, instance, schemaPrefix string, monitoredResourceLabels map[string]string, kubeletPort, ctrlPort uint, resolution time.Duration) (*monitor.SourceConfig, *monitor.SourceConfig, error) {
+func NewConfigs(zone, projectID, cluster, clusterLocation, host, instance, schemaPrefix, certificateLocation string, monitoredResourceLabels map[string]string, kubeletPort, ctrlPort uint, resolution time.Duration) (*monitor.SourceConfig, *monitor.SourceConfig, error) {
 	zone, err := getZone(zone)
 	if err != nil {
 		return nil, nil, err
@@ -81,6 +81,7 @@ func NewConfigs(zone, projectID, cluster, clusterLocation, host, instance, schem
 			MonitoredResourceLabels: monitoredResourceLabels,
 			Port:                    kubeletPort,
 			Resolution:              resolution,
+			CertificateLocation:     certificateLocation,
 		}, &monitor.SourceConfig{
 			Zone:                    zone,
 			Project:                 projectID,
@@ -172,7 +173,7 @@ func getClusterLocation(clusterLocation string) (string, error) {
 	return clusterLocation, nil
 }
 
-// getKubeletHost returns the kubelet host if given, or gets ip of network interface 0 from gce.
+// getKubeletHost returns the kubelet host if given, or gets ip of network interface 0 from gce, or gets instance name if set to use-instance-name.
 func getKubeletHost(kubeletHost string) (string, error) {
 	if kubeletHost == "use-gce" {
 		body, err := getGCEMetaData(metaDataURI("/instance/network-interfaces/0/ip"))
@@ -180,6 +181,9 @@ func getKubeletHost(kubeletHost string) (string, error) {
 			return "", fmt.Errorf("Failed to get instance IP from GCE: %v", err)
 		}
 		kubeletHost = string(body)
+	}
+	if kubeletHost == "use-instance-name" {
+		return getInstance("use-gce")
 	}
 	return kubeletHost, nil
 }

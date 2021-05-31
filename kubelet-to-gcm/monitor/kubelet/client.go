@@ -34,9 +34,13 @@ type Client struct {
 }
 
 // NewClient returns a new Client.
-func NewClient(host string, port uint, client *http.Client) (*Client, error) {
+func NewClient(host string, port uint, client *http.Client, useAuthPort bool) (*Client, error) {
 	// Parse our URL upfront, so we can fail fast.
-	urlStr := fmt.Sprintf("http://%s:%d/stats/summary", host, port)
+	protocol := "http"
+	if useAuthPort {
+		protocol = "https"
+	}
+	urlStr := fmt.Sprintf("%s://%s:%d/stats/summary", protocol, host, port)
 	summaryURL, err := url.Parse(urlStr)
 	if err != nil {
 		return nil, err
