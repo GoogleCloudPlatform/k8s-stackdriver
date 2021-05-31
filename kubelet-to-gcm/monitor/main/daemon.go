@@ -48,14 +48,15 @@ var (
 		"When empty, old resource model (gke_container) is used. k8s_ prefix uses new model, with separate pod/container/node.")
 	monitoredResourceLabels = flag.String("monitored-resource-labels", "", "Manually specified MonitoredResource labels.")
 	// Flags to identify the Kubelet.
-	zone            = flag.String("zone", "use-gce", "The zone where this kubelet lives.")
-	project         = flag.String("project", "use-gce", "The project where this kubelet's host lives.")
-	cluster         = flag.String("cluster", "use-gce", "The cluster where this kubelet holds membership.")
-	clusterLocation = flag.String("cluster-location", "use-gce", "The location of the cluster where this kubelet holds membership.")
-	kubeletInstance = flag.String("kubelet-instance", "use-gce", "The instance name the kubelet resides on.")
-	kubeletHost     = flag.String("kubelet-host", "use-gce", "The kubelet's host name.")
-	kubeletPort     = flag.Uint("kubelet-port", 10255, "The kubelet's port.")
-	ctrlPort        = flag.Uint("controller-manager-port", 10252, "The kube-controller's port. Can be set to 0 to disable kube-controller-manager metrics collection.")
+	zone                = flag.String("zone", "use-gce", "The zone where this kubelet lives.")
+	project             = flag.String("project", "use-gce", "The project where this kubelet's host lives.")
+	cluster             = flag.String("cluster", "use-gce", "The cluster where this kubelet holds membership.")
+	clusterLocation     = flag.String("cluster-location", "use-gce", "The location of the cluster where this kubelet holds membership.")
+	kubeletInstance     = flag.String("kubelet-instance", "use-gce", "The instance name the kubelet resides on.")
+	kubeletHost         = flag.String("kubelet-host", "use-gce", "The kubelet's host name.")
+	kubeletPort         = flag.Uint("kubelet-port", 10255, "The kubelet's port.")
+	ctrlPort            = flag.Uint("controller-manager-port", 10252, "The kube-controller's port. Can be set to 0 to disable kube-controller-manager metrics collection.")
+	certificateLocation = flag.String("certificate-location", "", "Location under which kubelet certificate is available, needed when using secure kubelet port.")
 	// Flags to control runtime behavior.
 	res         = flag.Uint("resolution", 10, "The time, in seconds, to poll the Kubelet.")
 	gcmEndpoint = flag.String("gcm-endpoint", "", "The GCM endpoint to hit. Defaults to the default endpoint.")
@@ -73,7 +74,7 @@ func main() {
 
 	monitoredResourceLabels := parseMonitoredResourceLabels(*monitoredResourceLabels)
 	// Initialize the configuration.
-	kubeletCfg, ctrlCfg, err := config.NewConfigs(*zone, *project, *cluster, *clusterLocation, *kubeletHost, *kubeletInstance, *schemaPrefix, monitoredResourceLabels, *kubeletPort, *ctrlPort, resolution)
+	kubeletCfg, ctrlCfg, err := config.NewConfigs(*zone, *project, *cluster, *clusterLocation, *kubeletHost, *kubeletInstance, *schemaPrefix, *certificateLocation, monitoredResourceLabels, *kubeletPort, *ctrlPort, resolution)
 	if err != nil {
 		log.Fatalf("Failed to initialize configuration: %v", err)
 	}

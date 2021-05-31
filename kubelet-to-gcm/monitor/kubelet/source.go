@@ -17,7 +17,10 @@ limitations under the License.
 package kubelet
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 
 	v3 "google.golang.org/api/monitoring/v3"
@@ -38,7 +41,17 @@ func NewSource(cfg *monitor.SourceConfig) (*Source, error) {
 	trans := NewTranslator(cfg.Zone, cfg.Project, cfg.Cluster, cfg.ClusterLocation, cfg.Instance, cfg.InstanceID, cfg.SchemaPrefix, cfg.MonitoredResourceLabels, cfg.Resolution)
 
 	// NewClient validates its own inputs.
-	client, err := NewClient(cfg.Host, cfg.Port, &http.Client{})
+	httpClient := &http.Client{}
+	var err error
+	useAuthPort := false
+	if cfg.CertificateLocation != "" {
+		httpClient, err = getSecuredHttpClient(cfg.CertificateLocation)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create secure http client: %s", err)
+		}
+		useAuthPort = true
+	}
+	client, err := NewClient(cfg.Host, cfg.Port, httpClient, useAuthPort)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create a kubelet client with config %v: %v", cfg, err)
 	}
@@ -75,4 +88,23 @@ func (s *Source) Name() string {
 // ProjectPath returns the project's path in a way Stackdriver understands.
 func (s *Source) ProjectPath() string {
 	return s.projectPath
+}
+
+func getSecuredHttpClient(certLocation string) (*http.Client, error) {
+	cert, err := ioutil.ReadFile(certLocation)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file with kubelet certificate: %s", err)
+	}
+	certPool := x509.NewCertPool()
+	ok := certPool.AppendCertsFromPEM(cert)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse kubelet certificate")
+	}
+	return &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				RootCAs: certPool,
+			},
+		},
+	}, nil
 }

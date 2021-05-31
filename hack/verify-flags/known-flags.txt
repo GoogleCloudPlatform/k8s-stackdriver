@@ -9,6 +9,7 @@ batch-url
 block-path-config
 blunderbuss-config
 blunderbuss-reassign
+certificate-location
 change-permissions
 chart-url
 cla-status-context
