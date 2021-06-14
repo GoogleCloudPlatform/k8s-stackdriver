@@ -12,16 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.13-alpine as builder
+FROM --platform=$BUILDPLATFORM golang:1.13-alpine as builder
 WORKDIR ${GOPATH}/src/github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd
 COPY . ./
-RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -o /monitor
+
+ARG TARGETARCH
+ARG TARGETOS
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -mod=vendor -o /monitor
 
 RUN apk update \
     && apk add --no-cache govendor \
     && govendor license +vendor > /NOTICES
 
-FROM gcr.io/distroless/static:latest
+FROM --platform=$TARGETPLATFORM gcr.io/distroless/static:latest
 # nobody:nobody
 USER 65534:65534
 COPY --from=builder /monitor /
