@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.13-alpine as builder
+FROM --platform=$BUILDPLATFORM golang:1.13-alpine as builder
 WORKDIR ${GOPATH}/src/github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter
 COPY . ./
-RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -o /event-exporter
 
-FROM gcr.io/distroless/static:latest
+ARG TARGETARCH
+ARG TARGETOS
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -mod=vendor -o /event-exporter
+
+FROM --platform=$TARGETPLATFORM gcr.io/distroless/static:latest
 COPY --from=builder event-exporter /
