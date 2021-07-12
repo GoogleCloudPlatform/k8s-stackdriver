@@ -31,6 +31,7 @@ type EventHandler interface {
 	OnDelete(*corev1.Event)
 }
 
+// eventHandlerWrapper is a wrapper of EventHandler for testing proposes.
 type eventHandlerWrapper struct {
 	handler EventHandler
 }
@@ -78,6 +79,7 @@ func (c *eventHandlerWrapper) OnDelete(obj interface{}) {
 	c.handler.OnDelete(event)
 }
 
+// Coverts an object of any type to a corev1.Event if applicable.
 func (c *eventHandlerWrapper) convert(obj interface{}) (*corev1.Event, bool) {
 	if event, ok := obj.(*corev1.Event); ok {
 		return event, true

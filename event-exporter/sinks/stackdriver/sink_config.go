@@ -41,6 +41,7 @@ type sdSinkConfig struct {
 	Endpoint       string
 }
 
+// Provides Stackdriver sink default values for GCE instances.
 func newGceSdSinkConfig() (*sdSinkConfig, error) {
 	if !metadata.OnGCE() {
 		return nil, errors.New("not running on GCE, which is not supported for Stackdriver sink")

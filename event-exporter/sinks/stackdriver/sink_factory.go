@@ -39,7 +39,7 @@ type sdSinkFactory struct {
 	endpoint             *string
 }
 
-// NewSdSinkFactory creates a new Stackdriver sink factory
+// NewSdSinkFactory creates a new Stackdriver sink factory.
 func NewSdSinkFactory() sinks.SinkFactory {
 	fs := flag.NewFlagSet("stackdriver", flag.ContinueOnError)
 	return &sdSinkFactory{
@@ -57,6 +57,7 @@ func NewSdSinkFactory() sinks.SinkFactory {
 	}
 }
 
+// CreateNew creates a new Stackdriver sink.
 func (f *sdSinkFactory) CreateNew(opts []string) (sinks.Sink, error) {
 	err := f.flagSet.Parse(opts)
 	if err != nil {

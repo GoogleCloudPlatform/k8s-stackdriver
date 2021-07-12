@@ -43,6 +43,7 @@ var (
 	}
 )
 
+// Constructs a log entry from either an event or a message.
 type sdLogEntryFactory struct {
 	clock           clock.Clock
 	encoder         runtime.Encoder

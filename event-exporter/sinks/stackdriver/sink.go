@@ -45,6 +45,7 @@ var (
 	)
 )
 
+// sdSink satisfies sinks.Sink interface.
 type sdSink struct {
 	logEntryChannel   chan *sd.LogEntry
 	config            *sdSinkConfig
@@ -117,11 +118,13 @@ func (s *sdSink) OnDelete(*corev1.Event) {
 	// Nothing to do here
 }
 
+// OnList logs a message indicating that the Event Exporter starts upon
+// receiving the first list of events.
 func (s *sdSink) OnList(list *corev1.EventList) {
 	if s.beforeFirstList {
 		entry := s.logEntryFactory.FromMessage("Event exporter started watching. " +
 			"Some events may have been lost up to this point.")
-		s.writer.Write([]*sd.LogEntry{entry}, s.logName, s.sdResourceFactory.defaultMonitoredResource())
+		s.writer.Write([]*sd.LogEntry{entry}, s.logName, s.sdResourceFactory.defaultResource)
 		s.beforeFirstList = false
 	}
 }
@@ -162,7 +165,7 @@ func (s *sdSink) flushBuffer() {
 func (s *sdSink) sendEntries(entries []*sd.LogEntry) {
 	glog.V(4).Infof("Sending %d entries to Stackdriver", len(entries))
 
-	written := s.writer.Write(entries, s.logName, s.sdResourceFactory.defaultMonitoredResource())
+	written := s.writer.Write(entries, s.logName, s.sdResourceFactory.defaultResource)
 	successfullySentEntryCount.Add(float64(written))
 
 	<-s.concurrencyChannel

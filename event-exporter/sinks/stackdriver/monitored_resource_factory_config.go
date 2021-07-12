@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// Provides configurations to the `monitoredResourceFactory`.
 type monitoredResourceFactoryConfig struct {
 	resourceModel resourceModelVersion
 	clusterName   string
