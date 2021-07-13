@@ -65,6 +65,7 @@ type EventWatcherConfig struct {
 // NewEventWatcher create a new watcher that only watches the events resource.
 func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) watchers.Watcher {
 	return watchers.NewWatcher(&watchers.WatcherConfig{
+		// List and watch events in all namespaces.
 		ListerWatcher: &cache.ListWatch{
 			ListFunc: func(options meta_v1.ListOptions) (runtime.Object, error) {
 				list, err := client.CoreV1().Events(meta_v1.NamespaceAll).List(options)

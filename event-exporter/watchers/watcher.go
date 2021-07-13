@@ -36,6 +36,7 @@ type Watcher interface {
 	Run(stopCh <-chan struct{})
 }
 
+// watcher satisfies the Watcher interface.
 type watcher struct {
 	reflector *cache.Reflector
 }

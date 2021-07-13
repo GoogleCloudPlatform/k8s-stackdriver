@@ -120,7 +120,7 @@ func TestDefaultMonitoredResource(t *testing.T) {
 
 	for _, test := range tests {
 		factory := newMonitoredResourceFactory(test.config)
-		monitoredResource := factory.defaultMonitoredResource()
+		monitoredResource := factory.defaultResource
 
 		if !reflect.DeepEqual(*monitoredResource, *test.wanted) {
 			t.Errorf("Wrong monitored resource from event\ngot:\n%swanted:\n%s", stringify(monitoredResource), stringify(test.wanted))

@@ -56,6 +56,8 @@ func newSdWriter(service *sd.Service) sdWriter {
 	}
 }
 
+// Writer writes log entries to Stackdriver. It retries writing logs forever
+// unless the API returns BadRequest error.
 func (w sdWriterImpl) Write(entries []*sd.LogEntry, logName string, resource *sd.MonitoredResource) int {
 	req := &sd.WriteLogEntriesRequest{
 		Entries:  entries,

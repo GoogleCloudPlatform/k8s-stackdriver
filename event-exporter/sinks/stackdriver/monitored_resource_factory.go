@@ -35,11 +35,12 @@ const (
 	node = "Node"
 )
 
+// Constructs monitored resources.
 type monitoredResourceFactory struct {
 	defaultResource *sd.MonitoredResource
 	resourceModel   resourceModelVersion
-	config          *monitoredResourceFactoryConfig
-	labels          map[string]string
+	// Common labels shared by all monitored resources.
+	commonLabels map[string]string
 }
 
 func newMonitoredResourceFactory(config *monitoredResourceFactoryConfig) *monitoredResourceFactory {
@@ -58,23 +59,15 @@ func newMonitoredResourceFactory(config *monitoredResourceFactoryConfig) *monito
 	factory := &monitoredResourceFactory{
 		defaultResource: resource,
 		resourceModel:   config.resourceModel,
-		config:          config,
-		labels:          labels,
+		commonLabels:    labels,
 	}
 
 	return factory
 }
-func commonLabels(config *monitoredResourceFactoryConfig) map[string]string {
-	labels := make(map[string]string)
-	labels[clusterName] = config.clusterName
-	labels[location] = config.location
-	labels[projectID] = config.projectID
-	return labels
-}
 
 func (f *monitoredResourceFactory) resourceFromEvent(event *corev1.Event) *sd.MonitoredResource {
 	if f.resourceModel == oldTypes {
-		return f.defaultMonitoredResource()
+		return f.defaultResource
 	}
 
 	var monitoredResource *sd.MonitoredResource
@@ -85,17 +78,13 @@ func (f *monitoredResourceFactory) resourceFromEvent(event *corev1.Event) *sd.Mo
 	case node:
 		monitoredResource = f.buildNodeMonitoredResource(event)
 	default:
-		monitoredResource = f.defaultMonitoredResource()
+		monitoredResource = f.defaultResource
 	}
 	return monitoredResource
 }
 
-func (f *monitoredResourceFactory) defaultMonitoredResource() *sd.MonitoredResource {
-	return f.defaultResource
-}
-
 func (f *monitoredResourceFactory) buildPodMonitoredResource(event *corev1.Event) *sd.MonitoredResource {
-	labels := commonLabels(f.config)
+	labels := copyMap(f.commonLabels)
 	labels[podName] = event.InvolvedObject.Name
 	labels[namespaceName] = event.InvolvedObject.Namespace
 
@@ -106,11 +95,28 @@ func (f *monitoredResourceFactory) buildPodMonitoredResource(event *corev1.Event
 }
 
 func (f *monitoredResourceFactory) buildNodeMonitoredResource(event *corev1.Event) *sd.MonitoredResource {
-	labels := commonLabels(f.config)
+	labels := copyMap(f.commonLabels)
 	labels[nodeName] = event.InvolvedObject.Name
 
 	return &sd.MonitoredResource{
 		Type:   k8sNode,
 		Labels: labels,
 	}
+}
+
+// copyMap returns a copy of an input map.
+func copyMap(in map[string]string) map[string]string {
+	out := make(map[string]string)
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func commonLabels(config *monitoredResourceFactoryConfig) map[string]string {
+	labels := make(map[string]string)
+	labels[clusterName] = config.clusterName
+	labels[location] = config.location
+	labels[projectID] = config.projectID
+	return labels
 }
