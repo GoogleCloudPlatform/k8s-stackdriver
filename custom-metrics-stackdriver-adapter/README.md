@@ -66,12 +66,17 @@ Kubernetes monitored resources, including for example `k8s_pod`, `k8s_node`. See
   ```sh
   kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/deploy/production/adapter_new_resource_model.yaml
   ```
+### For Workload Identity enabled clusters
 
 If you use Workload Identity in your cluster, additional steps are necessary. In
-the commands below, use your Project ID as **<project-id>** and Google Service Account as
-**<google-service-account>**.
+the commands below, replace **\<project-id\>** with your Project ID and **\<google-service-account\>** with the Google Service Account.
 
-* Make sure your **<google-service-account>** has `monitoring.viewer` IAM role.
+* Make sure your **\<google-service-account\>** has `monitoring.editor` IAM role:
+```
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member "serviceAccount:<google-service-account>@<project-id>.iam.gserviceaccount.com" \
+    --role "roles/monitoring.editor"
+```
 
 * Create IAM Policy Binding:
 
@@ -129,7 +134,7 @@ in HPA, replace "/" character with "|". For example, to use
 #### Fallback for container metrics
 
 Flag `fallback-for-container-metrics` enables metrics from k8s_container, but in
-limited scope. In particular, adapter will fallback to k8s_container resource 
+limited scope. In particular, adapter will fallback to k8s_container resource
 when given metric is not present on k8s_pod.
 At most one container with given metric is allowed for each pod.
 Works only with **new resource model**.
@@ -144,8 +149,8 @@ in Prometheus format.
 You will report your metric against a appropriate monitored resource for Kubernetes
 objects. To use **legacy resource model**, use monitored resource `gke_container`.
 To use **new resource model**, use one of monitored resources: `k8s_pod` or
-`k8s_node` - corresponding to Kubernetes objects `Pod` and `Node`. With 
-[fallback-for-container-metrics] also `k8s_container` resource corresponding to 
+`k8s_node` - corresponding to Kubernetes objects `Pod` and `Node`. With
+[fallback-for-container-metrics] also `k8s_container` resource corresponding to
 `Container` object is available.
 
 1. Define your custom metric by following [Stackdriver custom metrics documentation].
@@ -277,7 +282,7 @@ To test your custom metrics setup or see a reference on how to push your metrics
 to Stackdriver, check out our examples:
 * application that exports custom metric directly to Stackdriver filling in all
   required labels: [direct-example]
-* application that exports custom metrics to Stackdriver using [Prometheus text format] 
+* application that exports custom metrics to Stackdriver using [Prometheus text format]
   and [Prometheus to Stackdriver] adapter: [prometheus-to-sd-example]
 
 [Custom Metrics API]:
