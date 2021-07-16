@@ -80,11 +80,32 @@ build_flags() {
 }
 
 # $1 is {limits,requests}.{cpu,memory}
+# $2 is the limit or request value
+# echo the normalized value in millicores (i.e. 2 becomes 2000m)
+normalize_units() {
+  if [ "$1" = "limits.cpu" -o "$1" = "requests.cpu" ]; then
+    echo "$2" | awk '{
+                       if ($0 ~ /^[0-9]+(\.[0-9]+)?$/) {
+                         printf("%dm", $0*1000)
+                       } else {
+                         printf("%s", $0)
+                       }
+                   }'
+  else
+    echo "$2"
+  fi
+}
+
+# $1 is {limits,requests}.{cpu,memory}
 # $2 is the desired value
 needs_update() {
   CURRENT=$(kubectl get ds -n kube-system ${DS_NAME} -o \
     jsonpath="{.spec.template.spec.containers[?(@.name=='fluentd-gcp')].resources.$1}")
   DESIRED=$2
+
+  DESIRED=$(normalize_units "$1" "$DESIRED")
+  CURRENT=$(normalize_units "$1" "$CURRENT")
+
   if [ "${CURRENT}" != "${DESIRED}" ]
   then
     log "$1 needs updating. Is: '${CURRENT}', want: '${DESIRED}'."
