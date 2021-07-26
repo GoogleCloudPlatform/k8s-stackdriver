@@ -95,6 +95,7 @@ func GetGceConfig(project, cluster, clusterLocation, zone, node string) (*GceCon
 				return nil, fmt.Errorf("error while getting instance (node) name: %v", err)
 			}
 			node = strings.Split(node, ".")[0]
+			glog.Warningf("using %s as instance/name", node)
 		}
 	}
 
