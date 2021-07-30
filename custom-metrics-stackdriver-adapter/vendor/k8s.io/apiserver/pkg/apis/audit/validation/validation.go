@@ -101,7 +101,7 @@ func validateResources(groupResources []audit.GroupResources, fldPath *field.Pat
 		if len(groupResource.Group) != 0 {
 			// Group names must be lower case and be valid DNS subdomains.
 			// reference: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md
-			// an error is returned for group name like rbac.authorization.k8s.io/v1beta1
+			// an error is returned for group name like rbac.authorization.k8s.io/v1
 			// rbac.authorization.k8s.io is the valid one
 			if msgs := validation.NameIsDNSSubdomain(groupResource.Group, false); len(msgs) != 0 {
 				allErrs = append(allErrs, field.Invalid(fldPath.Child("group"), groupResource.Group, strings.Join(msgs, ",")))
