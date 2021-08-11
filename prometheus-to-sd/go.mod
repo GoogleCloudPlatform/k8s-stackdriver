@@ -1,6 +1,6 @@
 module github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd
 
-go 1.13
+go 1.16
 
 require (
 	cloud.google.com/go v0.56.0
