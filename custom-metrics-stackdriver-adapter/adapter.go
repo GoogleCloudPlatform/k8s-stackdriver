@@ -65,9 +65,14 @@ type stackdriverAdapterServerOptions struct {
 	// EnableDistributionSupport is a flag that indicates whether or not to allow distributions can
 	// be used (with special reducer labels) in the adapter
 	EnableDistributionSupport bool
+	// RateInterval is lookback duration for all list timeseries requests. This is also the
+	// AlignmentPeriod for metrics with a distribution type.
+	RateInterval time.Duration
+	// AlignmentPeriod is the aggregation aligment period for all list timeseries requests
+	AlignmentPeriod time.Duration
 }
 
-func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptions, rateInterval time.Duration, alignmentPeriod time.Duration) (provider.MetricsProvider, *translator.Translator) {
+func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptions) (provider.MetricsProvider, *translator.Translator) {
 	config, err := sa.ClientConfig()
 	if err != nil {
 		klog.Fatalf("unable to construct client config: %v", err)
@@ -109,8 +114,8 @@ func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptio
 	}
 	conf.GenericConfig.EnableMetrics = true
 
-	translator := translator.NewTranslator(stackdriverService, gceConf, rateInterval, alignmentPeriod, mapper, o.UseNewResourceModel, o.EnableDistributionSupport)
-	return adapter.NewStackdriverProvider(client, mapper, gceConf, stackdriverService, translator, rateInterval, o.UseNewResourceModel, o.FallbackForContainerMetrics), translator
+	translator := translator.NewTranslator(stackdriverService, gceConf, o.RateInterval, o.AlignmentPeriod, mapper, o.UseNewResourceModel, o.EnableDistributionSupport)
+	return adapter.NewStackdriverProvider(client, mapper, gceConf, stackdriverService, translator, o.RateInterval, o.UseNewResourceModel, o.FallbackForContainerMetrics), translator
 }
 
 func (sa *StackdriverAdapter) withCoreMetrics(translator *translator.Translator) error {
@@ -152,6 +157,8 @@ func main() {
 		FallbackForContainerMetrics: false,
 		EnableCoreMetricsAPI:        false,
 		EnableDistributionSupport:   false,
+		RateInterval:                5 * time.Minute,
+		AlignmentPeriod:             1 * time.Minute,
 	}
 
 	flags.BoolVar(&serverOptions.UseNewResourceModel, "use-new-resource-model", serverOptions.UseNewResourceModel,
@@ -170,6 +177,10 @@ func main() {
 		"Stackdriver Endpoint used by adapter. Default is https://monitoring.googleapis.com/")
 	flags.BoolVar(&serverOptions.EnableDistributionSupport, "enable-distribution-support", serverOptions.EnableDistributionSupport,
 		"enables support for scaling based on distribution values")
+	flags.DurationVar(&serverOptions.RateInterval, "rate-interval", serverOptions.RateInterval,
+		"Configures the lookback duration for all list timeseries requests. Valid time units are 'ns', 'us' (or 'µs'), 'ms', 's', 'm', 'h'. Example: 3m. This is also the alignment-period for metrics with a distribution type.")
+	flags.DurationVar(&serverOptions.AlignmentPeriod, "alignment-period", serverOptions.AlignmentPeriod,
+		"Configures the aggregation aligment period for all list timeseries requests. Valid time units are 'ns', 'us' (or 'µs'), 'ms', 's', 'm', 'h'. Example: 10m.")
 
 	flags.Parse(os.Args)
 
@@ -180,8 +191,7 @@ func main() {
 		klog.Fatalf("Core metrics work only with new resource model")
 	}
 
-	// TODO(holubwicz): move duration config to server options
-	metricsProvider, translator := cmd.makeProviderOrDie(&serverOptions, 5*time.Minute, 1*time.Minute)
+	metricsProvider, translator := cmd.makeProviderOrDie(&serverOptions)
 	if serverOptions.EnableCustomMetricsAPI {
 		cmd.WithCustomMetrics(metricsProvider)
 	}
