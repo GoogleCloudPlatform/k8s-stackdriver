@@ -25,11 +25,12 @@ import (
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/translator"
 	gceconfig "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
-	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	stackdriver "google.golang.org/api/monitoring/v3"
 	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
+	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/component-base/logs"
@@ -38,8 +39,7 @@ import (
 
 	coreadapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/coreprovider"
 	adapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/provider"
-	basecmd "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd"
-	"github.com/prometheus/client_golang/prometheus"
+	basecmd "sigs.k8s.io/custom-metrics-apiserver/pkg/cmd"
 )
 
 // StackdriverAdapter is an adapter for Stackdriver
@@ -125,7 +125,9 @@ func (sa *StackdriverAdapter) withCoreMetrics(translator *translator.Translator)
 		return err
 	}
 
-	if err := api.Install(provider, informers.Core().V1(), server.GenericAPIServer); err != nil {
+	pods := informers.Core().V1().Pods()
+	nodes := informers.Core().V1().Nodes()
+	if err := api.Install(provider, pods.Lister(), nodes.Lister(), server.GenericAPIServer); err != nil {
 		return err
 	}
 
@@ -202,7 +204,7 @@ func main() {
 }
 
 func runPrometheusMetricsServer(addr string) {
-	http.Handle("/metrics", prometheus.Handler())
+	http.Handle("/metrics", promhttp.Handler())
 	err := http.ListenAndServe(addr, nil)
 	klog.Fatalf("Failed server: %s", err)
 }

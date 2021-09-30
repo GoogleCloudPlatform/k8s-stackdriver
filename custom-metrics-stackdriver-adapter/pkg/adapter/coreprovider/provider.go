@@ -49,9 +49,9 @@ type coreClientInterface interface {
 	getNodeRAM(nodesNames []string) (map[string]resource.Quantity, map[string]api.TimeInfo, error)
 }
 
-// GetContainerMetrics implements the api.MetricsProvider interface.
+// GetPodMetrics implements the api.MetricsProvider interface.
 // If metrics from i-th pod are not present, ContainerMetrics[i] will be nil and TimeInfo[i] will be default TimeInfo value.
-func (p *CoreProvider) GetContainerMetrics(pods ...apitypes.NamespacedName) ([]api.TimeInfo, [][]metrics.ContainerMetrics, error) {
+func (p *CoreProvider) GetPodMetrics(pods ...apitypes.NamespacedName) ([]api.TimeInfo, [][]metrics.ContainerMetrics, error) {
 	timeInfo := make([]api.TimeInfo, len(pods))
 	coreMetrics := make([][]metrics.ContainerMetrics, len(pods))
 	resourceNames := make([]string, len(pods))
