@@ -35,14 +35,6 @@ var (
 			Subsystem: "stackdriver_sink",
 		},
 	)
-
-	successfullySentEntryCount = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name:      "successfully_sent_entry_count",
-			Help:      "Number of entries successfully ingested by Stackdriver",
-			Subsystem: "stackdriver_sink",
-		},
-	)
 )
 
 // sdSink satisfies sinks.Sink interface.
@@ -165,8 +157,7 @@ func (s *sdSink) flushBuffer() {
 func (s *sdSink) sendEntries(entries []*sd.LogEntry) {
 	glog.V(4).Infof("Sending %d entries to Stackdriver", len(entries))
 
-	written := s.writer.Write(entries, s.logName, s.sdResourceFactory.defaultResource)
-	successfullySentEntryCount.Add(float64(written))
+	s.writer.Write(entries, s.logName, s.sdResourceFactory.defaultResource)
 
 	<-s.concurrencyChannel
 

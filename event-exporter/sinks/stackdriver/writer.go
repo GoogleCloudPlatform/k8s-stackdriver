@@ -40,10 +40,18 @@ var (
 		},
 		[]string{"code"},
 	)
+
+	successfullySentEntryCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name:      "successfully_sent_entry_count",
+			Help:      "Number of entries successfully ingested by Stackdriver",
+			Subsystem: "stackdriver_sink",
+		},
+	)
 )
 
 type sdWriter interface {
-	Write([]*sd.LogEntry, string, *sd.MonitoredResource) int
+	Write([]*sd.LogEntry, string, *sd.MonitoredResource)
 }
 
 type sdWriterImpl struct {
@@ -58,7 +66,7 @@ func newSdWriter(service *sd.Service) sdWriter {
 
 // Writer writes log entries to Stackdriver. It retries writing logs forever
 // unless the API returns BadRequest error.
-func (w sdWriterImpl) Write(entries []*sd.LogEntry, logName string, resource *sd.MonitoredResource) int {
+func (w sdWriterImpl) Write(entries []*sd.LogEntry, logName string, resource *sd.MonitoredResource) {
 	req := &sd.WriteLogEntriesRequest{
 		Entries:  entries,
 		LogName:  logName,
@@ -72,8 +80,10 @@ func (w sdWriterImpl) Write(entries []*sd.LogEntry, logName string, resource *sd
 	for {
 		res, err := w.service.Entries.Write(req).Do()
 
+		// The entry is successfully sent to Stackdriver.
 		if err == nil {
 			requestCount.WithLabelValues(strconv.Itoa(res.HTTPStatusCode)).Inc()
+			successfullySentEntryCount.Add(float64(len(entries)))
 			break
 		}
 
@@ -96,6 +106,4 @@ func (w sdWriterImpl) Write(entries []*sd.LogEntry, logName string, resource *sd
 		glog.Warningf("Failed to send request to Stackdriver: %v", err)
 		time.Sleep(retryDelay)
 	}
-
-	return len(entries)
 }
