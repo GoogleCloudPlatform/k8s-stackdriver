@@ -28,14 +28,13 @@ import (
 )
 
 type fakeSdWriter struct {
-	writeFunc func([]*sd.LogEntry, string, *sd.MonitoredResource) int
+	writeFunc func([]*sd.LogEntry, string, *sd.MonitoredResource)
 }
 
-func (w *fakeSdWriter) Write(entries []*sd.LogEntry, logName string, resource *sd.MonitoredResource) int {
+func (w *fakeSdWriter) Write(entries []*sd.LogEntry, logName string, resource *sd.MonitoredResource) {
 	if w.writeFunc != nil {
-		return w.writeFunc(entries, logName, resource)
+		w.writeFunc(entries, logName, resource)
 	}
-	return 0
 }
 
 const (
@@ -165,12 +164,11 @@ func createSinkWith(params map[string]interface{}) (c *sdSinkConfig, s *sdSink, 
 	c = createConfig(params)
 	q = make(chan struct{}, 2*c.MaxConcurrency)
 	w := &fakeSdWriter{
-		writeFunc: func([]*sd.LogEntry, string, *sd.MonitoredResource) int {
+		writeFunc: func([]*sd.LogEntry, string, *sd.MonitoredResource) {
 			q <- struct{}{}
 			if v, ok := params[blockingParamName]; ok && v.(bool) {
 				<-done
 			}
-			return 0
 		},
 	}
 

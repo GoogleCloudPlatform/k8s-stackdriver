@@ -114,6 +114,8 @@ func (s *sdSink) OnDelete(*corev1.Event) {
 // receiving the first list of events.
 func (s *sdSink) OnList(list *corev1.EventList) {
 	if s.beforeFirstList {
+		receivedEntryCount.Inc()
+		
 		entry := s.logEntryFactory.FromMessage("Event exporter started watching. " +
 			"Some events may have been lost up to this point.")
 		s.writer.Write([]*sd.LogEntry{entry}, s.logName, s.sdResourceFactory.defaultResource)
