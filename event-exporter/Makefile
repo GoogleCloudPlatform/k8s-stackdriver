@@ -29,7 +29,7 @@ ifdef ARCH
 	BUILD_FLAGS=--platform=linux/$(ARCH)
 endif
 
-build:
+build: test
 	${ENVVAR} go build -mod=vendor -a -o ${BINARY_NAME}
 
 test:
@@ -45,7 +45,7 @@ container: .container
 
 container-multiarch:  $(addprefix .sub-container-,$(ALL_ARCH))
 
-push: .push
+push: build .push
 
 .push: .container
 	docker push $(IMAGE):$(TAG)
@@ -53,7 +53,7 @@ push: .push
 .sub-push-%:
 	$(MAKE) --no-print-directory ARCH=$* .push
 
-push-multiarch: $(addprefix .sub-push-,$(ALL_ARCH))
+push-multiarch: build $(addprefix .sub-push-,$(ALL_ARCH))
 	docker manifest create --amend $(IMAGE):$(TAG) $(addsuffix :$(TAG),$(addprefix $(IMAGE)-,$(ALL_ARCH)))
 	for arch in $(ALL_ARCH); do \
 	  docker manifest annotate --os=linux --arch=$$arch $(IMAGE):$(TAG) $(IMAGE)-$$arch:$(TAG); \
