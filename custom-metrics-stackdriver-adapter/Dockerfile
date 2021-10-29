@@ -18,10 +18,6 @@ COPY . ./
 RUN CGO_ENABLED=0 GOOS=linux go build -mod=readonly -o /adapter
 RUN ! ldd cluster-addons-bootstrap # Assert that the compiled bin is statically linked
 
-RUN apk update \
-    && apk add --no-cache govendor \
-    && govendor license +vendor > /NOTICES
-
 FROM gcr.io/distroless/static
 
 COPY --from=builder /adapter adapter
