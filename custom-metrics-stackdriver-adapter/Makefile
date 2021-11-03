@@ -11,7 +11,7 @@ PKG := $(shell find pkg/* -type f)
 build: build/adapter
 
 build/adapter: adapter.go $(PKG)
-	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(ARCH) go build -mod vendor -a -o $(OUT_DIR)/$(ARCH)/adapter adapter.go
+	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(ARCH) go build -mod readonly -a -o $(OUT_DIR)/$(ARCH)/adapter adapter.go
 
 docker:
 	docker build --pull -t ${PREFIX}/custom-metrics-stackdriver-adapter:$(TAG) .
@@ -20,7 +20,7 @@ push: docker
 	gcloud docker -- push ${PREFIX}/custom-metrics-stackdriver-adapter:$(TAG)
 
 test: $(PKG)
-	CGO_ENABLED=0 go test -mod vendor ./...
+	CGO_ENABLED=0 go test -mod readonly ./...
 
 clean:
 	rm -rf build

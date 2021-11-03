@@ -76,7 +76,7 @@ func nodeClient(nodes []string, nodeCpuRes1 map[string]resource.Quantity, nodeCp
 	return &fakeCoreClient{nil, nil, nil, nil, nil, nodes, nodeCpuRes1, nodeCpuRes2, nodeRamRes1, nodeRamRes2, t}
 }
 
-func TestCoreprovider_GetContainerMetrics_Single(t *testing.T) {
+func TestCoreprovider_GetPodMetrics_Single(t *testing.T) {
 	pods := []apitypes.NamespacedName{{"namespace1", "pod1"}}
 	time1, _ := time.Parse(time.RFC3339, "2017-01-02T13:01:00Z")
 
@@ -91,7 +91,7 @@ func TestCoreprovider_GetContainerMetrics_Single(t *testing.T) {
 	}
 
 	var provider = CoreProvider{podClient([]string{doubleQuote("pod1")}, contCpuRes, timeRes, contRamRes, timeRes, t)}
-	timeInfo, metric, err := provider.GetContainerMetrics(pods...)
+	timeInfo, metric, err := provider.GetPodMetrics(pods...)
 	if err != nil {
 		t.Fatalf("Provider error: %s", err)
 	}
@@ -112,7 +112,7 @@ func TestCoreprovider_GetContainerMetrics_Single(t *testing.T) {
 	}
 }
 
-func TestCoreprovider_GetContainerMetrics_Many(t *testing.T) {
+func TestCoreprovider_GetPodMetrics_Many(t *testing.T) {
 	pods := []apitypes.NamespacedName{{"namespace2", "pod1"}, {"namespace1", "pod1"}, {"namespace1", "pod2"}}
 	time1, _ := time.Parse(time.RFC3339, "2017-01-02T13:01:00Z")
 	time2, _ := time.Parse(time.RFC3339, "2017-01-02T13:01:10Z")
@@ -134,7 +134,7 @@ func TestCoreprovider_GetContainerMetrics_Many(t *testing.T) {
 		"namespace2:pod1": {time3, time.Minute},
 	}
 	var provider = CoreProvider{podClient([]string{doubleQuote(pods[0].Name), doubleQuote(pods[1].Name), doubleQuote(pods[2].Name)}, contCpuRes, timeRes, contRamRes, timeRes, t)}
-	timeInfo, metric, err := provider.GetContainerMetrics(pods...)
+	timeInfo, metric, err := provider.GetPodMetrics(pods...)
 	if err != nil {
 		t.Fatalf("Provider error: %s", err)
 	}
@@ -169,7 +169,7 @@ func TestCoreprovider_GetContainerMetrics_Many(t *testing.T) {
 		}
 	}
 }
-func TestCoreprovider_GetContainerMetrics_MissingContainer(t *testing.T) {
+func TestCoreprovider_GetPodMetrics_MissingContainer(t *testing.T) {
 	pods := []apitypes.NamespacedName{{"namespace1", "pod1"}}
 	time1, _ := time.Parse(time.RFC3339, "2017-01-02T13:01:00Z")
 
@@ -183,7 +183,7 @@ func TestCoreprovider_GetContainerMetrics_MissingContainer(t *testing.T) {
 		"namespace1:pod1": {time1, time.Minute},
 	}
 	var provider = CoreProvider{podClient([]string{doubleQuote(pods[0].Name)}, contCpuRes, timeRes, contRamRes, timeRes, t)}
-	timeInfo, metric, err := provider.GetContainerMetrics(pods...)
+	timeInfo, metric, err := provider.GetPodMetrics(pods...)
 	if err != nil {
 		t.Fatalf("Provider error: %s", err)
 	}
@@ -212,7 +212,7 @@ func TestCoreprovider_GetContainerMetrics_MissingContainer(t *testing.T) {
 	}
 }
 
-func TestCoreprovider_GetContainerMetrics_MissingPodInfo(t *testing.T) {
+func TestCoreprovider_GetPodMetrics_MissingPodInfo(t *testing.T) {
 	pods := []apitypes.NamespacedName{{"namespace1", "pod1"}, {"namespace1", "pod2"}, {"namespace2", "pod1"}}
 
 	time1, _ := time.Parse(time.RFC3339, "2017-01-02T13:01:00Z")
@@ -233,7 +233,7 @@ func TestCoreprovider_GetContainerMetrics_MissingPodInfo(t *testing.T) {
 		"namespace2:pod1": {time3, time.Minute},
 	}
 	var provider = CoreProvider{podClient([]string{doubleQuote(pods[0].Name), doubleQuote(pods[1].Name), doubleQuote(pods[2].Name)}, contCpuRes, timeRes, contRamRes, timeRes, t)}
-	timeInfo, metric, err := provider.GetContainerMetrics(pods...)
+	timeInfo, metric, err := provider.GetPodMetrics(pods...)
 	if err != nil {
 		t.Fatalf("Provider error: %s", err)
 	}
@@ -267,7 +267,7 @@ func TestCoreprovider_GetContainerMetrics_MissingPodInfo(t *testing.T) {
 	}
 }
 
-func TestCoreprovider_GetContainerMetrics_MissingPod(t *testing.T) {
+func TestCoreprovider_GetPodMetrics_MissingPod(t *testing.T) {
 	pods := []apitypes.NamespacedName{{"namespace1", "pod1"}}
 
 	contCpuRes := map[string]map[string]resource.Quantity{}
@@ -275,7 +275,7 @@ func TestCoreprovider_GetContainerMetrics_MissingPod(t *testing.T) {
 	timeRes := map[string]api.TimeInfo{}
 
 	var provider = CoreProvider{podClient([]string{doubleQuote(pods[0].Name)}, contCpuRes, timeRes, contRamRes, timeRes, t)}
-	timeInfo, metric, err := provider.GetContainerMetrics(pods...)
+	timeInfo, metric, err := provider.GetPodMetrics(pods...)
 	if err != nil {
 		t.Fatalf("Provider error: %s", err)
 	}
@@ -291,7 +291,7 @@ func TestCoreprovider_GetContainerMetrics_MissingPod(t *testing.T) {
 	}
 }
 
-func TestCoreprovider_GetContainerMetrics_EmptyResult(t *testing.T) {
+func TestCoreprovider_GetPodMetrics_EmptyResult(t *testing.T) {
 	pods := []apitypes.NamespacedName{{"namespace1", "pod1"}}
 	time1, _ := time.Parse(time.RFC3339, "2017-01-02T13:01:00Z")
 
@@ -305,7 +305,7 @@ func TestCoreprovider_GetContainerMetrics_EmptyResult(t *testing.T) {
 		"namespace1:pod1": {time1, time.Minute},
 	}
 	var provider = CoreProvider{podClient([]string{doubleQuote(pods[0].Name)}, contCpuRes, timeRes, contRamRes, timeRes, t)}
-	timeInfo, metric, err := provider.GetContainerMetrics(pods...)
+	timeInfo, metric, err := provider.GetPodMetrics(pods...)
 	if err != nil {
 		t.Fatalf("Provider error: %s", err)
 	}
@@ -326,7 +326,7 @@ func TestCoreprovider_GetContainerMetrics_EmptyResult(t *testing.T) {
 	}
 }
 
-func TestCoreprovider_GetContainerMetrics_Empty(t *testing.T) {
+func TestCoreprovider_GetPodMetrics_Empty(t *testing.T) {
 	pods := []apitypes.NamespacedName{}
 
 	contCpuRes := map[string]map[string]resource.Quantity{}
@@ -334,7 +334,7 @@ func TestCoreprovider_GetContainerMetrics_Empty(t *testing.T) {
 	timeRes := map[string]api.TimeInfo{}
 
 	var provider = CoreProvider{podClient([]string{}, contCpuRes, timeRes, contRamRes, timeRes, t)}
-	timeInfo, metric, err := provider.GetContainerMetrics(pods...)
+	timeInfo, metric, err := provider.GetPodMetrics(pods...)
 	if err != nil {
 		t.Fatalf("Provider error: %s", err)
 	}
@@ -347,7 +347,7 @@ func TestCoreprovider_GetContainerMetrics_Empty(t *testing.T) {
 	}
 }
 
-func TestCoreprovider_GetContainerMetrics_AdditionalInfo(t *testing.T) {
+func TestCoreprovider_GetPodMetrics_AdditionalInfo(t *testing.T) {
 	var pods []apitypes.NamespacedName
 	time1, _ := time.Parse(time.RFC3339, "2017-01-02T13:01:00Z")
 
@@ -362,7 +362,7 @@ func TestCoreprovider_GetContainerMetrics_AdditionalInfo(t *testing.T) {
 	}
 
 	var provider = CoreProvider{podClient([]string{}, contCpuRes, timeRes, contRamRes, timeRes, t)}
-	timeInfo, metric, err := provider.GetContainerMetrics(pods...)
+	timeInfo, metric, err := provider.GetPodMetrics(pods...)
 	if err != nil {
 		t.Fatalf("Provider error: %s", err)
 	}

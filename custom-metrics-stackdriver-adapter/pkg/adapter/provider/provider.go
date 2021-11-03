@@ -17,6 +17,7 @@ limitations under the License.
 package provider
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -24,7 +25,6 @@ import (
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/translator"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
-	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 	stackdriver "google.golang.org/api/monitoring/v3"
 	v1 "k8s.io/api/core/v1"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
@@ -36,6 +36,7 @@ import (
 	"k8s.io/klog"
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 	"k8s.io/metrics/pkg/apis/external_metrics"
+	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 )
 
 // TODO(kawych):
@@ -75,7 +76,7 @@ func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.REST
 
 // GetMetricByName fetches a particular metric for a particular object.
 // The namespace will be empty if the metric is root-scoped.
-func (p *StackdriverProvider) GetMetricByName(name types.NamespacedName, info provider.CustomMetricInfo, metricSelector labels.Selector) (*custom_metrics.MetricValue, error) {
+func (p *StackdriverProvider) GetMetricByName(ctx context.Context, name types.NamespacedName, info provider.CustomMetricInfo, metricSelector labels.Selector) (*custom_metrics.MetricValue, error) {
 	if name.Namespace == "" {
 		return p.getRootScopedMetricByName(info.GroupResource, name.Name, info.Metric, metricSelector)
 	}
@@ -84,7 +85,7 @@ func (p *StackdriverProvider) GetMetricByName(name types.NamespacedName, info pr
 
 // GetMetricBySelector fetches a particular metric for a set of objects matching
 // the given label selector. The namespace will be empty if the metric is root-scoped.
-func (p *StackdriverProvider) GetMetricBySelector(namespace string, selector labels.Selector, info provider.CustomMetricInfo, metricSelector labels.Selector) (*custom_metrics.MetricValueList, error) {
+func (p *StackdriverProvider) GetMetricBySelector(ctx context.Context, namespace string, selector labels.Selector, info provider.CustomMetricInfo, metricSelector labels.Selector) (*custom_metrics.MetricValueList, error) {
 	if namespace == "" {
 		return p.getRootScopedMetricBySelector(info.GroupResource, selector, info.Metric, metricSelector)
 	}
@@ -100,7 +101,7 @@ func (p *StackdriverProvider) getRootScopedMetricByName(groupResource schema.Gro
 	if groupResource.Resource != nodeResource {
 		return nil, NewOperationNotSupportedError(fmt.Sprintf("Get root scoped metric by name for resource %q", groupResource.Resource))
 	}
-	matchingNode, err := p.kubeClient.Nodes().Get(name, metav1.GetOptions{})
+	matchingNode, err := p.kubeClient.Nodes().Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +129,7 @@ func (p *StackdriverProvider) getRootScopedMetricBySelector(groupResource schema
 	if groupResource.Resource != nodeResource {
 		return nil, NewOperationNotSupportedError(fmt.Sprintf("Get root scoped metric by selector for resource %q", groupResource.Resource))
 	}
-	matchingNodes, err := p.kubeClient.Nodes().List(metav1.ListOptions{LabelSelector: selector.String()})
+	matchingNodes, err := p.kubeClient.Nodes().List(context.Background(), metav1.ListOptions{LabelSelector: selector.String()})
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +164,7 @@ func (p *StackdriverProvider) getNamespacedMetricByName(groupResource schema.Gro
 	if groupResource.Resource != podResource {
 		return nil, NewOperationNotSupportedError(fmt.Sprintf("Get namespaced metric by name for resource %q", groupResource.Resource))
 	}
-	matchingPod, err := p.kubeClient.Pods(namespace).Get(name, metav1.GetOptions{})
+	matchingPod, err := p.kubeClient.Pods(namespace).Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +205,7 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 	if groupResource.Resource != podResource {
 		return nil, NewOperationNotSupportedError(fmt.Sprintf("Get namespaced metric by selector for resource %q", groupResource.Resource))
 	}
-	matchingPods, err := p.kubeClient.Pods(namespace).List(metav1.ListOptions{LabelSelector: labelSelector.String()})
+	matchingPods, err := p.kubeClient.Pods(namespace).List(context.Background(), metav1.ListOptions{LabelSelector: labelSelector.String()})
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +278,7 @@ func (p *StackdriverProvider) ListAllMetrics() []provider.CustomMetricInfo {
 }
 
 // GetExternalMetric queries Stackdriver for external metrics.
-func (p *StackdriverProvider) GetExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
+func (p *StackdriverProvider) GetExternalMetric(ctx context.Context, namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 	metricNameEscaped := info.Metric
 	metricName := getExternalMetricName(metricNameEscaped)
 	metricKind, metricValueType, err := p.translator.GetMetricKind(metricName, metricSelector)
