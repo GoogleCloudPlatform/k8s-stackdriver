@@ -3,7 +3,7 @@ GOOS?=linux
 OUT_DIR?=build
 PACKAGE=github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter
 PREFIX?=staging-k8s.gcr.io
-TAG = v0.12.1
+TAG = v0.12.2
 PKG := $(shell find pkg/* -type f)
 
 .PHONY: build docker push test clean
