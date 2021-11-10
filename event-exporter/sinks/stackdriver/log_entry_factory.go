@@ -22,7 +22,6 @@ import (
 
 	"github.com/golang/glog"
 	sd "google.golang.org/api/logging/v2"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
@@ -36,8 +35,6 @@ var (
 	fieldBlacklist = []string{
 		// Is unnecessary, because it's demuxed already
 		"count",
-		// Timestamp is in the logEntry's metadata
-		"lastTimestamp",
 		// Not relevant because of demuxing
 		"firstTimestamp",
 	}
@@ -66,10 +63,25 @@ func (f *sdLogEntryFactory) FromEvent(event *corev1.Event) *sd.LogEntry {
 
 	resource := f.resourceFactory.resourceFromEvent(event)
 
+	var timestamp string
+	if !event.LastTimestamp.IsZero() {
+		// The event was emitted using k8s.io/api/core/v1 library.
+		timestamp = event.LastTimestamp.Format(time.RFC3339Nano)
+	} else if event.Series != nil && !event.Series.LastObservedTime.IsZero() {
+		// The event was emitted using k8s.io/api/events/v1 library.
+		timestamp = event.Series.LastObservedTime.Format(time.RFC3339Nano)
+	} else if !event.EventTime.IsZero() {
+		// It is possible that either LastTimestamp or LastObservedTime is not set.
+		// In this case, EventTime is the next best choice if a log entry timestamp.
+		timestamp = event.EventTime.Format(time.RFC3339Nano)
+  } else {
+		timestamp = f.clock.Now().Format(time.RFC3339Nano)
+	}
+
 	return &sd.LogEntry{
 		JsonPayload: payload,
 		Severity:    f.detectSeverity(event),
-		Timestamp:   event.LastTimestamp.Format(time.RFC3339Nano),
+		Timestamp:   timestamp,
 		Resource:    resource,
 	}
 }
