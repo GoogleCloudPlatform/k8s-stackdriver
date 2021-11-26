@@ -25,13 +25,8 @@ func TestFromEvent(t *testing.T) {
 		},
 	}
 
-	time1 := time.Now()
-	time2 := time.Now()
-	time3 := time.Now()
-	time4 := time.Now()
-	lastTimestamp := metav1.NewTime(time1)
-	lastObservedTime := metav1.NewMicroTime(time2)
-	eventTime := metav1.NewMicroTime(time3)
+	lastTimestamp := metav1.NewTime(time.Now())
+	lastObservedTime := metav1.NewMicroTime(time.Now())
 
 	tests := []struct {
 		desc      string
@@ -68,26 +63,12 @@ func TestFromEvent(t *testing.T) {
 			},
 		},
 		{
-			desc: "Only EventTime is set",
-			event: &corev1.Event{
-				Type: "Warning",
-				InvolvedObject: involvedObject,
-				EventTime: eventTime,
-			},
-			wanted: &sd.LogEntry{
-				Timestamp: eventTime.Format(time.RFC3339Nano),
-				Resource: wantedMonitoredResource,
-				Severity: "WARNING",
-			},
-		},
-		{
 			desc: "Timestamp not set",
 			event: &corev1.Event{
 				Type: "Warning",
 				InvolvedObject: involvedObject,
 			},
 			wanted: &sd.LogEntry{
-				Timestamp: time4.Format(time.RFC3339Nano),
 				Resource: wantedMonitoredResource,
 				Severity: "WARNING",
 			},
@@ -120,7 +101,7 @@ func TestFromEvent(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		factory := newSdLogEntryFactory(clock.NewFakeClock(time4), monitoredResourceFactory)
+		factory := newSdLogEntryFactory(clock.NewFakeClock(time.Time{}), monitoredResourceFactory)
 		got:= factory.FromEvent(test.event)
     if diff := compareLogEntries(got, test.wanted); diff != "" {
     	t.Errorf("Unexpected log entry from event %v, (-want +got): %s", test.event, diff)
