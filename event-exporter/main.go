@@ -19,7 +19,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"strings"
@@ -88,6 +90,10 @@ func main() {
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
 		glog.Fatalf("Prometheus monitoring failed: %v", http.ListenAndServe(*prometheusEndpoint, nil))
+	}()
+
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
 
 	stopCh := newSystemStopChannel()
