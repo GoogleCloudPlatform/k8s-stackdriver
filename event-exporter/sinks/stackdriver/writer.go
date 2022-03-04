@@ -64,6 +64,7 @@ func (w sdWriterImpl) Write(entries []*sd.LogEntry, logName string, resource *sd
 		if err == nil {
 			requestCount.WithLabelValues(strconv.Itoa(res.HTTPStatusCode)).Inc()
 			successfullySentEntryCount.Add(float64(len(entries)))
+			measureLatencyOnSuccess(entries)
 			break
 		}
 
