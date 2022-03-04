@@ -17,6 +17,7 @@ limitations under the License.
 package events
 
 import (
+	"context"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -68,14 +69,14 @@ func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) wa
 		// List and watch events in all namespaces.
 		ListerWatcher: &cache.ListWatch{
 			ListFunc: func(options meta_v1.ListOptions) (runtime.Object, error) {
-				list, err := client.CoreV1().Events(meta_v1.NamespaceAll).List(options)
+				list, err := client.CoreV1().Events(meta_v1.NamespaceAll).List(context.TODO(), options)
 				if err == nil {
 					config.OnList(list)
 				}
 				return list, err
 			},
 			WatchFunc: func(options meta_v1.ListOptions) (watch.Interface, error) {
-				return client.CoreV1().Events(meta_v1.NamespaceAll).Watch(options)
+				return client.CoreV1().Events(meta_v1.NamespaceAll).Watch(context.TODO(), options)
 			},
 		},
 		ExpectedType: &corev1.Event{},
