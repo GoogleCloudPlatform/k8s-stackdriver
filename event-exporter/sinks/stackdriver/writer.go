@@ -22,32 +22,12 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/api/googleapi"
 	sd "google.golang.org/api/logging/v2"
 )
 
 const (
 	retryDelay = 10 * time.Second
-)
-
-var (
-	requestCount = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name:      "request_count",
-			Help:      "Number of request, issued to Stackdriver API",
-			Subsystem: "stackdriver_sink",
-		},
-		[]string{"code"},
-	)
-
-	successfullySentEntryCount = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name:      "successfully_sent_entry_count",
-			Help:      "Number of entries successfully ingested by Stackdriver",
-			Subsystem: "stackdriver_sink",
-		},
-	)
 )
 
 type sdWriter interface {

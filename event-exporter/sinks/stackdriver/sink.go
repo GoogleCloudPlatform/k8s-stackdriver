@@ -20,21 +20,10 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/prometheus/client_golang/prometheus"
 	sd "google.golang.org/api/logging/v2"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
-)
-
-var (
-	receivedEntryCount = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name:      "received_entry_count",
-			Help:      "Number of entries received by the Stackdriver sink",
-			Subsystem: "stackdriver_sink",
-		},
-	)
 )
 
 // sdSink satisfies sinks.Sink interface.
