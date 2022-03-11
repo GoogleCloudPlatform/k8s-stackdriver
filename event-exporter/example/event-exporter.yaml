@@ -17,7 +17,7 @@ kind: ServiceAccount
 metadata:
   name: event-exporter-sa
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: event-exporter-rb-example
@@ -30,12 +30,16 @@ subjects:
     name: event-exporter-sa
     namespace: default
 ---
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: event-exporter-deployment
+  namespace: default
 spec:
   replicas: 1
+  selector:
+    matchLabels:
+      app: event-exporter
   template:
     metadata:
       labels:
