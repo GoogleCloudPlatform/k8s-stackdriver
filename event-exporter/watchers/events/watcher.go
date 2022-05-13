@@ -69,6 +69,9 @@ func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) wa
 		// List and watch events in all namespaces.
 		ListerWatcher: &cache.ListWatch{
 			ListFunc: func(options meta_v1.ListOptions) (runtime.Object, error) {
+				// Only return 1 item to help Reflector retrieve ResourceVersion to reestablish
+				// Watch.
+				options.Limit = 1
 				list, err := client.CoreV1().Events(meta_v1.NamespaceAll).List(context.TODO(), options)
 				if err == nil {
 					config.OnList(list)

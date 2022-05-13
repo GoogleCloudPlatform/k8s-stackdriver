@@ -73,22 +73,7 @@ func (s *sdSink) OnAdd(event *corev1.Event) {
 	s.logEntryChannel <- logEntry
 }
 
-func (s *sdSink) OnUpdate(oldEvent *corev1.Event, newEvent *corev1.Event) {
-	var oldCount int32
-	if oldEvent != nil {
-		oldCount = oldEvent.Count
-	}
-
-	if newEvent.Count != oldCount+1 {
-		// Sink doesn't send a LogEntry to Stackdriver, b/c event compression might
-		// indicate that part of the watch history was lost, which may result in
-		// multiple events being compressed. This may create an unecessary
-		// flood in Stackdriver. Also this is a perfectly valid behavior for the
-		// configuration with empty backing storage.
-		glog.V(2).Infof("Event count has increased by %d != 1.\n"+
-			"\tOld event: %+v\n\tNew event: %+v", newEvent.Count-oldCount, oldEvent, newEvent)
-	}
-
+func (s *sdSink) OnUpdate(_ *corev1.Event, newEvent *corev1.Event) {
 	receivedEntryCount.Inc()
 
 	logEntry := s.logEntryFactory.FromEvent(newEvent)
@@ -101,10 +86,9 @@ func (s *sdSink) OnDelete(*corev1.Event) {
 
 // OnList logs a message indicating that the Event Exporter starts upon
 // receiving the first list of events.
-func (s *sdSink) OnList(list *corev1.EventList) {
+func (s *sdSink) OnList(*corev1.EventList) {
 	if s.beforeFirstList {
 		receivedEntryCount.Inc()
-		
 		entry := s.logEntryFactory.FromMessage("Event exporter started watching. " +
 			"Some events may have been lost up to this point.")
 		s.writer.Write([]*sd.LogEntry{entry}, s.logName, s.sdResourceFactory.defaultResource)

@@ -48,33 +48,16 @@ type watcherStore struct {
 }
 
 func (s *watcherStore) Add(obj interface{}) error {
-	if err := s.Store.Add(obj); err != nil {
-		return err
-	}
 	s.handler.OnAdd(obj)
 	return nil
 }
 
 func (s *watcherStore) Update(obj interface{}) error {
-	oldObj, ok, err := s.Store.Get(obj)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		oldObj = nil
-	}
-
-	if err = s.Store.Update(obj); err != nil {
-		return err
-	}
-	s.handler.OnUpdate(oldObj, obj)
+	s.handler.OnUpdate(nil, obj)
 	return nil
 }
 
 func (s *watcherStore) Delete(obj interface{}) error {
-	if err := s.Store.Delete(obj); err != nil {
-		return err
-	}
 	s.handler.OnDelete(obj)
 	return nil
 }
