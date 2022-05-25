@@ -36,10 +36,11 @@ var (
 
 	recordLatency = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
-			Name:    "records_latency_seconds",
-			Help:    "Log entry latency between log timestamp and delivery to StackDriver.",
+			Name:      "records_latency_seconds",
+			Help:      "Log entry latency between log timestamp and delivery to StackDriver.",
 			Subsystem: "stackdriver_sink",
-			Buckets: prometheus.ExponentialBuckets(2, 1.4, 13),
+			// Highest bucket start at 2 sec * 1.5^19 = 4433.68 sec
+			Buckets: prometheus.ExponentialBuckets(2, 1.5, 20),
 		},
 	)
 )
