@@ -129,7 +129,7 @@ Make sure that:
 * the HPA config has the right scaling target
 ```yaml
 scaleTargetRef:
-    apiVersion: apps/v1beta1
+    apiVersion: apps/v1
     kind: Deployment
     name: <deployment-name>
 ```
