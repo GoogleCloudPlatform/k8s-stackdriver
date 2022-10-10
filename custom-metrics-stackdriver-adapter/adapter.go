@@ -148,10 +148,10 @@ func main() {
 	flags.AddGoFlagSet(flag.CommandLine) // make sure we get the klog flags
 
 	serverOptions := stackdriverAdapterServerOptions{
-		UseNewResourceModel:         false,
+		UseNewResourceModel:         true,
 		EnableCustomMetricsAPI:      true,
 		EnableExternalMetricsAPI:    true,
-		FallbackForContainerMetrics: false,
+		FallbackForContainerMetrics: true,
 		EnableCoreMetricsAPI:        false,
 		EnableDistributionSupport:   false,
 	}
