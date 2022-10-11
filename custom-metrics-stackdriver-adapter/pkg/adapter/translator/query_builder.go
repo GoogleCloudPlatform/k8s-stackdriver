@@ -88,6 +88,81 @@ type Translator struct {
 	supportDistributions bool
 }
 
+// Builder for ProjectsTimeSeriesListCall on based on provided criteria
+type QueryBuilder struct {
+	translator      *Translator
+	metricName      string
+	metricKind      string
+	metricValueType string
+	metricSelector  labels.Selector
+	namespace       string
+	pods            *v1.PodList
+}
+
+// Initiator for QueryBuilder
+// translator is required for configurations
+// metric name is required for resource model parameter names
+func NewQueryBuilder(translator *Translator, metricName string) *QueryBuilder {
+	return &QueryBuilder{
+		translator: translator,
+		metricName: metricName,
+	}
+}
+
+func (qb *QueryBuilder) WithMetricKind(metricKind string) *QueryBuilder {
+	qb.metricKind = metricKind
+	return qb
+}
+
+func (qb *QueryBuilder) WithMetricValueType(metricValueType string) *QueryBuilder {
+	qb.metricValueType = metricValueType
+	return qb
+}
+
+func (qb *QueryBuilder) WithMetricSelector(metricSelector labels.Selector) *QueryBuilder {
+	qb.metricSelector = metricSelector
+	return qb
+}
+
+func (qb *QueryBuilder) WithNamespace(namespace string) *QueryBuilder {
+	qb.namespace = namespace
+	return qb
+}
+
+func (qb *QueryBuilder) WithPods(pods *v1.PodList) *QueryBuilder {
+	qb.pods = pods
+	return qb
+}
+
+func (qb *QueryBuilder) validate() error {
+	if len(qb.pods.Items) == 0 {
+		return apierr.NewBadRequest("No objects matched provided selector")
+	}
+	if len(qb.pods.Items) > MaxNumOfArgsInOneOfFilter {
+		return apierr.NewInternalError(fmt.Errorf("GetSDReqForPods called with %v pod list, but allowed limit is %v pods", len(qb.pods.Items), MaxNumOfArgsInOneOfFilter))
+	}
+	if qb.metricValueType == "DISTRIBUTION" && !qb.translator.supportDistributions {
+		return apierr.NewBadRequest("Distributions are not supported")
+	}
+
+	return nil
+}
+
+func (qb *QueryBuilder) Build() (*stackdriver.ProjectsTimeSeriesListCall, error) {
+	if err := qb.validate(); err != nil {
+		return nil, err
+	}
+
+	return qb.translator.GetSDReqForPods(
+		qb.pods,
+		qb.metricName,
+		qb.metricKind,
+		qb.metricValueType,
+		qb.metricSelector,
+		qb.namespace,
+	)
+}
+
 // NewTranslator creates a Translator
 func NewTranslator(service *stackdriver.Service, gceConf *config.GceConfig, rateInterval time.Duration, alignmentPeriod time.Duration, mapper apimeta.RESTMapper, useNewResourceModel, supportDistributions bool) *Translator {
 	return &Translator{
@@ -102,20 +177,12 @@ func NewTranslator(service *stackdriver.Service, gceConf *config.GceConfig, rate
 	}
 }
 
+// Deprecated since supporting GMP metrics, please use QueryBuilder instead.
 // GetSDReqForPods returns Stackdriver request for query for multiple pods.
 // podList is required to be no longer than MaxNumOfArgsInOneOfFilter items. This is enforced by limitation of
 // "one_of()" operator in Stackdriver filters, see documentation:
 // https://cloud.google.com/monitoring/api/v3/filters
 func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName, metricKind, metricValueType string, metricSelector labels.Selector, namespace string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
-	if len(podList.Items) == 0 {
-		return nil, apierr.NewBadRequest("No objects matched provided selector")
-	}
-	if len(podList.Items) > MaxNumOfArgsInOneOfFilter {
-		return nil, apierr.NewInternalError(fmt.Errorf("GetSDReqForPods called with %v pod list, but allowed limit is %v pods", len(podList.Items), MaxNumOfArgsInOneOfFilter))
-	}
-	if metricValueType == "DISTRIBUTION" && !t.supportDistributions {
-		return nil, apierr.NewBadRequest("Distributions are not supported")
-	}
 	var filter string
 	if t.useNewResourceModel {
 		resourceNames := getPodNames(podList)

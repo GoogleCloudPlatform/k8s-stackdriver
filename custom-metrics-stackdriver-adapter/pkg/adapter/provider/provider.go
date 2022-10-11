@@ -165,14 +165,23 @@ func (p *StackdriverProvider) getNamespacedMetricByName(groupResource schema.Gro
 		return nil, NewOperationNotSupportedError(fmt.Sprintf("Get namespaced metric by name for resource %q", groupResource.Resource))
 	}
 	matchingPod, err := p.kubeClient.Pods(namespace).Get(context.Background(), name, metav1.GetOptions{})
+	pods := &v1.PodList{Items: []v1.Pod{*matchingPod}}
 	if err != nil {
 		return nil, err
 	}
-	metricKind, metricValueType, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName), metricSelector)
+	metricName := getCustomMetricName(escapedMetricName)
+	metricKind, metricValueType, err := p.translator.GetMetricKind(metricName, metricSelector)
 	if err != nil {
 		return nil, err
 	}
-	stackdriverRequest, err := p.translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{*matchingPod}}, getCustomMetricName(escapedMetricName), metricKind, metricValueType, metricSelector, namespace)
+	queryBuilder := translator.NewQueryBuilder(p.translator, metricName)
+	stackdriverRequest, err := queryBuilder.
+		WithPods(pods).
+		WithMetricKind(metricKind).
+		WithMetricValueType(metricValueType).
+		WithMetricSelector(metricSelector).
+		WithNamespace(namespace).
+		Build()
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +191,7 @@ func (p *StackdriverProvider) getNamespacedMetricByName(groupResource schema.Gro
 	}
 
 	if p.fallbackForContainerMetrics && len(stackdriverResponse.TimeSeries) == 0 {
-		stackdriverRequest, err = p.translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{*matchingPod}}, getCustomMetricName(escapedMetricName), metricKind, metricValueType, metricSelector, namespace)
+		stackdriverRequest, err = p.translator.GetSDReqForContainers(pods, metricName, metricKind, metricValueType, metricSelector, namespace)
 		if err != nil {
 			return nil, err
 		}
@@ -209,15 +218,25 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 	if err != nil {
 		return nil, err
 	}
-	metricKind, metricValueType, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName), metricSelector)
+	metricName := getCustomMetricName(escapedMetricName)
+	klog.V(4).Infof("Querying for metric: %s", metricName)
+
+	metricKind, metricValueType, err := p.translator.GetMetricKind(metricName, metricSelector)
 	if err != nil {
 		return nil, err
 	}
+
+	queryBuilder := translator.NewQueryBuilder(p.translator, metricName).
+		WithMetricKind(metricKind).
+		WithMetricSelector(metricSelector).
+		WithMetricValueType(metricValueType).
+		WithNamespace(namespace)
+
 	result := []custom_metrics.MetricValue{}
 	for i := 0; i < len(matchingPods.Items); i += translator.MaxNumOfArgsInOneOfFilter {
 		sliceSegmentEnd := min(i+translator.MaxNumOfArgsInOneOfFilter, len(matchingPods.Items))
 		podsSlice := &v1.PodList{Items: matchingPods.Items[i:sliceSegmentEnd]}
-		stackdriverRequest, err := p.translator.GetSDReqForPods(podsSlice, getCustomMetricName(escapedMetricName), metricKind, metricValueType, metricSelector, namespace)
+		stackdriverRequest, err := queryBuilder.WithPods(podsSlice).Build()
 		if err != nil {
 			return nil, err
 		}

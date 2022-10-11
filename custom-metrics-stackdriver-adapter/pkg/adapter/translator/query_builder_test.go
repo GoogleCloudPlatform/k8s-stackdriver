@@ -28,7 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/selection"
 )
 
-func TestTranslator_GetSDReqForPods_Single(t *testing.T) {
+func TestTranslator_QueryBuilder_k8sPod_Single(t *testing.T) {
 	translator, sdService :=
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
@@ -39,7 +39,13 @@ func TestTranslator_GetSDReqForPods_Single(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", "INT64", labels.Everything(), "default")
+	request, err := NewQueryBuilder(translator, metricName).
+		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+		WithMetricKind("GAUGE").
+		WithMetricValueType("INT64").
+		WithMetricSelector(labels.Everything()).
+		WithNamespace("default").
+		Build()
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -60,7 +66,7 @@ func TestTranslator_GetSDReqForPods_Single(t *testing.T) {
 	}
 }
 
-func TestTranslator_GetSDReqForPods_SingleWithMetricSelector(t *testing.T) {
+func TestTranslator_QueryBuilder_k8sPod_SingleWithMetricSelector(t *testing.T) {
 	translator, sdService :=
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
@@ -72,7 +78,13 @@ func TestTranslator_GetSDReqForPods_SingleWithMetricSelector(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
-	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", "INT64", metricSelector, "default")
+	request, err := NewQueryBuilder(translator, metricName).
+		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+		WithMetricKind("GAUGE").
+		WithMetricValueType("INT64").
+		WithMetricSelector(metricSelector).
+		WithNamespace("default").
+		Build()
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -94,7 +106,7 @@ func TestTranslator_GetSDReqForPods_SingleWithMetricSelector(t *testing.T) {
 	}
 }
 
-func TestTranslator_GetSDReqForPods_SingleWithInvalidMetricSelector(t *testing.T) {
+func TestTranslator_QueryBuilder_k8sPod_SingleWithInvalidMetricSelector(t *testing.T) {
 	translator, _ :=
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
@@ -106,13 +118,19 @@ func TestTranslator_GetSDReqForPods_SingleWithInvalidMetricSelector(t *testing.T
 	}
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("resource.labels.type=container")
-	_, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "GAUGE", "INT64", metricSelector, "default")
+	_, err := NewQueryBuilder(translator, metricName).
+		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+		WithMetricKind("GAUGE").
+		WithMetricValueType("INT64").
+		WithMetricSelector(metricSelector).
+		WithNamespace("default").
+		Build()
 	if err == nil {
 		t.Error("No translation error")
 	}
 }
 
-func TestTranslator_GetSDReqForPods_Multiple(t *testing.T) {
+func TestTranslator_QueryBuilder_k8sPod_Multiple(t *testing.T) {
 	translator, sdService :=
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod1 := v1.Pod{
@@ -130,7 +148,13 @@ func TestTranslator_GetSDReqForPods_Multiple(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "GAUGE", "INT64", labels.Everything(), "default")
+	request, err := NewQueryBuilder(translator, metricName).
+		WithPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}).
+		WithMetricKind("GAUGE").
+		WithMetricValueType("INT64").
+		WithMetricSelector(labels.Everything()).
+		WithNamespace("default").
+		Build()
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
@@ -151,7 +175,7 @@ func TestTranslator_GetSDReqForPods_Multiple(t *testing.T) {
 	}
 }
 
-func TestTranslator_GetSDReqForPods_MultipleWithMetricSelctor(t *testing.T) {
+func TestTranslator_QueryBuilder_k8sPod_MultipleWithMetricSelctor(t *testing.T) {
 	translator, sdService :=
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod1 := v1.Pod{
@@ -170,7 +194,13 @@ func TestTranslator_GetSDReqForPods_MultipleWithMetricSelctor(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
-	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "GAUGE", "INT64", metricSelector, "default")
+	request, err := NewQueryBuilder(translator, metricName).
+		WithPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}).
+		WithMetricKind("GAUGE").
+		WithMetricValueType("INT64").
+		WithMetricSelector(metricSelector).
+		WithNamespace("default").
+		Build()
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
@@ -506,7 +536,7 @@ func TestTranslator_GetSDReqForNodes_withMetricSelector(t *testing.T) {
 	}
 }
 
-func TestTranslator_GetSDReqForPods_legacyResourceModel(t *testing.T) {
+func TestTranslator_QueryBuilder_k8sPod_legacyResourceModel(t *testing.T) {
 	translator, sdService :=
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), false)
 	pod1 := v1.Pod{
@@ -522,7 +552,13 @@ func TestTranslator_GetSDReqForPods_legacyResourceModel(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}, metricName, "GAUGE", "INT64", labels.Everything(), "default")
+	request, err := NewQueryBuilder(translator, metricName).
+		WithPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}).
+		WithMetricKind("GAUGE").
+		WithMetricValueType("INT64").
+		WithMetricSelector(labels.Everything()).
+		WithNamespace("default").
+		Build()
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
@@ -671,7 +707,7 @@ func TestTranslator_GetExternalMetricRequest_OneInvalidRequirement(t *testing.T)
 	}
 }
 
-func TestTranslator_GetSDReqForPods_Single_Distribution(t *testing.T) {
+func TestTranslator_QueryBuilder_k8sPod_Single_Distribution(t *testing.T) {
 	translator, sdService :=
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
@@ -683,7 +719,13 @@ func TestTranslator_GetSDReqForPods_Single_Distribution(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	selector, _ := labels.Parse("reducer=REDUCE_PERCENTILE_50")
-	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", "DISTRIBUTION", selector, "default")
+	request, err := NewQueryBuilder(translator, metricName).
+		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+		WithMetricKind("DELTA").
+		WithMetricValueType("DISTRIBUTION").
+		WithMetricSelector(selector).
+		WithNamespace("default").
+		Build()
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -705,7 +747,7 @@ func TestTranslator_GetSDReqForPods_Single_Distribution(t *testing.T) {
 	}
 }
 
-func TestTranslator_GetSDReqForPods_NoSupportDistributions(t *testing.T) {
+func TestTranslator_QueryBuilder_k8sPod_NoSupportDistributions(t *testing.T) {
 	translator, _ :=
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
@@ -718,13 +760,19 @@ func TestTranslator_GetSDReqForPods_NoSupportDistributions(t *testing.T) {
 	metricName := "my/custom/metric"
 	req, _ := labels.NewRequirement("reducer", selection.Equals, []string{"REDUCE_PERCENTILE_50"})
 	selector := labels.NewSelector().Add(*req)
-	_, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", "DISTRIBUTION", selector, "default")
+	_, err := NewQueryBuilder(translator, metricName).
+		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+		WithMetricKind("DELTA").
+		WithMetricValueType("DISTRIBUTION").
+		WithMetricSelector(selector).
+		WithNamespace("default").
+		Build()
 	if err == nil {
 		t.Errorf("Expected error, as distributions should not be suppoted; was suceessful")
 	}
 }
 
-func TestTranslator_GetSDReqForPods_BadPercentile(t *testing.T) {
+func TestTranslator_QueryBuilder_k8sPod_BadPercentile(t *testing.T) {
 	translator, _ :=
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
@@ -736,14 +784,20 @@ func TestTranslator_GetSDReqForPods_BadPercentile(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	selector, _ := labels.Parse("reducer=PERCENTILE_52")
-	_, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", "DISTRIBUTION", selector, "default")
+	_, err := NewQueryBuilder(translator, metricName).
+		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+		WithMetricKind("DELTA").
+		WithMetricValueType("DISTRIBUTION").
+		WithMetricSelector(selector).
+		WithNamespace("default").
+		Build()
 	expectedError := NewLabelNotAllowedError("Specified reducer is not supported: PERCENTILE_52")
 	if *err.(*errors.StatusError) != *expectedError {
 		t.Errorf("Expected status error: %s, but received: %s", expectedError, err)
 	}
 }
 
-func TestTranslator_GetSDReqForPods_TooManyPercentiles(t *testing.T) {
+func TestTranslator_QueryBuilder_k8sPod_TooManyPercentiles(t *testing.T) {
 	translator, _ :=
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
@@ -755,14 +809,20 @@ func TestTranslator_GetSDReqForPods_TooManyPercentiles(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	selector, _ := labels.Parse("reducer in (PERCENTILE_50,PERCENTILE_99)")
-	_, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", "INT64", selector, "default")
+	_, err := NewQueryBuilder(translator, metricName).
+		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+		WithMetricKind("DELTA").
+		WithMetricValueType("INT64").
+		WithMetricSelector(selector).
+		WithNamespace("default").
+		Build()
 	expectedError := NewLabelNotAllowedError("Reducer must use '=' or '==': You used in")
 	if *err.(*errors.StatusError) != *expectedError {
 		t.Errorf("Expected status error: %s, but received: %s", expectedError, err)
 	}
 }
 
-func TestTranslator_GetSDReqForPods_SingleWithMetricSelector_Distribution(t *testing.T) {
+func TestTranslator_QueryBuilder_k8sPod_SingleWithMetricSelector_Distribution(t *testing.T) {
 	translator, sdService :=
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
@@ -774,7 +834,13 @@ func TestTranslator_GetSDReqForPods_SingleWithMetricSelector_Distribution(t *tes
 	}
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test,reducer=REDUCE_PERCENTILE_99")
-	request, err := translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{pod}}, metricName, "DELTA", "DISTRIBUTION", metricSelector, "default")
+	request, err := NewQueryBuilder(translator, metricName).
+		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+		WithMetricKind("DELTA").
+		WithMetricValueType("DISTRIBUTION").
+		WithMetricSelector(metricSelector).
+		WithNamespace("default").
+		Build()
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
