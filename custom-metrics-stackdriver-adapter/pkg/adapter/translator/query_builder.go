@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/translator/utils"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
 	stackdriver "google.golang.org/api/monitoring/v3"
 	v1 "k8s.io/api/core/v1"
@@ -186,11 +187,14 @@ func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName, metricKind
 	var filter string
 	if t.useNewResourceModel {
 		resourceNames := getPodNames(podList)
-		filter = joinFilters(
-			t.filterForMetric(metricName),
-			t.filterForCluster(),
-			t.filterForPods(resourceNames, namespace),
-			t.filterForAnyPod())
+		filter = utils.NewFilterBuilder("k8s_pod").
+			WithMetricType(metricName).
+			WithCluster(t.config.Cluster).
+			WithLocation(t.config.Location).
+			WithNamespace(namespace).
+			WithPods(resourceNames).
+			WithProject(t.config.Project).
+			Build()
 	} else {
 		resourceIDs := getResourceIDs(podList)
 		filter = joinFilters(
@@ -415,6 +419,7 @@ func quoteAll(list []string) []string {
 	return result
 }
 
+// Deprecated since FilterBuilder, use FilterBuilder instead
 func joinFilters(filters ...string) string {
 	nonEmpty := []string{}
 	for _, f := range filters {
@@ -425,6 +430,7 @@ func joinFilters(filters ...string) string {
 	return strings.Join(nonEmpty, " AND ")
 }
 
+// Deprecated since FilterBuilder, use FilterBuilder instead
 func (t *Translator) filterForCluster() string {
 	projectFilter := fmt.Sprintf("resource.labels.project_id = %q", t.config.Project)
 	clusterFilter := fmt.Sprintf("resource.labels.cluster_name = %q", t.config.Cluster)
@@ -432,22 +438,27 @@ func (t *Translator) filterForCluster() string {
 	return fmt.Sprintf("%s AND %s AND %s", projectFilter, clusterFilter, locationFilter)
 }
 
+// Deprecated since FilterBuilder, use FilterBuilder instead
 func (t *Translator) filterForMetric(metricName string) string {
 	return fmt.Sprintf("metric.type = %q", metricName)
 }
 
+// Deprecated since FilterBuilder, use FilterBuilder instead
 func (t *Translator) filterForAnyPod() string {
 	return "resource.type = \"k8s_pod\""
 }
 
+// Deprecated since FilterBuilder, use FilterBuilder instead
 func (t *Translator) filterForAnyNode() string {
 	return "resource.type = \"k8s_node\""
 }
 
+// Deprecated since FilterBuilder, use FilterBuilder instead
 func (t *Translator) filterForAnyContainer() string {
 	return "resource.type = \"k8s_container\""
 }
 
+// Deprecated since FilterBuilder, use FilterBuilder instead
 func (t *Translator) filterForAnyResource(fallbackForContainerMetrics bool) string {
 	if fallbackForContainerMetrics {
 		return "resource.type = one_of(\"k8s_pod\",\"k8s_node\",\"k8s_container\")"
@@ -455,6 +466,7 @@ func (t *Translator) filterForAnyResource(fallbackForContainerMetrics bool) stri
 	return "resource.type = one_of(\"k8s_pod\",\"k8s_node\")"
 }
 
+// Deprecated since FilterBuilder, use FilterBuilder instead
 // The namespace string can be empty. If so, all namespaces are allowed.
 func (t *Translator) filterForPods(podNames []string, namespace string) string {
 	if len(podNames) == 0 {
@@ -471,6 +483,7 @@ func (t *Translator) filterForPods(podNames []string, namespace string) string {
 	return fmt.Sprintf("resource.labels.namespace_name = %q AND resource.labels.pod_name = one_of(%s)", namespace, strings.Join(podNames, ","))
 }
 
+// Deprecated since FilterBuilder, use FilterBuilder instead
 func (t *Translator) filterForNodes(nodeNames []string) string {
 	if len(nodeNames) == 0 {
 		klog.Fatalf("createFilterForNodes called with empty list of node names")
@@ -480,6 +493,7 @@ func (t *Translator) filterForNodes(nodeNames []string) string {
 	return fmt.Sprintf("resource.labels.node_name = one_of(%s)", strings.Join(nodeNames, ","))
 }
 
+// Deprecated since FilterBuilder, use FilterBuilder instead
 func (t *Translator) legacyFilterForCluster() string {
 	projectFilter := fmt.Sprintf("resource.labels.project_id = %q", t.config.Project)
 	// Skip location, since it may be set incorrectly by Heapster for old resource model
@@ -488,10 +502,12 @@ func (t *Translator) legacyFilterForCluster() string {
 	return fmt.Sprintf("%s AND %s AND %s", projectFilter, clusterFilter, containerFilter)
 }
 
+// Deprecated since FilterBuilder, use FilterBuilder instead
 func (t *Translator) legacyFilterForAnyPod() string {
 	return "resource.labels.pod_id != \"\" AND resource.labels.pod_id != \"machine\""
 }
 
+// Deprecated since FilterBuilder, use FilterBuilder instead
 func (t *Translator) legacyFilterForPods(podIDs []string) string {
 	if len(podIDs) == 0 {
 		klog.Fatalf("createFilterForIDs called with empty list of pod IDs")
