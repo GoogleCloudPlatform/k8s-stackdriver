@@ -18,6 +18,8 @@ package translator
 
 import (
 	"reflect"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -49,14 +51,18 @@ func TestTranslator_QueryBuilder_k8sPod_Single(t *testing.T) {
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
+	filters := []string{
+		"resource.type = \"k8s_pod\"",
+		"metric.type = \"my/custom/metric\"",
+		"resource.labels.project_id = \"my-project\"",
+		"resource.labels.cluster_name = \"my-cluster\"",
+		"resource.labels.location = \"my-zone\"",
+		"resource.labels.namespace_name = \"default\"",
+		"resource.labels.pod_name = \"my-pod-name\"",
+	}
+	sort.Strings(filters)
 	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter("metric.type = \"my/custom/metric\" " +
-			"AND resource.labels.project_id = \"my-project\" " +
-			"AND resource.labels.cluster_name = \"my-cluster\" " +
-			"AND resource.labels.location = \"my-zone\" " +
-			"AND resource.labels.namespace_name = \"default\" " +
-			"AND resource.labels.pod_name = \"my-pod-name\" " +
-			"AND resource.type = \"k8s_pod\"").
+		Filter(strings.Join(filters, " AND ")).
 		IntervalStartTime("2017-01-02T13:00:00Z").
 		IntervalEndTime("2017-01-02T13:02:00Z").
 		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
@@ -88,15 +94,19 @@ func TestTranslator_QueryBuilder_k8sPod_SingleWithMetricSelector(t *testing.T) {
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
+	filters := []string{
+		"resource.type = \"k8s_pod\"",
+		"metric.type = \"my/custom/metric\"",
+		"metric.labels.custom = \"test\"",
+		"resource.labels.project_id = \"my-project\"",
+		"resource.labels.cluster_name = \"my-cluster\"",
+		"resource.labels.location = \"my-zone\"",
+		"resource.labels.namespace_name = \"default\"",
+		"resource.labels.pod_name = \"my-pod-name\"",
+	}
+	sort.Strings(filters)
 	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter("metric.labels.custom = \"test\" " +
-			"AND metric.type = \"my/custom/metric\" " +
-			"AND resource.labels.project_id = \"my-project\" " +
-			"AND resource.labels.cluster_name = \"my-cluster\" " +
-			"AND resource.labels.location = \"my-zone\" " +
-			"AND resource.labels.namespace_name = \"default\" " +
-			"AND resource.labels.pod_name = \"my-pod-name\" " +
-			"AND resource.type = \"k8s_pod\"").
+		Filter(strings.Join(filters, " AND ")).
 		IntervalStartTime("2017-01-02T13:00:00Z").
 		IntervalEndTime("2017-01-02T13:02:00Z").
 		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
@@ -158,14 +168,18 @@ func TestTranslator_QueryBuilder_k8sPod_Multiple(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
+	filters := []string{
+		"metric.type = \"my/custom/metric\"",
+		"resource.labels.project_id = \"my-project\"",
+		"resource.labels.cluster_name = \"my-cluster\"",
+		"resource.labels.location = \"my-zone\"",
+		"resource.labels.namespace_name = \"default\"",
+		"resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\")",
+		"resource.type = \"k8s_pod\"",
+	}
+	sort.Strings(filters)
 	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter("metric.type = \"my/custom/metric\" " +
-			"AND resource.labels.project_id = \"my-project\" " +
-			"AND resource.labels.cluster_name = \"my-cluster\" " +
-			"AND resource.labels.location = \"my-zone\" " +
-			"AND resource.labels.namespace_name = \"default\" " +
-			"AND resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
-			"AND resource.type = \"k8s_pod\"").
+		Filter(strings.Join(filters, " AND ")).
 		IntervalStartTime("2017-01-02T13:00:00Z").
 		IntervalEndTime("2017-01-02T13:02:00Z").
 		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
@@ -204,15 +218,19 @@ func TestTranslator_QueryBuilder_k8sPod_MultipleWithMetricSelctor(t *testing.T) 
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
+	filters := []string{
+		"metric.labels.custom = \"test\"",
+		"metric.type = \"my/custom/metric\"",
+		"resource.labels.project_id = \"my-project\"",
+		"resource.labels.cluster_name = \"my-cluster\"",
+		"resource.labels.location = \"my-zone\"",
+		"resource.labels.namespace_name = \"default\"",
+		"resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\")",
+		"resource.type = \"k8s_pod\"",
+	}
+	sort.Strings(filters)
 	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter("metric.labels.custom = \"test\" " +
-			"AND metric.type = \"my/custom/metric\" " +
-			"AND resource.labels.project_id = \"my-project\" " +
-			"AND resource.labels.cluster_name = \"my-cluster\" " +
-			"AND resource.labels.location = \"my-zone\" " +
-			"AND resource.labels.namespace_name = \"default\" " +
-			"AND resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\") " +
-			"AND resource.type = \"k8s_pod\"").
+		Filter(strings.Join(filters, " AND ")).
 		IntervalStartTime("2017-01-02T13:00:00Z").
 		IntervalEndTime("2017-01-02T13:02:00Z").
 		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
@@ -562,12 +580,16 @@ func TestTranslator_QueryBuilder_k8sPod_legacyResourceModel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
+	filters := []string{
+		"metric.type = \"my/custom/metric\"",
+		"resource.labels.project_id = \"my-project\"",
+		"resource.labels.cluster_name = \"my-cluster\"",
+		"resource.labels.container_name = \"\"",
+		"resource.labels.pod_id = one_of(\"my-pod-id-1\",\"my-pod-id-2\")",
+	}
+	sort.Strings(filters)
 	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter("metric.type = \"my/custom/metric\" " +
-			"AND resource.labels.project_id = \"my-project\" " +
-			"AND resource.labels.cluster_name = \"my-cluster\" " +
-			"AND resource.labels.container_name = \"\" " +
-			"AND resource.labels.pod_id = one_of(\"my-pod-id-1\",\"my-pod-id-2\")").
+		Filter(strings.Join(filters, " AND ")).
 		IntervalStartTime("2017-01-02T13:00:00Z").
 		IntervalEndTime("2017-01-02T13:02:00Z").
 		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
@@ -729,14 +751,18 @@ func TestTranslator_QueryBuilder_k8sPod_Single_Distribution(t *testing.T) {
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
+	filters := []string{
+		"metric.type = \"my/custom/metric\"",
+		"resource.labels.project_id = \"my-project\"",
+		"resource.labels.cluster_name = \"my-cluster\"",
+		"resource.labels.location = \"my-zone\"",
+		"resource.labels.namespace_name = \"default\"",
+		"resource.labels.pod_name = \"my-pod-name\"",
+		"resource.type = \"k8s_pod\"",
+	}
+	sort.Strings(filters)
 	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter("metric.type = \"my/custom/metric\" " +
-			"AND resource.labels.project_id = \"my-project\" " +
-			"AND resource.labels.cluster_name = \"my-cluster\" " +
-			"AND resource.labels.location = \"my-zone\" " +
-			"AND resource.labels.namespace_name = \"default\" " +
-			"AND resource.labels.pod_name = \"my-pod-name\" " +
-			"AND resource.type = \"k8s_pod\"").
+		Filter(strings.Join(filters, " AND ")).
 		IntervalStartTime("2017-01-02T13:00:00Z").
 		IntervalEndTime("2017-01-02T13:02:00Z").
 		AggregationPerSeriesAligner("ALIGN_DELTA").
@@ -844,15 +870,19 @@ func TestTranslator_QueryBuilder_k8sPod_SingleWithMetricSelector_Distribution(t 
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
+	filters := []string{
+		"metric.labels.custom = \"test\"",
+		"metric.type = \"my/custom/metric\"",
+		"resource.labels.project_id = \"my-project\"",
+		"resource.labels.cluster_name = \"my-cluster\"",
+		"resource.labels.location = \"my-zone\"",
+		"resource.labels.namespace_name = \"default\"",
+		"resource.labels.pod_name = \"my-pod-name\"",
+		"resource.type = \"k8s_pod\"",
+	}
+	sort.Strings(filters)
 	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter("metric.labels.custom = \"test\" " +
-			"AND metric.type = \"my/custom/metric\" " +
-			"AND resource.labels.project_id = \"my-project\" " +
-			"AND resource.labels.cluster_name = \"my-cluster\" " +
-			"AND resource.labels.location = \"my-zone\" " +
-			"AND resource.labels.namespace_name = \"default\" " +
-			"AND resource.labels.pod_name = \"my-pod-name\" " +
-			"AND resource.type = \"k8s_pod\"").
+		Filter(strings.Join(filters, " AND ")).
 		IntervalStartTime("2017-01-02T13:00:00Z").
 		IntervalEndTime("2017-01-02T13:02:00Z").
 		AggregationPerSeriesAligner("ALIGN_DELTA").

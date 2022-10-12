@@ -135,12 +135,15 @@ func (qb *QueryBuilder) WithPods(pods *v1.PodList) *QueryBuilder {
 	return qb
 }
 
+// podList is required to be no longer than MaxNumOfArgsInOneOfFilter items. This is enforced by limitation of
+// "one_of()" operator in Stackdriver filters, see documentation:
+// https://cloud.google.com/monitoring/api/v3/filters
 func (qb *QueryBuilder) validate() error {
 	if len(qb.pods.Items) == 0 {
 		return apierr.NewBadRequest("No objects matched provided selector")
 	}
 	if len(qb.pods.Items) > MaxNumOfArgsInOneOfFilter {
-		return apierr.NewInternalError(fmt.Errorf("GetSDReqForPods called with %v pod list, but allowed limit is %v pods", len(qb.pods.Items), MaxNumOfArgsInOneOfFilter))
+		return apierr.NewInternalError(fmt.Errorf("QueryBuilder tries to build with %v pod list, but allowed limit is %v pods", len(qb.pods.Items), MaxNumOfArgsInOneOfFilter))
 	}
 	if qb.metricValueType == "DISTRIBUTION" && !qb.translator.supportDistributions {
 		return apierr.NewBadRequest("Distributions are not supported")
@@ -154,14 +157,36 @@ func (qb *QueryBuilder) Build() (*stackdriver.ProjectsTimeSeriesListCall, error)
 		return nil, err
 	}
 
-	return qb.translator.GetSDReqForPods(
-		qb.pods,
-		qb.metricName,
-		qb.metricKind,
-		qb.metricValueType,
-		qb.metricSelector,
-		qb.namespace,
-	)
+	var filter string
+	if qb.translator.useNewResourceModel {
+		resourceNames := getPodNames(qb.pods)
+		filter = utils.NewFilterBuilder("k8s_pod", false).
+			WithMetricType(qb.metricName).
+			WithProject(qb.translator.config.Project).
+			WithCluster(qb.translator.config.Cluster).
+			WithLocation(qb.translator.config.Location).
+			WithNamespace(qb.namespace).
+			WithPods(resourceNames).
+			Build()
+	} else {
+		resourceIDs := getResourceIDs(qb.pods)
+		filter = utils.NewFilterBuilder("", true).
+			WithMetricType(qb.metricName).
+			WithProject(qb.translator.config.Project).
+			WithCluster(qb.translator.config.Cluster).
+			WithContainer().
+			WithPods(resourceIDs).
+			Build()
+	}
+	if qb.metricSelector.Empty() {
+		return qb.translator.createListTimeseriesRequest(filter, qb.metricKind, qb.metricValueType, ""), nil
+	}
+
+	filterForSelector, reducer, err := qb.translator.filterForSelector(qb.metricSelector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
+	if err != nil {
+		return nil, err
+	}
+	return qb.translator.createListTimeseriesRequest(joinFilters(filterForSelector, filter), qb.metricKind, qb.metricValueType, reducer), nil
 }
 
 // NewTranslator creates a Translator
@@ -176,41 +201,6 @@ func NewTranslator(service *stackdriver.Service, gceConf *config.GceConfig, rate
 		useNewResourceModel:  useNewResourceModel,
 		supportDistributions: supportDistributions,
 	}
-}
-
-// Deprecated since supporting GMP metrics, please use QueryBuilder instead.
-// GetSDReqForPods returns Stackdriver request for query for multiple pods.
-// podList is required to be no longer than MaxNumOfArgsInOneOfFilter items. This is enforced by limitation of
-// "one_of()" operator in Stackdriver filters, see documentation:
-// https://cloud.google.com/monitoring/api/v3/filters
-func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName, metricKind, metricValueType string, metricSelector labels.Selector, namespace string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
-	var filter string
-	if t.useNewResourceModel {
-		resourceNames := getPodNames(podList)
-		filter = utils.NewFilterBuilder("k8s_pod").
-			WithMetricType(metricName).
-			WithCluster(t.config.Cluster).
-			WithLocation(t.config.Location).
-			WithNamespace(namespace).
-			WithPods(resourceNames).
-			WithProject(t.config.Project).
-			Build()
-	} else {
-		resourceIDs := getResourceIDs(podList)
-		filter = joinFilters(
-			t.filterForMetric(metricName),
-			t.legacyFilterForCluster(),
-			t.legacyFilterForPods(resourceIDs))
-	}
-	if metricSelector.Empty() {
-		return t.createListTimeseriesRequest(filter, metricKind, metricValueType, ""), nil
-	}
-
-	filterForSelector, reducer, err := t.filterForSelector(metricSelector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
-	if err != nil {
-		return nil, err
-	}
-	return t.createListTimeseriesRequest(joinFilters(filterForSelector, filter), metricKind, metricValueType, reducer), nil
 }
 
 // GetSDReqForContainers returns Stackdriver request for container resource from multiple pods.
