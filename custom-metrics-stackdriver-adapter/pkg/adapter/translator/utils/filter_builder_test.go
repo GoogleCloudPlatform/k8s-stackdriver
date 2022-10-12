@@ -27,9 +27,11 @@ func (c *FilterBuilderChecker) ToEqual(expected *FilterBuilder) *FilterBuilderCh
 // compare actual and expected value, then report it with test suite
 func (c *FilterBuilderChecker) Report(t *testing.T) {
 	errors := []string{}
-	if c.actual.useLegacyModel != c.expected.useLegacyModel {
-		errors = append(errors, fmt.Sprintf("\nuseLegacyModel\nExpect: %v\nActual: %v\n", c.expected.useLegacyModel, c.actual.useLegacyModel))
+
+	if !reflect.DeepEqual(c.actual.schema, c.expected.schema) {
+		errors = append(errors, fmt.Sprintf("\nschema\nExpect: %v\nActual: %v\n", c.expected.schema, c.actual.schema))
 	}
+
 	if !reflect.DeepEqual(c.actual.filters, c.expected.filters) {
 		errors = append(errors, fmt.Sprintf("\nfilters\nExpect: %v\nActual: %v\n", c.expected.filters, c.actual.filters))
 	}
@@ -38,115 +40,200 @@ func (c *FilterBuilderChecker) Report(t *testing.T) {
 	}
 }
 
-func TestNewFilterBuilder(t *testing.T) {
-	actual := NewFilterBuilder("k8s_pod", false)
-	expected := &FilterBuilder{useLegacyModel: false, filters: []string{"resource.type = \"k8s_pod\""}}
+func TestNewFilterBuilder_default(t *testing.T) {
+	actual := NewFilterBuilder("random")
+	expected := &FilterBuilder{schema: PodSchema, filters: []string{"resource.type = \"random\""}}
+	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+}
+
+func TestNewFilterBuilder_pod(t *testing.T) {
+	actual := NewFilterBuilder(SchemaTypes["pod"])
+	expected := &FilterBuilder{schema: PodSchema, filters: []string{"resource.type = \"k8s_pod\""}}
 	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
 }
 
 func TestNewFilterBuilder_legacy(t *testing.T) {
-	actual := NewFilterBuilder("", true)
-	expected := &FilterBuilder{useLegacyModel: true, filters: []string{}}
+	actual := NewFilterBuilder(SchemaTypes["legacy"])
+	expected := &FilterBuilder{schema: LegacyPodSchema, filters: []string{}}
 	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
 }
 
-func TestNewFilterBuilder_emptyResourceType(t *testing.T) {
-	actual := NewFilterBuilder("", false)
-	expected := &FilterBuilder{useLegacyModel: false, filters: []string{}}
+func TestNewFilterBuilder_prometheus(t *testing.T) {
+	actual := NewFilterBuilder(SchemaTypes["prometheus"])
+	expected := &FilterBuilder{schema: PrometheusSchema, filters: []string{"resource.type = \"prometheus_target\""}}
 	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
 }
 
-func TestFilterBuilder_WithMetricType(t *testing.T) {
-	actual := &FilterBuilder{useLegacyModel: false, filters: []string{}}
+func TestFilterBuilder_WithMetricType_pod(t *testing.T) {
+	schema := PodSchema
+	actual := &FilterBuilder{schema: schema, filters: []string{}}
 	metricType := "random_type"
 	actual.WithMetricType(metricType)
 
-	expected := &FilterBuilder{useLegacyModel: false, filters: []string{"metric.type = \"random_type\""}}
+	expected := &FilterBuilder{schema: schema, filters: []string{"metric.type = \"random_type\""}}
 	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
 }
 
-func TestFilterBuilder_WithProject(t *testing.T) {
-	actual := &FilterBuilder{useLegacyModel: false, filters: []string{}}
+func TestFilterBuilder_WithMetricType_prometheus(t *testing.T) {
+	schema := PrometheusSchema
+	actual := &FilterBuilder{schema: schema, filters: []string{}}
+	metricType := "random_type"
+	actual.WithMetricType(metricType)
+
+	expected := &FilterBuilder{schema: schema, filters: []string{"metric.type = \"random_type\""}}
+	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+}
+
+func TestFilterBuilder_WithProject_pod(t *testing.T) {
+	schema := PodSchema
+	actual := &FilterBuilder{schema: schema, filters: []string{}}
 	project := "random_project"
 	actual.WithProject(project)
 
-	expected := &FilterBuilder{useLegacyModel: false, filters: []string{"resource.labels.project_id = \"random_project\""}}
+	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.project_id = \"random_project\""}}
 	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
 }
 
-func TestFilterBuilder_WithCluster(t *testing.T) {
-	actual := &FilterBuilder{useLegacyModel: false, filters: []string{}}
+func TestFilterBuilder_WithProject_prometheus(t *testing.T) {
+	schema := PrometheusSchema
+	actual := &FilterBuilder{schema: schema, filters: []string{}}
+	project := "random_project"
+	actual.WithProject(project)
+
+	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.project_id = \"random_project\""}}
+	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+}
+
+func TestFilterBuilder_WithCluster_pod(t *testing.T) {
+	schema := PodSchema
+	actual := &FilterBuilder{schema: schema, filters: []string{}}
 	cluster := "random_cluster"
 	actual.WithCluster(cluster)
 
-	expected := &FilterBuilder{useLegacyModel: false, filters: []string{"resource.labels.cluster_name = \"random_cluster\""}}
+	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.cluster_name = \"random_cluster\""}}
 	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
 }
 
-func TestFilterBuilder_WithLocation(t *testing.T) {
-	actual := &FilterBuilder{useLegacyModel: false, filters: []string{}}
+func TestFilterBuilder_WithCluster_prometheus(t *testing.T) {
+	schema := PrometheusSchema
+	actual := &FilterBuilder{schema: schema, filters: []string{}}
+	cluster := "random_cluster"
+	actual.WithCluster(cluster)
+
+	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.cluster = \"random_cluster\""}}
+	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+}
+
+func TestFilterBuilder_WithLocation_pod(t *testing.T) {
+	schema := PodSchema
+	actual := &FilterBuilder{schema: schema, filters: []string{}}
 	location := "random_location"
 	actual.WithLocation(location)
 
-	expected := &FilterBuilder{useLegacyModel: false, filters: []string{"resource.labels.location = \"random_location\""}}
+	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.location = \"random_location\""}}
+	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+}
+
+func TestFilterBuilder_WithLocation_prometheus(t *testing.T) {
+	schema := PrometheusSchema
+	actual := &FilterBuilder{schema: schema, filters: []string{}}
+	location := "random_location"
+	actual.WithLocation(location)
+
+	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.location = \"random_location\""}}
 	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
 }
 
 func TestFilterBuilder_WithContainer(t *testing.T) {
-	actual := &FilterBuilder{useLegacyModel: false, filters: []string{}}
+	actual := &FilterBuilder{filters: []string{}}
 	actual.WithContainer()
 
-	expected := &FilterBuilder{useLegacyModel: false, filters: []string{"resource.labels.container_name = \"\""}}
+	expected := &FilterBuilder{filters: []string{"resource.labels.container_name = \"\""}}
 	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
 }
 
-func TestFilterBuilder_WithNamespace(t *testing.T) {
-	actual := &FilterBuilder{useLegacyModel: false, filters: []string{}}
+func TestFilterBuilder_WithNamespace_pod(t *testing.T) {
+	schema := PodSchema
+	actual := &FilterBuilder{schema: schema, filters: []string{}}
 	namespace := "random_namespace"
 	actual.WithNamespace(namespace)
 
-	expected := &FilterBuilder{useLegacyModel: false, filters: []string{"resource.labels.namespace_name = \"random_namespace\""}}
+	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.namespace_name = \"random_namespace\""}}
 	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
 }
 
-func TestFilterBuilder_WithPods_Single(t *testing.T) {
-	actual := &FilterBuilder{useLegacyModel: false, filters: []string{}}
+func TestFilterBuilder_WithNamespace_prometheus(t *testing.T) {
+	schema := PrometheusSchema
+	actual := &FilterBuilder{schema: schema, filters: []string{}}
+	namespace := "random_namespace"
+	actual.WithNamespace(namespace)
+
+	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.namespace = \"random_namespace\""}}
+	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+}
+
+func TestFilterBuilder_WithPods_Single_pod(t *testing.T) {
+	schema := PodSchema
+	actual := &FilterBuilder{schema: schema, filters: []string{}}
 	pods := []string{"pod"}
 	actual.WithPods(pods)
 
-	expected := &FilterBuilder{useLegacyModel: false, filters: []string{"resource.labels.pod_name = pod"}}
+	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.pod_name = pod"}}
+	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+}
+
+func TestFilterBuilder_WithPods_Single_prometheus(t *testing.T) {
+	schema := PrometheusSchema
+	actual := &FilterBuilder{schema: schema, filters: []string{}}
+	pods := []string{"pod"}
+	actual.WithPods(pods)
+
+	expected := &FilterBuilder{schema: schema, filters: []string{"metric.labels.pod = pod"}}
 	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
 }
 
 func TestFilterBuilder_WithPods_Single_legacy(t *testing.T) {
-	actual := &FilterBuilder{useLegacyModel: true, filters: []string{}}
+	schma := LegacyPodSchema
+	actual := &FilterBuilder{schema: schma, filters: []string{}}
 	pods := []string{"pod"}
 	actual.WithPods(pods)
 
-	expected := &FilterBuilder{useLegacyModel: true, filters: []string{"resource.labels.pod_id = pod"}}
+	expected := &FilterBuilder{schema: schma, filters: []string{"resource.labels.pod_id = pod"}}
 	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
 }
 
-func TestFilterBuilder_WithPods_Multiple(t *testing.T) {
-	actual := &FilterBuilder{useLegacyModel: false, filters: []string{}}
+func TestFilterBuilder_WithPods_Multiple_pod(t *testing.T) {
+	schema := PodSchema
+	actual := &FilterBuilder{schema: schema, filters: []string{}}
 	pods := []string{"pod1", "pod2"}
 	actual.WithPods(pods)
 
-	expected := &FilterBuilder{useLegacyModel: false, filters: []string{"resource.labels.pod_name = one_of(pod1,pod2)"}}
+	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.pod_name = one_of(pod1,pod2)"}}
+	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+}
+
+func TestFilterBuilder_WithPods_Multiple_prometheus(t *testing.T) {
+	schema := PrometheusSchema
+	actual := &FilterBuilder{schema: schema, filters: []string{}}
+	pods := []string{"pod1", "pod2"}
+	actual.WithPods(pods)
+
+	expected := &FilterBuilder{schema: schema, filters: []string{"metric.labels.pod = one_of(pod1,pod2)"}}
 	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
 }
 
 func TestFilterBuilder_WithPods_Multiple_legacy(t *testing.T) {
-	actual := &FilterBuilder{useLegacyModel: true, filters: []string{}}
+	schema := LegacyPodSchema
+	actual := &FilterBuilder{schema: schema, filters: []string{}}
 	pods := []string{"pod1", "pod2"}
 	actual.WithPods(pods)
 
-	expected := &FilterBuilder{useLegacyModel: true, filters: []string{"resource.labels.pod_id = one_of(pod1,pod2)"}}
+	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.pod_id = one_of(pod1,pod2)"}}
 	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
 }
 
 func TestFilterBuilder_Build(t *testing.T) {
-	actual := (&FilterBuilder{useLegacyModel: false, filters: []string{"d", "f", "e", "a", "c", "b"}}).Build()
+	actual := (&FilterBuilder{filters: []string{"d", "f", "e", "a", "c", "b"}}).Build()
 	expected := "a AND b AND c AND d AND e AND f"
 	if actual != expected {
 		t.Errorf("\nQuery\nExpect: %v\nActual: %v\n", expected, actual)

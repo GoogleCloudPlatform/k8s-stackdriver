@@ -242,6 +242,10 @@ func (t *Translator) metricKey(timeSeries *stackdriver.TimeSeries) (string, erro
 			return timeSeries.Resource.Labels["namespace_name"] + ":" + timeSeries.Resource.Labels["pod_name"], nil
 		case "k8s_node":
 			return ":" + timeSeries.Resource.Labels["node_name"], nil
+		case "prometheus_target":
+			return timeSeries.Resource.Labels["namespace"] + ":" + timeSeries.Metric.Labels["pod"], nil
+		default:
+			klog.Errorf("Expected resource type as one of [\"k8s_pod\", \"k8s_container\", \"k8s_node\", \"prometheus_target\"], but received %s", timeSeries.Resource.Type)
 		}
 	} else {
 		return timeSeries.Resource.Labels["pod_id"], nil

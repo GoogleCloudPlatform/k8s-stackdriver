@@ -30,7 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/selection"
 )
 
-func TestTranslator_QueryBuilder_k8sPod_Single(t *testing.T) {
+func TestTranslator_QueryBuilder_pod_Single(t *testing.T) {
 	translator, sdService :=
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
@@ -72,7 +72,49 @@ func TestTranslator_QueryBuilder_k8sPod_Single(t *testing.T) {
 	}
 }
 
-func TestTranslator_QueryBuilder_k8sPod_SingleWithMetricSelector(t *testing.T) {
+func TestTranslator_QueryBuilder_prometheus_Single(t *testing.T) {
+	translator, sdService :=
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+			Name:        "my-pod-name",
+		},
+	}
+	metricName := "prometheus.googleapis.com/foo"
+	request, err := NewQueryBuilder(translator, metricName).
+		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+		WithMetricKind("GAUGE").
+		WithMetricValueType("INT64").
+		WithMetricSelector(labels.Everything()).
+		WithNamespace("default").
+		Build()
+	if err != nil {
+		t.Errorf("Translation error: %s", err)
+	}
+	filters := []string{
+		"resource.type = \"prometheus_target\"",
+		"metric.type = \"prometheus.googleapis.com/foo\"",
+		"resource.labels.project_id = \"my-project\"",
+		"resource.labels.cluster = \"my-cluster\"",
+		"resource.labels.location = \"my-zone\"",
+		"resource.labels.namespace = \"default\"",
+		"metric.labels.pod = \"my-pod-name\"",
+	}
+	sort.Strings(filters)
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter(strings.Join(filters, " AND ")).
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:02:00Z").
+		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+		AggregationAlignmentPeriod("120s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+	}
+}
+
+func TestTranslator_QueryBuilder_pod_SingleWithMetricSelector(t *testing.T) {
 	translator, sdService :=
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
@@ -116,7 +158,7 @@ func TestTranslator_QueryBuilder_k8sPod_SingleWithMetricSelector(t *testing.T) {
 	}
 }
 
-func TestTranslator_QueryBuilder_k8sPod_SingleWithInvalidMetricSelector(t *testing.T) {
+func TestTranslator_QueryBuilder_pod_SingleWithInvalidMetricSelector(t *testing.T) {
 	translator, _ :=
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
@@ -140,7 +182,7 @@ func TestTranslator_QueryBuilder_k8sPod_SingleWithInvalidMetricSelector(t *testi
 	}
 }
 
-func TestTranslator_QueryBuilder_k8sPod_Multiple(t *testing.T) {
+func TestTranslator_QueryBuilder_pod_Multiple(t *testing.T) {
 	translator, sdService :=
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod1 := v1.Pod{
@@ -189,7 +231,56 @@ func TestTranslator_QueryBuilder_k8sPod_Multiple(t *testing.T) {
 	}
 }
 
-func TestTranslator_QueryBuilder_k8sPod_MultipleWithMetricSelctor(t *testing.T) {
+func TestTranslator_QueryBuilder_prometheus_Multiple(t *testing.T) {
+	translator, sdService :=
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	pod1 := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id-1",
+			Name:        "my-pod-name-1",
+		},
+	}
+	pod2 := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id-2",
+			Name:        "my-pod-name-2",
+		},
+	}
+	metricName := "prometheus.googleapis.com/foo/gauge"
+	request, err := NewQueryBuilder(translator, metricName).
+		WithPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}).
+		WithMetricKind("GAUGE").
+		WithMetricValueType("INT64").
+		WithMetricSelector(labels.Everything()).
+		WithNamespace("default").
+		Build()
+	if err != nil {
+		t.Fatalf("Translation error: %s", err)
+	}
+	filters := []string{
+		"metric.type = \"prometheus.googleapis.com/foo/gauge\"",
+		"resource.labels.project_id = \"my-project\"",
+		"resource.labels.cluster = \"my-cluster\"",
+		"resource.labels.location = \"my-zone\"",
+		"resource.labels.namespace = \"default\"",
+		"metric.labels.pod = one_of(\"my-pod-name-1\",\"my-pod-name-2\")",
+		"resource.type = \"prometheus_target\"",
+	}
+	sort.Strings(filters)
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter(strings.Join(filters, " AND ")).
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:02:00Z").
+		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+		AggregationAlignmentPeriod("120s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("\nUnexpected result.\nExpect: %v,\nActual: %v", *expectedRequest, *request)
+	}
+}
+
+func TestTranslator_QueryBuilder_pod_MultipleWithMetricSelctor(t *testing.T) {
 	translator, sdService :=
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod1 := v1.Pod{
@@ -554,7 +645,7 @@ func TestTranslator_GetSDReqForNodes_withMetricSelector(t *testing.T) {
 	}
 }
 
-func TestTranslator_QueryBuilder_k8sPod_legacyResourceModel(t *testing.T) {
+func TestTranslator_QueryBuilder_pod_legacyResourceModel(t *testing.T) {
 	translator, sdService :=
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), false)
 	pod1 := v1.Pod{
@@ -729,7 +820,7 @@ func TestTranslator_GetExternalMetricRequest_OneInvalidRequirement(t *testing.T)
 	}
 }
 
-func TestTranslator_QueryBuilder_k8sPod_Single_Distribution(t *testing.T) {
+func TestTranslator_QueryBuilder_pod_Single_Distribution(t *testing.T) {
 	translator, sdService :=
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
@@ -773,7 +864,51 @@ func TestTranslator_QueryBuilder_k8sPod_Single_Distribution(t *testing.T) {
 	}
 }
 
-func TestTranslator_QueryBuilder_k8sPod_NoSupportDistributions(t *testing.T) {
+func TestTranslator_QueryBuilder_promethus_Single_Distribution(t *testing.T) {
+	translator, sdService :=
+		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+			Name:        "my-pod-name",
+		},
+	}
+	metricName := "prometheus.googleapis.com/foo/gauge"
+	selector, _ := labels.Parse("reducer=REDUCE_PERCENTILE_50")
+	request, err := NewQueryBuilder(translator, metricName).
+		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+		WithMetricKind("DELTA").
+		WithMetricValueType("DISTRIBUTION").
+		WithMetricSelector(selector).
+		WithNamespace("default").
+		Build()
+	if err != nil {
+		t.Errorf("Translation error: %s", err)
+	}
+	filters := []string{
+		"metric.type = \"prometheus.googleapis.com/foo/gauge\"",
+		"resource.labels.project_id = \"my-project\"",
+		"resource.labels.cluster = \"my-cluster\"",
+		"resource.labels.location = \"my-zone\"",
+		"resource.labels.namespace = \"default\"",
+		"metric.labels.pod = \"my-pod-name\"",
+		"resource.type = \"prometheus_target\"",
+	}
+	sort.Strings(filters)
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter(strings.Join(filters, " AND ")).
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:02:00Z").
+		AggregationPerSeriesAligner("ALIGN_DELTA").
+		AggregationCrossSeriesReducer("REDUCE_PERCENTILE_50").
+		AggregationAlignmentPeriod("60s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+	}
+}
+
+func TestTranslator_QueryBuilder_pod_NoSupportDistributions(t *testing.T) {
 	translator, _ :=
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
@@ -798,7 +933,32 @@ func TestTranslator_QueryBuilder_k8sPod_NoSupportDistributions(t *testing.T) {
 	}
 }
 
-func TestTranslator_QueryBuilder_k8sPod_BadPercentile(t *testing.T) {
+func TestTranslator_QueryBuilder_prometheus_NoSupportDistributions(t *testing.T) {
+	translator, _ :=
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+			Name:        "my-pod-name",
+		},
+	}
+	metricName := "prometheus.googleapis.com/foo/gauge"
+	req, _ := labels.NewRequirement("reducer", selection.Equals, []string{"REDUCE_PERCENTILE_50"})
+	selector := labels.NewSelector().Add(*req)
+	_, err := NewQueryBuilder(translator, metricName).
+		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+		WithMetricKind("DELTA").
+		WithMetricValueType("DISTRIBUTION").
+		WithMetricSelector(selector).
+		WithNamespace("default").
+		Build()
+	if err == nil {
+		t.Errorf("Expected error, as distributions should not be suppoted; was suceessful")
+	}
+}
+
+func TestTranslator_QueryBuilder_pod_BadPercentile(t *testing.T) {
 	translator, _ :=
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
@@ -823,7 +983,32 @@ func TestTranslator_QueryBuilder_k8sPod_BadPercentile(t *testing.T) {
 	}
 }
 
-func TestTranslator_QueryBuilder_k8sPod_TooManyPercentiles(t *testing.T) {
+func TestTranslator_QueryBuilder_prometheus_BadPercentile(t *testing.T) {
+	translator, _ :=
+		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+			Name:        "my-pod-name",
+		},
+	}
+	metricName := "prometheus.googleapis.com/foo/gauge"
+	selector, _ := labels.Parse("reducer=PERCENTILE_52")
+	_, err := NewQueryBuilder(translator, metricName).
+		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+		WithMetricKind("DELTA").
+		WithMetricValueType("DISTRIBUTION").
+		WithMetricSelector(selector).
+		WithNamespace("default").
+		Build()
+	expectedError := NewLabelNotAllowedError("Specified reducer is not supported: PERCENTILE_52")
+	if *err.(*errors.StatusError) != *expectedError {
+		t.Errorf("Expected status error: %s, but received: %s", expectedError, err)
+	}
+}
+
+func TestTranslator_QueryBuilder_pod_TooManyPercentiles(t *testing.T) {
 	translator, _ :=
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
@@ -848,7 +1033,32 @@ func TestTranslator_QueryBuilder_k8sPod_TooManyPercentiles(t *testing.T) {
 	}
 }
 
-func TestTranslator_QueryBuilder_k8sPod_SingleWithMetricSelector_Distribution(t *testing.T) {
+func TestTranslator_QueryBuilder_prometheus_TooManyPercentiles(t *testing.T) {
+	translator, _ :=
+		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+			Name:        "my-pod-name",
+		},
+	}
+	metricName := "prometheus.googleapis.com/foo/gauge"
+	selector, _ := labels.Parse("reducer in (PERCENTILE_50,PERCENTILE_99)")
+	_, err := NewQueryBuilder(translator, metricName).
+		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+		WithMetricKind("DELTA").
+		WithMetricValueType("INT64").
+		WithMetricSelector(selector).
+		WithNamespace("default").
+		Build()
+	expectedError := NewLabelNotAllowedError("Reducer must use '=' or '==': You used in")
+	if *err.(*errors.StatusError) != *expectedError {
+		t.Errorf("Expected status error: %s, but received: %s", expectedError, err)
+	}
+}
+
+func TestTranslator_QueryBuilder_pod_SingleWithMetricSelector_Distribution(t *testing.T) {
 	translator, sdService :=
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{

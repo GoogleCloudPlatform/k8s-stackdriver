@@ -159,23 +159,28 @@ func (qb *QueryBuilder) Build() (*stackdriver.ProjectsTimeSeriesListCall, error)
 
 	var filter string
 	if qb.translator.useNewResourceModel {
-		resourceNames := getPodNames(qb.pods)
-		filter = utils.NewFilterBuilder("k8s_pod", false).
+		var filterBuilder *utils.FilterBuilder
+		if strings.HasPrefix(qb.metricName, "prometheus.googleapis.com") {
+			filterBuilder = utils.NewFilterBuilder(utils.SchemaTypes["prometheus"])
+		} else {
+			filterBuilder = utils.NewFilterBuilder(utils.SchemaTypes["pod"])
+		}
+
+		filter = filterBuilder.
 			WithMetricType(qb.metricName).
 			WithProject(qb.translator.config.Project).
 			WithCluster(qb.translator.config.Cluster).
 			WithLocation(qb.translator.config.Location).
 			WithNamespace(qb.namespace).
-			WithPods(resourceNames).
+			WithPods(getPodNames(qb.pods)).
 			Build()
 	} else {
-		resourceIDs := getResourceIDs(qb.pods)
-		filter = utils.NewFilterBuilder("", true).
+		filter = utils.NewFilterBuilder(utils.SchemaTypes["legacy"]).
 			WithMetricType(qb.metricName).
 			WithProject(qb.translator.config.Project).
 			WithCluster(qb.translator.config.Cluster).
 			WithContainer().
-			WithPods(resourceIDs).
+			WithPods(getResourceIDs(qb.pods)).
 			Build()
 	}
 	if qb.metricSelector.Empty() {
