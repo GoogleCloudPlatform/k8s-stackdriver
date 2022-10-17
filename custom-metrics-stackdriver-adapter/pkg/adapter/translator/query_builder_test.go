@@ -158,6 +158,50 @@ func TestTranslator_QueryBuilder_pod_SingleWithMetricSelector(t *testing.T) {
 	}
 }
 
+func TestTranslator_QueryBuilder_prometheus_SingleWithMetricSelector(t *testing.T) {
+	translator, sdService :=
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+			Name:        "my-pod-name",
+		},
+	}
+	metricName := "prometheus.googleapis.com/foo/gauge"
+	metricSelector, _ := labels.Parse("metric.labels.custom=test")
+	request, err := NewQueryBuilder(translator, metricName).
+		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+		WithMetricKind("GAUGE").
+		WithMetricValueType("INT64").
+		WithMetricSelector(metricSelector).
+		WithNamespace("default").
+		Build()
+	if err != nil {
+		t.Errorf("Translation error: %s", err)
+	}
+	filters := []string{
+		"resource.type = \"prometheus_target\"",
+		"metric.type = \"prometheus.googleapis.com/foo/gauge\"",
+		"metric.labels.custom = \"test\"",
+		"resource.labels.project_id = \"my-project\"",
+		"resource.labels.cluster = \"my-cluster\"",
+		"resource.labels.location = \"my-zone\"",
+		"resource.labels.namespace = \"default\"",
+		"metric.labels.pod = \"my-pod-name\"",
+	}
+	sort.Strings(filters)
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter(strings.Join(filters, " AND ")).
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:02:00Z").
+		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+		AggregationAlignmentPeriod("120s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("\nUnexpected result.\nExpect: \n%v,\nActual: \n%v", expectedRequest, request)
+	}
+}
+
 func TestTranslator_QueryBuilder_pod_SingleWithInvalidMetricSelector(t *testing.T) {
 	translator, _ :=
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
@@ -169,6 +213,30 @@ func TestTranslator_QueryBuilder_pod_SingleWithInvalidMetricSelector(t *testing.
 		},
 	}
 	metricName := "my/custom/metric"
+	metricSelector, _ := labels.Parse("resource.labels.type=container")
+	_, err := NewQueryBuilder(translator, metricName).
+		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+		WithMetricKind("GAUGE").
+		WithMetricValueType("INT64").
+		WithMetricSelector(metricSelector).
+		WithNamespace("default").
+		Build()
+	if err == nil {
+		t.Error("No translation error")
+	}
+}
+
+func TestTranslator_QueryBuilder_prometheus_SingleWithInvalidMetricSelector(t *testing.T) {
+	translator, _ :=
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-pod-id",
+			Name:        "my-pod-name",
+		},
+	}
+	metricName := "prometheus.googleapis.com/foo/gauge"
 	metricSelector, _ := labels.Parse("resource.labels.type=container")
 	_, err := NewQueryBuilder(translator, metricName).
 		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
