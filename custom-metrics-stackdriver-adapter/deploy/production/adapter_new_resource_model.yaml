@@ -77,8 +77,6 @@ spec:
         name: pod-custom-metrics-stackdriver-adapter
         command:
         - /adapter
-        - --use-new-resource-model=true
-        - --fallback-for-container-metrics=true
         resources:
           limits:
             cpu: 250m
