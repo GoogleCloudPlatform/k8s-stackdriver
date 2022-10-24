@@ -164,17 +164,20 @@ func (p *StackdriverProvider) getNamespacedMetricByName(groupResource schema.Gro
 	if groupResource.Resource != podResource {
 		return nil, NewOperationNotSupportedError(fmt.Sprintf("Get namespaced metric by name for resource %q", groupResource.Resource))
 	}
+
 	matchingPod, err := p.kubeClient.Pods(namespace).Get(context.Background(), name, metav1.GetOptions{})
-	pods := &v1.PodList{Items: []v1.Pod{*matchingPod}}
 	if err != nil {
 		return nil, err
 	}
+
 	metricName := getCustomMetricName(escapedMetricName)
 	metricKind, metricValueType, err := p.translator.GetMetricKind(metricName, metricSelector)
 	if err != nil {
 		return nil, err
 	}
 	queryBuilder := translator.NewQueryBuilder(p.translator, metricName)
+
+	pods := &v1.PodList{Items: []v1.Pod{*matchingPod}}
 	stackdriverRequest, err := queryBuilder.
 		WithPods(pods).
 		WithMetricKind(metricKind).
@@ -182,6 +185,7 @@ func (p *StackdriverProvider) getNamespacedMetricByName(groupResource schema.Gro
 		WithMetricSelector(metricSelector).
 		WithNamespace(namespace).
 		Build()
+
 	if err != nil {
 		return nil, err
 	}
