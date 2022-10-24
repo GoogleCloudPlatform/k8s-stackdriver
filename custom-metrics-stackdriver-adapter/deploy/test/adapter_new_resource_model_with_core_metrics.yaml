@@ -81,6 +81,7 @@ spec:
         name: pod-custom-metrics-stackdriver-adapter
         command:
         - /adapter
+        - --use-new-resource-model=true
         - --enable-core-metrics-api
         resources:
           limits:

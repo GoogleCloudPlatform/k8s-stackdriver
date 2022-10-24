@@ -78,7 +78,6 @@ spec:
         command:
         - /adapter
         - --use-new-resource-model=false
-        - --fallback-for-container-metrics=false
         resources:
           limits:
             cpu: 250m
