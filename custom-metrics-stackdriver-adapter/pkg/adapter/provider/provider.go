@@ -195,7 +195,14 @@ func (p *StackdriverProvider) getNamespacedMetricByName(groupResource schema.Gro
 	}
 
 	if p.fallbackForContainerMetrics && len(stackdriverResponse.TimeSeries) == 0 {
-		stackdriverRequest, err = p.translator.GetSDReqForContainers(pods, metricName, metricKind, metricValueType, metricSelector, namespace)
+		stackdriverRequest, err := queryBuilder.
+			AsContainerType().
+			WithPods(pods).
+			WithMetricKind(metricKind).
+			WithMetricValueType(metricValueType).
+			WithMetricSelector(metricSelector).
+			WithNamespace(namespace).
+			Build()
 		if err != nil {
 			return nil, err
 		}
@@ -259,7 +266,14 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 		for i := 0; i < len(matchingPods.Items); i += translator.MaxNumOfArgsInOneOfFilter {
 			sliceSegmentEnd := min(i+translator.MaxNumOfArgsInOneOfFilter, len(matchingPods.Items))
 			podsSlice := &v1.PodList{Items: matchingPods.Items[i:sliceSegmentEnd]}
-			stackdriverRequest, err := p.translator.GetSDReqForContainers(podsSlice, getCustomMetricName(escapedMetricName), metricKind, metricValueType, metricSelector, namespace)
+			stackdriverRequest, err := translator.NewQueryBuilder(p.translator, metricName).
+				AsContainerType().
+				WithPods(podsSlice).
+				WithMetricKind(metricKind).
+				WithMetricValueType(metricValueType).
+				WithMetricSelector(metricSelector).
+				WithNamespace(namespace).
+				Build()
 			if err != nil {
 				return nil, err
 			}

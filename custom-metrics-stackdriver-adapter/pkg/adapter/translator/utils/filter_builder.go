@@ -21,9 +21,11 @@ type Schema struct {
 
 const (
 	PodSchemaKey        = "pod"               // PodSchemaKey is the key to use pod type filter schema.
+	ContainerSchemaKey  = "container"         // ContainerSchemaKey is the key to use container type filter schema.
 	PrometheusSchemaKey = "prometheus"        // PrometheusSchemaKey is the key to use prometheus type filter schema.
 	LegacySchemaKey     = "legacy"            // LegacySchemaKey is the key to use legacy pod type filter schema.
 	PodType             = "k8s_pod"           // PodType is the resource value for pod type. (also used in the query)
+	ContainerType       = "k8s_container"     // ContainerType is the resource value for container type. (also used in the query)
 	PrometheusType      = "prometheus_target" // PrometheusType is the resource value for prometheus type. (also used in the query)
 	LegacyType          = "<not_allowed>"     // LegacyType is the resource value for legacy type. (NOT used in the query)
 )
@@ -39,6 +41,9 @@ var (
 		namespace:    "resource.labels.namespace_name",
 		pods:         "resource.labels.pod_name",
 	}
+	// ContainerSchema is the predefined schema for building container type queries,
+	// and it uses the same schema as pod type.
+	ContainerSchema = PodSchema
 	// LegacyPodSchema is the predefined schema for building legacy pod type queries.
 	LegacyPodSchema = &Schema{
 		resourceType: "",
@@ -62,6 +67,7 @@ var (
 	// SchemaTypes is a collection of all FilterBuilder supported resource types for external uses.
 	SchemaTypes = map[string]string{
 		PodSchemaKey:        PodType,
+		ContainerSchemaKey:  ContainerType,
 		PrometheusSchemaKey: PrometheusType,
 		LegacySchemaKey:     LegacyType,
 	}
@@ -87,6 +93,8 @@ func NewFilterBuilder(resourceType string) *FilterBuilder {
 	switch resourceType {
 	case PodType:
 		schema = PodSchema
+	case ContainerType:
+		schema = ContainerSchema
 	case PrometheusType:
 		schema = PrometheusSchema
 	case LegacyType:
@@ -161,6 +169,7 @@ func (fb *FilterBuilder) WithContainer() *FilterBuilder {
 }
 
 // WithNamespace adds a filter for namespace.
+// (note: empty namespace will be ignored)
 //
 // Example:
 //

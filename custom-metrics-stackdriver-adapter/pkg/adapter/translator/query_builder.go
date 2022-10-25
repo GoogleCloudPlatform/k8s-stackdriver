@@ -95,13 +95,15 @@ type Translator struct {
 //
 // use NewQueryBuilder() to initialize
 type QueryBuilder struct {
-	translator      *Translator
-	metricName      string
-	metricKind      string
-	metricValueType string
-	metricSelector  labels.Selector
-	namespace       string
-	pods            *v1.PodList
+	translator           *Translator     // translator provides configurations to filter
+	metricName           string          // metricName is the metric name to filter
+	metricKind           string          // metricKind is the metric kind to filter
+	metricValueType      string          // metricValueType is the metric value type to filter
+	metricSelector       labels.Selector // metricSelector is the metric selector to filtere
+	namespace            string          // namespace is the namespace to filter
+	pods                 *v1.PodList     // pods is the pods to filter (mutually exclusive with podNames)
+	podNames             []string        // podNames is the pod names to filter (mutually exclusive with pods)
+	enforceContainerType bool            // enforceContainerType decides whether to enforce using container type filter schema
 }
 
 // NewQueryBuilder is the initiator for QueryBuilder
@@ -115,8 +117,9 @@ type QueryBuilder struct {
 //	queryBuilder := NewQueryBuilder(NewTranslator(...), "custom.googleapis.com/foo")
 func NewQueryBuilder(translator *Translator, metricName string) *QueryBuilder {
 	return &QueryBuilder{
-		translator: translator,
-		metricName: metricName,
+		translator:           translator,
+		metricName:           metricName,
+		enforceContainerType: false,
 	}
 }
 
@@ -162,7 +165,9 @@ func (qb *QueryBuilder) WithNamespace(namespace string) *QueryBuilder {
 	return qb
 }
 
-// WithNamespace adds a pod filter to to the QueryBuilder
+// WithPods adds a pod filter to to the QueryBuilder
+//
+// # ONLY one between WithPods and WithPodNames should be used
 //
 // Example:
 //
@@ -180,28 +185,101 @@ func (qb *QueryBuilder) WithPods(pods *v1.PodList) *QueryBuilder {
 	return qb
 }
 
+// WithPodNames adds a pod filter to to the QueryBuilder
+//
+// # ONLY one between WithPodNames and WithPods should be used
+//
+// Example:
+//
+//	podNames := []string{"pod-1", "pod-2"}
+//	queryBuilder := NewQueryBuilder(translator, metricName).WithPodNames(podNames)
+func (qb *QueryBuilder) WithPodNames(podNames []string) *QueryBuilder {
+	qb.podNames = podNames
+	return qb
+}
+
+// GetPods is an internal helper function to convert either pods or podNames to the expected format
+func (qb *QueryBuilder) GetPods() []string {
+	if qb.podNames != nil {
+		return qb.podNames
+	}
+
+	if qb.translator.useNewResourceModel {
+		return getPodNames(qb.pods)
+	} else {
+		return getResourceIDs(qb.pods)
+	}
+}
+
+// AsContainerType enforces to query k8s_container type metrics
+//
+// it it valid only when useNewResourceModel is true
+func (qb *QueryBuilder) AsContainerType() *QueryBuilder {
+	qb.enforceContainerType = true
+	return qb
+}
+
 // validate is an internal helper function for checking prerequisits before Build
 //
 // Criteria:
+//   - translator has to be provided
+//   - at least one of pods or podNames should be nil
 //   - pods has to be provided, and it cannot be empty
 //   - podList is required to be no longer than MaxNumOfArgsInOneOfFilter items. This is enforced by limitation of
 //     "one_of()" operator in Stackdriver filters, see documentation: "https://cloud.google.com/monitoring/api/v3/filters"
 //   - metric value type cannot be "DISTRIBUTION" while translator does not support distribution
-func (qb *QueryBuilder) validate() error {
+//   - container type filter schema cannot be used on the legacy resource model
+func (qb *QueryBuilder) Validate() error {
 	if qb.translator == nil {
 		return apierr.NewInternalError(fmt.Errorf("QueryBuilder tries to build with translator value: nil"))
 	}
-	if len(qb.pods.Items) == 0 {
+
+	if qb.pods != nil && qb.podNames != nil {
+		return apierr.NewInternalError(fmt.Errorf("both pods and podNames are set for QueryBuilder, expected only one of them should be used"))
+	}
+
+	if qb.pods != nil && len(qb.pods.Items) == 0 {
 		return apierr.NewBadRequest("no objects matched provided selector")
 	}
-	if len(qb.pods.Items) > MaxNumOfArgsInOneOfFilter {
+	if qb.pods != nil && len(qb.pods.Items) > MaxNumOfArgsInOneOfFilter {
 		return apierr.NewInternalError(fmt.Errorf("QueryBuilder tries to build with %v pod list, but allowed limit is %v pods", len(qb.pods.Items), MaxNumOfArgsInOneOfFilter))
 	}
 	if qb.metricValueType == "DISTRIBUTION" && !qb.translator.supportDistributions {
 		return apierr.NewBadRequest("distributions are not supported")
 	}
 
+	if qb.enforceContainerType && !qb.translator.useNewResourceModel {
+		return apierr.NewInternalError(fmt.Errorf("illegal state! Container metrics works only with new resource model"))
+	}
+
 	return nil
+}
+
+// GetFilterBuilder is an internal helper function to decide which type of FilterBuilder to use
+//
+// Prorities:
+//  1. if useNewResourceModel is false, then use legacy type FilterBuiler
+//  2. if enforceContainerType is true, then use container type FilterBuilder
+//  3. if metricName is prefixed with PrometheusMetricPrefix, then use prometheus type FilterBuilder
+//  4. By default, use pod type FilterBuilder
+func (qb *QueryBuilder) GetFilterBuilder() *utils.FilterBuilder {
+	// legacy type FilterBuilder
+	if !qb.translator.useNewResourceModel {
+		return utils.NewFilterBuilder(utils.SchemaTypes[utils.LegacySchemaKey])
+	}
+
+	// container type FilterBuilder
+	if qb.enforceContainerType {
+		return utils.NewFilterBuilder(utils.SchemaTypes[utils.ContainerSchemaKey])
+	}
+
+	// prometheus type FilterBuilder
+	if strings.HasPrefix(qb.metricName, PrometheusMetricPrefix) {
+		return utils.NewFilterBuilder(utils.SchemaTypes[utils.PrometheusSchemaKey])
+	}
+
+	// pod type FilterBuilder
+	return utils.NewFilterBuilder(utils.SchemaTypes[utils.PodSchemaKey])
 }
 
 // Build is the last step for QueryBuilder which converts itself into a ProjectsTimeSeriesListCall object
@@ -213,34 +291,29 @@ func (qb *QueryBuilder) validate() error {
 //
 //	projectsTimeSeriesListCall, error = NewQueryBuilder(translator, metricName).Build()
 func (qb *QueryBuilder) Build() (*stackdriver.ProjectsTimeSeriesListCall, error) {
-	if err := qb.validate(); err != nil {
+	if err := qb.Validate(); err != nil {
 		return nil, err
 	}
 
-	var filter string
-	if qb.translator.useNewResourceModel {
-		filterBuilder := utils.NewFilterBuilder(utils.SchemaTypes[utils.PodSchemaKey])
-		if strings.HasPrefix(qb.metricName, PrometheusMetricPrefix) {
-			filterBuilder = utils.NewFilterBuilder(utils.SchemaTypes[utils.PrometheusSchemaKey])
-		}
+	filterBulder := qb.GetFilterBuilder().
+		WithMetricType(qb.metricName).
+		WithProject(qb.translator.config.Project).
+		WithCluster(qb.translator.config.Cluster)
 
-		filter = filterBuilder.
-			WithMetricType(qb.metricName).
-			WithProject(qb.translator.config.Project).
-			WithCluster(qb.translator.config.Cluster).
+	if qb.translator.useNewResourceModel {
+		// new resource model specific filters
+		filterBulder.
 			WithLocation(qb.translator.config.Location).
 			WithNamespace(qb.namespace).
-			WithPods(getPodNames(qb.pods)).
-			Build()
+			WithPods(qb.GetPods())
 	} else {
-		filter = utils.NewFilterBuilder(utils.SchemaTypes[utils.LegacySchemaKey]).
-			WithMetricType(qb.metricName).
-			WithProject(qb.translator.config.Project).
-			WithCluster(qb.translator.config.Cluster).
+		// legacy resource model specific filters
+		filterBulder.
 			WithContainer().
-			WithPods(getResourceIDs(qb.pods)).
-			Build()
+			WithPods(qb.GetPods())
 	}
+	filter := filterBulder.Build()
+
 	if qb.metricSelector.Empty() {
 		return qb.translator.createListTimeseriesRequest(filter, qb.metricKind, qb.metricValueType, ""), nil
 	}
@@ -264,46 +337,6 @@ func NewTranslator(service *stackdriver.Service, gceConf *config.GceConfig, rate
 		useNewResourceModel:  useNewResourceModel,
 		supportDistributions: supportDistributions,
 	}
-}
-
-// GetSDReqForContainers returns Stackdriver request for container resource from multiple pods.
-// podList is required to be no longer than MaxNumOfArgsInOneOfFilter items. This is enforced by limitation of
-// "one_of()" operator in Stackdriver filters, see documentation:
-// https://cloud.google.com/monitoring/api/v3/filters
-func (t *Translator) GetSDReqForContainers(podList *v1.PodList, metricName, metricKind, metricValueType string, metricSelector labels.Selector, namespace string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
-	resourceNames := getPodNames(podList)
-	return t.GetSDReqForContainersWithNames(resourceNames, metricName, metricKind, metricValueType, metricSelector, namespace)
-}
-
-// GetSDReqForContainersWithNames instead of PodList takes array of Pod names as first argument.
-// Request for PodList is expensive and not always necessary so it's better to use this method.
-// Assumes that resourceNames are double-quoted string.
-func (t *Translator) GetSDReqForContainersWithNames(resourceNames []string, metricName, metricKind, metricValueType string, metricSelector labels.Selector, namespace string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
-	if len(resourceNames) == 0 {
-		return nil, apierr.NewBadRequest("No objects matched provided selector")
-	}
-	if len(resourceNames) > MaxNumOfArgsInOneOfFilter {
-		return nil, apierr.NewInternalError(fmt.Errorf("GetSDReqForContainers called with %v pod list, but allowed limit is %v pods", len(resourceNames), MaxNumOfArgsInOneOfFilter))
-	}
-	if metricValueType == "DISTRIBUTION" && !t.supportDistributions {
-		return nil, apierr.NewBadRequest("Distributions are not supported")
-	}
-	if !t.useNewResourceModel {
-		return nil, apierr.NewInternalError(fmt.Errorf("Illegal state! Container metrics works only with new resource model"))
-	}
-	filter := joinFilters(
-		t.filterForMetric(metricName),
-		t.filterForCluster(),
-		t.filterForPods(resourceNames, namespace),
-		t.filterForAnyContainer())
-	if metricSelector.Empty() {
-		return t.createListTimeseriesRequest(filter, metricKind, metricValueType, ""), nil
-	}
-	filterForSelector, reducer, err := t.filterForSelector(metricSelector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
-	if err != nil {
-		return nil, err
-	}
-	return t.createListTimeseriesRequest(joinFilters(filterForSelector, filter), metricKind, metricValueType, reducer), nil
 }
 
 // GetSDReqForNodes returns Stackdriver request for query for multiple nodes.

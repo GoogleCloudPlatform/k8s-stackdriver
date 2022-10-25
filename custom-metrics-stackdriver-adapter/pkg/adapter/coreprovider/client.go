@@ -51,7 +51,15 @@ func (p *stackdriverCoreClient) getPodMetric(podsNames []string, metricName, met
 	for i := 0; i < numOfRequests; i++ {
 		segmentBeg := i * translator.MaxNumOfArgsInOneOfFilter
 		segmentEnd := min((i+1)*translator.MaxNumOfArgsInOneOfFilter, len(podsNames))
-		stackdriverRequest, err := p.translator.GetSDReqForContainersWithNames(podsNames[segmentBeg:segmentEnd], metricName, metricKind, metricValueType, labels, translator.AllNamespaces)
+
+		stackdriverRequest, err := translator.NewQueryBuilder(p.translator, metricName).
+			AsContainerType().
+			WithPodNames(podsNames[segmentBeg:segmentEnd]).
+			WithMetricKind(metricKind).
+			WithMetricValueType(metricValueType).
+			WithMetricSelector(labels).
+			WithNamespace(translator.AllNamespaces).
+			Build()
 		if err != nil {
 			return nil, nil, err
 		}
