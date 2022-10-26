@@ -117,9 +117,8 @@ type QueryBuilder struct {
 //	queryBuilder := NewQueryBuilder(NewTranslator(...), "custom.googleapis.com/foo")
 func NewQueryBuilder(translator *Translator, metricName string) *QueryBuilder {
 	return &QueryBuilder{
-		translator:           translator,
-		metricName:           metricName,
-		enforceContainerType: false,
+		translator: translator,
+		metricName: metricName,
 	}
 }
 
@@ -198,17 +197,16 @@ func (qb *QueryBuilder) WithPodNames(podNames []string) *QueryBuilder {
 	return qb
 }
 
-// GetPods is an internal helper function to convert either pods or podNames to the expected format
-func (qb *QueryBuilder) GetPods() []string {
+// getPods is an internal helper function to convert either pods or podNames to the expected format
+func (qb *QueryBuilder) getPods() []string {
 	if qb.podNames != nil {
 		return qb.podNames
 	}
 
 	if qb.translator.useNewResourceModel {
 		return getPodNames(qb.pods)
-	} else {
-		return getResourceIDs(qb.pods)
 	}
+	return getResourceIDs(qb.pods)
 }
 
 // AsContainerType enforces to query k8s_container type metrics
@@ -229,7 +227,7 @@ func (qb *QueryBuilder) AsContainerType() *QueryBuilder {
 //     "one_of()" operator in Stackdriver filters, see documentation: "https://cloud.google.com/monitoring/api/v3/filters"
 //   - metric value type cannot be "DISTRIBUTION" while translator does not support distribution
 //   - container type filter schema cannot be used on the legacy resource model
-func (qb *QueryBuilder) Validate() error {
+func (qb *QueryBuilder) validate() error {
 	if qb.translator == nil {
 		return apierr.NewInternalError(fmt.Errorf("QueryBuilder tries to build with translator value: nil"))
 	}
@@ -255,14 +253,14 @@ func (qb *QueryBuilder) Validate() error {
 	return nil
 }
 
-// GetFilterBuilder is an internal helper function to decide which type of FilterBuilder to use
+// getFilterBuilder is an internal helper function to decide which type of FilterBuilder to use
 //
 // Prorities:
 //  1. if useNewResourceModel is false, then use legacy type FilterBuiler
 //  2. if enforceContainerType is true, then use container type FilterBuilder
 //  3. if metricName is prefixed with PrometheusMetricPrefix, then use prometheus type FilterBuilder
 //  4. By default, use pod type FilterBuilder
-func (qb *QueryBuilder) GetFilterBuilder() *utils.FilterBuilder {
+func (qb *QueryBuilder) getFilterBuilder() *utils.FilterBuilder {
 	// legacy type FilterBuilder
 	if !qb.translator.useNewResourceModel {
 		return utils.NewFilterBuilder(utils.SchemaTypes[utils.LegacySchemaKey])
@@ -291,11 +289,11 @@ func (qb *QueryBuilder) GetFilterBuilder() *utils.FilterBuilder {
 //
 //	projectsTimeSeriesListCall, error = NewQueryBuilder(translator, metricName).Build()
 func (qb *QueryBuilder) Build() (*stackdriver.ProjectsTimeSeriesListCall, error) {
-	if err := qb.Validate(); err != nil {
+	if err := qb.validate(); err != nil {
 		return nil, err
 	}
 
-	filterBuilder := qb.GetFilterBuilder().
+	filterBuilder := qb.getFilterBuilder().
 		WithMetricType(qb.metricName).
 		WithProject(qb.translator.config.Project).
 		WithCluster(qb.translator.config.Cluster)
@@ -305,12 +303,12 @@ func (qb *QueryBuilder) Build() (*stackdriver.ProjectsTimeSeriesListCall, error)
 		filterBuilder = filterBuilder.
 			WithLocation(qb.translator.config.Location).
 			WithNamespace(qb.namespace).
-			WithPods(qb.GetPods())
+			WithPods(qb.getPods())
 	} else {
 		// legacy resource model specific filters
 		filterBuilder = filterBuilder.
 			WithContainer().
-			WithPods(qb.GetPods())
+			WithPods(qb.getPods())
 	}
 	filter := filterBuilder.Build()
 
