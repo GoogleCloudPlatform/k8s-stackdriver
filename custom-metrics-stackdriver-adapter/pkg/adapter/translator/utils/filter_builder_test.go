@@ -8,24 +8,24 @@ import (
 )
 
 // Helper struct for testing syntax sugar
-type FilterBuilderChecker struct {
+type filterBuilderChecker struct {
 	actual   *FilterBuilder
 	expected *FilterBuilder
 }
 
 // Take actual value
-func ExpectFilterBuilder(actual *FilterBuilder) *FilterBuilderChecker {
-	return &FilterBuilderChecker{actual: actual}
+func expectFilterBuilder(actual *FilterBuilder) *filterBuilderChecker {
+	return &filterBuilderChecker{actual: actual}
 }
 
 // Take expected value
-func (c *FilterBuilderChecker) ToEqual(expected *FilterBuilder) *FilterBuilderChecker {
+func (c *filterBuilderChecker) toEqual(expected *FilterBuilder) *filterBuilderChecker {
 	c.expected = expected
 	return c
 }
 
 // compare actual and expected value, then report it with test suite
-func (c *FilterBuilderChecker) Report(t *testing.T) {
+func (c *filterBuilderChecker) report(t *testing.T) {
 	errors := []string{}
 
 	if !reflect.DeepEqual(c.actual.schema, c.expected.schema) {
@@ -43,25 +43,25 @@ func (c *FilterBuilderChecker) Report(t *testing.T) {
 func TestNewFilterBuilder_default(t *testing.T) {
 	actual := NewFilterBuilder("random")
 	expected := &FilterBuilder{schema: PodSchema, filters: []string{"resource.type = \"random\""}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestNewFilterBuilder_pod(t *testing.T) {
 	actual := NewFilterBuilder(SchemaTypes["pod"])
 	expected := &FilterBuilder{schema: PodSchema, filters: []string{"resource.type = \"k8s_pod\""}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestNewFilterBuilder_legacy(t *testing.T) {
 	actual := NewFilterBuilder(SchemaTypes["legacy"])
 	expected := &FilterBuilder{schema: LegacyPodSchema, filters: []string{}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestNewFilterBuilder_prometheus(t *testing.T) {
 	actual := NewFilterBuilder(SchemaTypes["prometheus"])
 	expected := &FilterBuilder{schema: PrometheusSchema, filters: []string{"resource.type = \"prometheus_target\""}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestFilterBuilder_WithMetricType_pod(t *testing.T) {
@@ -71,7 +71,7 @@ func TestFilterBuilder_WithMetricType_pod(t *testing.T) {
 	actual.WithMetricType(metricType)
 
 	expected := &FilterBuilder{schema: schema, filters: []string{"metric.type = \"random_type\""}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestFilterBuilder_WithMetricType_prometheus(t *testing.T) {
@@ -81,7 +81,7 @@ func TestFilterBuilder_WithMetricType_prometheus(t *testing.T) {
 	actual.WithMetricType(metricType)
 
 	expected := &FilterBuilder{schema: schema, filters: []string{"metric.type = \"random_type\""}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestFilterBuilder_WithProject_pod(t *testing.T) {
@@ -91,7 +91,7 @@ func TestFilterBuilder_WithProject_pod(t *testing.T) {
 	actual.WithProject(project)
 
 	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.project_id = \"random_project\""}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestFilterBuilder_WithProject_prometheus(t *testing.T) {
@@ -101,7 +101,7 @@ func TestFilterBuilder_WithProject_prometheus(t *testing.T) {
 	actual.WithProject(project)
 
 	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.project_id = \"random_project\""}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestFilterBuilder_WithCluster_pod(t *testing.T) {
@@ -111,7 +111,7 @@ func TestFilterBuilder_WithCluster_pod(t *testing.T) {
 	actual.WithCluster(cluster)
 
 	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.cluster_name = \"random_cluster\""}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestFilterBuilder_WithCluster_prometheus(t *testing.T) {
@@ -121,7 +121,7 @@ func TestFilterBuilder_WithCluster_prometheus(t *testing.T) {
 	actual.WithCluster(cluster)
 
 	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.cluster = \"random_cluster\""}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestFilterBuilder_WithLocation_pod(t *testing.T) {
@@ -131,7 +131,7 @@ func TestFilterBuilder_WithLocation_pod(t *testing.T) {
 	actual.WithLocation(location)
 
 	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.location = \"random_location\""}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestFilterBuilder_WithLocation_prometheus(t *testing.T) {
@@ -141,7 +141,7 @@ func TestFilterBuilder_WithLocation_prometheus(t *testing.T) {
 	actual.WithLocation(location)
 
 	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.location = \"random_location\""}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestFilterBuilder_WithContainer(t *testing.T) {
@@ -149,7 +149,7 @@ func TestFilterBuilder_WithContainer(t *testing.T) {
 	actual.WithContainer()
 
 	expected := &FilterBuilder{filters: []string{"resource.labels.container_name = \"\""}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestFilterBuilder_WithNamespace_pod(t *testing.T) {
@@ -159,7 +159,7 @@ func TestFilterBuilder_WithNamespace_pod(t *testing.T) {
 	actual.WithNamespace(namespace)
 
 	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.namespace_name = \"random_namespace\""}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestFilterBuilder_WithNamespace_prometheus(t *testing.T) {
@@ -169,7 +169,7 @@ func TestFilterBuilder_WithNamespace_prometheus(t *testing.T) {
 	actual.WithNamespace(namespace)
 
 	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.namespace = \"random_namespace\""}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestFilterBuilder_WithPods_Single_pod(t *testing.T) {
@@ -179,7 +179,7 @@ func TestFilterBuilder_WithPods_Single_pod(t *testing.T) {
 	actual.WithPods(pods)
 
 	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.pod_name = pod"}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestFilterBuilder_WithPods_Single_prometheus(t *testing.T) {
@@ -189,7 +189,7 @@ func TestFilterBuilder_WithPods_Single_prometheus(t *testing.T) {
 	actual.WithPods(pods)
 
 	expected := &FilterBuilder{schema: schema, filters: []string{"metric.labels.pod = pod"}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestFilterBuilder_WithPods_Single_legacy(t *testing.T) {
@@ -199,7 +199,7 @@ func TestFilterBuilder_WithPods_Single_legacy(t *testing.T) {
 	actual.WithPods(pods)
 
 	expected := &FilterBuilder{schema: schma, filters: []string{"resource.labels.pod_id = pod"}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestFilterBuilder_WithPods_Multiple_pod(t *testing.T) {
@@ -209,7 +209,20 @@ func TestFilterBuilder_WithPods_Multiple_pod(t *testing.T) {
 	actual.WithPods(pods)
 
 	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.pod_name = one_of(pod1,pod2)"}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
+}
+
+func TestFilterBuilder_WithPods_101_pods(t *testing.T) {
+	schema := PodSchema
+	actual := &FilterBuilder{schema: schema, filters: []string{}}
+	pods := make([]string, 101)
+	for i := range pods {
+		pods[i] = "pod"
+	}
+	actual.WithPods(pods)
+
+	expected := &FilterBuilder{schema: schema, filters: []string{}}
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestFilterBuilder_WithPods_Multiple_prometheus(t *testing.T) {
@@ -219,7 +232,7 @@ func TestFilterBuilder_WithPods_Multiple_prometheus(t *testing.T) {
 	actual.WithPods(pods)
 
 	expected := &FilterBuilder{schema: schema, filters: []string{"metric.labels.pod = one_of(pod1,pod2)"}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestFilterBuilder_WithPods_Multiple_legacy(t *testing.T) {
@@ -229,7 +242,7 @@ func TestFilterBuilder_WithPods_Multiple_legacy(t *testing.T) {
 	actual.WithPods(pods)
 
 	expected := &FilterBuilder{schema: schema, filters: []string{"resource.labels.pod_id = one_of(pod1,pod2)"}}
-	ExpectFilterBuilder(actual).ToEqual(expected).Report(t)
+	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
 func TestFilterBuilder_Build(t *testing.T) {

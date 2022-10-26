@@ -184,6 +184,8 @@ func (fb *FilterBuilder) WithNamespace(namespace string) *FilterBuilder {
 
 // WithPods adds a filter for pods.
 //
+// # pods should NOT more than 100 according to "https://cloud.google.com/monitoring/api/v3/filters#comparisons"
+//
 // Example:
 //
 //  1. To add "resource.labels.pod_name = my-pod"
@@ -192,11 +194,18 @@ func (fb *FilterBuilder) WithNamespace(namespace string) *FilterBuilder {
 //  2. To add "resource.lables.pod_name = one_of(my-pod-1,my-pod-2)"
 //     filterBuilder := NewFilterBuilder(SchemaTypes[PodSchemaKey]).WithPods([]string{"my-pod-1", "my-pod-2"})
 func (fb *FilterBuilder) WithPods(pods []string) *FilterBuilder {
-	if len(pods) == 0 {
+	if len(pods) > 100 {
+		klog.Warningf("FilterBuilder tries to build with more than 100 pods, thus the pod filter is ignored")
+		return fb
+	}
+
+	switch len(pods) {
+	case 0:
 		klog.Warningf("FilterBuilder tries to build with empty pod, thus the pod filter is ignored")
-	} else if len(pods) == 1 {
+	case 1:
 		fb.filters = append(fb.filters, fmt.Sprintf("%s = %s", fb.schema.pods, pods[0]))
-	} else {
+	default:
+		// one_of(<string>,...,<string>) for up to 100 strings
 		fb.filters = append(fb.filters, fmt.Sprintf("%s = one_of(%s)", fb.schema.pods, strings.Join(pods, ",")))
 	}
 
