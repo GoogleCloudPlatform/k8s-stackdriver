@@ -295,24 +295,24 @@ func (qb *QueryBuilder) Build() (*stackdriver.ProjectsTimeSeriesListCall, error)
 		return nil, err
 	}
 
-	filterBulder := qb.GetFilterBuilder().
+	filterBuilder := qb.GetFilterBuilder().
 		WithMetricType(qb.metricName).
 		WithProject(qb.translator.config.Project).
 		WithCluster(qb.translator.config.Cluster)
 
 	if qb.translator.useNewResourceModel {
 		// new resource model specific filters
-		filterBulder.
+		filterBuilder = filterBuilder.
 			WithLocation(qb.translator.config.Location).
 			WithNamespace(qb.namespace).
 			WithPods(qb.GetPods())
 	} else {
 		// legacy resource model specific filters
-		filterBulder.
+		filterBuilder = filterBuilder.
 			WithContainer().
 			WithPods(qb.GetPods())
 	}
-	filter := filterBulder.Build()
+	filter := filterBuilder.Build()
 
 	if qb.metricSelector.Empty() {
 		return qb.translator.createListTimeseriesRequest(filter, qb.metricKind, qb.metricValueType, ""), nil
