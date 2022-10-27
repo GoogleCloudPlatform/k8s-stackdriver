@@ -115,8 +115,8 @@ type QueryBuilder struct {
 // Example:
 //
 //	queryBuilder := NewQueryBuilder(NewTranslator(...), "custom.googleapis.com/foo")
-func NewQueryBuilder(translator *Translator, metricName string) *QueryBuilder {
-	return &QueryBuilder{
+func NewQueryBuilder(translator *Translator, metricName string) QueryBuilder {
+	return QueryBuilder{
 		translator: translator,
 		metricName: metricName,
 	}
@@ -127,7 +127,7 @@ func NewQueryBuilder(translator *Translator, metricName string) *QueryBuilder {
 // Example:
 //
 //	queryBuilder := NewQueryBuilder(translator, metricName).WithMetricKind("GAUGE")
-func (qb *QueryBuilder) WithMetricKind(metricKind string) *QueryBuilder {
+func (qb QueryBuilder) WithMetricKind(metricKind string) QueryBuilder {
 	qb.metricKind = metricKind
 	return qb
 }
@@ -137,7 +137,7 @@ func (qb *QueryBuilder) WithMetricKind(metricKind string) *QueryBuilder {
 // Example:
 //
 //	queryBuilder := NewQueryBuilder(translator, metricName).WithMetricValueType("INT64")
-func (qb *QueryBuilder) WithMetricValueType(metricValueType string) *QueryBuilder {
+func (qb QueryBuilder) WithMetricValueType(metricValueType string) QueryBuilder {
 	qb.metricValueType = metricValueType
 	return qb
 }
@@ -149,7 +149,7 @@ func (qb *QueryBuilder) WithMetricValueType(metricValueType string) *QueryBuilde
 //	// labels comes from "k8s.io/apimachinery/pkg/labels"
 //	metricSelector, _ := labels.Parse("metric.labels.custom=test")
 //	queryBuilder := NewQueryBuilder(translator, metricName).WithMetricSelector(metricSelector)
-func (qb *QueryBuilder) WithMetricSelector(metricSelector labels.Selector) *QueryBuilder {
+func (qb QueryBuilder) WithMetricSelector(metricSelector labels.Selector) QueryBuilder {
 	qb.metricSelector = metricSelector
 	return qb
 }
@@ -159,7 +159,7 @@ func (qb *QueryBuilder) WithMetricSelector(metricSelector labels.Selector) *Quer
 // Example:
 //
 //	queryBuilder := NewQueryBuilder(translator, metricName).WithNamespace("gmp-test")
-func (qb *QueryBuilder) WithNamespace(namespace string) *QueryBuilder {
+func (qb QueryBuilder) WithNamespace(namespace string) QueryBuilder {
 	qb.namespace = namespace
 	return qb
 }
@@ -179,7 +179,7 @@ func (qb *QueryBuilder) WithNamespace(namespace string) *QueryBuilder {
 //		},
 //	}
 //	queryBuilder := NewQueryBuilder(translator, metricName).WithPods(&v1.PodList{Items: []v1.Pod{pod}})
-func (qb *QueryBuilder) WithPods(pods *v1.PodList) *QueryBuilder {
+func (qb QueryBuilder) WithPods(pods *v1.PodList) QueryBuilder {
 	qb.pods = pods
 	return qb
 }
@@ -192,13 +192,13 @@ func (qb *QueryBuilder) WithPods(pods *v1.PodList) *QueryBuilder {
 //
 //	podNames := []string{"pod-1", "pod-2"}
 //	queryBuilder := NewQueryBuilder(translator, metricName).WithPodNames(podNames)
-func (qb *QueryBuilder) WithPodNames(podNames []string) *QueryBuilder {
+func (qb QueryBuilder) WithPodNames(podNames []string) QueryBuilder {
 	qb.podNames = podNames
 	return qb
 }
 
 // getPods is an internal helper function to convert either pods or podNames to the expected format
-func (qb *QueryBuilder) getPods() []string {
+func (qb QueryBuilder) getPods() []string {
 	if qb.podNames != nil {
 		return qb.podNames
 	}
@@ -212,7 +212,7 @@ func (qb *QueryBuilder) getPods() []string {
 // AsContainerType enforces to query k8s_container type metrics
 //
 // it it valid only when useNewResourceModel is true
-func (qb *QueryBuilder) AsContainerType() *QueryBuilder {
+func (qb QueryBuilder) AsContainerType() QueryBuilder {
 	qb.enforceContainerType = true
 	return qb
 }
@@ -227,7 +227,7 @@ func (qb *QueryBuilder) AsContainerType() *QueryBuilder {
 //     "one_of()" operator in Stackdriver filters, see documentation: "https://cloud.google.com/monitoring/api/v3/filters"
 //   - metric value type cannot be "DISTRIBUTION" while translator does not support distribution
 //   - container type filter schema cannot be used on the legacy resource model
-func (qb *QueryBuilder) validate() error {
+func (qb QueryBuilder) validate() error {
 	if qb.translator == nil {
 		return apierr.NewInternalError(fmt.Errorf("QueryBuilder tries to build with translator value: nil"))
 	}
@@ -260,7 +260,7 @@ func (qb *QueryBuilder) validate() error {
 //  2. if enforceContainerType is true, then use container type FilterBuilder
 //  3. if metricName is prefixed with PrometheusMetricPrefix, then use prometheus type FilterBuilder
 //  4. By default, use pod type FilterBuilder
-func (qb *QueryBuilder) getFilterBuilder() *utils.FilterBuilder {
+func (qb QueryBuilder) getFilterBuilder() utils.FilterBuilder {
 	// legacy type FilterBuilder
 	if !qb.translator.useNewResourceModel {
 		return utils.NewFilterBuilder(utils.SchemaTypes[utils.LegacySchemaKey])
@@ -288,7 +288,7 @@ func (qb *QueryBuilder) getFilterBuilder() *utils.FilterBuilder {
 // Example:
 //
 //	projectsTimeSeriesListCall, error = NewQueryBuilder(translator, metricName).Build()
-func (qb *QueryBuilder) Build() (*stackdriver.ProjectsTimeSeriesListCall, error) {
+func (qb QueryBuilder) Build() (*stackdriver.ProjectsTimeSeriesListCall, error) {
 	if err := qb.validate(); err != nil {
 		return nil, err
 	}

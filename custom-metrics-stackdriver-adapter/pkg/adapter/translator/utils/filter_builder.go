@@ -88,7 +88,7 @@ type FilterBuilder struct {
 //
 //	// To initialize with a filter "resource.type = \"k8s_pod\""
 //	filterBuilder := NewFilterBuilder(SchemaTypes[PodSchemaKey])
-func NewFilterBuilder(resourceType string) *FilterBuilder {
+func NewFilterBuilder(resourceType string) FilterBuilder {
 	var schema *Schema
 	switch resourceType {
 	case PodType:
@@ -107,7 +107,7 @@ func NewFilterBuilder(resourceType string) *FilterBuilder {
 	if resourceType != LegacyType && schema.resourceType != "" {
 		filters = append(filters, fmt.Sprintf("%s = %q", schema.resourceType, resourceType))
 	}
-	return &FilterBuilder{
+	return FilterBuilder{
 		schema:  schema,
 		filters: filters,
 	}
@@ -119,7 +119,7 @@ func NewFilterBuilder(resourceType string) *FilterBuilder {
 //
 //	// To add "resource.type = \"custom.googleapis.com/foo\""
 //	filterBuilder := NewFilterBuilder(SchemaTypes[PodSchemaKey]).WithMetricType("custom.googleapis.com/foo")
-func (fb *FilterBuilder) WithMetricType(metricType string) *FilterBuilder {
+func (fb FilterBuilder) WithMetricType(metricType string) FilterBuilder {
 	fb.filters = append(fb.filters, fmt.Sprintf("%s = %q", fb.schema.metricType, metricType))
 	return fb
 }
@@ -130,7 +130,7 @@ func (fb *FilterBuilder) WithMetricType(metricType string) *FilterBuilder {
 //
 //	// To add "resource.labels.project_id = \"my-project\""
 //	filterBuilder := NewFilterBuilder(SchemaTypes[PodSchemaKey]).WithProject("my-project")
-func (fb *FilterBuilder) WithProject(project string) *FilterBuilder {
+func (fb FilterBuilder) WithProject(project string) FilterBuilder {
 	fb.filters = append(fb.filters, fmt.Sprintf("%s = %q", fb.schema.project, project))
 	return fb
 }
@@ -141,7 +141,7 @@ func (fb *FilterBuilder) WithProject(project string) *FilterBuilder {
 //
 //	// To add "resource.labels.cluster_name = \"my-cluster\""
 //	filterBuilder := NewFilterBuilder(SchemaTypes[PodSchemaKey]).WithCluster("my-cluster")
-func (fb *FilterBuilder) WithCluster(cluster string) *FilterBuilder {
+func (fb FilterBuilder) WithCluster(cluster string) FilterBuilder {
 	fb.filters = append(fb.filters, fmt.Sprintf("%s = %q", fb.schema.cluster, cluster))
 	return fb
 }
@@ -152,7 +152,7 @@ func (fb *FilterBuilder) WithCluster(cluster string) *FilterBuilder {
 //
 //	// To add "resource.labels.location = \"my-location\""
 //	filterBuilder := NewFilterBuilder(SchemaTypes[PodSchemaKey]).WithLocation("my-location")
-func (fb *FilterBuilder) WithLocation(location string) *FilterBuilder {
+func (fb FilterBuilder) WithLocation(location string) FilterBuilder {
 	fb.filters = append(fb.filters, fmt.Sprintf("%s = %q", fb.schema.location, location))
 	return fb
 }
@@ -163,7 +163,7 @@ func (fb *FilterBuilder) WithLocation(location string) *FilterBuilder {
 //
 //	// To add "resource.labels.container_name = \"my-container\""
 //	filterBuilder := NewFilterBuilder(SchemaTypes[PodSchemaKey]).WithContainer("my-container")
-func (fb *FilterBuilder) WithContainer() *FilterBuilder {
+func (fb FilterBuilder) WithContainer() FilterBuilder {
 	fb.filters = append(fb.filters, fmt.Sprintf("resource.labels.container_name = %q", ""))
 	return fb
 }
@@ -175,7 +175,7 @@ func (fb *FilterBuilder) WithContainer() *FilterBuilder {
 //
 //	// To add "resource.labels.namespace_name = \"my-namepace\""
 //	filterBuilder := NewFilterBuilder(SchemaTypes[PodSchemaKey]).WithNamespace("my-namespace")
-func (fb *FilterBuilder) WithNamespace(namespace string) *FilterBuilder {
+func (fb FilterBuilder) WithNamespace(namespace string) FilterBuilder {
 	if namespace != "" {
 		fb.filters = append(fb.filters, fmt.Sprintf("%s = %q", fb.schema.namespace, namespace))
 	}
@@ -184,7 +184,7 @@ func (fb *FilterBuilder) WithNamespace(namespace string) *FilterBuilder {
 
 // WithPods adds a filter for pods.
 //
-// # pods should NOT more than 100 according to "https://cloud.google.com/monitoring/api/v3/filters#comparisons"
+// Number of pods should NOT be more than 100 according to "https://cloud.google.com/monitoring/api/v3/filters#comparisons"
 //
 // Example:
 //
@@ -193,7 +193,7 @@ func (fb *FilterBuilder) WithNamespace(namespace string) *FilterBuilder {
 //
 //  2. To add "resource.lables.pod_name = one_of(my-pod-1,my-pod-2)"
 //     filterBuilder := NewFilterBuilder(SchemaTypes[PodSchemaKey]).WithPods([]string{"my-pod-1", "my-pod-2"})
-func (fb *FilterBuilder) WithPods(pods []string) *FilterBuilder {
+func (fb FilterBuilder) WithPods(pods []string) FilterBuilder {
 	if len(pods) > 100 {
 		klog.Warningf("FilterBuilder tries to build with more than 100 pods, thus the pod filter is ignored")
 		return fb
@@ -215,7 +215,7 @@ func (fb *FilterBuilder) WithPods(pods []string) *FilterBuilder {
 // Build is the last step for FilterBuilder
 //
 // it combines all filter criteria with AND
-func (fb *FilterBuilder) Build() string {
+func (fb FilterBuilder) Build() string {
 	// sort for testing purpose
 	sort.Strings(fb.filters)
 	query := strings.Join(fb.filters, " AND ")
