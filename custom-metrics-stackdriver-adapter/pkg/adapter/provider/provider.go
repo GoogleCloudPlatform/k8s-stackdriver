@@ -105,11 +105,17 @@ func (p *StackdriverProvider) getRootScopedMetricByName(groupResource schema.Gro
 	if err != nil {
 		return nil, err
 	}
-	metricKind, metricValueType, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName), metricSelector)
+	metricName := getCustomMetricName(escapedMetricName)
+	metricKind, metricValueType, err := p.translator.GetMetricKind(metricName, metricSelector)
 	if err != nil {
 		return nil, err
 	}
-	stackdriverRequest, err := p.translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{*matchingNode}}, getCustomMetricName(escapedMetricName), metricKind, metricValueType, metricSelector)
+	stackdriverRequest, err := translator.NewQueryBuilder(p.translator, metricName).
+		WithNodes(&v1.NodeList{Items: []v1.Node{*matchingNode}}).
+		WithMetricKind(metricKind).
+		WithMetricValueType(metricValueType).
+		WithMetricSelector(metricSelector).
+		Build()
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +139,8 @@ func (p *StackdriverProvider) getRootScopedMetricBySelector(groupResource schema
 	if err != nil {
 		return nil, err
 	}
-	metricKind, metricValueType, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName), metricSelector)
+	metricName := getCustomMetricName(escapedMetricName)
+	metricKind, metricValueType, err := p.translator.GetMetricKind(metricName, metricSelector)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +148,12 @@ func (p *StackdriverProvider) getRootScopedMetricBySelector(groupResource schema
 	for i := 0; i < len(matchingNodes.Items); i += translator.MaxNumOfArgsInOneOfFilter {
 		sliceSegmentEnd := min(i+translator.MaxNumOfArgsInOneOfFilter, len(matchingNodes.Items))
 		nodesSlice := &v1.NodeList{Items: matchingNodes.Items[i:sliceSegmentEnd]}
-		stackdriverRequest, err := p.translator.GetSDReqForNodes(nodesSlice, getCustomMetricName(escapedMetricName), metricKind, metricValueType, metricSelector)
+		stackdriverRequest, err := translator.NewQueryBuilder(p.translator, metricName).
+			WithNodes(nodesSlice).
+			WithMetricKind(metricKind).
+			WithMetricValueType(metricValueType).
+			WithMetricSelector(metricSelector).
+			Build()
 		if err != nil {
 			return nil, err
 		}

@@ -748,7 +748,7 @@ func TestTranslator_QueryBuilder_Container_MultipleWithMetricSelctor(t *testing.
 	}
 }
 
-func TestTranslator_GetSDReqForNodes(t *testing.T) {
+func TestQueryBuilder_Node(t *testing.T) {
 	translator, sdService :=
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	node := v1.Node{
@@ -759,17 +759,26 @@ func TestTranslator_GetSDReqForNodes(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{node}}, metricName, "GAUGE", "INT64", labels.Everything())
+	request, err := NewQueryBuilder(translator, metricName).
+		WithNodes(&v1.NodeList{Items: []v1.Node{node}}).
+		WithMetricKind("GAUGE").
+		WithMetricValueType("INT64").
+		WithMetricSelector(labels.Everything()).
+		Build()
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
+	filters := []string{
+		"metric.type = \"my/custom/metric\"",
+		"resource.labels.project_id = \"my-project\"",
+		"resource.labels.cluster_name = \"my-cluster\"",
+		"resource.labels.location = \"my-zone\"",
+		"resource.labels.node_name = monitoring.regex.full_match(\"^(my-node-name-1)(:\\\\d+)*\")",
+		"resource.type = \"k8s_node\"",
+	}
+	sort.Strings(filters)
 	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter("metric.type = \"my/custom/metric\" " +
-			"AND resource.labels.project_id = \"my-project\" " +
-			"AND resource.labels.cluster_name = \"my-cluster\" " +
-			"AND resource.labels.location = \"my-zone\" " +
-			"AND resource.labels.node_name = \"my-node-name-1\" " +
-			"AND resource.type = \"k8s_node\"").
+		Filter(strings.Join(filters, " AND ")).
 		IntervalStartTime("2017-01-02T13:00:00Z").
 		IntervalEndTime("2017-01-02T13:02:00Z").
 		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
@@ -779,7 +788,47 @@ func TestTranslator_GetSDReqForNodes(t *testing.T) {
 	}
 }
 
-func TestTranslator_GetSDReqForNodes_withMetricSelector(t *testing.T) {
+func TestQueryBuilder_Multiple_Node(t *testing.T) {
+	translator, sdService :=
+		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
+	node := v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			ClusterName: "my-cluster",
+			UID:         "my-node-id-1",
+			Name:        "my-node-name-1",
+		},
+	}
+	metricName := "my/custom/metric"
+	request, err := NewQueryBuilder(translator, metricName).
+		WithNodes(&v1.NodeList{Items: []v1.Node{node, node}}).
+		WithMetricKind("GAUGE").
+		WithMetricValueType("INT64").
+		WithMetricSelector(labels.Everything()).
+		Build()
+	if err != nil {
+		t.Errorf("Translation error: %s", err)
+	}
+	filters := []string{
+		"metric.type = \"my/custom/metric\"",
+		"resource.labels.project_id = \"my-project\"",
+		"resource.labels.cluster_name = \"my-cluster\"",
+		"resource.labels.location = \"my-zone\"",
+		"resource.labels.node_name = monitoring.regex.full_match(\"^(my-node-name-1|my-node-name-1)(:\\\\d+)*\")",
+		"resource.type = \"k8s_node\"",
+	}
+	sort.Strings(filters)
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter(strings.Join(filters, " AND ")).
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:02:00Z").
+		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+		AggregationAlignmentPeriod("120s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", *expectedRequest, *request)
+	}
+}
+
+func TestQueryBuilder_Node_withMetricSelector(t *testing.T) {
 	translator, sdService :=
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	node := v1.Node{
@@ -791,18 +840,22 @@ func TestTranslator_GetSDReqForNodes_withMetricSelector(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
-	request, err := translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{node}}, metricName, "GAUGE", "INT64", metricSelector)
+	request, err := NewQueryBuilder(translator, metricName).WithNodes(&v1.NodeList{Items: []v1.Node{node}}).WithMetricKind("GAUGE").WithMetricValueType("INT64").WithMetricSelector(metricSelector).Build()
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
+	filters := []string{
+		"metric.labels.custom = \"test\"",
+		"metric.type = \"my/custom/metric\"",
+		"resource.labels.project_id = \"my-project\"",
+		"resource.labels.cluster_name = \"my-cluster\"",
+		"resource.labels.location = \"my-zone\"",
+		"resource.labels.node_name = monitoring.regex.full_match(\"^(my-node-name-1)(:\\\\d+)*\")",
+		"resource.type = \"k8s_node\"",
+	}
+	sort.Strings(filters)
 	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter("metric.labels.custom = \"test\" " +
-			"AND metric.type = \"my/custom/metric\" " +
-			"AND resource.labels.project_id = \"my-project\" " +
-			"AND resource.labels.cluster_name = \"my-cluster\" " +
-			"AND resource.labels.location = \"my-zone\" " +
-			"AND resource.labels.node_name = \"my-node-name-1\" " +
-			"AND resource.type = \"k8s_node\"").
+		Filter(strings.Join(filters, " AND ")).
 		IntervalStartTime("2017-01-02T13:00:00Z").
 		IntervalEndTime("2017-01-02T13:02:00Z").
 		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
@@ -1361,7 +1414,7 @@ func TestTranslator_GetSDReqForContainer_SingleWithMetricSelector_Distribution(t
 	}
 }
 
-func TestTranslator_GetSDReqForNodes_Single_Distribution(t *testing.T) {
+func TestQueryBuilder_Node_Single_Distribution(t *testing.T) {
 	translator, sdService :=
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	node := v1.Node{
@@ -1373,17 +1426,21 @@ func TestTranslator_GetSDReqForNodes_Single_Distribution(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("reducer=REDUCE_PERCENTILE_95")
-	request, err := translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{node}}, metricName, "DELTA", "DISTRIBUTION", metricSelector)
+	request, err := NewQueryBuilder(translator, metricName).WithNodes(&v1.NodeList{Items: []v1.Node{node}}).WithMetricKind("DELTA").WithMetricValueType("DISTRIBUTION").WithMetricSelector(metricSelector).Build()
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
+	filters := []string{
+		"metric.type = \"my/custom/metric\"",
+		"resource.labels.project_id = \"my-project\"",
+		"resource.labels.cluster_name = \"my-cluster\"",
+		"resource.labels.location = \"my-zone\"",
+		"resource.labels.node_name = monitoring.regex.full_match(\"^(my-node-name)(:\\\\d+)*\")",
+		"resource.type = \"k8s_node\"",
+	}
+	sort.Strings(filters)
 	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter("metric.type = \"my/custom/metric\" " +
-			"AND resource.labels.project_id = \"my-project\" " +
-			"AND resource.labels.cluster_name = \"my-cluster\" " +
-			"AND resource.labels.location = \"my-zone\" " +
-			"AND resource.labels.node_name = \"my-node-name\" " +
-			"AND resource.type = \"k8s_node\"").
+		Filter(strings.Join(filters, " AND ")).
 		IntervalStartTime("2017-01-02T13:00:00Z").
 		IntervalEndTime("2017-01-02T13:02:00Z").
 		AggregationPerSeriesAligner("ALIGN_DELTA").
@@ -1394,7 +1451,7 @@ func TestTranslator_GetSDReqForNodes_Single_Distribution(t *testing.T) {
 	}
 }
 
-func TestTranslator_GetSDReqForNodes_SingleWithMetricSelector_Distribution(t *testing.T) {
+func TestQueryBuilder_Node_SingleWithMetricSelector_Distribution(t *testing.T) {
 	translator, sdService :=
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	node := v1.Node{
@@ -1406,18 +1463,22 @@ func TestTranslator_GetSDReqForNodes_SingleWithMetricSelector_Distribution(t *te
 	}
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test,reducer=REDUCE_PERCENTILE_95")
-	request, err := translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{node}}, metricName, "DELTA", "DISTRIBUTION", metricSelector)
+	request, err := NewQueryBuilder(translator, metricName).WithNodes(&v1.NodeList{Items: []v1.Node{node}}).WithMetricKind("DELTA").WithMetricValueType("DISTRIBUTION").WithMetricSelector(metricSelector).Build()
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
+	filters := []string{
+		"metric.labels.custom = \"test\"",
+		"metric.type = \"my/custom/metric\"",
+		"resource.labels.project_id = \"my-project\"",
+		"resource.labels.cluster_name = \"my-cluster\"",
+		"resource.labels.location = \"my-zone\"",
+		"resource.labels.node_name = monitoring.regex.full_match(\"^(my-node-name)(:\\\\d+)*\")",
+		"resource.type = \"k8s_node\"",
+	}
+	sort.Strings(filters)
 	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter("metric.labels.custom = \"test\" " +
-			"AND metric.type = \"my/custom/metric\" " +
-			"AND resource.labels.project_id = \"my-project\" " +
-			"AND resource.labels.cluster_name = \"my-cluster\" " +
-			"AND resource.labels.location = \"my-zone\" " +
-			"AND resource.labels.node_name = \"my-node-name\" " +
-			"AND resource.type = \"k8s_node\"").
+		Filter(strings.Join(filters, " AND ")).
 		IntervalStartTime("2017-01-02T13:00:00Z").
 		IntervalEndTime("2017-01-02T13:02:00Z").
 		AggregationPerSeriesAligner("ALIGN_DELTA").

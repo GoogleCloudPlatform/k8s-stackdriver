@@ -17,15 +17,18 @@ type Schema struct {
 	location     string
 	namespace    string
 	pods         string
+	nodes        string
 }
 
 const (
 	PodSchemaKey        = "pod"               // PodSchemaKey is the key to use pod type filter schema.
 	ContainerSchemaKey  = "container"         // ContainerSchemaKey is the key to use container type filter schema.
 	PrometheusSchemaKey = "prometheus"        // PrometheusSchemaKey is the key to use prometheus type filter schema.
+	NodeSchemaKey       = "node"              // NodeSchemaKey is the key to use node type filter schema
 	LegacySchemaKey     = "legacy"            // LegacySchemaKey is the key to use legacy pod type filter schema.
 	PodType             = "k8s_pod"           // PodType is the resource value for pod type. (also used in the query)
 	ContainerType       = "k8s_container"     // ContainerType is the resource value for container type. (also used in the query)
+	NodeType            = "k8s_node"          // NodeType is the resource value for node type. (also used in the query)
 	PrometheusType      = "prometheus_target" // PrometheusType is the resource value for prometheus type. (also used in the query)
 	LegacyType          = "<not_allowed>"     // LegacyType is the resource value for legacy type. (NOT used in the query)
 )
@@ -54,6 +57,16 @@ var (
 		namespace:    "resource.labels.namespace_name",
 		pods:         "resource.labels.pod_id",
 	}
+	// NodeSchema is the predefined schema for building node type queries.
+	NodeSchema = &Schema{
+		resourceType: "resource.type",
+		metricType:   "metric.type",
+		project:      "resource.labels.project_id",
+		cluster:      "resource.labels.cluster_name",
+		location:     "resource.labels.location",
+		namespace:    "resource.labels.namespace_name",
+		nodes:        "resource.labels.node_name",
+	}
 	// PrometheusSchema is the predefined schema for building prometheus type queries.
 	PrometheusSchema = &Schema{
 		resourceType: "resource.type",
@@ -62,6 +75,7 @@ var (
 		cluster:      "resource.labels.cluster",
 		location:     "resource.labels.location",
 		namespace:    "resource.labels.namespace",
+		nodes:        "resource.labels.instance",
 		pods:         "metric.labels.pod",
 	}
 	// SchemaTypes is a collection of all FilterBuilder supported resource types for external uses.
@@ -69,6 +83,7 @@ var (
 		PodSchemaKey:        PodType,
 		ContainerSchemaKey:  ContainerType,
 		PrometheusSchemaKey: PrometheusType,
+		NodeSchemaKey:       NodeType,
 		LegacySchemaKey:     LegacyType,
 	}
 )
@@ -97,6 +112,8 @@ func NewFilterBuilder(resourceType string) FilterBuilder {
 		schema = ContainerSchema
 	case PrometheusType:
 		schema = PrometheusSchema
+	case NodeType:
+		schema = NodeSchema
 	case LegacyType:
 		schema = LegacyPodSchema
 	default:
@@ -209,6 +226,33 @@ func (fb FilterBuilder) WithPods(pods []string) FilterBuilder {
 		fb.filters = append(fb.filters, fmt.Sprintf("%s = one_of(%s)", fb.schema.pods, strings.Join(pods, ",")))
 	}
 
+	return fb
+}
+
+// WithNodes adds a filter for nodes.
+//
+// Note:
+//
+//	for prometheus metrics, their instance information consist of a node name and a port number
+//	(such as "gke-test--default-pool-cee13989-qsky:8080"), but when you use this method, you only
+//	need to provide target node names (such as "gke-test--default-pool-cee13989-qsky"), because we
+//	have "(:\\d+)*" at the end of the regex to ignore the port number part.
+//
+// Example:
+//
+//	// To filter for instances gke-test--default-pool-cee13989-0i75 and
+//	// gke-test--default-pool-cee13989-qsky:8080 with the query
+//	// resource.labels.instance = monitoring.regex.full_match("^" +
+//	// 	"(gke-test--default-pool-cee13989-0i75|gke-test--default-pool-cee13989-qsky)" +
+//	// 	"(:\\d+)*"
+//	// )
+//	filterBuilder := NewFilterBuilder(SchemaTypes[PodSchemaKey]).WithNodes([]string{
+//		"gke-test--default-pool-cee13989-0i75",
+//		"gke-test--default-pool-cee13989-qsky",
+//	})
+func (fb FilterBuilder) WithNodes(nodes []string) FilterBuilder {
+	regex := fmt.Sprintf("^(%s)(:\\d+)*", strings.Join(nodes, "|"))
+	fb.filters = append(fb.filters, fmt.Sprintf("%s = monitoring.regex.full_match(%q)", fb.schema.nodes, regex))
 	return fb
 }
 

@@ -245,6 +245,52 @@ func TestFilterBuilder_WithPods_Multiple_legacy(t *testing.T) {
 	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
+func TestFilterBuilder_WithNodes_One_Node(t *testing.T) {
+	schema := NodeSchema
+	actual := FilterBuilder{schema: schema, filters: []string{}}
+	nodes := []string{"node"}
+	actual = actual.WithNodes((nodes))
+
+	expected := FilterBuilder{schema: schema, filters: []string{"resource.labels.node_name = monitoring.regex.full_match(\"^(node)(:\\\\d+)*\")"}}
+	expectFilterBuilder(actual).toEqual(expected).report(t)
+}
+
+func TestFilterBuilder_WithNodes_101_Nodes(t *testing.T) {
+	schema := NodeSchema
+	actual := FilterBuilder{schema: schema, filters: []string{}}
+	nodes := make([]string, 101)
+	for i := range nodes {
+		nodes[i] = "node"
+	}
+	actual = actual.WithNodes((nodes))
+
+	expected := FilterBuilder{schema: schema, filters: []string{fmt.Sprintf("resource.labels.node_name = monitoring.regex.full_match(\"^(%s)(:\\\\d+)*\")", strings.Join(nodes, "|"))}}
+	expectFilterBuilder(actual).toEqual(expected).report(t)
+}
+
+func TestFilterBuilder_WithNodes_One_Prometheus(t *testing.T) {
+	schema := PrometheusSchema
+	actual := FilterBuilder{schema: schema, filters: []string{}}
+	nodes := []string{"node"}
+	actual = actual.WithNodes((nodes))
+
+	expected := FilterBuilder{schema: schema, filters: []string{"resource.labels.instance = monitoring.regex.full_match(\"^(node)(:\\\\d+)*\")"}}
+	expectFilterBuilder(actual).toEqual(expected).report(t)
+}
+
+func TestFilterBuilder_WithNodes_101_Prometheus(t *testing.T) {
+	schema := PrometheusSchema
+	actual := FilterBuilder{schema: schema, filters: []string{}}
+	nodes := make([]string, 101)
+	for i := range nodes {
+		nodes[i] = "node"
+	}
+	actual = actual.WithNodes((nodes))
+
+	expected := FilterBuilder{schema: schema, filters: []string{fmt.Sprintf("resource.labels.instance = monitoring.regex.full_match(\"^(%s)(:\\\\d+)*\")", strings.Join(nodes, "|"))}}
+	expectFilterBuilder(actual).toEqual(expected).report(t)
+}
+
 func TestFilterBuilder_Build(t *testing.T) {
 	actual := (FilterBuilder{filters: []string{"d", "f", "e", "a", "c", "b"}}).Build()
 	expected := "a AND b AND c AND d AND e AND f"
