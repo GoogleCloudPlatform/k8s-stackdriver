@@ -91,7 +91,12 @@ func (p *stackdriverCoreClient) getNodeMetric(nodeNames []string, metricName, me
 	for i := 0; i < numOfRequests; i++ {
 		segmentBeg := i * translator.MaxNumOfArgsInOneOfFilter
 		segmentEnd := min((i+1)*translator.MaxNumOfArgsInOneOfFilter, len(nodeNames))
-		stackdriverRequest, err := p.translator.GetSDReqForNodesWithNames(nodeNames[segmentBeg:segmentEnd], metricName, metricKind, metricValueType, labels)
+		stackdriverRequest, err := translator.NewQueryBuilder(p.translator, metricName).
+			WithNodeNames(nodeNames[segmentBeg:segmentEnd]).
+			WithMetricKind(metricKind).
+			WithMetricValueType(metricValueType).
+			WithMetricSelector(labels).
+			Build()
 		if err != nil {
 			return nil, nil, err
 		}
