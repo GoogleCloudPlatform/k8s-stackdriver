@@ -420,20 +420,20 @@ func (qb QueryBuilder) composeFilter() string {
 		filterBuilder = filterBuilder.WithLocation(qb.translator.config.Location)
 		if !qb.nodes.isNodesContainerEmpty() {
 			// node metrics
-			filterBuilder = filterBuilder.WithNodes(resourceNames)
-		} else {
-			// pod metrics
-			filterBuilder = filterBuilder.
-				WithNamespace(qb.namespace).
-				WithPods(resourceNames)
+			return filterBuilder.WithNodes(resourceNames).Build()
 		}
-	} else {
-		// legacy resource model specific filters
-		filterBuilder = filterBuilder.
-			WithContainer().
-			WithPods(resourceNames)
+		// pod metrics
+		return filterBuilder.
+			WithNamespace(qb.namespace).
+			WithPods(resourceNames).
+			Build()
+
 	}
-	return filterBuilder.Build()
+	// legacy resource model specific filters
+	return filterBuilder.
+		WithContainer().
+		WithPods(resourceNames).
+		Build()
 }
 
 // Build is the last step for QueryBuilder which converts itself into a ProjectsTimeSeriesListCall object
