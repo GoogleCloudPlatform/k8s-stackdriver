@@ -64,7 +64,6 @@ var (
 		project:      "resource.labels.project_id",
 		cluster:      "resource.labels.cluster_name",
 		location:     "resource.labels.location",
-		namespace:    "resource.labels.namespace_name",
 		nodes:        "resource.labels.node_name",
 	}
 	// PrometheusSchema is the predefined schema for building prometheus type queries.
@@ -74,6 +73,7 @@ var (
 		project:      "resource.labels.project_id",
 		cluster:      "resource.labels.cluster",
 		location:     "resource.labels.location",
+		namespace:    "resource.labels.namespace",
 		nodes:        "resource.labels.instance",
 		pods:         "metric.labels.pod",
 	}
