@@ -98,6 +98,9 @@ type podsContainer struct {
 }
 
 // isPodsContainerValid checks if podsContainer is valid to be used
+//
+// this only happens when the both pods & podNames are provided,
+// for example, when WithPods() and WithPodNames() are both used in QueryBuilder
 func (pc podsContainer) isPodsContainerValid() bool {
 	return !(len(pc.podNames) > 0 && pc.pods != nil && len(pc.pods.Items) > 0)
 }
@@ -109,26 +112,26 @@ func (pc podsContainer) isPodsContainerEmpty() bool {
 
 // getPodNames gets pod names from podsContainer is any provided
 func (pc podsContainer) getPodNames() []string {
-	if pc.pods != nil {
-		podNames := []string{}
-		for _, item := range pc.pods.Items {
-			podNames = append(podNames, fmt.Sprintf("%q", item.GetName()))
-		}
-		return podNames
+	if pc.pods == nil {
+		return pc.podNames
 	}
-	return pc.podNames
+	podNames := make([]string, len(pc.pods.Items))
+	for i, item := range pc.pods.Items {
+		podNames[i] = fmt.Sprintf("%q", item.GetName())
+	}
+	return podNames
 }
 
-// getPodIds gets pod ids from podsContainer if any provided
-func (pc podsContainer) getPodIds() []string {
-	if pc.pods != nil {
-		podIds := []string{}
-		for _, item := range pc.pods.Items {
-			podIds = append(podIds, fmt.Sprintf("%q", item.GetUID()))
-		}
-		return podIds
+// getPodIDs gets pod ids from podsContainer if any provided
+func (pc podsContainer) getPodIDs() []string {
+	if pc.pods == nil {
+		return []string{}
 	}
-	return []string{}
+	podIDs := make([]string, len(pc.pods.Items))
+	for i, item := range pc.pods.Items {
+		podIDs[i] = fmt.Sprintf("%q", item.GetUID())
+	}
+	return podIDs
 }
 
 // nodesContainer is a helper struct to hold nodes values
@@ -138,6 +141,9 @@ type nodesContainer struct {
 }
 
 // isNodesContainerValid checks if nodeContainer is valid to be used
+//
+// this only happens when the both nodes & nodeNames are provided,
+// for example, when WithNodes() and WithNodeNames() are both used in QueryBuilder
 func (nc nodesContainer) isNodesContainerValid() bool {
 	return !(len(nc.nodeNames) > 0 && nc.nodes != nil && len(nc.nodes.Items) > 0)
 }
@@ -305,7 +311,7 @@ func (qb QueryBuilder) getResourceNames() []string {
 		return qb.nodes.getNodeNames()
 	}
 	// legacy resource model
-	return qb.pods.getPodIds()
+	return qb.pods.getPodIDs()
 }
 
 // AsContainerType enforces to query k8s_container type metrics

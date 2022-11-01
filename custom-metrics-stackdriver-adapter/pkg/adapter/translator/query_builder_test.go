@@ -788,7 +788,7 @@ func TestQueryBuilder_Node(t *testing.T) {
 	}
 }
 
-func TestQueryBuilder_Multiple_Node(t *testing.T) {
+func TestQueryBuilder_Multiple_Nodes(t *testing.T) {
 	translator, sdService :=
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	node := v1.Node{

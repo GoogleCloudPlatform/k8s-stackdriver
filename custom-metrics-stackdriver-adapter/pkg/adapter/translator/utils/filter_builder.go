@@ -74,7 +74,6 @@ var (
 		project:      "resource.labels.project_id",
 		cluster:      "resource.labels.cluster",
 		location:     "resource.labels.location",
-		namespace:    "resource.labels.namespace",
 		nodes:        "resource.labels.instance",
 		pods:         "metric.labels.pod",
 	}

@@ -249,7 +249,8 @@ func (t *Translator) metricKey(timeSeries *stackdriver.TimeSeries, resourceSchem
 			return ":" + timeSeries.Resource.Labels["node_name"], nil
 		case "prometheus_target":
 			if resourceSchema == "nodes" {
-				// ignore port number part
+				// for prometheus_target metric, its instance usually consist of node id and the port who emited the metric.
+				// splitting with ":" and take the first part is to ignore the port part.
 				return ":" + strings.Split(timeSeries.Resource.Labels["instance"], ":")[0], nil
 			}
 			return timeSeries.Resource.Labels["namespace"] + ":" + timeSeries.Metric.Labels["pod"], nil
