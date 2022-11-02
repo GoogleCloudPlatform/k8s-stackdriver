@@ -91,27 +91,27 @@ type Translator struct {
 	supportDistributions bool
 }
 
-// podsContainer is a helper struct to hold pods values
-type podsContainer struct {
+// podValues is a helper struct to hold pods values
+type podValues struct {
 	pods     *v1.PodList
 	podNames []string
 }
 
-// isPodsContainerValid checks if podsContainer is valid to be used
+// isPodsContainerValid checks if podValues is valid to be used
 //
 // this only happens when the both pods & podNames are provided,
 // for example, when WithPods() and WithPodNames() are both used in QueryBuilder
-func (pc podsContainer) isPodsContainerValid() bool {
+func (pc podValues) isPodsContainerValid() bool {
 	return !(len(pc.podNames) > 0 && pc.pods != nil && len(pc.pods.Items) > 0)
 }
 
 // isPodsEmpty checks if pods container is empty
-func (pc podsContainer) isPodsContainerEmpty() bool {
+func (pc podValues) isPodsContainerEmpty() bool {
 	return len(pc.podNames) == 0 && (pc.pods == nil || len(pc.pods.Items) == 0)
 }
 
-// getPodNames gets pod names from podsContainer is any provided
-func (pc podsContainer) getPodNames() []string {
+// getPodNames gets pod names from podValues is any provided
+func (pc podValues) getPodNames() []string {
 	if pc.pods == nil {
 		return pc.podNames
 	}
@@ -122,8 +122,8 @@ func (pc podsContainer) getPodNames() []string {
 	return podNames
 }
 
-// getPodIDs gets pod ids from podsContainer if any provided
-func (pc podsContainer) getPodIDs() []string {
+// getPodIDs gets pod ids from podValues if any provided
+func (pc podValues) getPodIDs() []string {
 	if pc.pods == nil {
 		return []string{}
 	}
@@ -134,8 +134,8 @@ func (pc podsContainer) getPodIDs() []string {
 	return podIDs
 }
 
-// nodesContainer is a helper struct to hold nodes values
-type nodesContainer struct {
+// nodeValues is a helper struct to hold nodes values
+type nodeValues struct {
 	nodes     *v1.NodeList
 	nodeNames []string
 }
@@ -144,17 +144,17 @@ type nodesContainer struct {
 //
 // this only happens when the both nodes & nodeNames are provided,
 // for example, when WithNodes() and WithNodeNames() are both used in QueryBuilder
-func (nc nodesContainer) isNodesContainerValid() bool {
+func (nc nodeValues) isNodesContainerValid() bool {
 	return !(len(nc.nodeNames) > 0 && nc.nodes != nil && len(nc.nodes.Items) > 0)
 }
 
 // isNodesContainerEmpty checks if nodes container is empty
-func (nc nodesContainer) isNodesContainerEmpty() bool {
+func (nc nodeValues) isNodesContainerEmpty() bool {
 	return len(nc.nodeNames) == 0 && (nc.nodes == nil || len(nc.nodes.Items) == 0)
 }
 
 // getNodeNames gets node names from nodeContainer if any provided
-func (nc nodesContainer) getNodeNames() []string {
+func (nc nodeValues) getNodeNames() []string {
 	if nc.nodes != nil {
 		nodeNames := []string{}
 		for _, item := range nc.nodes.Items {
@@ -175,8 +175,8 @@ type QueryBuilder struct {
 	metricValueType      string          // metricValueType is the metric value type to filter
 	metricSelector       labels.Selector // metricSelector is the metric selector to filtere
 	namespace            string          // namespace is the namespace to filter (mutually exclusive with nodes)
-	pods                 podsContainer   // pods is the pods to filter (mutually exclusive with nodes)
-	nodes                nodesContainer  // nodes is the nodes to filter (mutually exclusive with namespace, pods)
+	pods                 podValues       // pods is the pods to filter (mutually exclusive with nodes)
+	nodes                nodeValues      // nodes is the nodes to filter (mutually exclusive with namespace, pods)
 	enforceContainerType bool            // enforceContainerType decides whether to enforce using container type filter schema
 }
 
