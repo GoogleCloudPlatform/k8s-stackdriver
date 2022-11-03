@@ -3,8 +3,7 @@
 This is a minimal example showing how to export custom metrics using 
 [prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/) to Stackdriver
 in a k8s cluster running on GCE or GKE. This example assumes that you already have
-a [custom metrics setup] in your cluster and use legacy Stackdriver resource
-model (Prometheus to Stackdriver doesn't support new resource model).
+a [custom metrics setup] in your cluster.
 
 ## Prometheus dummy exporter
 
@@ -41,13 +40,32 @@ env:
       fieldRef:
         fieldPath: metadata.namespace
 ```
+
+### PodMonitoring Resource
+
+below section deploys a podmonitoring resource to automatically scratch and upload metrics to google cloud monitoring as managed prometheus metrics, 
+and the metrics will have be prefixed with `prometheus.googleapis.com` 
+
+```yaml
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: prom-example
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      run: custom-metric-prometheus-sd
+  endpoints:
+  - port: 8080
+    interval: 30s
+```
 ## Horizontal Pod Autoscaling object
 
-In the example, there is a [Horizontal Pod Autoscaler object] configured to scale the deployment on 
-the exported metric. It is configured with a target value lower than the defaul metric value. This will
-cause the deployment to scale up to 5 replicas over the course of ~15 minutes. 
-If you do not see a successful scale up event for a longer period of time, there is 
-likely an issue with your setup. See [Troubleshooting](#troubleshoooting) section for possible reasons.
+In the example, there is a [Horizontal Pod Autoscaler object] configured to scale the deployment on the exported metric. It takes couple minutes for 
+podmonitoring resource to scratch and upload metrics, and it is configured with a target value lower than the default metric value. This will
+cause the deployment to scale up to 5 replicas over the course of ~15 minutes. If you do not see a successful scale up event for a longer period of 
+time, there is likely an issue with your setup. See [Troubleshooting](#troubleshoooting) section for possible reasons.
 
 ## Deployment
 
@@ -107,6 +125,11 @@ You should see a similar list:
   ]
 }
 ```
+Alternatively, you can directly test against custom-metric-stackdriver-adapter by the command:
+```sh
+kubectl get --raw "/apis/custom.metrics.k8s.io/v1beta2/namespaces/default/pods/*/prometheus.googleapis.com|foo|gauge" | jq .
+```
+
 If you do not see your metric in the list, custom-metrics-stackdriver-adapter
 can't find the metric in Stackdriver.
 
