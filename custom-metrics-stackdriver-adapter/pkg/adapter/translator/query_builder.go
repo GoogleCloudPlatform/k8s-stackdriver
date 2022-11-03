@@ -105,7 +105,7 @@ func (pc podValues) isPodValuesValid() bool {
 	return !(len(pc.podNames) > 0 && pc.pods != nil && len(pc.pods.Items) > 0)
 }
 
-// isPodsEmpty checks if pods container is empty
+// isPodValuesEmpty checks if pods container is empty
 func (pc podValues) isPodValuesEmpty() bool {
 	return len(pc.podNames) == 0 && (pc.pods == nil || len(pc.pods.Items) == 0)
 }
