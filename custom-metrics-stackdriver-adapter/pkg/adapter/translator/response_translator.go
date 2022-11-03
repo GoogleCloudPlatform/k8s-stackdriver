@@ -250,7 +250,7 @@ func (t *Translator) metricKey(timeSeries *stackdriver.TimeSeries, resourceSchem
 		case "prometheus_target":
 			if resourceSchema == "nodes" {
 				// use node label if exists
-				if nodeName, ok := timeSeries.Resource.Labels["node"]; ok {
+				if nodeName, ok := timeSeries.Metric.Labels["node"]; ok {
 					return ":" + nodeName, nil
 				}
 				// for prometheus_target metric, its instance usually consist of node id and the port who emited the metric.
