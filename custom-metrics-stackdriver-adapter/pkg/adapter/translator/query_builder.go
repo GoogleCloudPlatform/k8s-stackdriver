@@ -380,7 +380,7 @@ func (qb QueryBuilder) validate() error {
 //  2. if enforceContainerType is true, then use container type FilterBuilder
 //  3. if metricName is prefixed with PrometheusMetricPrefix, then use prometheus type FilterBuilder
 //  4. if namespace is empty, then use node type FilterBuilder
-//  4. By default, use pod type FilterBuilder
+//  5. By default, use pod type FilterBuilder
 func (qb QueryBuilder) getFilterBuilder() utils.FilterBuilder {
 	// legacy type FilterBuilder
 	if !qb.translator.useNewResourceModel {

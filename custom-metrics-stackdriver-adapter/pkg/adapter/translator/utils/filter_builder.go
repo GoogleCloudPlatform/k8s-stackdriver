@@ -233,12 +233,12 @@ func (fb FilterBuilder) WithPods(pods []string) FilterBuilder {
 // Example:
 //
 //	// To filter for nodes gke-test--default-pool-cee13989-0i75 and
-//	// gke-test--default-pool-cee13989-qsky:8080 with the query
+//	// gke-test--default-pool-cee13989-qsky with the query
 //	// metric.labels.node = monitoring.regex.full_match("^" +
 //	// 	"(gke-test--default-pool-cee13989-0i75|gke-test--default-pool-cee13989-qsky)"+
 //	//	"$"
 //	// )
-//	filterBuilder := NewFilterBuilder(SchemaTypes[PodSchemaKey]).WithNodes([]string{
+//	filterBuilder := NewFilterBuilder(SchemaTypes[NodeSchemaKey]).WithNodes([]string{
 //		"gke-test--default-pool-cee13989-0i75",
 //		"gke-test--default-pool-cee13989-qsky",
 //	})

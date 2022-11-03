@@ -249,7 +249,6 @@ func (t *Translator) metricKey(timeSeries *stackdriver.TimeSeries, resourceSchem
 			return ":" + timeSeries.Resource.Labels["node_name"], nil
 		case "prometheus_target":
 			if resourceSchema == "nodes" {
-				// use node label if exists
 				return ":" + timeSeries.Metric.Labels["node"], nil
 			}
 			return timeSeries.Resource.Labels["namespace"] + ":" + timeSeries.Metric.Labels["pod"], nil
