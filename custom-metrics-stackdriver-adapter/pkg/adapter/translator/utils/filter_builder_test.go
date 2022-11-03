@@ -251,7 +251,7 @@ func TestFilterBuilder_WithNodes_One_Node(t *testing.T) {
 	nodes := []string{"node"}
 	actual = actual.WithNodes((nodes))
 
-	expected := FilterBuilder{schema: schema, filters: []string{"resource.labels.node_name = monitoring.regex.full_match(\"^(node)(:\\\\d+)*\")"}}
+	expected := FilterBuilder{schema: schema, filters: []string{"resource.labels.node_name = monitoring.regex.full_match(\"^(node)$\")"}}
 	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
@@ -264,7 +264,7 @@ func TestFilterBuilder_WithNodes_101_Nodes(t *testing.T) {
 	}
 	actual = actual.WithNodes((nodes))
 
-	expected := FilterBuilder{schema: schema, filters: []string{fmt.Sprintf("resource.labels.node_name = monitoring.regex.full_match(\"^(%s)(:\\\\d+)*\")", strings.Join(nodes, "|"))}}
+	expected := FilterBuilder{schema: schema, filters: []string{fmt.Sprintf("resource.labels.node_name = monitoring.regex.full_match(\"^(%s)$\")", strings.Join(nodes, "|"))}}
 	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
@@ -274,7 +274,7 @@ func TestFilterBuilder_WithNodes_One_Prometheus(t *testing.T) {
 	nodes := []string{"node"}
 	actual = actual.WithNodes((nodes))
 
-	expected := FilterBuilder{schema: schema, filters: []string{"resource.labels.instance = monitoring.regex.full_match(\"^(node)(:\\\\d+)*\")"}}
+	expected := FilterBuilder{schema: schema, filters: []string{"metric.labels.node = monitoring.regex.full_match(\"^(node)$\")"}}
 	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
@@ -287,7 +287,7 @@ func TestFilterBuilder_WithNodes_101_Prometheus(t *testing.T) {
 	}
 	actual = actual.WithNodes((nodes))
 
-	expected := FilterBuilder{schema: schema, filters: []string{fmt.Sprintf("resource.labels.instance = monitoring.regex.full_match(\"^(%s)(:\\\\d+)*\")", strings.Join(nodes, "|"))}}
+	expected := FilterBuilder{schema: schema, filters: []string{fmt.Sprintf("metric.labels.node = monitoring.regex.full_match(\"^(%s)$\")", strings.Join(nodes, "|"))}}
 	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 

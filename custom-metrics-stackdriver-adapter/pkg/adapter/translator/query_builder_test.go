@@ -773,7 +773,7 @@ func TestQueryBuilder_Node(t *testing.T) {
 		"resource.labels.project_id = \"my-project\"",
 		"resource.labels.cluster_name = \"my-cluster\"",
 		"resource.labels.location = \"my-zone\"",
-		"resource.labels.node_name = monitoring.regex.full_match(\"^(my-node-name-1)(:\\\\d+)*\")",
+		"resource.labels.node_name = monitoring.regex.full_match(\"^(my-node-name-1)$\")",
 		"resource.type = \"k8s_node\"",
 	}
 	sort.Strings(filters)
@@ -813,7 +813,7 @@ func TestQueryBuilder_Multiple_Nodes(t *testing.T) {
 		"resource.labels.project_id = \"my-project\"",
 		"resource.labels.cluster_name = \"my-cluster\"",
 		"resource.labels.location = \"my-zone\"",
-		"resource.labels.node_name = monitoring.regex.full_match(\"^(my-node-name-1|my-node-name-1)(:\\\\d+)*\")",
+		"resource.labels.node_name = monitoring.regex.full_match(\"^(my-node-name-1|my-node-name-1)$\")",
 		"resource.type = \"k8s_node\"",
 	}
 	sort.Strings(filters)
@@ -850,7 +850,7 @@ func TestQueryBuilder_Node_withMetricSelector(t *testing.T) {
 		"resource.labels.project_id = \"my-project\"",
 		"resource.labels.cluster_name = \"my-cluster\"",
 		"resource.labels.location = \"my-zone\"",
-		"resource.labels.node_name = monitoring.regex.full_match(\"^(my-node-name-1)(:\\\\d+)*\")",
+		"resource.labels.node_name = monitoring.regex.full_match(\"^(my-node-name-1)$\")",
 		"resource.type = \"k8s_node\"",
 	}
 	sort.Strings(filters)
@@ -1435,7 +1435,7 @@ func TestQueryBuilder_Node_Single_Distribution(t *testing.T) {
 		"resource.labels.project_id = \"my-project\"",
 		"resource.labels.cluster_name = \"my-cluster\"",
 		"resource.labels.location = \"my-zone\"",
-		"resource.labels.node_name = monitoring.regex.full_match(\"^(my-node-name)(:\\\\d+)*\")",
+		"resource.labels.node_name = monitoring.regex.full_match(\"^(my-node-name)$\")",
 		"resource.type = \"k8s_node\"",
 	}
 	sort.Strings(filters)
@@ -1473,7 +1473,7 @@ func TestQueryBuilder_Node_SingleWithMetricSelector_Distribution(t *testing.T) {
 		"resource.labels.project_id = \"my-project\"",
 		"resource.labels.cluster_name = \"my-cluster\"",
 		"resource.labels.location = \"my-zone\"",
-		"resource.labels.node_name = monitoring.regex.full_match(\"^(my-node-name)(:\\\\d+)*\")",
+		"resource.labels.node_name = monitoring.regex.full_match(\"^(my-node-name)$\")",
 		"resource.type = \"k8s_node\"",
 	}
 	sort.Strings(filters)

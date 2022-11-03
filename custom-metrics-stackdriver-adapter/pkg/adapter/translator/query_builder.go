@@ -97,16 +97,16 @@ type podValues struct {
 	podNames []string
 }
 
-// isPodsContainerValid checks if podValues is valid to be used
+// isPodValuesValid checks if podValues is valid to be used
 //
 // this only happens when the both pods & podNames are provided,
 // for example, when WithPods() and WithPodNames() are both used in QueryBuilder
-func (pc podValues) isPodsContainerValid() bool {
+func (pc podValues) isPodValuesValid() bool {
 	return !(len(pc.podNames) > 0 && pc.pods != nil && len(pc.pods.Items) > 0)
 }
 
 // isPodsEmpty checks if pods container is empty
-func (pc podValues) isPodsContainerEmpty() bool {
+func (pc podValues) isPodValuesEmpty() bool {
 	return len(pc.podNames) == 0 && (pc.pods == nil || len(pc.pods.Items) == 0)
 }
 
@@ -140,16 +140,16 @@ type nodeValues struct {
 	nodeNames []string
 }
 
-// isNodesContainerValid checks if nodeContainer is valid to be used
+// isNodeValuesValid checks if nodeContainer is valid to be used
 //
 // this only happens when the both nodes & nodeNames are provided,
 // for example, when WithNodes() and WithNodeNames() are both used in QueryBuilder
-func (nc nodeValues) isNodesContainerValid() bool {
+func (nc nodeValues) isNodeValuesValid() bool {
 	return !(len(nc.nodeNames) > 0 && nc.nodes != nil && len(nc.nodes.Items) > 0)
 }
 
-// isNodesContainerEmpty checks if nodes container is empty
-func (nc nodeValues) isNodesContainerEmpty() bool {
+// isNodeValuesEmpty checks if nodes container is empty
+func (nc nodeValues) isNodeValuesEmpty() bool {
 	return len(nc.nodeNames) == 0 && (nc.nodes == nil || len(nc.nodes.Items) == 0)
 }
 
@@ -303,7 +303,7 @@ func (qb QueryBuilder) WithNodeNames(nodeNames []string) QueryBuilder {
 func (qb QueryBuilder) getResourceNames() []string {
 	if qb.translator.useNewResourceModel {
 		// new resource model
-		if !qb.pods.isPodsContainerEmpty() {
+		if !qb.pods.isPodValuesEmpty() {
 			// pods
 			return qb.pods.getPodNames()
 		}
@@ -337,23 +337,23 @@ func (qb QueryBuilder) validate() error {
 		return apierr.NewInternalError(fmt.Errorf("QueryBuilder tries to build with translator value: nil"))
 	}
 
-	if !qb.nodes.isNodesContainerEmpty() {
+	if !qb.nodes.isNodeValuesEmpty() {
 		// node metric
-		if !qb.nodes.isNodesContainerValid() {
+		if !qb.nodes.isNodeValuesValid() {
 			return apierr.NewInternalError(fmt.Errorf("invalid nodes parameter is set to QueryBuilder"))
 		}
 		if qb.namespace != "" {
 			return apierr.NewInternalError(fmt.Errorf("both nodes and namespace are provided, expect only one of them."))
 		}
-		if !qb.pods.isPodsContainerEmpty() {
+		if !qb.pods.isPodValuesEmpty() {
 			return apierr.NewInternalError(fmt.Errorf("both nodes and pods are provided, expect only one of them."))
 		}
 	} else {
 		// pod metric
-		if qb.pods.isPodsContainerEmpty() {
+		if qb.pods.isPodValuesEmpty() {
 			return apierr.NewInternalError(fmt.Errorf("no resources are specified for QueryBuilder, expected one of nodes or pods should be used"))
 		}
-		if !qb.pods.isPodsContainerValid() {
+		if !qb.pods.isPodValuesValid() {
 			return apierr.NewInternalError(fmt.Errorf("invalid pods parameter is set to QueryBuilder"))
 		}
 		numPods := len(qb.pods.getPodNames())
@@ -418,7 +418,7 @@ func (qb QueryBuilder) composeFilter() string {
 	if qb.translator.useNewResourceModel {
 		// new resource model specific filters
 		filterBuilder = filterBuilder.WithLocation(qb.translator.config.Location)
-		if !qb.nodes.isNodesContainerEmpty() {
+		if !qb.nodes.isNodeValuesEmpty() {
 			// node metrics
 			return filterBuilder.WithNodes(resourceNames).Build()
 		}

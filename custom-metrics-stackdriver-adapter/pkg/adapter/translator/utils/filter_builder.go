@@ -74,7 +74,7 @@ var (
 		cluster:      "resource.labels.cluster",
 		location:     "resource.labels.location",
 		namespace:    "resource.labels.namespace",
-		nodes:        "resource.labels.instance",
+		nodes:        "metric.labels.node",
 		pods:         "metric.labels.pod",
 	}
 	// SchemaTypes is a collection of all FilterBuilder supported resource types for external uses.
@@ -230,27 +230,20 @@ func (fb FilterBuilder) WithPods(pods []string) FilterBuilder {
 
 // WithNodes adds a filter for nodes.
 //
-// Note:
-//
-//	for prometheus metrics, their instance information consist of a node name and a port number
-//	(such as "gke-test--default-pool-cee13989-qsky:8080"), but when you use this method, you only
-//	need to provide target node names (such as "gke-test--default-pool-cee13989-qsky"), because we
-//	have "(:\\d+)*" at the end of the regex to ignore the port number part.
-//
 // Example:
 //
-//	// To filter for instances gke-test--default-pool-cee13989-0i75 and
+//	// To filter for nodes gke-test--default-pool-cee13989-0i75 and
 //	// gke-test--default-pool-cee13989-qsky:8080 with the query
-//	// resource.labels.instance = monitoring.regex.full_match("^" +
-//	// 	"(gke-test--default-pool-cee13989-0i75|gke-test--default-pool-cee13989-qsky)" +
-//	// 	"(:\\d+)*"
+//	// metric.labels.node = monitoring.regex.full_match("^" +
+//	// 	"(gke-test--default-pool-cee13989-0i75|gke-test--default-pool-cee13989-qsky)"+
+//	//	"$"
 //	// )
 //	filterBuilder := NewFilterBuilder(SchemaTypes[PodSchemaKey]).WithNodes([]string{
 //		"gke-test--default-pool-cee13989-0i75",
 //		"gke-test--default-pool-cee13989-qsky",
 //	})
 func (fb FilterBuilder) WithNodes(nodes []string) FilterBuilder {
-	regex := fmt.Sprintf("^(%s)(:\\d+)*", strings.Join(nodes, "|"))
+	regex := fmt.Sprintf("^(%s)$", strings.Join(nodes, "|"))
 	fb.filters = append(fb.filters, fmt.Sprintf("%s = monitoring.regex.full_match(%q)", fb.schema.nodes, regex))
 	return fb
 }
