@@ -41,25 +41,6 @@ env:
         fieldPath: metadata.namespace
 ```
 
-### PodMonitoring Resource
-
-below section deploys a podmonitoring resource to automatically scratch and upload metrics to google cloud monitoring as managed prometheus metrics, 
-and the metrics will have be prefixed with `prometheus.googleapis.com` 
-
-```yaml
-apiVersion: monitoring.googleapis.com/v1
-kind: PodMonitoring
-metadata:
-  name: prom-example
-  namespace: default
-spec:
-  selector:
-    matchLabels:
-      run: custom-metric-prometheus-sd
-  endpoints:
-  - port: 8080
-    interval: 30s
-```
 ## Horizontal Pod Autoscaling object
 
 In the example, there is a [Horizontal Pod Autoscaler object] configured to scale the deployment on the exported metric. It takes couple minutes for 
@@ -78,6 +59,58 @@ kubectl create -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stac
 will create a custom-metric-prometheus-sd deployment containing prometheus_dummy_exporter container and a sidecar prometheus-to-sd container.
 Additionally it will create the HPA object to tell Kubernetes to scale the deployment based on the exported metric. Default maximum number of
 pods is 5.
+
+## Google Managed Prometheus
+
+Alternatively, you can use google managed prometheus service to manage your metrics.
+
+## Background
+
+If you would like to learn more about GMP service, you can check out the [documentation](https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed) to get yourself familair with it.
+
+## Setup
+
+1. Make sure sure cluster has GMP enabled, if not, you can follow the [instruction](https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed#kubectl-cli) to enable it.
+2. You will need to deploy a PodMonitoring Resource to scratch and upload metrics, and the metrics will be prefixed with `prometheus.googleapis.com`, details see [below](#podmonitoring-resource).
+3. Lastly, update HPA to use the gmp metrics. (For example, `foo` -> `prometheus.googleapis.com|foo|gauge`)
+
+_Note: You can explore more all available gmp metrics by going to the [Metrics Explorer](https://console.cloud.google.com/monitoring/metrics-explorer) in your google console's monitoring page, and search for *Prometheus Target*._
+
+### PodMonitoring Resource
+
+This is an exmaple of PodMonitoring yaml file for scratching metrics emitted by the application with label `run=custom-metric-prometheus-sd` on port 8080
+
+```yaml
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: prom-example
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      run: custom-metric-prometheus-sd
+  endpoints:
+  - port: 8080
+    interval: 30s
+```
+Run this command to deploy it:
+```sh
+echo "apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: prom-example
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      run: custom-metric-prometheus-sd
+  endpoints:
+  - port: 8080
+    interval: 30s" | kubectl apply -f -
+```
+
+_Note: it usually takes couple minutes to for gmp metrics to be available._
 
 ## Troubleshooting
 
