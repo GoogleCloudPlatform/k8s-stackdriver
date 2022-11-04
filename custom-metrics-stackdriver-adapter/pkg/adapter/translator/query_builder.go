@@ -110,7 +110,7 @@ func (pc podValues) isPodValuesEmpty() bool {
 	return len(pc.podNames) == 0 && (pc.pods == nil || len(pc.pods.Items) == 0)
 }
 
-// getPodNames gets pod names from podValues is any provided
+// getPodNames gets pod names from podValues if any provided
 func (pc podValues) getPodNames() []string {
 	if pc.pods == nil {
 		return pc.podNames
@@ -156,9 +156,9 @@ func (nc nodeValues) isNodeValuesEmpty() bool {
 // getNodeNames gets node names from nodeContainer if any provided
 func (nc nodeValues) getNodeNames() []string {
 	if nc.nodes != nil {
-		nodeNames := []string{}
-		for _, item := range nc.nodes.Items {
-			nodeNames = append(nodeNames, item.GetName())
+		nodeNames := make([]string, len(nc.nodes.Items))
+		for i, item := range nc.nodes.Items {
+			nodeNames[i] = item.GetName()
 		}
 		return nodeNames
 	}
