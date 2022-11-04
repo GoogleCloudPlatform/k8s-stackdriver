@@ -5,20 +5,34 @@ This is a minimal example showing how to export custom metrics using
 in a k8s cluster running on GCE or GKE. This example assumes that you already have
 a [custom metrics setup] in your cluster.
 
-## Prometheus dummy exporter
+## Deploy a sample application
+
+### Option1. Prometheus dummy exporter
 
 A simple prometheus-dummy-exporter component exposes a single prometheus metric 
 with a constant value. The metric name and value can be passed in via flags.
 There is also a flag to configure the port on which the metrics are served. 
 
-## Prometheus to Stackdriver sidecar container
+#### Setup
+
+The example can be used to test your custom metrics setup using Stackdriver. See the [custom metrics setup] instructions for more details.
+
+Running 
+```
+kubectl create -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/examples/prometheus-to-sd/custom-metrics-prometheus-sd.yaml 
+```
+will create a custom-metric-prometheus-sd deployment containing prometheus_dummy_exporter container and a sidecar prometheus-to-sd container.
+Additionally it will create the HPA object to tell Kubernetes to scale the deployment based on the exported metric. Default maximum number of
+pods is 5.
+
+#### Prometheus to Stackdriver sidecar container
 
 Prometheus Dummy exporter is deployed with a sidecar [Prometheus to Stackdriver] container
 configured to scrape exposed metric from the specified port and write it to Stackdriver. 
 [Custom metrics - Stackdriver adapter] then reads this metric from Stackdriver 
 and makes the metric available for scaling.
 
-### prometheus-to-sd flags
+#### prometheus-to-sd flags
 Note important configuration details for prometheus-to-sd
 ```yaml	
 command:
@@ -41,76 +55,29 @@ env:
         fieldPath: metadata.namespace
 ```
 
+
+### Option 2. Exporting metrics to Google Cloud Managed Service for Prometheus
+
+Alternatively, you can use [Google Cloud Managed Service for Prometheus](https://cloud.google.com/managed-prometheus) (GMP) to manage your metrics.
+
+#### Background
+
+If you would like to learn more about GMP, you can check out the [documentation](https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed) to get yourself familair with it.
+
+#### Setup
+
+For detailed setup steps, you can refer to the documentation [here](https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed#config-mgd-collection).
+
+
 ## Horizontal Pod Autoscaling object
 
-In the example, there is a [Horizontal Pod Autoscaler object] configured to scale the deployment on the exported metric. It takes couple minutes for 
-podmonitoring resource to scratch and upload metrics, and it is configured with a target value lower than the default metric value. This will
+In the example, there is a [Horizontal Pod Autoscaler object](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/) configured to scale the deployment on the exported metric. This will
 cause the deployment to scale up to 5 replicas over the course of ~15 minutes. If you do not see a successful scale up event for a longer period of 
 time, there is likely an issue with your setup. See [Troubleshooting](#troubleshoooting) section for possible reasons.
 
-## Deployment
+- If you want to use metrics from the prometheus dummy exporter you deployed, you can directly use the metric name in the yaml file, such as `foo` in the example, the stackdriver adapter will interpret it `custom.googleapis.com|foo` by default.
+- If you want to use GMP metrics, you will need to provide the metric's full name from the [Metrics Explorer](https://console.cloud.google.com/monitoring/metrics-explorer) in Google Cloud Console's monitoring page, in this case, it will be `prometheus.googleapis.com|foo|gauge`.
 
-The example can be used to test your custom metrics setup using Stackdriver. See the [custom metrics setup] instructions for more details.
-
-Running 
-```
-kubectl create -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/examples/prometheus-to-sd/custom-metrics-prometheus-sd.yaml 
-```
-will create a custom-metric-prometheus-sd deployment containing prometheus_dummy_exporter container and a sidecar prometheus-to-sd container.
-Additionally it will create the HPA object to tell Kubernetes to scale the deployment based on the exported metric. Default maximum number of
-pods is 5.
-
-## Google Managed Prometheus
-
-Alternatively, you can use google managed prometheus service to manage your metrics.
-
-## Background
-
-If you would like to learn more about GMP service, you can check out the [documentation](https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed) to get yourself familair with it.
-
-## Setup
-
-1. Make sure sure cluster has GMP enabled, if not, you can follow the [instruction](https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed#kubectl-cli) to enable it.
-2. You will need to deploy a PodMonitoring Resource to scratch and upload metrics, and the metrics will be prefixed with `prometheus.googleapis.com`, details see [below](#podmonitoring-resource).
-3. Lastly, update HPA to use the gmp metrics. (For example, `foo` -> `prometheus.googleapis.com|foo|gauge`)
-
-_Note: You can explore more all available gmp metrics by going to the [Metrics Explorer](https://console.cloud.google.com/monitoring/metrics-explorer) in your google console's monitoring page, and search for *Prometheus Target*._
-
-### PodMonitoring Resource
-
-This is an exmaple of PodMonitoring yaml file for scratching metrics emitted by the application with label `run=custom-metric-prometheus-sd` on port 8080
-
-```yaml
-apiVersion: monitoring.googleapis.com/v1
-kind: PodMonitoring
-metadata:
-  name: prom-example
-  namespace: default
-spec:
-  selector:
-    matchLabels:
-      run: custom-metric-prometheus-sd
-  endpoints:
-  - port: 8080
-    interval: 30s
-```
-Run this command to deploy it:
-```sh
-echo "apiVersion: monitoring.googleapis.com/v1
-kind: PodMonitoring
-metadata:
-  name: prom-example
-  namespace: default
-spec:
-  selector:
-    matchLabels:
-      run: custom-metric-prometheus-sd
-  endpoints:
-  - port: 8080
-    interval: 30s" | kubectl apply -f -
-```
-
-_Note: it usually takes couple minutes to for gmp metrics to be available._
 
 ## Troubleshooting
 
