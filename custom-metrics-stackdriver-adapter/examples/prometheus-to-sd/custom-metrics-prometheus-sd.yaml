@@ -45,19 +45,6 @@ spec:
               fieldRef:
                 fieldPath: metadata.namespace
 ---
-apiVersion: monitoring.googleapis.com/v1
-kind: PodMonitoring
-metadata:
-  name: prom-example
-  namespace: default
-spec:
-  selector:
-    matchLabels:
-      run: custom-metric-prometheus-sd
-  endpoints:
-  - port: 8080
-    interval: 30s
----
 apiVersion: autoscaling/v2beta2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -74,7 +61,7 @@ spec:
   - type: Pods
     pods:
       metric:
-        name: prometheus.googleapis.com|foo|gauge
+        name: foo
       target:
         type: AverageValue
         averageValue: 20
