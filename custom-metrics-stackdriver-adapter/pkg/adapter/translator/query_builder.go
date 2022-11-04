@@ -110,8 +110,8 @@ func (pc podValues) isPodValuesEmpty() bool {
 	return len(pc.podNames) == 0 && (pc.pods == nil || len(pc.pods.Items) == 0)
 }
 
-// getPodNames gets pod names from podValues if any provided
-func (pc podValues) getPodNames() []string {
+// getQuotedPodNames gets quoted pod names from podValues if any provided
+func (pc podValues) getQuotedPodNames() []string {
 	if pc.pods == nil {
 		return pc.podNames
 	}
@@ -305,7 +305,7 @@ func (qb QueryBuilder) getResourceNames() []string {
 		// new resource model
 		if !qb.pods.isPodValuesEmpty() {
 			// pods
-			return qb.pods.getPodNames()
+			return qb.pods.getQuotedPodNames()
 		}
 		// nodes
 		return qb.nodes.getNodeNames()
@@ -356,7 +356,7 @@ func (qb QueryBuilder) validate() error {
 		if !qb.pods.isPodValuesValid() {
 			return apierr.NewInternalError(fmt.Errorf("invalid pods parameter is set to QueryBuilder"))
 		}
-		numPods := len(qb.pods.getPodNames())
+		numPods := len(qb.pods.getQuotedPodNames())
 		if numPods > MaxNumOfArgsInOneOfFilter {
 			return apierr.NewInternalError(fmt.Errorf("QueryBuilder tries to build with %v pod list, but allowed limit is %v pods", numPods, MaxNumOfArgsInOneOfFilter))
 		}
