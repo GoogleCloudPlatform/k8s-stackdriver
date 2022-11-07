@@ -9,7 +9,7 @@ a [custom metrics setup] in your cluster.
 
 ### Option1. Prometheus dummy exporter
 
-A simple prometheus-dummy-exporter component exposes a single prometheus metric 
+A simple prometheus-dummy-exporter component exposes a single Prometheus metric 
 with a constant value. The metric name and value can be passed in via flags.
 There is also a flag to configure the port on which the metrics are served. 
 
@@ -22,7 +22,7 @@ Running
 kubectl create -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/examples/prometheus-to-sd/custom-metrics-prometheus-sd.yaml 
 ```
 will create a custom-metric-prometheus-sd deployment containing prometheus_dummy_exporter container and a sidecar prometheus-to-sd container.
-Additionally it will create the HPA object to tell Kubernetes to scale the deployment based on the exported metric. Default maximum number of
+Additionally, it will create the HPA object to tell Kubernetes to scale the deployment based on the exported metric. The default maximum number of
 pods is 5.
 
 #### Prometheus to Stackdriver sidecar container
@@ -58,11 +58,11 @@ env:
 
 ### Option 2. Exporting metrics to Google Cloud Managed Service for Prometheus
 
-Alternatively, you can use [Google Cloud Managed Service for Prometheus](https://cloud.google.com/managed-prometheus) (GMP) to manage your metrics.
+Alternatively, you can use [Google Cloud Managed Service for Prometheus](https://cloud.google.com/managed-prometheus) to manage your metrics.
 
 #### Background
 
-If you would like to learn more about GMP, you can check out the [documentation](https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed) to get yourself familair with it.
+If you would like to learn more about Google Cloud Managed Service for Prometheus, you can check out the [documentation](https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed) to get yourself familiar with it.
 
 #### Setup
 
@@ -72,11 +72,10 @@ For detailed setup steps, you can refer to the documentation [here](https://clou
 ## Horizontal Pod Autoscaling object
 
 In the example, there is a [Horizontal Pod Autoscaler object](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/) configured to scale the deployment on the exported metric. This will
-cause the deployment to scale up to 5 replicas over the course of ~15 minutes. If you do not see a successful scale up event for a longer period of 
-time, there is likely an issue with your setup. See [Troubleshooting](#troubleshoooting) section for possible reasons.
+cause the deployment to scale up to 5 replicas for ~15 minutes. If you do not see a successful scale-up event for a longer period, there is likely an issue with your setup. See the [Troubleshooting](#troubleshoooting) section for possible reasons.
 
-- If you want to use metrics from the prometheus dummy exporter you deployed, you can directly use the metric name in the yaml file, such as `foo` in the example, the stackdriver adapter will interpret it `custom.googleapis.com|foo` by default.
-- If you want to use GMP metrics, you will need to provide the metric's full name from the [Metrics Explorer](https://console.cloud.google.com/monitoring/metrics-explorer) in Google Cloud Console's monitoring page, in this case, it will be `prometheus.googleapis.com|foo|gauge`.
+- If you want to use metrics from the Prometheus dummy exporter you deployed, you can directly use the metric name in the YAML file, such as `foo` in the example, the stackdriver adapter will interpret it `custom.googleapis.com|foo` by default.
+- If you want to use Google Cloud Managed Service for Prometheus metrics, you will need to provide the metric's full name from the [Metrics Explorer](https://console.cloud.google.com/monitoring/metrics-explorer) in Google Cloud Console's monitoring page, in this case, it will be `prometheus.googleapis.com|foo|gauge`.
 
 
 ## Troubleshooting
