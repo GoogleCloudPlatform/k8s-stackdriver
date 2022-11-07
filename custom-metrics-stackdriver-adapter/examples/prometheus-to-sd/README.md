@@ -68,7 +68,6 @@ If you would like to learn more about Google Cloud Managed Service for Prometheu
 
 For detailed setup steps, you can refer to the documentation [here](https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed#config-mgd-collection).
 
-
 ## Horizontal Pod Autoscaling object
 
 In the example, there is a [Horizontal Pod Autoscaler object](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/) configured to scale the deployment on the exported metric. This will
@@ -124,7 +123,7 @@ You should see a similar list:
   ]
 }
 ```
-Alternatively, you can directly test against custom-metric-stackdriver-adapter by the command:
+Alternatively, you can directly test against custom-metric-stackdriver-adapter by running the command:
 ```sh
 kubectl get --raw "/apis/custom.metrics.k8s.io/v1beta2/namespaces/default/pods/*/prometheus.googleapis.com|foo|gauge" | jq .
 ```
