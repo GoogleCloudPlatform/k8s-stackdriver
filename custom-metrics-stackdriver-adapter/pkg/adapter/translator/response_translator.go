@@ -34,6 +34,11 @@ import (
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 )
 
+const (
+	PodSchemaKey  = "pods"  // PodSchemaKey is the schema key for pod metrics
+	NodeSchemaKey = "nodes" // NodeSchemaKey is the schema key for node metrics
+)
+
 // GetRespForSingleObject returns translates Stackdriver response to a Custom Metric associated with
 // a single object.
 func (t *Translator) GetRespForSingleObject(response *stackdriver.ListTimeSeriesResponse, groupResource schema.GroupResource, metricName string, metricSelector labels.Selector, namespace string, name string) (*custom_metrics.MetricValue, error) {
@@ -124,7 +129,7 @@ func (t *Translator) GetMetricsFromSDDescriptorsResp(response *stackdriver.ListM
 func (t *Translator) CheckMetricUniquenessForPod(response *stackdriver.ListTimeSeriesResponse, metricName string) error {
 	metricContainer := make(map[string]string)
 	for _, series := range response.TimeSeries {
-		name, err := t.metricKey(series)
+		name, err := t.metricKey(series, PodSchemaKey)
 		if err != nil {
 			return err
 		}
@@ -155,7 +160,7 @@ func (t *Translator) getMetricValuesFromResponse(groupResource schema.GroupResou
 		// Points in a time series are returned in reverse time order
 		point := *series.Points[0]
 		value := point.Value
-		name, err := t.metricKey(series)
+		name, err := t.metricKey(series, groupResource.String())
 		if err != nil {
 			return nil, err
 		}
@@ -232,7 +237,7 @@ func (t *Translator) resourceKey(object metav1.ObjectMeta) string {
 	return fmt.Sprintf("%s", object.GetUID())
 }
 
-func (t *Translator) metricKey(timeSeries *stackdriver.TimeSeries) (string, error) {
+func (t *Translator) metricKey(timeSeries *stackdriver.TimeSeries, resourceSchema string) (string, error) {
 	if t.useNewResourceModel {
 		switch timeSeries.Resource.Type {
 		case "k8s_pod":
@@ -242,6 +247,13 @@ func (t *Translator) metricKey(timeSeries *stackdriver.TimeSeries) (string, erro
 			return timeSeries.Resource.Labels["namespace_name"] + ":" + timeSeries.Resource.Labels["pod_name"], nil
 		case "k8s_node":
 			return ":" + timeSeries.Resource.Labels["node_name"], nil
+		case "prometheus_target":
+			if resourceSchema == "nodes" {
+				return ":" + timeSeries.Metric.Labels["node"], nil
+			}
+			return timeSeries.Resource.Labels["namespace"] + ":" + timeSeries.Metric.Labels["pod"], nil
+		default:
+			klog.Errorf("Expected resource type as one of [\"k8s_pod\", \"k8s_container\", \"k8s_node\", \"prometheus_target\"], but received %s", timeSeries.Resource.Type)
 		}
 	} else {
 		return timeSeries.Resource.Labels["pod_id"], nil

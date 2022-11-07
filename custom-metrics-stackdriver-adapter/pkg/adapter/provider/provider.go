@@ -105,11 +105,17 @@ func (p *StackdriverProvider) getRootScopedMetricByName(groupResource schema.Gro
 	if err != nil {
 		return nil, err
 	}
-	metricKind, metricValueType, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName), metricSelector)
+	metricName := getCustomMetricName(escapedMetricName)
+	metricKind, metricValueType, err := p.translator.GetMetricKind(metricName, metricSelector)
 	if err != nil {
 		return nil, err
 	}
-	stackdriverRequest, err := p.translator.GetSDReqForNodes(&v1.NodeList{Items: []v1.Node{*matchingNode}}, getCustomMetricName(escapedMetricName), metricKind, metricValueType, metricSelector)
+	stackdriverRequest, err := translator.NewQueryBuilder(p.translator, metricName).
+		WithNodes(&v1.NodeList{Items: []v1.Node{*matchingNode}}).
+		WithMetricKind(metricKind).
+		WithMetricValueType(metricValueType).
+		WithMetricSelector(metricSelector).
+		Build()
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +139,8 @@ func (p *StackdriverProvider) getRootScopedMetricBySelector(groupResource schema
 	if err != nil {
 		return nil, err
 	}
-	metricKind, metricValueType, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName), metricSelector)
+	metricName := getCustomMetricName(escapedMetricName)
+	metricKind, metricValueType, err := p.translator.GetMetricKind(metricName, metricSelector)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +148,12 @@ func (p *StackdriverProvider) getRootScopedMetricBySelector(groupResource schema
 	for i := 0; i < len(matchingNodes.Items); i += translator.MaxNumOfArgsInOneOfFilter {
 		sliceSegmentEnd := min(i+translator.MaxNumOfArgsInOneOfFilter, len(matchingNodes.Items))
 		nodesSlice := &v1.NodeList{Items: matchingNodes.Items[i:sliceSegmentEnd]}
-		stackdriverRequest, err := p.translator.GetSDReqForNodes(nodesSlice, getCustomMetricName(escapedMetricName), metricKind, metricValueType, metricSelector)
+		stackdriverRequest, err := translator.NewQueryBuilder(p.translator, metricName).
+			WithNodes(nodesSlice).
+			WithMetricKind(metricKind).
+			WithMetricValueType(metricValueType).
+			WithMetricSelector(metricSelector).
+			Build()
 		if err != nil {
 			return nil, err
 		}
@@ -164,15 +176,28 @@ func (p *StackdriverProvider) getNamespacedMetricByName(groupResource schema.Gro
 	if groupResource.Resource != podResource {
 		return nil, NewOperationNotSupportedError(fmt.Sprintf("Get namespaced metric by name for resource %q", groupResource.Resource))
 	}
+
 	matchingPod, err := p.kubeClient.Pods(namespace).Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
-	metricKind, metricValueType, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName), metricSelector)
+
+	metricName := getCustomMetricName(escapedMetricName)
+	metricKind, metricValueType, err := p.translator.GetMetricKind(metricName, metricSelector)
 	if err != nil {
 		return nil, err
 	}
-	stackdriverRequest, err := p.translator.GetSDReqForPods(&v1.PodList{Items: []v1.Pod{*matchingPod}}, getCustomMetricName(escapedMetricName), metricKind, metricValueType, metricSelector, namespace)
+	queryBuilder := translator.NewQueryBuilder(p.translator, metricName)
+
+	pods := &v1.PodList{Items: []v1.Pod{*matchingPod}}
+	stackdriverRequest, err := queryBuilder.
+		WithPods(pods).
+		WithMetricKind(metricKind).
+		WithMetricValueType(metricValueType).
+		WithMetricSelector(metricSelector).
+		WithNamespace(namespace).
+		Build()
+
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +207,14 @@ func (p *StackdriverProvider) getNamespacedMetricByName(groupResource schema.Gro
 	}
 
 	if p.fallbackForContainerMetrics && len(stackdriverResponse.TimeSeries) == 0 {
-		stackdriverRequest, err = p.translator.GetSDReqForContainers(&v1.PodList{Items: []v1.Pod{*matchingPod}}, getCustomMetricName(escapedMetricName), metricKind, metricValueType, metricSelector, namespace)
+		stackdriverRequest, err := queryBuilder.
+			AsContainerType().
+			WithPods(pods).
+			WithMetricKind(metricKind).
+			WithMetricValueType(metricValueType).
+			WithMetricSelector(metricSelector).
+			WithNamespace(namespace).
+			Build()
 		if err != nil {
 			return nil, err
 		}
@@ -209,15 +241,25 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 	if err != nil {
 		return nil, err
 	}
-	metricKind, metricValueType, err := p.translator.GetMetricKind(getCustomMetricName(escapedMetricName), metricSelector)
+	metricName := getCustomMetricName(escapedMetricName)
+	klog.V(4).Infof("Querying for metric: %s", metricName)
+
+	metricKind, metricValueType, err := p.translator.GetMetricKind(metricName, metricSelector)
 	if err != nil {
 		return nil, err
 	}
+
+	queryBuilder := translator.NewQueryBuilder(p.translator, metricName).
+		WithMetricKind(metricKind).
+		WithMetricSelector(metricSelector).
+		WithMetricValueType(metricValueType).
+		WithNamespace(namespace)
+
 	result := []custom_metrics.MetricValue{}
 	for i := 0; i < len(matchingPods.Items); i += translator.MaxNumOfArgsInOneOfFilter {
 		sliceSegmentEnd := min(i+translator.MaxNumOfArgsInOneOfFilter, len(matchingPods.Items))
 		podsSlice := &v1.PodList{Items: matchingPods.Items[i:sliceSegmentEnd]}
-		stackdriverRequest, err := p.translator.GetSDReqForPods(podsSlice, getCustomMetricName(escapedMetricName), metricKind, metricValueType, metricSelector, namespace)
+		stackdriverRequest, err := queryBuilder.WithPods(podsSlice).Build()
 		if err != nil {
 			return nil, err
 		}
@@ -236,7 +278,14 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 		for i := 0; i < len(matchingPods.Items); i += translator.MaxNumOfArgsInOneOfFilter {
 			sliceSegmentEnd := min(i+translator.MaxNumOfArgsInOneOfFilter, len(matchingPods.Items))
 			podsSlice := &v1.PodList{Items: matchingPods.Items[i:sliceSegmentEnd]}
-			stackdriverRequest, err := p.translator.GetSDReqForContainers(podsSlice, getCustomMetricName(escapedMetricName), metricKind, metricValueType, metricSelector, namespace)
+			stackdriverRequest, err := translator.NewQueryBuilder(p.translator, metricName).
+				AsContainerType().
+				WithPods(podsSlice).
+				WithMetricKind(metricKind).
+				WithMetricValueType(metricValueType).
+				WithMetricSelector(metricSelector).
+				WithNamespace(namespace).
+				Build()
 			if err != nil {
 				return nil, err
 			}

@@ -58,7 +58,7 @@ func (r *PodResult) AddCoreContainerMetricFromResponse(response *stackdriver.Lis
 			return err
 		}
 
-		podKey, err := r.metricKey(series)
+		podKey, err := r.metricKey(series, PodSchemaKey)
 		if err != nil {
 			return err
 		}

@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/translator/utils"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
 	stackdriver "google.golang.org/api/monitoring/v3"
 	v1 "k8s.io/api/core/v1"
@@ -64,6 +65,8 @@ const (
 	AllNamespaces = ""
 	// MaxNumOfArgsInOneOfFilter is the maximum value of one_of() function allowed in Stackdriver Filters
 	MaxNumOfArgsInOneOfFilter = 100
+	// PrometheusMetricPrefix is the prefix for prometheus metrics
+	PrometheusMetricPrefix = "prometheus.googleapis.com"
 )
 
 type clock interface {
@@ -88,6 +91,377 @@ type Translator struct {
 	supportDistributions bool
 }
 
+// podValues is a helper struct to hold pods values
+type podValues struct {
+	pods     *v1.PodList
+	podNames []string
+}
+
+// isPodValuesValid checks if podValues is valid to be used
+//
+// this only happens when the both pods & podNames are provided,
+// for example, when WithPods() and WithPodNames() are both used in QueryBuilder
+func (pc podValues) isPodValuesValid() bool {
+	return !(len(pc.podNames) > 0 && pc.pods != nil && len(pc.pods.Items) > 0)
+}
+
+// isPodValuesEmpty checks if pods container is empty
+func (pc podValues) isPodValuesEmpty() bool {
+	return len(pc.podNames) == 0 && (pc.pods == nil || len(pc.pods.Items) == 0)
+}
+
+// getQuotedPodNames gets quoted pod names from podValues if any provided
+func (pc podValues) getQuotedPodNames() []string {
+	if pc.pods == nil {
+		return pc.podNames
+	}
+	podNames := make([]string, len(pc.pods.Items))
+	for i, item := range pc.pods.Items {
+		podNames[i] = fmt.Sprintf("%q", item.GetName())
+	}
+	return podNames
+}
+
+// getPodIDs gets pod ids from podValues if any provided
+func (pc podValues) getPodIDs() []string {
+	if pc.pods == nil {
+		return []string{}
+	}
+	podIDs := make([]string, len(pc.pods.Items))
+	for i, item := range pc.pods.Items {
+		podIDs[i] = fmt.Sprintf("%q", item.GetUID())
+	}
+	return podIDs
+}
+
+// nodeValues is a helper struct to hold nodes values
+type nodeValues struct {
+	nodes     *v1.NodeList
+	nodeNames []string
+}
+
+// isNodeValuesValid checks if nodeContainer is valid to be used
+//
+// this only happens when the both nodes & nodeNames are provided,
+// for example, when WithNodes() and WithNodeNames() are both used in QueryBuilder
+func (nc nodeValues) isNodeValuesValid() bool {
+	return !(len(nc.nodeNames) > 0 && nc.nodes != nil && len(nc.nodes.Items) > 0)
+}
+
+// isNodeValuesEmpty checks if nodes container is empty
+func (nc nodeValues) isNodeValuesEmpty() bool {
+	return len(nc.nodeNames) == 0 && (nc.nodes == nil || len(nc.nodes.Items) == 0)
+}
+
+// getNodeNames gets node names from nodeContainer if any provided
+func (nc nodeValues) getNodeNames() []string {
+	if nc.nodes != nil {
+		nodeNames := make([]string, len(nc.nodes.Items))
+		for i, item := range nc.nodes.Items {
+			nodeNames[i] = item.GetName()
+		}
+		return nodeNames
+	}
+	return nc.nodeNames
+}
+
+// QueryBuilder is a builder for ProjectsTimeSeriesListCall
+//
+// use NewQueryBuilder() to initialize
+type QueryBuilder struct {
+	translator           *Translator     // translator provides configurations to filter
+	metricName           string          // metricName is the metric name to filter
+	metricKind           string          // metricKind is the metric kind to filter
+	metricValueType      string          // metricValueType is the metric value type to filter
+	metricSelector       labels.Selector // metricSelector is the metric selector to filtere
+	namespace            string          // namespace is the namespace to filter (mutually exclusive with nodes)
+	pods                 podValues       // pods is the pods to filter (mutually exclusive with nodes)
+	nodes                nodeValues      // nodes is the nodes to filter (mutually exclusive with namespace, pods)
+	enforceContainerType bool            // enforceContainerType decides whether to enforce using container type filter schema
+}
+
+// NewQueryBuilder is the initiator for QueryBuilder
+//
+// Parameters:
+//   - translator, required for configurations.
+//   - metricName, required to determine the query schema.
+//
+// Example:
+//
+//	queryBuilder := NewQueryBuilder(NewTranslator(...), "custom.googleapis.com/foo")
+func NewQueryBuilder(translator *Translator, metricName string) QueryBuilder {
+	return QueryBuilder{
+		translator: translator,
+		metricName: metricName,
+	}
+}
+
+// WithMetricKind adds a metric kind filter to the QueryBuilder
+//
+// Example:
+//
+//	queryBuilder := NewQueryBuilder(translator, metricName).WithMetricKind("GAUGE")
+func (qb QueryBuilder) WithMetricKind(metricKind string) QueryBuilder {
+	qb.metricKind = metricKind
+	return qb
+}
+
+// WithMetricValueType adds a metric value type filter to the QueryBuilder
+//
+// Example:
+//
+//	queryBuilder := NewQueryBuilder(translator, metricName).WithMetricValueType("INT64")
+func (qb QueryBuilder) WithMetricValueType(metricValueType string) QueryBuilder {
+	qb.metricValueType = metricValueType
+	return qb
+}
+
+// WithMetricSelector adds a metric selector filter to the QueryBuilder
+//
+// Example:
+//
+//	// labels comes from "k8s.io/apimachinery/pkg/labels"
+//	metricSelector, _ := labels.Parse("metric.labels.custom=test")
+//	queryBuilder := NewQueryBuilder(translator, metricName).WithMetricSelector(metricSelector)
+func (qb QueryBuilder) WithMetricSelector(metricSelector labels.Selector) QueryBuilder {
+	qb.metricSelector = metricSelector
+	return qb
+}
+
+// WithNamespace adds a namespace filter to to the QueryBuilder
+//
+//   - CANNOT be used with WithNodes
+//
+// Example:
+//
+//	queryBuilder := NewQueryBuilder(translator, metricName).WithNamespace("gmp-test")
+func (qb QueryBuilder) WithNamespace(namespace string) QueryBuilder {
+	qb.namespace = namespace
+	return qb
+}
+
+// WithPods adds a pod filter to the QueryBuilder (used when namespace is NOT empty)
+//
+// # ONLY one among WithPods, WithPodNames and WithNodes should be used
+//
+// Example:
+//
+//	// v1 comes from "k8s.io/api/core/v1"
+//	pod := v1.Pod{
+//		ObjectMeta: metav1.ObjectMeta{
+//			ClusterName: "my-cluster",
+//			UID:         "my-pod-id",
+//			Name:        "my-pod-name",
+//		},
+//	}
+//	queryBuilder := NewQueryBuilder(translator, metricName).WithPods(&v1.PodList{Items: []v1.Pod{pod}})
+func (qb QueryBuilder) WithPods(pods *v1.PodList) QueryBuilder {
+	qb.pods.pods = pods
+	return qb
+}
+
+// WithPodNames adds a pod filter to the QueryBuilder (used when namespace is NOT empty)
+//
+// # ONLY one among WithPods, WithPodNames and WithNodes should be used
+//
+// Example:
+//
+//	podNames := []string{"pod-1", "pod-2"}
+//	queryBuilder := NewQueryBuilder(translator, metricName).WithPodNames(podNames)
+func (qb QueryBuilder) WithPodNames(podNames []string) QueryBuilder {
+	qb.pods.podNames = podNames
+	return qb
+}
+
+// WithNodes adds a node filter to the QueryBuilder (used when namespace is empty)
+//
+//   - ONLY one among WithPods, WithPodNames and WithNodes should be used
+//   - CANNOT be used with WithNamespace
+//
+// Exmaple:
+//
+//	// v1 comes from "k8s.io/api/core/v1"
+//	node := v1.Node{
+//		ObjectMeta: metav1.ObjectMeta{
+//			ClusterName: "my-cluster",
+//			UID:         "my-node-id-1",
+//			Name:        "my-node-name-1",
+//		},
+//	}
+//	queryBuilder := NewQueryBuilder(translator, metricName).WithNodes(&v1.NodeList{Items: []v1.Node{node}})
+func (qb QueryBuilder) WithNodes(nodes *v1.NodeList) QueryBuilder {
+	qb.nodes.nodes = nodes
+	return qb
+}
+
+func (qb QueryBuilder) WithNodeNames(nodeNames []string) QueryBuilder {
+	qb.nodes.nodeNames = nodeNames
+	return qb
+}
+
+// getResourceNames is an internal helper function to convert pods or nodes to podNames or nodeNames
+func (qb QueryBuilder) getResourceNames() []string {
+	if qb.translator.useNewResourceModel {
+		// new resource model
+		if !qb.pods.isPodValuesEmpty() {
+			// pods
+			return qb.pods.getQuotedPodNames()
+		}
+		// nodes
+		return qb.nodes.getNodeNames()
+	}
+	// legacy resource model
+	return qb.pods.getPodIDs()
+}
+
+// AsContainerType enforces to query k8s_container type metrics
+//
+// it it valid only when useNewResourceModel is true
+func (qb QueryBuilder) AsContainerType() QueryBuilder {
+	qb.enforceContainerType = true
+	return qb
+}
+
+// validate is an internal helper function for checking prerequisits before Build
+//
+// Criteria:
+//   - translator has to be provided
+//   - only one of nodes or namespace should be set.
+//   - only one from podNames, pods, nodes should be set
+//   - podList is required to be no longer than MaxNumOfArgsInOneOfFilter items. This is enforced by limitation of
+//     "one_of()" operator in Stackdriver filters, see documentation: "https://cloud.google.com/monitoring/api/v3/filters"
+//   - metric value type cannot be "DISTRIBUTION" while translator does not support distribution
+//   - container type filter schema cannot be used on the legacy resource model
+func (qb QueryBuilder) validate() error {
+	if qb.translator == nil {
+		return apierr.NewInternalError(fmt.Errorf("QueryBuilder tries to build with translator value: nil"))
+	}
+
+	if !qb.nodes.isNodeValuesEmpty() {
+		// node metric
+		if !qb.nodes.isNodeValuesValid() {
+			return apierr.NewInternalError(fmt.Errorf("invalid nodes parameter is set to QueryBuilder"))
+		}
+		if qb.namespace != "" {
+			return apierr.NewInternalError(fmt.Errorf("both nodes and namespace are provided, expect only one of them."))
+		}
+		if !qb.pods.isPodValuesEmpty() {
+			return apierr.NewInternalError(fmt.Errorf("both nodes and pods are provided, expect only one of them."))
+		}
+	} else {
+		// pod metric
+		if qb.pods.isPodValuesEmpty() {
+			return apierr.NewInternalError(fmt.Errorf("no resources are specified for QueryBuilder, expected one of nodes or pods should be used"))
+		}
+		if !qb.pods.isPodValuesValid() {
+			return apierr.NewInternalError(fmt.Errorf("invalid pods parameter is set to QueryBuilder"))
+		}
+		numPods := len(qb.pods.getQuotedPodNames())
+		if numPods > MaxNumOfArgsInOneOfFilter {
+			return apierr.NewInternalError(fmt.Errorf("QueryBuilder tries to build with %v pod list, but allowed limit is %v pods", numPods, MaxNumOfArgsInOneOfFilter))
+		}
+	}
+
+	if qb.metricValueType == "DISTRIBUTION" && !qb.translator.supportDistributions {
+		return apierr.NewBadRequest("distributions are not supported")
+	}
+
+	if qb.enforceContainerType && !qb.translator.useNewResourceModel {
+		return apierr.NewInternalError(fmt.Errorf("illegal state! Container metrics works only with new resource model"))
+	}
+
+	return nil
+}
+
+// getFilterBuilder is an internal helper function to decide which type of FilterBuilder to use
+//
+// Prorities:
+//  1. if useNewResourceModel is false, then use legacy type FilterBuiler
+//  2. if enforceContainerType is true, then use container type FilterBuilder
+//  3. if metricName is prefixed with PrometheusMetricPrefix, then use prometheus type FilterBuilder
+//  4. if namespace is empty, then use node type FilterBuilder
+//  5. By default, use pod type FilterBuilder
+func (qb QueryBuilder) getFilterBuilder() utils.FilterBuilder {
+	// legacy type FilterBuilder
+	if !qb.translator.useNewResourceModel {
+		return utils.NewFilterBuilder(utils.SchemaTypes[utils.LegacySchemaKey])
+	}
+
+	// container type FilterBuilder
+	if qb.enforceContainerType {
+		return utils.NewFilterBuilder(utils.SchemaTypes[utils.ContainerSchemaKey])
+	}
+
+	// prometheus type FilterBuilder
+	if strings.HasPrefix(qb.metricName, PrometheusMetricPrefix) {
+		return utils.NewFilterBuilder(utils.SchemaTypes[utils.PrometheusSchemaKey])
+	}
+
+	// node type FilterBuilder
+	if qb.namespace == "" {
+		return utils.NewFilterBuilder(utils.SchemaTypes[utils.NodeSchemaKey])
+	}
+
+	// pod type FilterBuilder
+	return utils.NewFilterBuilder(utils.SchemaTypes[utils.PodSchemaKey])
+}
+
+// composeFilter is an internal helper function to compose filter criteria
+// when namespace is NOT empty
+func (qb QueryBuilder) composeFilter() string {
+	filterBuilder := qb.getFilterBuilder().
+		WithMetricType(qb.metricName).
+		WithProject(qb.translator.config.Project).
+		WithCluster(qb.translator.config.Cluster)
+
+	resourceNames := qb.getResourceNames()
+	if qb.translator.useNewResourceModel {
+		// new resource model specific filters
+		filterBuilder = filterBuilder.WithLocation(qb.translator.config.Location)
+		if !qb.nodes.isNodeValuesEmpty() {
+			// node metrics
+			return filterBuilder.WithNodes(resourceNames).Build()
+		}
+		// pod metrics
+		return filterBuilder.
+			WithNamespace(qb.namespace).
+			WithPods(resourceNames).
+			Build()
+
+	}
+	// legacy resource model specific filters
+	return filterBuilder.
+		WithContainer().
+		WithPods(resourceNames).
+		Build()
+}
+
+// Build is the last step for QueryBuilder which converts itself into a ProjectsTimeSeriesListCall object
+//   - has to pass the prerequisits specified in QueryBuilder.validate()
+//   - uses the query schema based on useNewResourceModel from translator as well as the metric name.
+//   - composes provided filters using the internal tool FilterBuilder
+//
+// Example:
+//
+//	projectsTimeSeriesListCall, error = NewQueryBuilder(translator, metricName).Build()
+func (qb QueryBuilder) Build() (*stackdriver.ProjectsTimeSeriesListCall, error) {
+	if err := qb.validate(); err != nil {
+		return nil, err
+	}
+
+	filter := qb.composeFilter()
+
+	if qb.metricSelector.Empty() {
+		return qb.translator.createListTimeseriesRequest(filter, qb.metricKind, qb.metricValueType, ""), nil
+	}
+
+	filterForSelector, reducer, err := qb.translator.filterForSelector(qb.metricSelector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
+	if err != nil {
+		return nil, err
+	}
+	return qb.translator.createListTimeseriesRequest(joinFilters(filterForSelector, filter), qb.metricKind, qb.metricValueType, reducer), nil
+}
+
 // NewTranslator creates a Translator
 func NewTranslator(service *stackdriver.Service, gceConf *config.GceConfig, rateInterval time.Duration, alignmentPeriod time.Duration, mapper apimeta.RESTMapper, useNewResourceModel, supportDistributions bool) *Translator {
 	return &Translator{
@@ -100,127 +474,6 @@ func NewTranslator(service *stackdriver.Service, gceConf *config.GceConfig, rate
 		useNewResourceModel:  useNewResourceModel,
 		supportDistributions: supportDistributions,
 	}
-}
-
-// GetSDReqForPods returns Stackdriver request for query for multiple pods.
-// podList is required to be no longer than MaxNumOfArgsInOneOfFilter items. This is enforced by limitation of
-// "one_of()" operator in Stackdriver filters, see documentation:
-// https://cloud.google.com/monitoring/api/v3/filters
-func (t *Translator) GetSDReqForPods(podList *v1.PodList, metricName, metricKind, metricValueType string, metricSelector labels.Selector, namespace string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
-	if len(podList.Items) == 0 {
-		return nil, apierr.NewBadRequest("No objects matched provided selector")
-	}
-	if len(podList.Items) > MaxNumOfArgsInOneOfFilter {
-		return nil, apierr.NewInternalError(fmt.Errorf("GetSDReqForPods called with %v pod list, but allowed limit is %v pods", len(podList.Items), MaxNumOfArgsInOneOfFilter))
-	}
-	if metricValueType == "DISTRIBUTION" && !t.supportDistributions {
-		return nil, apierr.NewBadRequest("Distributions are not supported")
-	}
-	var filter string
-	if t.useNewResourceModel {
-		resourceNames := getPodNames(podList)
-		filter = joinFilters(
-			t.filterForMetric(metricName),
-			t.filterForCluster(),
-			t.filterForPods(resourceNames, namespace),
-			t.filterForAnyPod())
-	} else {
-		resourceIDs := getResourceIDs(podList)
-		filter = joinFilters(
-			t.filterForMetric(metricName),
-			t.legacyFilterForCluster(),
-			t.legacyFilterForPods(resourceIDs))
-	}
-	if metricSelector.Empty() {
-		return t.createListTimeseriesRequest(filter, metricKind, metricValueType, ""), nil
-	}
-
-	filterForSelector, reducer, err := t.filterForSelector(metricSelector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
-	if err != nil {
-		return nil, err
-	}
-	return t.createListTimeseriesRequest(joinFilters(filterForSelector, filter), metricKind, metricValueType, reducer), nil
-}
-
-// GetSDReqForContainers returns Stackdriver request for container resource from multiple pods.
-// podList is required to be no longer than MaxNumOfArgsInOneOfFilter items. This is enforced by limitation of
-// "one_of()" operator in Stackdriver filters, see documentation:
-// https://cloud.google.com/monitoring/api/v3/filters
-func (t *Translator) GetSDReqForContainers(podList *v1.PodList, metricName, metricKind, metricValueType string, metricSelector labels.Selector, namespace string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
-	resourceNames := getPodNames(podList)
-	return t.GetSDReqForContainersWithNames(resourceNames, metricName, metricKind, metricValueType, metricSelector, namespace)
-}
-
-// GetSDReqForContainersWithNames instead of PodList takes array of Pod names as first argument.
-// Request for PodList is expensive and not always necessary so it's better to use this method.
-// Assumes that resourceNames are double-quoted string.
-func (t *Translator) GetSDReqForContainersWithNames(resourceNames []string, metricName, metricKind, metricValueType string, metricSelector labels.Selector, namespace string) (*stackdriver.ProjectsTimeSeriesListCall, error) {
-	if len(resourceNames) == 0 {
-		return nil, apierr.NewBadRequest("No objects matched provided selector")
-	}
-	if len(resourceNames) > MaxNumOfArgsInOneOfFilter {
-		return nil, apierr.NewInternalError(fmt.Errorf("GetSDReqForContainers called with %v pod list, but allowed limit is %v pods", len(resourceNames), MaxNumOfArgsInOneOfFilter))
-	}
-	if metricValueType == "DISTRIBUTION" && !t.supportDistributions {
-		return nil, apierr.NewBadRequest("Distributions are not supported")
-	}
-	if !t.useNewResourceModel {
-		return nil, apierr.NewInternalError(fmt.Errorf("Illegal state! Container metrics works only with new resource model"))
-	}
-	filter := joinFilters(
-		t.filterForMetric(metricName),
-		t.filterForCluster(),
-		t.filterForPods(resourceNames, namespace),
-		t.filterForAnyContainer())
-	if metricSelector.Empty() {
-		return t.createListTimeseriesRequest(filter, metricKind, metricValueType, ""), nil
-	}
-	filterForSelector, reducer, err := t.filterForSelector(metricSelector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
-	if err != nil {
-		return nil, err
-	}
-	return t.createListTimeseriesRequest(joinFilters(filterForSelector, filter), metricKind, metricValueType, reducer), nil
-}
-
-// GetSDReqForNodes returns Stackdriver request for query for multiple nodes.
-// nodeList is required to be no longer than MaxNumOfArgsInOneOfFilter items. This is enforced by limitation of
-// "one_of()" operator in Stackdriver filters, see documentation:
-// https://cloud.google.com/monitoring/api/v3/filters
-func (t *Translator) GetSDReqForNodes(nodeList *v1.NodeList, metricName, metricKind, metricValueType string, metricSelector labels.Selector) (*stackdriver.ProjectsTimeSeriesListCall, error) {
-	resourceNames := getNodeNames(nodeList)
-	return t.GetSDReqForNodesWithNames(resourceNames, metricName, metricKind, metricValueType, metricSelector)
-}
-
-// GetSDReqForNodesWithNames instead of NodeList takes array of Node names as first argument.
-// Request for NodeList could be expensive and not always necessary so it's better to use this method.
-// Assumes that resourceNames are double-quoted string.
-func (t *Translator) GetSDReqForNodesWithNames(resourceNames []string, metricName, metricKind, metricValueType string, metricSelector labels.Selector) (*stackdriver.ProjectsTimeSeriesListCall, error) {
-	if len(resourceNames) == 0 {
-		return nil, apierr.NewBadRequest("No objects matched provided selector")
-	}
-	if len(resourceNames) > MaxNumOfArgsInOneOfFilter {
-		return nil, apierr.NewInternalError(fmt.Errorf("GetSDReqForNodes called with %v node list, but allowed limit is %v nodes", len(resourceNames), MaxNumOfArgsInOneOfFilter))
-	}
-	if metricValueType == "DISTRIBUTION" && !t.supportDistributions {
-		return nil, apierr.NewBadRequest("Distributions are not supported")
-	}
-	var filter string
-	if !t.useNewResourceModel {
-		return nil, NewOperationNotSupportedError("Root scoped metrics are not supported without new Stackdriver resource model enabled")
-	}
-	filter = joinFilters(
-		t.filterForMetric(metricName),
-		t.filterForCluster(),
-		t.filterForNodes(resourceNames),
-		t.filterForAnyNode())
-	if metricSelector.Empty() {
-		return t.createListTimeseriesRequest(filter, metricKind, metricValueType, ""), nil
-	}
-	filterForSelector, reducer, err := t.filterForSelector(metricSelector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
-	if err != nil {
-		return nil, err
-	}
-	return t.createListTimeseriesRequest(joinFilters(filterForSelector, filter), metricKind, metricValueType, reducer), nil
 }
 
 // GetExternalMetricRequest returns Stackdriver request for query for external metric.
@@ -293,22 +546,6 @@ func (t *Translator) GetExternalMetricProject(metricSelector labels.Selector) (s
 	return t.config.Project, nil
 }
 
-func getPodNames(list *v1.PodList) []string {
-	resourceNames := []string{}
-	for _, item := range list.Items {
-		resourceNames = append(resourceNames, fmt.Sprintf("%q", item.GetName()))
-	}
-	return resourceNames
-}
-
-func getNodeNames(list *v1.NodeList) []string {
-	resourceNames := []string{}
-	for _, item := range list.Items {
-		resourceNames = append(resourceNames, fmt.Sprintf("%q", item.GetName()))
-	}
-	return resourceNames
-}
-
 func isAllowedLabelName(labelName string, allowedLabelPrefixes []string, allowedFullLabelNames []string) bool {
 	for _, prefix := range allowedLabelPrefixes {
 		if strings.HasPrefix(labelName, prefix+".") {
@@ -332,14 +569,6 @@ func splitMetricLabel(labelName string, allowedLabelPrefixes []string) (string, 
 	return "", "", apierr.NewBadRequest(fmt.Sprintf("Label name: %s is not allowed.", labelName))
 }
 
-func getResourceIDs(list *v1.PodList) []string {
-	resourceIDs := []string{}
-	for _, item := range list.Items {
-		resourceIDs = append(resourceIDs, fmt.Sprintf("%q", item.GetUID()))
-	}
-	return resourceIDs
-}
-
 func quoteAll(list []string) []string {
 	result := []string{}
 	for _, item := range list {
@@ -348,6 +577,7 @@ func quoteAll(list []string) []string {
 	return result
 }
 
+// Deprecated, use FilterBuilder instead
 func joinFilters(filters ...string) string {
 	nonEmpty := []string{}
 	for _, f := range filters {
@@ -358,6 +588,7 @@ func joinFilters(filters ...string) string {
 	return strings.Join(nonEmpty, " AND ")
 }
 
+// Deprecated, use FilterBuilder instead
 func (t *Translator) filterForCluster() string {
 	projectFilter := fmt.Sprintf("resource.labels.project_id = %q", t.config.Project)
 	clusterFilter := fmt.Sprintf("resource.labels.cluster_name = %q", t.config.Cluster)
@@ -365,22 +596,27 @@ func (t *Translator) filterForCluster() string {
 	return fmt.Sprintf("%s AND %s AND %s", projectFilter, clusterFilter, locationFilter)
 }
 
+// Deprecated, use FilterBuilder instead
 func (t *Translator) filterForMetric(metricName string) string {
 	return fmt.Sprintf("metric.type = %q", metricName)
 }
 
+// Deprecated, use FilterBuilder instead
 func (t *Translator) filterForAnyPod() string {
 	return "resource.type = \"k8s_pod\""
 }
 
+// Deprecated, use FilterBuilder instead
 func (t *Translator) filterForAnyNode() string {
 	return "resource.type = \"k8s_node\""
 }
 
+// Deprecated, use FilterBuilder instead
 func (t *Translator) filterForAnyContainer() string {
 	return "resource.type = \"k8s_container\""
 }
 
+// Deprecated, use FilterBuilder instead
 func (t *Translator) filterForAnyResource(fallbackForContainerMetrics bool) string {
 	if fallbackForContainerMetrics {
 		return "resource.type = one_of(\"k8s_pod\",\"k8s_node\",\"k8s_container\")"
@@ -388,6 +624,7 @@ func (t *Translator) filterForAnyResource(fallbackForContainerMetrics bool) stri
 	return "resource.type = one_of(\"k8s_pod\",\"k8s_node\")"
 }
 
+// Deprecated, use FilterBuilder instead
 // The namespace string can be empty. If so, all namespaces are allowed.
 func (t *Translator) filterForPods(podNames []string, namespace string) string {
 	if len(podNames) == 0 {
@@ -404,6 +641,7 @@ func (t *Translator) filterForPods(podNames []string, namespace string) string {
 	return fmt.Sprintf("resource.labels.namespace_name = %q AND resource.labels.pod_name = one_of(%s)", namespace, strings.Join(podNames, ","))
 }
 
+// Deprecated, use FilterBuilder instead
 func (t *Translator) filterForNodes(nodeNames []string) string {
 	if len(nodeNames) == 0 {
 		klog.Fatalf("createFilterForNodes called with empty list of node names")
@@ -413,6 +651,7 @@ func (t *Translator) filterForNodes(nodeNames []string) string {
 	return fmt.Sprintf("resource.labels.node_name = one_of(%s)", strings.Join(nodeNames, ","))
 }
 
+// Deprecated, use FilterBuilder instead
 func (t *Translator) legacyFilterForCluster() string {
 	projectFilter := fmt.Sprintf("resource.labels.project_id = %q", t.config.Project)
 	// Skip location, since it may be set incorrectly by Heapster for old resource model
@@ -421,10 +660,12 @@ func (t *Translator) legacyFilterForCluster() string {
 	return fmt.Sprintf("%s AND %s AND %s", projectFilter, clusterFilter, containerFilter)
 }
 
+// Deprecated, use FilterBuilder instead
 func (t *Translator) legacyFilterForAnyPod() string {
 	return "resource.labels.pod_id != \"\" AND resource.labels.pod_id != \"machine\""
 }
 
+// Deprecated, use FilterBuilder instead
 func (t *Translator) legacyFilterForPods(podIDs []string) string {
 	if len(podIDs) == 0 {
 		klog.Fatalf("createFilterForIDs called with empty list of pod IDs")
