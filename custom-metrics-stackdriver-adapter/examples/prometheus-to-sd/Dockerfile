@@ -12,10 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.12.5
-ADD . /go/src/prometheus-dummy-exporter
-RUN go get github.com/prometheus/client_golang/prometheus
+FROM golang:1.16-alpine AS builder
+
+WORKDIR /app
+
+COPY go.mod ./
+COPY go.sum ./
+RUN go mod download
+
+COPY prometheus_dummy_exporter.go ./
+
 RUN CGO_ENABLED=0 GOOS=linux go install prometheus-dummy-exporter
 
+
 FROM gcr.io/distroless/static:latest
-COPY --from=0 /go/bin/prometheus-dummy-exporter .
+COPY --from=builder /go/bin/prometheus-dummy-exporter .
