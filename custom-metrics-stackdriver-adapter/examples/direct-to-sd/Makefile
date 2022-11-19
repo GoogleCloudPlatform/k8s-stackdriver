@@ -1,4 +1,4 @@
-TAG = v0.3.0
+TAG = v0.4.0
 PREFIX = gcr.io/google-samples
 
 docker: 
