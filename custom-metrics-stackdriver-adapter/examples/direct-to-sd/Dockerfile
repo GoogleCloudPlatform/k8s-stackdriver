@@ -12,13 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.15.11
-ADD . /go/src/sd-dummy-exporter
-RUN go get cloud.google.com/go/compute/metadata
-RUN go get golang.org/x/oauth2
-RUN go get cloud.google.com/go/monitoring/apiv3
+FROM golang:1.19-alpine AS builder
+
+WORKDIR /app
+
+COPY go.mod ./
+COPY go.sum ./
+RUN go mod download
+
+COPY sd_dummy_exporter.go ./
+
 RUN CGO_ENABLED=0 GOOS=linux go install sd-dummy-exporter
 
 FROM gcr.io/distroless/static:latest
-COPY --from=0 /go/bin/sd-dummy-exporter .
-
+COPY --from=builder /go/bin/sd-dummy-exporter .
