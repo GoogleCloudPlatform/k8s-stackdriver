@@ -16,7 +16,7 @@ spec:
         run: custom-metric-prometheus-sd
     spec:
       containers:
-      - command: ["./prometheus-dummy-exporter"]
+      - command: ["./prometheus-to-sd"]
         args:
         - --metric-name=foo
         - --metric-value=40

@@ -16,7 +16,7 @@ spec:
         run: custom-metric-sd
     spec:
       containers:
-      - command: ["./sd-dummy-exporter"]
+      - command: ["./direct-to-sd"]
         args:
         - --use-new-resource-model=true
         - --use-old-resource-model=false
@@ -65,7 +65,10 @@ spec:
   metrics:
   - type: Pods
     pods:
-      metricName: foo
-      targetAverageValue: 20
+      metric:
+        name: foo
+      target:
+        type: AverageValue
+        averageValue: 20
 
  
