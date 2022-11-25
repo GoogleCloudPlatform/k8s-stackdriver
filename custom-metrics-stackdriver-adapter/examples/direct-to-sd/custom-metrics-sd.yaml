@@ -65,7 +65,10 @@ spec:
   metrics:
   - type: Pods
     pods:
-      metricName: foo
-      targetAverageValue: 20
+      metric:
+        name: foo
+      target:
+        type: AverageValue
+        averageValue: 20
 
  
