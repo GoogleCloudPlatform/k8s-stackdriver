@@ -20,12 +20,7 @@ ARG TARGETARCH
 ARG TARGETOS
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -mod=vendor -o /monitor
 
-RUN apk update \
-    && apk add --no-cache govendor \
-    && govendor license +vendor > /NOTICES
-
 FROM --platform=$TARGETPLATFORM gcr.io/distroless/static:latest
 # nobody:nobody
 USER 65534:65534
 COPY --from=builder /monitor /
-COPY --from=builder /NOTICES /
