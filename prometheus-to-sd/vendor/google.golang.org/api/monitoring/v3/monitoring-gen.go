@@ -81,6 +81,7 @@ const apiId = "monitoring:v3"
 const apiName = "monitoring"
 const apiVersion = "v3"
 const basePath = "https://monitoring.googleapis.com/"
+const mtlsBasePath = "https://monitoring.mtls.googleapis.com/"
 
 // OAuth2 scopes used by this API.
 const (
@@ -110,6 +111,7 @@ func NewService(ctx context.Context, opts ...option.ClientOption) (*Service, err
 	// NOTE: prepend, so we don't override user-specified scopes.
 	opts = append([]option.ClientOption{scopesOption}, opts...)
 	opts = append(opts, internaloption.WithDefaultEndpoint(basePath))
+	opts = append(opts, internaloption.WithDefaultMTLSEndpoint(mtlsBasePath))
 	client, endpoint, err := htransport.NewClient(ctx, opts...)
 	if err != nil {
 		return nil, err
@@ -347,10 +349,11 @@ type Aggregation struct {
 	// seconds, that is used to divide the data in all the time series into
 	// consistent blocks of time. This will be done before the per-series
 	// aligner can be applied to the data.The value must be at least 60
-	// seconds. If a per-series aligner other than ALIGN_NONE is specified,
-	// this field is required or an error is returned. If no per-series
-	// aligner is specified, or the aligner ALIGN_NONE is specified, then
-	// this field is ignored.
+	// seconds, at most 104 weeks. If a per-series aligner other than
+	// ALIGN_NONE is specified, this field is required or an error is
+	// returned. If no per-series aligner is specified, or the aligner
+	// ALIGN_NONE is specified, then this field is ignored.The maximum value
+	// of the alignment_period is 2 years, or 104 weeks.
 	AlignmentPeriod string `json:"alignmentPeriod,omitempty"`
 
 	// CrossSeriesReducer: The reduction operation to be used to combine
@@ -1160,11 +1163,6 @@ type Condition struct {
 	// threshold.
 	ConditionThreshold *MetricThreshold `json:"conditionThreshold,omitempty"`
 
-	// ConditionTimeSeriesQueryLanguage: A condition that uses the
-	// Monitoring Query Language to define alerts. If set, no other
-	// conditions can be present.
-	ConditionTimeSeriesQueryLanguage *TimeSeriesQueryLanguageCondition `json:"conditionTimeSeriesQueryLanguage,omitempty"`
-
 	// DisplayName: A short name or phrase used to identify the condition in
 	// dashboards, notifications, and incidents. To avoid confusion, don't
 	// use the same display name for multiple conditions in the same policy.
@@ -1599,15 +1597,16 @@ func (s *Documentation) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
-// DroppedLabels: A set of (label, value) pairs which were dropped
-// during aggregation, attached to google.api.Distribution.Exemplars in
-// google.api.Distribution values during aggregation.These values are
-// used in combination with the label values that remain on the
-// aggregated Distribution timeseries to construct the full label set
-// for the exemplar values. The resulting full label set may be used to
-// identify the specific task/job/instance (for example) which may be
-// contributing to a long-tail, while allowing the storage savings of
-// only storing aggregated distribution values for a large group.Note
+// DroppedLabels: A set of (label, value) pairs that were removed from a
+// Distribution time series during aggregation and then added as an
+// attachment to a Distribution.Exemplar.The full label set for the
+// exemplars is constructed by using the dropped pairs in combination
+// with the label values that remain on the aggregated Distribution time
+// series. The constructed full label set can be used to identify the
+// specific entity, such as the instance or job, which might be
+// contributing to a long-tail. However, with dropped labels, the
+// storage requirements are reduced because only the aggregated
+// distribution values for a large group of time series are stored.Note
 // that there are no guarantees on ordering of the labels from
 // exemplar-to-exemplar and from distribution-to-distribution in the
 // same stream, and there may be duplicates. It is up to clients to
@@ -2141,6 +2140,27 @@ type HttpCheck struct {
 	// HTTP check; defaults to empty.
 	AuthInfo *BasicAuthentication `json:"authInfo,omitempty"`
 
+	// Body: The request body associated with the HTTP POST request. If
+	// content_type is URL_ENCODED, the body passed in must be URL-encoded.
+	// Users can provide a Content-Length header via the headers field or
+	// the API will do so. If the request_method is GET and body is not
+	// empty, the API will return an error. The maximum byte size is 1
+	// megabyte. Note: As with all bytes fields JSON representations are
+	// base64 encoded. e.g.: "foo=bar" in URL-encoded form is "foo%3Dbar"
+	// and in base64 encoding is "Zm9vJTI1M0RiYXI=".
+	Body string `json:"body,omitempty"`
+
+	// ContentType: The content type to use for the check.
+	//
+	// Possible values:
+	//   "TYPE_UNSPECIFIED" - No content type specified. If the request
+	// method is POST, an unspecified content type results in a check
+	// creation rejection.
+	//   "URL_ENCODED" - body is in URL-encoded form. Equivalent to setting
+	// the Content-Type to application/x-www-form-urlencoded in the HTTP
+	// request.
+	ContentType string `json:"contentType,omitempty"`
+
 	// Headers: The list of headers to send as part of the Uptime check
 	// request. If two headers have the same key and different values, they
 	// should be entered as a single header, with the value being a
@@ -2151,7 +2171,7 @@ type HttpCheck struct {
 	// headers allowed is 100.
 	Headers map[string]string `json:"headers,omitempty"`
 
-	// MaskHeaders: Boolean specifiying whether to encrypt the header
+	// MaskHeaders: Boolean specifying whether to encrypt the header
 	// information. Encryption should be specified for any headers related
 	// to authentication that you do not wish to be seen when retrieving the
 	// configuration. The server will be responsible for encrypting the
@@ -2171,6 +2191,15 @@ type HttpCheck struct {
 	// run the check. Will be combined with host (specified within the
 	// monitored_resource) and path to construct the full URL.
 	Port int64 `json:"port,omitempty"`
+
+	// RequestMethod: The HTTP request method to use for the check. If set
+	// to METHOD_UNSPECIFIED then request_method defaults to GET.
+	//
+	// Possible values:
+	//   "METHOD_UNSPECIFIED" - No request method specified.
+	//   "GET" - GET request.
+	//   "POST" - POST request.
+	RequestMethod string `json:"requestMethod,omitempty"`
 
 	// UseSsl: If true, use HTTPS instead of HTTP to run the check.
 	UseSsl bool `json:"useSsl,omitempty"`
@@ -2452,6 +2481,11 @@ type ListAlertPoliciesResponse struct {
 	// method.
 	NextPageToken string `json:"nextPageToken,omitempty"`
 
+	// TotalSize: The total number of alert policies in all pages. This
+	// number is only an estimate, and may change in subsequent pages.
+	// https://aip.dev/158
+	TotalSize int64 `json:"totalSize,omitempty"`
+
 	// ServerResponse contains the HTTP response code and headers from the
 	// server.
 	googleapi.ServerResponse `json:"-"`
@@ -2692,6 +2726,11 @@ type ListNotificationChannelsResponse struct {
 	// specified project.
 	NotificationChannels []*NotificationChannel `json:"notificationChannels,omitempty"`
 
+	// TotalSize: The total number of notification channels in all pages.
+	// This number is only an estimate, and may change in subsequent pages.
+	// https://aip.dev/158
+	TotalSize int64 `json:"totalSize,omitempty"`
+
 	// ServerResponse contains the HTTP response code and headers from the
 	// server.
 	googleapi.ServerResponse `json:"-"`
@@ -2812,6 +2851,13 @@ type ListTimeSeriesResponse struct {
 	// TimeSeries: One or more time series that match the filter included in
 	// the request.
 	TimeSeries []*TimeSeries `json:"timeSeries,omitempty"`
+
+	// Unit: The unit in which all time_series point values are reported.
+	// unit follows the UCUM format for units as seen in
+	// https://unitsofmeasure.org/ucum.html. If different time_series have
+	// different units (for example, because they come from different metric
+	// types, or a unit is absent), then unit will be "{not_a_unit}".
+	Unit string `json:"unit,omitempty"`
 
 	// ServerResponse contains the HTTP response code and headers from the
 	// server.
@@ -3068,7 +3114,17 @@ func (s *MetricAbsence) MarshalJSON() ([]byte, error) {
 
 // MetricDescriptor: Defines a metric type and its schema. Once a metric
 // descriptor is created, deleting or altering it stops data collection
-// and makes the metric type's existing data unusable.
+// and makes the metric type's existing data unusable.The following are
+// specific rules for service defined Monitoring metric
+// descriptors:
+// type, metric_kind, value_type and description  fields are all
+// required. The unit field must be specified  if the value_type is any
+// of DOUBLE, INT64, DISTRIBUTION.
+// Maximum of default 500 metric descriptors per service is
+// allowed.
+// Maximum of default 10 labels per metric descriptor is allowed.The
+// default maximum limit can be overridden. Please follow
+// https://cloud.google.com/monitoring/quotas
 type MetricDescriptor struct {
 	// Description: A detailed description of the metric, which can be used
 	// in documentation.
@@ -3082,7 +3138,11 @@ type MetricDescriptor struct {
 	DisplayName string `json:"displayName,omitempty"`
 
 	// Labels: The set of labels that can be used to describe a specific
-	// instance of this metric type. For example, the
+	// instance of this metric type.The label key name must follow:
+	// Only upper and lower-case letters, digits and underscores (_) are
+	// allowed.
+	// Label name must start with a letter or digit.
+	// The maximum length of a label name is 100 characters.For example, the
 	// appengine.googleapis.com/http/server/response_latencies metric type
 	// has a label for the HTTP response code, response_code, so you can
 	// look at latencies for successful responses or just for responses that
@@ -3155,9 +3215,17 @@ type MetricDescriptor struct {
 	Name string `json:"name,omitempty"`
 
 	// Type: The metric type, including its DNS name prefix. The type is not
-	// URL-encoded. All user-defined metric types have the DNS name
-	// custom.googleapis.com or external.googleapis.com. Metric types should
-	// use a natural hierarchical grouping. For
+	// URL-encoded.All service defined metrics must be prefixed with the
+	// service name, in the format of {service name}/{relative metric name},
+	// such as cloudsql.googleapis.com/database/cpu/utilization. The
+	// relative metric name must follow:
+	// Only upper and lower-case letters, digits, '/' and underscores '_'
+	// are  allowed.
+	// The maximum number of characters allowed for the relative_metric_name
+	// is  100.All user-defined metric types have the DNS name
+	// custom.googleapis.com, external.googleapis.com, or
+	// logging.googleapis.com/user/.Metric types should use a natural
+	// hierarchical grouping. For
 	// example:
 	// "custom.googleapis.com/invoice/paid/amount"
 	// "external.googlea
@@ -3190,7 +3258,8 @@ type MetricDescriptor struct {
 	// s second
 	// min minute
 	// h hour
-	// d dayPrefixes (PREFIX)
+	// d day
+	// 1 dimensionlessPrefixes (PREFIX)
 	// k kilo (10^3)
 	// M mega (10^6)
 	// G giga (10^9)
@@ -3590,9 +3659,20 @@ func (s *MonitoredResource) MarshalJSON() ([]byte, error) {
 // example, the monitored resource descriptor for Google Compute Engine
 // VM instances has a type of "gce_instance" and specifies the use of
 // the labels "instance_id" and "zone" to identify particular VM
-// instances.Different APIs can support different monitored resource
-// types. APIs generally provide a list method that returns the
-// monitored resource descriptors used by the API.
+// instances.Different services can support different monitored resource
+// types.The following are specific rules to service defined monitored
+// resources for Monitoring and Logging:
+// The type, display_name, description, labels and launch_stage  fields
+// are all required.
+// The first label of the monitored resource descriptor must be
+// resource_container. There are legacy monitored resource descritptors
+// start with project_id.
+// It must include a location label.
+// Maximum of default 5 service defined monitored resource descriptors
+// is allowed per service.
+// Maximum of default 10 labels per monitored resource is allowed.The
+// default maximum limit can be overridden. Please follow
+// https://cloud.google.com/monitoring/quotas
 type MonitoredResourceDescriptor struct {
 	// Description: Optional. A detailed description of the monitored
 	// resource type that might be used in documentation.
@@ -3605,9 +3685,13 @@ type MonitoredResourceDescriptor struct {
 	DisplayName string `json:"displayName,omitempty"`
 
 	// Labels: Required. A set of labels used to describe instances of this
-	// monitored resource type. For example, an individual Google Cloud SQL
-	// database is identified by values for the labels "database_id" and
-	// "zone".
+	// monitored resource type. The label key name must follow:
+	// Only upper and lower-case letters, digits and underscores (_) are
+	// allowed.
+	// Label name must start with a letter or digit.
+	// The maximum length of a label name is 100 characters.For example, an
+	// individual Google Cloud SQL database is identified by values for the
+	// labels database_id and location.
 	Labels []*LabelDescriptor `json:"labels,omitempty"`
 
 	// LaunchStage: Optional. The launch stage of the monitored resource
@@ -3658,8 +3742,16 @@ type MonitoredResourceDescriptor struct {
 	Name string `json:"name,omitempty"`
 
 	// Type: Required. The monitored resource type. For example, the type
-	// "cloudsql_database" represents databases in Google Cloud SQL. The
-	// maximum length of this value is 256 characters.
+	// cloudsql_database represents databases in Google Cloud SQL.All
+	// service defined monitored resource types must be prefixed with the
+	// service name, in the format of {service name}/{relative resource
+	// name}. The relative resource name must follow:
+	// Only upper and lower-case letters and digits are allowed.
+	// It must start with upper case character and is recommended to use
+	// Upper  Camel Case style.
+	// The maximum number of characters allowed for the
+	// relative_resource_name  is 100.Note there are legacy service
+	// monitored resources not following this rule.
 	Type string `json:"type,omitempty"`
 
 	// ServerResponse contains the HTTP response code and headers from the
@@ -3938,7 +4030,9 @@ type NotificationChannelDescriptor struct {
 	// In the above, [TYPE] is the value of the type field.
 	Name string `json:"name,omitempty"`
 
-	// Type: The type of notification channel, such as "email", "sms", etc.
+	// Type: The type of notification channel, such as "email" and "sms". To
+	// view the full list of channels, see Channel descriptors
+	// (https://cloud.google.com/monitoring/alerts/using-channels-api#ncd).
 	// Notification channel types are globally unique.
 	Type string `json:"type,omitempty"`
 
@@ -4731,19 +4825,29 @@ func (s *Telemetry) MarshalJSON() ([]byte, error) {
 // to the end time, and includes both: [startTime, endTime]. Valid time
 // intervals depend on the MetricKind of the metric value. In no case
 // can the end time be earlier than the start time.
-// For a GAUGE metric, the startTime value is technically optional; if
+// For GAUGE metrics, the startTime value is technically optional; if
 // no value is specified, the start time defaults to the value of the
 // end time, and the interval represents a single point in time. If both
 //  start and end times are specified, they must be identical. Such an
 // interval is valid only for GAUGE metrics, which are point-in-time
-// measurements.
-// For DELTA and CUMULATIVE metrics, the start time must be earlier
-// than the end time.
-// In all cases, the start time of the next interval must be  at least a
-// microsecond after the end time of the previous interval.  Because the
-// interval is closed, if the start time of a new interval  is the same
-// as the end time of the previous interval, data written  at the new
-// start time could overwrite data written at the previous  end time.
+// measurements. The end time of a new interval must be at least a
+// millisecond after the end time of the previous interval.
+// For DELTA metrics, the start time and end time must specify a
+// non-zero interval, with subsequent points specifying contiguous and
+// non-overlapping intervals. For DELTA metrics, the start time of  the
+// next interval must be at least a millisecond after the end time  of
+// the previous interval.
+// For CUMULATIVE metrics, the start time and end time must specify a  a
+// non-zero interval, with subsequent points specifying the same  start
+// time and increasing end times, until an event resets the  cumulative
+// value to zero and sets a new start time for the following  points.
+// The new start time must be at least a millisecond after the  end time
+// of the previous interval.
+// The start time of a new interval must be at least a millisecond after
+// the  end time of the previous interval because intervals are closed.
+// If the  start time of a new interval is the same as the end time of
+// the previous  interval, then data written at the new start time could
+// overwrite data  written at the previous end time.
 type TimeInterval struct {
 	// EndTime: Required. The end of the time interval.
 	EndTime string `json:"endTime,omitempty"`
@@ -4783,9 +4887,9 @@ func (s *TimeInterval) MarshalJSON() ([]byte, error) {
 // creating time series.
 type TimeSeries struct {
 	// Metadata: Output only. The associated monitored resource metadata.
-	// When reading a a timeseries, this field will include metadata labels
-	// that are explicitly named in the reduction. When creating a
-	// timeseries, this field is ignored.
+	// When reading a time series, this field will include metadata labels
+	// that are explicitly named in the reduction. When creating a time
+	// series, this field is ignored.
 	Metadata *MonitoredResourceMetadata `json:"metadata,omitempty"`
 
 	// Metric: The associated metric. A fully-specified metric used to
@@ -4823,6 +4927,11 @@ type TimeSeries struct {
 	// Resource: The associated monitored resource. Custom metrics can use
 	// only certain monitored resource types in their time series data.
 	Resource *MonitoredResource `json:"resource,omitempty"`
+
+	// Unit: The units in which the metric value is reported. It is only
+	// applicable if the value_type is INT64, DOUBLE, or DISTRIBUTION. The
+	// unit defines the representation of the stored metric values.
+	Unit string `json:"unit,omitempty"`
 
 	// ValueType: The value type of the time series. When listing time
 	// series, this value type might be different from the value type of the
@@ -4903,7 +5012,7 @@ func (s *TimeSeriesData) MarshalJSON() ([]byte, error) {
 }
 
 // TimeSeriesDescriptor: A descriptor for the labels and points in a
-// timeseries.
+// time series.
 type TimeSeriesDescriptor struct {
 	// LabelDescriptors: Descriptors for the labels.
 	LabelDescriptors []*LabelDescriptor `json:"labelDescriptors,omitempty"`
@@ -4931,40 +5040,6 @@ type TimeSeriesDescriptor struct {
 
 func (s *TimeSeriesDescriptor) MarshalJSON() ([]byte, error) {
 	type NoMethod TimeSeriesDescriptor
-	raw := NoMethod(*s)
-	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
-}
-
-// TimeSeriesQueryLanguageCondition: A condition type that allows alert
-// policies to be defined using Monitoring Query Language.
-type TimeSeriesQueryLanguageCondition struct {
-	// Query: Monitoring Query Language query that generates time series
-	// data and describes a condition for alerting on that data.
-	Query string `json:"query,omitempty"`
-
-	// Summary: A short explanation of what the query represents. For
-	// example:"Error ratio exceeds 15% for >5% of servers in >2 regions"
-	Summary string `json:"summary,omitempty"`
-
-	// ForceSendFields is a list of field names (e.g. "Query") to
-	// unconditionally include in API requests. By default, fields with
-	// empty values are omitted from API requests. However, any non-pointer,
-	// non-interface field appearing in ForceSendFields will be sent to the
-	// server regardless of whether the field is empty or not. This may be
-	// used to include empty fields in Patch requests.
-	ForceSendFields []string `json:"-"`
-
-	// NullFields is a list of field names (e.g. "Query") to include in API
-	// requests with the JSON null value. By default, fields with empty
-	// values are omitted from API requests. However, any field with an
-	// empty value appearing in NullFields will be sent to the server as
-	// null. It is an error if a field in this list has a non-empty value.
-	// This may be used to include null fields in Patch requests.
-	NullFields []string `json:"-"`
-}
-
-func (s *TimeSeriesQueryLanguageCondition) MarshalJSON() ([]byte, error) {
-	type NoMethod TimeSeriesQueryLanguageCondition
 	raw := NoMethod(*s)
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
@@ -5366,6 +5441,12 @@ type ValueDescriptor struct {
 	// zero and sets a new start time for the following points.
 	MetricKind string `json:"metricKind,omitempty"`
 
+	// Unit: The unit in which time_series point values are reported. unit
+	// follows the UCUM format for units as seen in
+	// https://unitsofmeasure.org/ucum.html. unit is only valid if
+	// value_type is INTEGER, DOUBLE, DISTRIBUTION.
+	Unit string `json:"unit,omitempty"`
+
 	// ValueType: The value type.
 	//
 	// Possible values:
@@ -5536,7 +5617,7 @@ func (c *ProjectsAlertPoliciesCreateCall) Header() http.Header {
 
 func (c *ProjectsAlertPoliciesCreateCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -5609,7 +5690,7 @@ func (c *ProjectsAlertPoliciesCreateCall) Do(opts ...googleapi.CallOption) (*Ale
 	//   ],
 	//   "parameters": {
 	//     "name": {
-	//       "description": "Required. The project in which to create the alerting policy. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]\nNote that this field names the parent container in which the alerting policy will be written, not the name of the created policy. The alerting policy that is returned will have a name that contains a normalized representation of this name as a prefix but adds a suffix of the form /alertPolicies/[ALERT_POLICY_ID], identifying the policy in the container.",
+	//       "description": "Required. The project in which to create the alerting policy. The format is:\nprojects/[PROJECT_ID_OR_NUMBER]\nNote that this field names the parent container in which the alerting policy will be written, not the name of the created policy. |name| must be a host project of a workspace, otherwise INVALID_ARGUMENT error will return. The alerting policy that is returned will have a name that contains a normalized representation of this name as a prefix but adds a suffix of the form /alertPolicies/[ALERT_POLICY_ID], identifying the policy in the container.",
 	//       "location": "path",
 	//       "pattern": "^projects/[^/]+$",
 	//       "required": true,
@@ -5675,7 +5756,7 @@ func (c *ProjectsAlertPoliciesDeleteCall) Header() http.Header {
 
 func (c *ProjectsAlertPoliciesDeleteCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -5817,7 +5898,7 @@ func (c *ProjectsAlertPoliciesGetCall) Header() http.Header {
 
 func (c *ProjectsAlertPoliciesGetCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -5919,7 +6000,7 @@ type ProjectsAlertPoliciesListCall struct {
 	header_      http.Header
 }
 
-// List: Lists the existing alerting policies for the project.
+// List: Lists the existing alerting policies for the workspace.
 func (r *ProjectsAlertPoliciesService) List(name string) *ProjectsAlertPoliciesListCall {
 	c := &ProjectsAlertPoliciesListCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.name = name
@@ -5999,7 +6080,7 @@ func (c *ProjectsAlertPoliciesListCall) Header() http.Header {
 
 func (c *ProjectsAlertPoliciesListCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -6061,7 +6142,7 @@ func (c *ProjectsAlertPoliciesListCall) Do(opts ...googleapi.CallOption) (*ListA
 	}
 	return ret, nil
 	// {
-	//   "description": "Lists the existing alerting policies for the project.",
+	//   "description": "Lists the existing alerting policies for the workspace.",
 	//   "flatPath": "v3/projects/{projectsId}/alertPolicies",
 	//   "httpMethod": "GET",
 	//   "id": "monitoring.projects.alertPolicies.list",
@@ -6205,7 +6286,7 @@ func (c *ProjectsAlertPoliciesPatchCall) Header() http.Header {
 
 func (c *ProjectsAlertPoliciesPatchCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -6355,7 +6436,7 @@ func (c *ProjectsCollectdTimeSeriesCreateCall) Header() http.Header {
 
 func (c *ProjectsCollectdTimeSeriesCreateCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -6504,7 +6585,7 @@ func (c *ProjectsGroupsCreateCall) Header() http.Header {
 
 func (c *ProjectsGroupsCreateCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -6657,7 +6738,7 @@ func (c *ProjectsGroupsDeleteCall) Header() http.Header {
 
 func (c *ProjectsGroupsDeleteCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -6804,7 +6885,7 @@ func (c *ProjectsGroupsGetCall) Header() http.Header {
 
 func (c *ProjectsGroupsGetCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -7002,7 +7083,7 @@ func (c *ProjectsGroupsListCall) Header() http.Header {
 
 func (c *ProjectsGroupsListCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -7194,7 +7275,7 @@ func (c *ProjectsGroupsUpdateCall) Header() http.Header {
 
 func (c *ProjectsGroupsUpdateCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -7393,7 +7474,7 @@ func (c *ProjectsGroupsMembersListCall) Header() http.Header {
 
 func (c *ProjectsGroupsMembersListCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -7581,7 +7662,7 @@ func (c *ProjectsMetricDescriptorsCreateCall) Header() http.Header {
 
 func (c *ProjectsMetricDescriptorsCreateCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -7722,7 +7803,7 @@ func (c *ProjectsMetricDescriptorsDeleteCall) Header() http.Header {
 
 func (c *ProjectsMetricDescriptorsDeleteCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -7865,7 +7946,7 @@ func (c *ProjectsMetricDescriptorsGetCall) Header() http.Header {
 
 func (c *ProjectsMetricDescriptorsGetCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -8042,7 +8123,7 @@ func (c *ProjectsMetricDescriptorsListCall) Header() http.Header {
 
 func (c *ProjectsMetricDescriptorsListCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -8227,7 +8308,7 @@ func (c *ProjectsMonitoredResourceDescriptorsGetCall) Header() http.Header {
 
 func (c *ProjectsMonitoredResourceDescriptorsGetCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -8403,7 +8484,7 @@ func (c *ProjectsMonitoredResourceDescriptorsListCall) Header() http.Header {
 
 func (c *ProjectsMonitoredResourceDescriptorsListCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -8591,7 +8672,7 @@ func (c *ProjectsNotificationChannelDescriptorsGetCall) Header() http.Header {
 
 func (c *ProjectsNotificationChannelDescriptorsGetCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -8755,7 +8836,7 @@ func (c *ProjectsNotificationChannelDescriptorsListCall) Header() http.Header {
 
 func (c *ProjectsNotificationChannelDescriptorsListCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -8928,7 +9009,7 @@ func (c *ProjectsNotificationChannelsCreateCall) Header() http.Header {
 
 func (c *ProjectsNotificationChannelsCreateCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -9077,7 +9158,7 @@ func (c *ProjectsNotificationChannelsDeleteCall) Header() http.Header {
 
 func (c *ProjectsNotificationChannelsDeleteCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -9229,7 +9310,7 @@ func (c *ProjectsNotificationChannelsGetCall) Header() http.Header {
 
 func (c *ProjectsNotificationChannelsGetCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -9386,7 +9467,7 @@ func (c *ProjectsNotificationChannelsGetVerificationCodeCall) Header() http.Head
 
 func (c *ProjectsNotificationChannelsGetVerificationCodeCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -9576,7 +9657,7 @@ func (c *ProjectsNotificationChannelsListCall) Header() http.Header {
 
 func (c *ProjectsNotificationChannelsListCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -9763,7 +9844,7 @@ func (c *ProjectsNotificationChannelsPatchCall) Header() http.Header {
 
 func (c *ProjectsNotificationChannelsPatchCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -9912,7 +9993,7 @@ func (c *ProjectsNotificationChannelsSendVerificationCodeCall) Header() http.Hea
 
 func (c *ProjectsNotificationChannelsSendVerificationCodeCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -10055,7 +10136,7 @@ func (c *ProjectsNotificationChannelsVerifyCall) Header() http.Header {
 
 func (c *ProjectsNotificationChannelsVerifyCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -10199,7 +10280,7 @@ func (c *ProjectsTimeSeriesCreateCall) Header() http.Header {
 
 func (c *ProjectsTimeSeriesCreateCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -10319,10 +10400,11 @@ func (r *ProjectsTimeSeriesService) List(name string) *ProjectsTimeSeriesListCal
 // interval, in seconds, that is used to divide the data in all the time
 // series into consistent blocks of time. This will be done before the
 // per-series aligner can be applied to the data.The value must be at
-// least 60 seconds. If a per-series aligner other than ALIGN_NONE is
-// specified, this field is required or an error is returned. If no
-// per-series aligner is specified, or the aligner ALIGN_NONE is
-// specified, then this field is ignored.
+// least 60 seconds, at most 104 weeks. If a per-series aligner other
+// than ALIGN_NONE is specified, this field is required or an error is
+// returned. If no per-series aligner is specified, or the aligner
+// ALIGN_NONE is specified, then this field is ignored.The maximum value
+// of the alignment_period is 2 years, or 104 weeks.
 func (c *ProjectsTimeSeriesListCall) AggregationAlignmentPeriod(aggregationAlignmentPeriod string) *ProjectsTimeSeriesListCall {
 	c.urlParams_.Set("aggregation.alignmentPeriod", aggregationAlignmentPeriod)
 	return c
@@ -10526,7 +10608,7 @@ func (c *ProjectsTimeSeriesListCall) Header() http.Header {
 
 func (c *ProjectsTimeSeriesListCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -10597,7 +10679,7 @@ func (c *ProjectsTimeSeriesListCall) Do(opts ...googleapi.CallOption) (*ListTime
 	//   ],
 	//   "parameters": {
 	//     "aggregation.alignmentPeriod": {
-	//       "description": "The alignment_period specifies a time interval, in seconds, that is used to divide the data in all the time series into consistent blocks of time. This will be done before the per-series aligner can be applied to the data.The value must be at least 60 seconds. If a per-series aligner other than ALIGN_NONE is specified, this field is required or an error is returned. If no per-series aligner is specified, or the aligner ALIGN_NONE is specified, then this field is ignored.",
+	//       "description": "The alignment_period specifies a time interval, in seconds, that is used to divide the data in all the time series into consistent blocks of time. This will be done before the per-series aligner can be applied to the data.The value must be at least 60 seconds, at most 104 weeks. If a per-series aligner other than ALIGN_NONE is specified, this field is required or an error is returned. If no per-series aligner is specified, or the aligner ALIGN_NONE is specified, then this field is ignored.The maximum value of the alignment_period is 2 years, or 104 weeks.",
 	//       "format": "google-duration",
 	//       "location": "query",
 	//       "type": "string"
@@ -10750,7 +10832,7 @@ type ProjectsTimeSeriesQueryCall struct {
 	header_                http.Header
 }
 
-// Query: Queries time series using the time series query language. This
+// Query: Queries time series using Monitoring Query Language. This
 // method does not require a Workspace.
 func (r *ProjectsTimeSeriesService) Query(name string, querytimeseriesrequest *QueryTimeSeriesRequest) *ProjectsTimeSeriesQueryCall {
 	c := &ProjectsTimeSeriesQueryCall{s: r.s, urlParams_: make(gensupport.URLParams)}
@@ -10786,7 +10868,7 @@ func (c *ProjectsTimeSeriesQueryCall) Header() http.Header {
 
 func (c *ProjectsTimeSeriesQueryCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -10850,7 +10932,7 @@ func (c *ProjectsTimeSeriesQueryCall) Do(opts ...googleapi.CallOption) (*QueryTi
 	}
 	return ret, nil
 	// {
-	//   "description": "Queries time series using the time series query language. This method does not require a Workspace.",
+	//   "description": "Queries time series using Monitoring Query Language. This method does not require a Workspace.",
 	//   "flatPath": "v3/projects/{projectsId}/timeSeries:query",
 	//   "httpMethod": "POST",
 	//   "id": "monitoring.projects.timeSeries.query",
@@ -10949,7 +11031,7 @@ func (c *ProjectsUptimeCheckConfigsCreateCall) Header() http.Header {
 
 func (c *ProjectsUptimeCheckConfigsCreateCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -11091,7 +11173,7 @@ func (c *ProjectsUptimeCheckConfigsDeleteCall) Header() http.Header {
 
 func (c *ProjectsUptimeCheckConfigsDeleteCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -11233,7 +11315,7 @@ func (c *ProjectsUptimeCheckConfigsGetCall) Header() http.Header {
 
 func (c *ProjectsUptimeCheckConfigsGetCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -11399,7 +11481,7 @@ func (c *ProjectsUptimeCheckConfigsListCall) Header() http.Header {
 
 func (c *ProjectsUptimeCheckConfigsListCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -11581,7 +11663,7 @@ func (c *ProjectsUptimeCheckConfigsPatchCall) Header() http.Header {
 
 func (c *ProjectsUptimeCheckConfigsPatchCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -11736,7 +11818,7 @@ func (c *ServicesCreateCall) Header() http.Header {
 
 func (c *ServicesCreateCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -11880,7 +11962,7 @@ func (c *ServicesDeleteCall) Header() http.Header {
 
 func (c *ServicesDeleteCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -12022,7 +12104,7 @@ func (c *ServicesGetCall) Header() http.Header {
 
 func (c *ServicesGetCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -12137,14 +12219,18 @@ func (r *ServicesService) List(parent string) *ServicesListCall {
 // - `identifier_case`
 // - `app_engine.module_id`
 // - `cloud_endpoints.service`
-// - `cluster_istio.location`
-// - `cluster_istio.cluster_name`
-// - `cluster_istio.service_namespace`
-// - `cluster_istio.service_name`
+// - `mesh_istio.mesh_uid`
+// - `mesh_istio.service_namespace`
+// - `mesh_istio.service_name`
+// - `cluster_istio.location` (deprecated)
+// - `cluster_istio.cluster_name` (deprecated)
+// - `cluster_istio.service_namespace` (deprecated)
+// - `cluster_istio.service_name` (deprecated)
 // identifier_case refers to which option in the identifier oneof is
 // populated. For example, the filter identifier_case = "CUSTOM" would
 // match all services with a value for the custom field. Valid options
-// are "CUSTOM", "APP_ENGINE", "CLOUD_ENDPOINTS", and "CLUSTER_ISTIO".
+// are "CUSTOM", "APP_ENGINE", "CLOUD_ENDPOINTS", "MESH_ISTIO", and
+// "CLUSTER_ISTIO" (deprecated),
 func (c *ServicesListCall) Filter(filter string) *ServicesListCall {
 	c.urlParams_.Set("filter", filter)
 	return c
@@ -12204,7 +12290,7 @@ func (c *ServicesListCall) Header() http.Header {
 
 func (c *ServicesListCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -12275,7 +12361,7 @@ func (c *ServicesListCall) Do(opts ...googleapi.CallOption) (*ListServicesRespon
 	//   ],
 	//   "parameters": {
 	//     "filter": {
-	//       "description": "A filter specifying what Services to return. The filter currently supports the following fields:\n- `identifier_case`\n- `app_engine.module_id`\n- `cloud_endpoints.service`\n- `cluster_istio.location`\n- `cluster_istio.cluster_name`\n- `cluster_istio.service_namespace`\n- `cluster_istio.service_name`\nidentifier_case refers to which option in the identifier oneof is populated. For example, the filter identifier_case = \"CUSTOM\" would match all services with a value for the custom field. Valid options are \"CUSTOM\", \"APP_ENGINE\", \"CLOUD_ENDPOINTS\", and \"CLUSTER_ISTIO\".",
+	//       "description": "A filter specifying what Services to return. The filter currently supports the following fields:\n- `identifier_case`\n- `app_engine.module_id`\n- `cloud_endpoints.service`\n- `mesh_istio.mesh_uid`\n- `mesh_istio.service_namespace`\n- `mesh_istio.service_name`\n- `cluster_istio.location` (deprecated)\n- `cluster_istio.cluster_name` (deprecated)\n- `cluster_istio.service_namespace` (deprecated)\n- `cluster_istio.service_name` (deprecated)\nidentifier_case refers to which option in the identifier oneof is populated. For example, the filter identifier_case = \"CUSTOM\" would match all services with a value for the custom field. Valid options are \"CUSTOM\", \"APP_ENGINE\", \"CLOUD_ENDPOINTS\", \"MESH_ISTIO\", and \"CLUSTER_ISTIO\" (deprecated),",
 	//       "location": "query",
 	//       "type": "string"
 	//     },
@@ -12385,7 +12471,7 @@ func (c *ServicesPatchCall) Header() http.Header {
 
 func (c *ServicesPatchCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -12541,7 +12627,7 @@ func (c *ServicesServiceLevelObjectivesCreateCall) Header() http.Header {
 
 func (c *ServicesServiceLevelObjectivesCreateCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -12685,7 +12771,7 @@ func (c *ServicesServiceLevelObjectivesDeleteCall) Header() http.Header {
 
 func (c *ServicesServiceLevelObjectivesDeleteCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -12842,7 +12928,7 @@ func (c *ServicesServiceLevelObjectivesGetCall) Header() http.Header {
 
 func (c *ServicesServiceLevelObjectivesGetCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -13037,7 +13123,7 @@ func (c *ServicesServiceLevelObjectivesListCall) Header() http.Header {
 
 func (c *ServicesServiceLevelObjectivesListCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -13229,7 +13315,7 @@ func (c *ServicesServiceLevelObjectivesPatchCall) Header() http.Header {
 
 func (c *ServicesServiceLevelObjectivesPatchCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -13403,7 +13489,7 @@ func (c *UptimeCheckIpsListCall) Header() http.Header {
 
 func (c *UptimeCheckIpsListCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
-	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200410")
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200728")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
