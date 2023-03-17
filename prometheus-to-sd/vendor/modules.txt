@@ -92,8 +92,8 @@ go.opencensus.io/trace
 go.opencensus.io/trace/internal
 go.opencensus.io/trace/propagation
 go.opencensus.io/trace/tracestate
-# golang.org/x/crypto v0.0.0-20200427165652-729f1e841bcc
-## explicit; go 1.11
+# golang.org/x/crypto v0.1.0
+## explicit; go 1.17
 golang.org/x/crypto/ssh/terminal
 # golang.org/x/net v0.8.0
 ## explicit; go 1.17
@@ -115,8 +115,12 @@ golang.org/x/oauth2/jwt
 # golang.org/x/sys v0.6.0
 ## explicit; go 1.17
 golang.org/x/sys/internal/unsafeheader
+golang.org/x/sys/plan9
 golang.org/x/sys/unix
 golang.org/x/sys/windows
+# golang.org/x/term v0.6.0
+## explicit; go 1.17
+golang.org/x/term
 # golang.org/x/text v0.8.0
 ## explicit; go 1.17
 golang.org/x/text/secure/bidirule
