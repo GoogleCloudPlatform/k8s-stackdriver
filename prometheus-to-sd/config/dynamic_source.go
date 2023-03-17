@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -32,7 +33,7 @@ func SourceConfigsFromDynamicSources(gceConfig *GceConfig, sources []flags.Uri) 
 	if err != nil {
 		return nil, err
 	}
-	podResponse, err := kubeApi.CoreV1().Pods(podNamespace).List(createOptionsForPodSelection(gceConfig.Instance, sourceMap))
+	podResponse, err := kubeApi.CoreV1().Pods(podNamespace).List(context.TODO(), createOptionsForPodSelection(gceConfig.Instance, sourceMap))
 	if err != nil {
 		return nil, err
 	}
