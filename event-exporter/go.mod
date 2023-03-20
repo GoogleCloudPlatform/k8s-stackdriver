@@ -1,6 +1,6 @@
 module github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter
 
-go 1.17
+go 1.19
 
 require (
 	cloud.google.com/go/compute v1.5.0
