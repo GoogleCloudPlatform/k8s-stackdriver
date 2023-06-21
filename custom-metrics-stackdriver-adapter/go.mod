@@ -14,7 +14,7 @@ require (
 	k8s.io/component-base v0.22.0
 	k8s.io/klog v1.0.0
 	k8s.io/metrics v0.22.0
-	sigs.k8s.io/custom-metrics-apiserver v1.22.0
+	sigs.k8s.io/custom-metrics-apiserver v1.27.0
 	sigs.k8s.io/metrics-server v0.5.0
 )
 
