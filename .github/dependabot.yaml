@@ -1,14 +1,6 @@
 version: 2
 updates:
 - package-ecosystem: docker
-  directory: /
-  schedule:
-    interval: weekly
-- package-ecosystem: gomod
-  directory: /
-  schedule:
-    interval: weekly
-- package-ecosystem: docker
   directory: /prometheus-to-sd
   schedule:
     interval: weekly
