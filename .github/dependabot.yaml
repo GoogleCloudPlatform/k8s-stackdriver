@@ -8,3 +8,39 @@ updates:
   directory: /
   schedule:
     interval: weekly
+- package-ecosystem: docker
+  directory: /prometheus-to-sd
+  schedule:
+    interval: weekly
+- package-ecosystem: docker
+  directory: /kubelet-to-gcm
+  schedule:
+    interval: weekly
+- package-ecosystem: docker
+  directory: /fluentd-gcp-scaler
+  schedule:
+    interval: weekly
+- package-ecosystem: docker
+  directory: /event-exporter
+  schedule:
+    interval: weekly
+- package-ecosystem: docker
+  directory: /custom-metrics-stackdriver-adapter
+  schedule:
+    interval: weekly
+- package-ecosystem: gomod
+  directory: /prometheus-to-sd
+  schedule:
+    interval: weekly
+- package-ecosystem: gomod
+  directory: /kubelet-to-gcm
+  schedule:
+    interval: weekly
+- package-ecosystem: gomod
+  directory: /event-exporter
+  schedule:
+    interval: weekly
+- package-ecosystem: gomod
+  directory: /custom-metrics-stackdriver-adapter
+  schedule:
+    interval: weekly
