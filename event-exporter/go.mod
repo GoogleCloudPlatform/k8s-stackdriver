@@ -7,7 +7,7 @@ require (
 	github.com/golang/glog v1.0.0
 	github.com/google/go-cmp v0.5.7
 	github.com/prometheus/client_golang v1.12.1
-	golang.org/x/net v0.8.0
+	golang.org/x/net v0.17.0
 	google.golang.org/api v0.70.0
 	k8s.io/api v0.23.4
 	k8s.io/apimachinery v0.23.4
