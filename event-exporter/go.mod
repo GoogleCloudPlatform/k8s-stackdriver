@@ -7,7 +7,7 @@ require (
 	github.com/golang/glog v1.0.0
 	github.com/google/go-cmp v0.5.7
 	github.com/prometheus/client_golang v1.12.1
-	golang.org/x/net v0.17.0
+	golang.org/x/net v0.19.0
 	google.golang.org/api v0.70.0
 	k8s.io/api v0.23.4
 	k8s.io/apimachinery v0.23.4
@@ -34,9 +34,9 @@ require (
 	github.com/prometheus/procfs v0.7.3 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b // indirect
-	golang.org/x/sys v0.13.0 // indirect
-	golang.org/x/term v0.13.0 // indirect
-	golang.org/x/text v0.13.0 // indirect
+	golang.org/x/sys v0.15.0 // indirect
+	golang.org/x/term v0.15.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.0.0-20220224211638-0e9765cccd65 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220304144024-325a89244dc8 // indirect
