@@ -68,10 +68,10 @@ Kubernetes monitored resources, including for example `k8s_pod`, `k8s_node`. See
   ```
 
 If you use Workload Identity in your cluster, additional steps are necessary. In
-the commands below, use your Project ID as **<project-id>** and Google Service Account as
-**<google-service-account>**.
+the commands below, use your Project ID as `<project-id>` and Google Service Account as
+`<google-service-account>`.
 
-* Make sure your **<google-service-account>** has `monitoring.viewer` IAM role.
+* Make sure your `<google-service-account>` has `monitoring.viewer` IAM role.
 
 * Create IAM Policy Binding:
 
