@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/translator"
@@ -55,15 +54,13 @@ type StackdriverProvider struct {
 	rateInterval                time.Duration
 	translator                  *translator.Translator
 	useNewResourceModel         bool
-	mu                          sync.Mutex
-	metricsCacheSet             bool
 	metricsCache                []provider.CustomMetricInfo
 	fallbackForContainerMetrics bool
 }
 
 // NewStackdriverProvider creates a StackdriverProvider
-func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.RESTMapper, gceConf *config.GceConfig, stackdriverService *stackdriver.Service, translator *translator.Translator, rateInterval time.Duration, useNewResourceModel bool, fallbackForContainerMetrics bool) provider.MetricsProvider {
-	return &StackdriverProvider{
+func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.RESTMapper, gceConf *config.GceConfig, stackdriverService *stackdriver.Service, translator *translator.Translator, rateInterval time.Duration, useNewResourceModel bool, fallbackForContainerMetrics bool, customMetricsListCache []provider.CustomMetricInfo) provider.MetricsProvider {
+	p := &StackdriverProvider{
 		kubeClient:                  kubeClient,
 		stackdriverService:          stackdriverService,
 		config:                      gceConf,
@@ -71,7 +68,10 @@ func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.REST
 		translator:                  translator,
 		useNewResourceModel:         useNewResourceModel,
 		fallbackForContainerMetrics: fallbackForContainerMetrics,
+		metricsCache:                customMetricsListCache,
 	}
+
+	return p
 }
 
 // GetMetricByName fetches a particular metric for a particular object.
@@ -308,21 +308,9 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 	return &custom_metrics.MetricValueList{Items: result}, nil
 }
 
-// ListAllMetrics returns all custom metrics available from Stackdriver.
-// List only pod metrics
+// ListAllMetrics returns one custom metric to reduce memory usage, when  ListFullCustomMetrics is false (by default),
+// Else, it returns all custom metrics available from Stackdriver.
 func (p *StackdriverProvider) ListAllMetrics() []provider.CustomMetricInfo {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if !p.metricsCacheSet {
-		stackdriverRequest := p.translator.ListMetricDescriptors(p.fallbackForContainerMetrics)
-		response, err := stackdriverRequest.Do()
-		if err != nil {
-			klog.Errorf("Failed request to stackdriver api: %s", err)
-			return []provider.CustomMetricInfo{}
-		}
-		p.metricsCacheSet = true
-		p.metricsCache = p.translator.GetMetricsFromSDDescriptorsResp(response)
-	}
 	return p.metricsCache
 }
 

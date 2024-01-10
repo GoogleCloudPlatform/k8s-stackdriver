@@ -65,6 +65,9 @@ type stackdriverAdapterServerOptions struct {
 	// EnableDistributionSupport is a flag that indicates whether or not to allow distributions can
 	// be used (with special reducer labels) in the adapter
 	EnableDistributionSupport bool
+	// ListFullCustomMetrics is a flag that whether list all pod custom metrics during api discovery.
+	// Default = false, which only list 1 metric. Enabling this back would increase memory usage.
+	ListFullCustomMetrics bool
 }
 
 func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptions, rateInterval time.Duration, alignmentPeriod time.Duration) (provider.MetricsProvider, *translator.Translator) {
@@ -110,7 +113,23 @@ func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptio
 	conf.GenericConfig.EnableMetrics = true
 
 	translator := translator.NewTranslator(stackdriverService, gceConf, rateInterval, alignmentPeriod, mapper, o.UseNewResourceModel, o.EnableDistributionSupport)
-	return adapter.NewStackdriverProvider(client, mapper, gceConf, stackdriverService, translator, rateInterval, o.UseNewResourceModel, o.FallbackForContainerMetrics), translator
+
+	// If ListFullCustomMetrics is false, it returns one resource during api discovery `kubectl get --raw "/apis/custom.metrics.k8s.io/v1beta2"` to reduce memory usage.
+	customMetricsListCache := listStackdriverCustomMetrics(translator, o.ListFullCustomMetrics, o.FallbackForContainerMetrics)
+	return adapter.NewStackdriverProvider(client, mapper, gceConf, stackdriverService, translator, rateInterval, o.UseNewResourceModel, o.FallbackForContainerMetrics, customMetricsListCache), translator
+}
+
+func listStackdriverCustomMetrics(translator *translator.Translator, listFullCustomMetrics bool, fallbackForContainerMetrics bool) []provider.CustomMetricInfo {
+	stackdriverRequest := translator.ListMetricDescriptors(fallbackForContainerMetrics)
+	response, err := stackdriverRequest.Do()
+	if err != nil {
+		klog.Fatalf("Failed request to stackdriver api: %s", err)
+	}
+	customMetricsListCache := translator.GetMetricsFromSDDescriptorsResp(response)
+	if !listFullCustomMetrics && len(customMetricsListCache) > 0 {
+		customMetricsListCache = customMetricsListCache[0:1]
+	}
+	return customMetricsListCache
 }
 
 func (sa *StackdriverAdapter) withCoreMetrics(translator *translator.Translator) error {
@@ -154,6 +173,7 @@ func main() {
 		FallbackForContainerMetrics: false,
 		EnableCoreMetricsAPI:        false,
 		EnableDistributionSupport:   false,
+		ListFullCustomMetrics:       false,
 	}
 
 	flags.BoolVar(&serverOptions.UseNewResourceModel, "use-new-resource-model", serverOptions.UseNewResourceModel,
@@ -166,6 +186,8 @@ func main() {
 		"If true, fallbacks to k8s_container resource when given metric is not present on k8s_pod. At most one container with given metric is allowed for each pod.")
 	flags.BoolVar(&serverOptions.EnableCoreMetricsAPI, "enable-core-metrics-api", serverOptions.EnableCoreMetricsAPI,
 		"Experimental, do not use. Whether to enable Core Metrics API.")
+	flags.BoolVar(&serverOptions.ListFullCustomMetrics, "list-full-custom-metrics", serverOptions.ListFullCustomMetrics,
+		"whether to supporting list full custom metrics. This is a featuragate to list full custom metrics back, which should keep as false to return only 1 metric. Otherwise, it would have high memory usage issue.")
 	flags.StringVar(&serverOptions.MetricsAddress, "metrics-address", "",
 		"Endpoint with port on which Prometheus metrics server should be enabled. Example: localhost:8080. If there is no flag, Prometheus metric server is disabled and monitoring metrics are not collected.")
 	flags.StringVar(&serverOptions.StackdriverEndpoint, "stackdriver-endpoint", "",
@@ -175,11 +197,17 @@ func main() {
 
 	flags.Parse(os.Args)
 
+	klog.Info("serverOptions: ", serverOptions)
 	if !serverOptions.UseNewResourceModel && serverOptions.FallbackForContainerMetrics {
 		klog.Fatalf("Container metrics work only with new resource model")
 	}
 	if !serverOptions.UseNewResourceModel && serverOptions.EnableCoreMetricsAPI {
 		klog.Fatalf("Core metrics work only with new resource model")
+	}
+	if serverOptions.ListFullCustomMetrics {
+		klog.Infof("ListFullCustomMetrics is enabled, which would increase memory usage a lot. Please keep it as false, unless have to.")
+	} else {
+		klog.Infof("ListFullCustomMetrics is disabled, which would only list 1 metric resource to reduce memory usage. Add --list-full-custom-metrics to list full metric resources for debugging.")
 	}
 
 	// TODO(holubwicz): move duration config to server options
