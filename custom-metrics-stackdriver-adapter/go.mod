@@ -5,7 +5,7 @@ go 1.19
 require (
 	cloud.google.com/go/compute/metadata v0.2.3
 	github.com/prometheus/client_golang v1.11.1
-	golang.org/x/oauth2 v0.18.0
+	golang.org/x/oauth2 v0.19.0
 	google.golang.org/api v0.126.0
 	k8s.io/api v0.22.0
 	k8s.io/apimachinery v0.22.0
