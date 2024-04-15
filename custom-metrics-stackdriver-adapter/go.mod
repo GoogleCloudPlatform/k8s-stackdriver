@@ -3,7 +3,7 @@ module github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver
 go 1.19
 
 require (
-	cloud.google.com/go/compute/metadata v0.2.3
+	cloud.google.com/go/compute/metadata v0.3.0
 	github.com/prometheus/client_golang v1.11.1
 	golang.org/x/oauth2 v0.18.0
 	google.golang.org/api v0.126.0
@@ -18,7 +18,6 @@ require (
 )
 
 require (
-	cloud.google.com/go/compute v1.20.1 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
