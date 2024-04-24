@@ -32,6 +32,7 @@ import (
 	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/component-base/logs"
 	"k8s.io/klog"
@@ -39,6 +40,7 @@ import (
 
 	coreadapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/coreprovider"
 	adapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/provider"
+	corev1 "k8s.io/api/core/v1"
 	basecmd "sigs.k8s.io/custom-metrics-apiserver/pkg/cmd"
 )
 
@@ -144,10 +146,14 @@ func (sa *StackdriverAdapter) withCoreMetrics(translator *translator.Translator)
 		return err
 	}
 
-	pods := informers.Core().V1().Pods()
-	nodes := informers.Core().V1().Nodes()
-	if err := api.Install(provider, pods.Lister(), nodes.Lister(), server.GenericAPIServer); err != nil {
+	podInformer, nil := informers.ForResource(corev1.SchemeGroupVersion.WithResource("pods"))
+	if err != nil {
 		return err
+	}
+
+	nodes := informers.Core().V1().Nodes()
+	if err := api.Install(provider, podInformer.Lister(), nodes.Lister(), server.GenericAPIServer, []labels.Requirement{}); err != nil {
+		return nil
 	}
 
 	return nil
