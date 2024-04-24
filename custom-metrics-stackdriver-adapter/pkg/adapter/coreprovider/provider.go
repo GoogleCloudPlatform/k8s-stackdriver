@@ -50,6 +50,7 @@ type coreClientInterface interface {
 	getNodeRAM(nodesNames []string) (map[string]resource.Quantity, map[string]api.TimeInfo, error)
 }
 
+// GetPodMetrics implements the api.MetricsProvider interface. It translate data from getPodMetrics to the new api.
 func (p *CoreProvider) GetPodMetrics(pods ...*metav1.PartialObjectMetadata) ([]metrics.PodMetrics, error) {
 	resMetrics := make([]metrics.PodMetrics, 0, len(pods))
 
@@ -90,6 +91,7 @@ func (p *CoreProvider) GetPodMetrics(pods ...*metav1.PartialObjectMetadata) ([]m
 	return resMetrics, nil
 }
 
+// GetNodeMetrics implements the api.MetricsProvider interface. It translate data from getNodeMetrics to the new api.
 func (p *CoreProvider) GetNodeMetrics(nodes ...*corev1.Node) ([]metrics.NodeMetrics, error) {
 	resMetrics := make([]metrics.NodeMetrics, 0, len(nodes))
 	if len(nodes) == 0 {
@@ -124,7 +126,8 @@ func (p *CoreProvider) GetNodeMetrics(nodes ...*corev1.Node) ([]metrics.NodeMetr
 	return resMetrics, nil
 }
 
-// GetPodMetrics implements the api.MetricsProvider interface.
+//	Wrapping this method with the new GetPodMetrics for easily re-using the old unit test and a quick merge for the vulnerability fix. In the long run it's still better to directly updating this with the new API without another layer of wrap.
+//
 // If metrics from i-th pod are not present, ContainerMetrics[i] will be nil and TimeInfo[i] will be default TimeInfo value.
 func (p *CoreProvider) getPodMetrics(pods ...apitypes.NamespacedName) ([]api.TimeInfo, [][]metrics.ContainerMetrics, error) {
 	timeInfo := make([]api.TimeInfo, len(pods))
@@ -182,7 +185,8 @@ func (p *CoreProvider) getPodMetrics(pods ...apitypes.NamespacedName) ([]api.Tim
 	return timeInfo, coreMetrics, nil
 }
 
-// GetNodeMetrics implements the api.MetricsProvider interface.
+//	Wrapping this method with the new GetPodMetrics for easily re-using the old unit test and a quick merge for the vulnerability fix. In the long run it's still better to directly updating this with the new API without another layer of wrap.
+//
 // If metrics from i-th node are not present, ResourceList[i] will be nil and TimeInfo[i] will be default TimeInfo value.
 func (p *CoreProvider) getNodeMetrics(nodes ...string) ([]api.TimeInfo, []corev1.ResourceList, error) {
 	timeInfo := make([]api.TimeInfo, len(nodes))
@@ -223,4 +227,16 @@ func (p *CoreProvider) getNodeMetrics(nodes ...string) ([]api.TimeInfo, []corev1
 		}
 	}
 	return timeInfo, coreMetrics, nil
+}
+
+// GetPodMetricsOldAPI use old parameter lists. Making it public for testing purpose.
+// We're wrapping this method with the new GetPodMetrics for easily re-using the old unit test and a quick merge for the vulnerability fix.
+// In the long run it's still better to directly updating this with the new API without another layer of wrap.
+func (p *CoreProvider) GetPodMetricsOldAPI(pods ...apitypes.NamespacedName) ([]api.TimeInfo, [][]metrics.ContainerMetrics, error) {
+	return p.getPodMetrics(pods...)
+}
+
+// GetNodeMetricsOldAPI use old parameter lists. Making it public for testing purpose.
+func (p *CoreProvider) GetNodeMetricsOldAPI(nodes ...string) ([]api.TimeInfo, []corev1.ResourceList, error) {
+	return p.getNodeMetrics(nodes...)
 }

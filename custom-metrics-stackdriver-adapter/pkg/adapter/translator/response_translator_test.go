@@ -23,7 +23,7 @@ import (
 	"time"
 
 	sd "google.golang.org/api/monitoring/v3"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apierr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -66,9 +66,8 @@ func TestTranslator_GetRespForNodes_Aggregation(t *testing.T) {
 	}
 	node := v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        "my-node-name",
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
+			Name: "my-node-name",
+			UID:  "my-pod-id",
 		},
 	}
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
@@ -146,10 +145,9 @@ func TestTranslator_GetRespForPods_legacyResourceType(t *testing.T) {
 	}
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        "my-pod-name",
-			Namespace:   "my-namespace",
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
+			Name:      "my-pod-name",
+			Namespace: "my-namespace",
+			UID:       "my-pod-id",
 		},
 	}
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
@@ -198,10 +196,9 @@ func TestTranslator_GetRespForCustomMetric_MultiplePoints(t *testing.T) {
 	}
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        "my-pod-name",
-			Namespace:   "my-namespace",
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
+			Name:      "my-pod-name",
+			Namespace: "my-namespace",
+			UID:       "my-pod-id",
 		},
 	}
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
