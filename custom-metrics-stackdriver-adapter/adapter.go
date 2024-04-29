@@ -153,7 +153,7 @@ func (sa *StackdriverAdapter) withCoreMetrics(translator *translator.Translator)
 
 	nodes := informers.Core().V1().Nodes()
 	if err := api.Install(provider, podInformer.Lister(), nodes.Lister(), server.GenericAPIServer, []labels.Requirement{}); err != nil {
-		return nil
+		return err
 	}
 
 	return nil
