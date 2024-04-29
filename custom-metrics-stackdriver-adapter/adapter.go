@@ -24,14 +24,19 @@ import (
 	"time"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/translator"
+	generatedopenapi "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/api/generated/openapi"
 	gceconfig "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	stackdriver "google.golang.org/api/monitoring/v3"
+	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
+	genericapiserver "k8s.io/apiserver/pkg/server"
 	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
+	customexternalmetrics "sigs.k8s.io/custom-metrics-apiserver/pkg/apiserver"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/component-base/logs"
 	"k8s.io/klog"
@@ -39,6 +44,7 @@ import (
 
 	coreadapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/coreprovider"
 	adapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/provider"
+	corev1 "k8s.io/api/core/v1"
 	basecmd "sigs.k8s.io/custom-metrics-apiserver/pkg/cmd"
 )
 
@@ -144,9 +150,13 @@ func (sa *StackdriverAdapter) withCoreMetrics(translator *translator.Translator)
 		return err
 	}
 
-	pods := informers.Core().V1().Pods()
+	podInformer, nil := informers.ForResource(corev1.SchemeGroupVersion.WithResource("pods"))
+	if err != nil {
+		return err
+	}
+
 	nodes := informers.Core().V1().Nodes()
-	if err := api.Install(provider, pods.Lister(), nodes.Lister(), server.GenericAPIServer); err != nil {
+	if err := api.Install(provider, podInformer.Lister(), nodes.Lister(), server.GenericAPIServer, []labels.Requirement{}); err != nil {
 		return err
 	}
 
@@ -162,6 +172,13 @@ func main() {
 			Name: "custom-metrics-stackdriver-adapter",
 		},
 	}
+
+	if cmd.OpenAPIConfig == nil {
+		cmd.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(generatedopenapi.GetOpenAPIDefinitions, openapinamer.NewDefinitionNamer(api.Scheme, customexternalmetrics.Scheme))
+		cmd.OpenAPIConfig.Info.Title = "custom-metrics-stackdriver-adapter"
+		cmd.OpenAPIConfig.Info.Version = "1.0.0"
+	}
+
 	flags := cmd.Flags()
 
 	flags.AddGoFlagSet(flag.CommandLine) // make sure we get the klog flags
