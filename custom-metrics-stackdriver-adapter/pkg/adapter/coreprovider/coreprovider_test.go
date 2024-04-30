@@ -631,7 +631,7 @@ func TestCoreprovider_GetNodeMetrics_Many(t *testing.T) {
 		},
 	}
 
-	if diff := cmp.Diff(expectedNodeMetrics, nodeMetrics, cmpopts.IgnoreFields(metrics.NodeMetrics{}, "ObjectMeta", "CreationTimestamp")); diff != "" {
+	if diff := cmp.Diff(expectedNodeMetrics, nodeMetrics, cmpopts.SortMaps(func(a, b string) bool { return a < b }), cmpopts.IgnoreFields(metrics.NodeMetrics{}, "ObjectMeta", "CreationTimestamp")); diff != "" {
 		t.Errorf("Has a diff, (-want, +got): %s", diff)
 	}
 
@@ -639,9 +639,9 @@ func TestCoreprovider_GetNodeMetrics_Many(t *testing.T) {
 
 func TestCoreprovider_GetPodMetrics_Many(t *testing.T) {
 	podObjects := []*metav1.PartialObjectMetadata{
-		{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace1", Name: "pod2"}},
 		{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace1", Name: "pod1"}},
-		{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace2", Name: "pod1"}},
+		{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace2", Name: "pod2"}},
+		{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace3", Name: "pod3"}},
 	}
 
 	pods := []apitypes.NamespacedName{}
@@ -654,19 +654,19 @@ func TestCoreprovider_GetPodMetrics_Many(t *testing.T) {
 	time3, _ := time.Parse(time.RFC3339, "2017-01-02T13:01:20Z")
 
 	contCpuRes := map[string]map[string]resource.Quantity{
-		"namespace1:pod1": {"cont1": fromDouble(0.1), "cont2": fromDouble(0.2)},
-		"namespace1:pod2": {"cont1": fromDouble(0.3), "cont2": fromDouble(0.4)},
-		"namespace2:pod1": {"cont1": fromDouble(0.5), "cont2": fromDouble(0.6)},
+		"namespace1:pod1": {"cont1": fromDouble(0.3), "cont2": fromDouble(0.4)},
+		"namespace2:pod2": {"cont3": fromDouble(0.1), "cont4": fromDouble(0.2)},
+		"namespace3:pod3": {"cont5": fromDouble(0.5), "cont6": fromDouble(0.6)},
 	}
 	contRamRes := map[string]map[string]resource.Quantity{
-		"namespace1:pod1": {"cont1": fromInt(1000), "cont2": fromInt(1001)},
-		"namespace1:pod2": {"cont1": fromInt(1002), "cont2": fromInt(1003)},
-		"namespace2:pod1": {"cont1": fromInt(1004), "cont2": fromInt(1005)},
+		"namespace1:pod1": {"cont1": fromInt(1002), "cont2": fromInt(1003)},
+		"namespace2:pod2": {"cont3": fromInt(1000), "cont4": fromInt(1001)},
+		"namespace3:pod3": {"cont5": fromInt(1004), "cont6": fromInt(1005)},
 	}
 	timeRes := map[string]api.TimeInfo{
-		"namespace1:pod1": {time1, time.Minute},
-		"namespace1:pod2": {time2, time.Minute},
-		"namespace2:pod1": {time3, time.Minute},
+		"namespace1:pod1": {time2, time.Minute},
+		"namespace2:pod2": {time1, time.Minute},
+		"namespace3:pod3": {time3, time.Minute},
 	}
 	var provider = CoreProvider{podClient([]string{doubleQuote(pods[0].Name), doubleQuote(pods[1].Name), doubleQuote(pods[2].Name)}, contCpuRes, timeRes, contRamRes, timeRes, t)}
 	podMetrics, err := provider.GetPodMetrics(podObjects...)
@@ -679,7 +679,7 @@ func TestCoreprovider_GetPodMetrics_Many(t *testing.T) {
 		metrics.PodMetrics{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:              "pod1",
-				Namespace:         "namespace2",
+				Namespace:         "namespace1",
 				CreationTimestamp: metav1.Now(),
 			},
 			Timestamp: metav1.NewTime(time2),
@@ -704,22 +704,22 @@ func TestCoreprovider_GetPodMetrics_Many(t *testing.T) {
 
 		metrics.PodMetrics{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:              "pod1",
-				Namespace:         "namespace1",
+				Name:              "pod2",
+				Namespace:         "namespace2",
 				CreationTimestamp: metav1.Now(),
 			},
 			Timestamp: metav1.NewTime(time1),
 			Window:    metav1.Duration{Duration: time.Minute},
 			Containers: []metrics.ContainerMetrics{
 				{
-					Name: "cont1",
+					Name: "cont3",
 					Usage: corev1.ResourceList{
 						corev1.ResourceCPU:    fromDouble(0.1),
 						corev1.ResourceMemory: fromInt(1000),
 					},
 				},
 				{
-					Name: "cont2",
+					Name: "cont4",
 					Usage: corev1.ResourceList{
 						corev1.ResourceCPU:    fromDouble(0.2),
 						corev1.ResourceMemory: fromInt(1001),
@@ -730,22 +730,22 @@ func TestCoreprovider_GetPodMetrics_Many(t *testing.T) {
 
 		metrics.PodMetrics{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:              "pod2",
-				Namespace:         "namespace1",
+				Name:              "pod3",
+				Namespace:         "namespace3",
 				CreationTimestamp: metav1.Now(),
 			},
 			Timestamp: metav1.NewTime(time3),
 			Window:    metav1.Duration{Duration: time.Minute},
 			Containers: []metrics.ContainerMetrics{
 				{
-					Name: "cont1",
+					Name: "cont5",
 					Usage: corev1.ResourceList{
 						corev1.ResourceCPU:    fromDouble(0.5),
 						corev1.ResourceMemory: fromInt(1004),
 					},
 				},
 				{
-					Name: "cont2",
+					Name: "cont6",
 					Usage: corev1.ResourceList{
 						corev1.ResourceCPU:    fromDouble(0.6),
 						corev1.ResourceMemory: fromInt(1005),
@@ -755,12 +755,12 @@ func TestCoreprovider_GetPodMetrics_Many(t *testing.T) {
 		},
 	}
 
-	if len(podObjects) != len(podMetrics) {
-		t.Fatalf("Unexpected result. Expected len: \n%v,\n received: \n%v", len(pods), len(podMetrics))
+	if len(expectedPodMetrics) != len(podMetrics) {
+		t.Fatalf("Unexpected result. Expected len: \n%v,\n received: \n%v", len(expectedPodMetrics), len(podMetrics))
 	}
 
-	if diff := cmp.Diff(expectedPodMetrics, podMetrics, cmpopts.IgnoreFields(metrics.PodMetrics{}, "ObjectMeta", "CreationTimestamp")); diff != "" {
-		t.Errorf("Has a diff, (-want, +got): %s", diff)
+	if diff := cmp.Diff(expectedPodMetrics, podMetrics, cmpopts.SortMaps(func(a, b string) bool { return a < b }), cmpopts.IgnoreFields(metrics.PodMetrics{}, "ObjectMeta", "CreationTimestamp")); diff != "" {
+		t.Errorf("Has a diff, (-want, +got): %s. Want: %v, got: %v.", diff, expectedPodMetrics, podMetrics)
 	}
 
 }
