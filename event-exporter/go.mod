@@ -9,9 +9,9 @@ require (
 	github.com/prometheus/client_golang v1.12.1
 	golang.org/x/net v0.17.0
 	google.golang.org/api v0.70.0
-	k8s.io/api v0.23.4
-	k8s.io/apimachinery v0.23.4
-	k8s.io/client-go v0.23.4
+	k8s.io/api v0.30.0
+	k8s.io/apimachinery v0.30.0
+	k8s.io/client-go v0.30.0
 )
 
 require (
