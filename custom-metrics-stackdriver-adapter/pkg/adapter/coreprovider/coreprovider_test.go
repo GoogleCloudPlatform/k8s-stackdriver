@@ -759,7 +759,7 @@ func TestCoreprovider_GetPodMetrics_Many(t *testing.T) {
 		t.Fatalf("Unexpected result. Expected len: \n%v,\n received: \n%v", len(expectedPodMetrics), len(podMetrics))
 	}
 
-	if diff := cmp.Diff(expectedPodMetrics, podMetrics, cmpopts.SortMaps(func(a, b string) bool { return a < b }), cmpopts.IgnoreFields(metrics.PodMetrics{}, "ObjectMeta", "CreationTimestamp")); diff != "" {
+	if diff := cmp.Diff(expectedPodMetrics, podMetrics, cmpopts.SortMaps(func(a, b metrics.ContainerMetrics) bool { return a.Name < b.Name }), cmpopts.IgnoreFields(metrics.PodMetrics{}, "ObjectMeta", "CreationTimestamp")); diff != "" {
 		t.Errorf("Has a diff, (-want, +got): %s. Want: %v, got: %v.", diff, expectedPodMetrics, podMetrics)
 	}
 
