@@ -5,9 +5,11 @@
 package gensupport
 
 import (
+	"net/http"
 	"net/url"
 
 	"google.golang.org/api/googleapi"
+	"google.golang.org/api/internal"
 )
 
 // URLParams is a simplified replacement for url.Values
@@ -37,7 +39,7 @@ func (u URLParams) SetMulti(key string, values []string) {
 	u[key] = values
 }
 
-// Encode encodes the values into ``URL encoded'' form
+// Encode encodes the values into “URL encoded” form
 // ("bar=baz&foo=quux") sorted by key.
 func (u URLParams) Encode() string {
 	return url.Values(u).Encode()
@@ -54,4 +56,18 @@ func SetOptions(u URLParams, opts ...googleapi.CallOption) {
 		}
 		u.Set(o.Get())
 	}
+}
+
+// SetHeaders sets common headers for all requests.
+func SetHeaders(userAgent, contentType string, userHeaders http.Header) http.Header {
+	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+GoVersion()+" gdcl/"+internal.Version)
+	reqHeaders.Set("User-Agent", userAgent)
+	if contentType != "" {
+		reqHeaders.Set("Content-Type", contentType)
+	}
+	for k, v := range userHeaders {
+		reqHeaders[k] = v
+	}
+	return reqHeaders
 }
