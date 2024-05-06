@@ -83,6 +83,9 @@ spec:
         - /adapter
         - --use-new-resource-model=false
         - --secure-port=6443
+        ports:
+        - containerPort: 6443
+          name: https
         readinessProbe:
           failureThreshold: 5
           httpGet:

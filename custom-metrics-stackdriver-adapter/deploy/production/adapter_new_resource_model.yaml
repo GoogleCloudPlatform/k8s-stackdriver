@@ -97,6 +97,9 @@ spec:
         - --use-new-resource-model=true
         - --fallback-for-container-metrics=true
         - --secure-port=6443
+        ports:
+        - containerPort: 6443
+          name: https
         readinessProbe:
           failureThreshold: 5
           httpGet:
