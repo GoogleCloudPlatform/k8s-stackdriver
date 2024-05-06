@@ -124,7 +124,7 @@ spec:
   ports:
   - port: 443
     protocol: TCP
-    targetPort: 443
+    targetPort: 6443
   selector:
     run: custom-metrics-stackdriver-adapter
     k8s-app: custom-metrics-stackdriver-adapter
