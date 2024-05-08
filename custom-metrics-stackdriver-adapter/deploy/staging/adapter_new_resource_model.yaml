@@ -100,26 +100,6 @@ spec:
         - /adapter
         - --use-new-resource-model=true
         - --fallback-for-container-metrics=true
-        - --secure-port=6443
-        ports:
-        - containerPort: 6443
-          name: https
-        readinessProbe:
-          failureThreshold: 5
-          httpGet:
-            path: /readyz
-            port: https
-            scheme: HTTPS
-          initialDelaySeconds: 30
-          periodSeconds: 5
-        livenessProbe:
-          failureThreshold: 5
-          httpGet:
-            path: /livez
-            port: https
-            scheme: HTTPS
-          initialDelaySeconds: 30
-          periodSeconds: 5
         resources:
           limits:
             cpu: 250m
@@ -142,7 +122,7 @@ spec:
   ports:
   - port: 443
     protocol: TCP
-    targetPort: 6443
+    targetPort: 443
   selector:
     run: custom-metrics-stackdriver-adapter
     k8s-app: custom-metrics-stackdriver-adapter
