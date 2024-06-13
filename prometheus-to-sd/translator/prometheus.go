@@ -109,7 +109,7 @@ func (p *PrometheusResponse) Build(config *config.CommonConfig, metricDescriptor
 	}
 	// Convert summary metrics into metric family types we can easily import, since summary types
 	// map to multiple stackdriver metrics.
-	metrics = FlattenSummaryMetricFamilies(metrics)
+	metrics = SummaryMetricFamilies(metrics)
 	if strings.HasPrefix(config.SourceConfig.MetricsPrefix, customMetricsPrefix) {
 		metricDescriptorCache.UpdateMetricDescriptors(metrics, config.SourceConfig.Whitelisted)
 	} else {
