@@ -74,6 +74,10 @@ type stackdriverAdapterServerOptions struct {
 	// ListFullCustomMetrics is a flag that whether list all pod custom metrics during api discovery.
 	// Default = false, which only list 1 metric. Enabling this back would increase memory usage.
 	ListFullCustomMetrics bool
+	// GceConfig options
+	GcpProject  string
+	GcpLocation string
+	GcpCluster  string
 }
 
 func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptions, rateInterval time.Duration, alignmentPeriod time.Duration) (provider.MetricsProvider, *translator.Translator) {
@@ -108,7 +112,8 @@ func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptio
 		stackdriverService.BasePath = o.StackdriverEndpoint
 	}
 
-	gceConf, err := gceconfig.GetGceConfig()
+	gceConf, err := getGceConfig(o)
+
 	if err != nil {
 		klog.Fatalf("Failed to retrieve GCE config: %v", err)
 	}
@@ -123,6 +128,19 @@ func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptio
 	// If ListFullCustomMetrics is false, it returns one resource during api discovery `kubectl get --raw "/apis/custom.metrics.k8s.io/v1beta2"` to reduce memory usage.
 	customMetricsListCache := listStackdriverCustomMetrics(translator, o.ListFullCustomMetrics, o.FallbackForContainerMetrics)
 	return adapter.NewStackdriverProvider(client, mapper, gceConf, stackdriverService, translator, rateInterval, o.UseNewResourceModel, o.FallbackForContainerMetrics, customMetricsListCache), translator
+}
+
+func getGceConfig(o *stackdriverAdapterServerOptions) (*gceconfig.GceConfig, error) {
+	if o.GcpProject != "" {
+		return &gceconfig.GceConfig{
+			Project:  o.GcpProject,
+			Location: o.GcpLocation,
+			Cluster:  o.GcpCluster,
+			Instance: "",
+		}, nil
+	} else {
+		return gceconfig.GetGceConfig()
+	}
 }
 
 func listStackdriverCustomMetrics(translator *translator.Translator, listFullCustomMetrics bool, fallbackForContainerMetrics bool) []provider.CustomMetricInfo {
@@ -211,7 +229,13 @@ func main() {
 		"Stackdriver Endpoint used by adapter. Default is https://monitoring.googleapis.com/")
 	flags.BoolVar(&serverOptions.EnableDistributionSupport, "enable-distribution-support", serverOptions.EnableDistributionSupport,
 		"enables support for scaling based on distribution values")
-
+	// Custom flags
+	flags.StringVar(&serverOptions.GcpProject, "project-id", "",
+		"Google Cloud Platform Project")
+	flags.StringVar(&serverOptions.GcpCluster, "cluster", "",
+		"Google Cloud Platform Cluster")
+	flags.StringVar(&serverOptions.GcpLocation, "location", "",
+		"Google Cloud Platform Location")
 	flags.Parse(os.Args)
 
 	klog.Info("serverOptions: ", serverOptions)
@@ -245,6 +269,13 @@ func main() {
 	}
 	if err := cmd.Run(wait.NeverStop); err != nil {
 		klog.Fatalf("unable to run custom metrics adapter: %v", err)
+	}
+
+	if serverOptions.GcpProject != "" && serverOptions.GcpCluster == "" {
+		klog.Fatalf("When 'project-id' is set, 'cluster' must also be set.")
+	}
+	if serverOptions.GcpProject != "" && serverOptions.GcpLocation == "" {
+		klog.Fatalf("When 'project-id' is set, 'location' must also be set.")
 	}
 }
 
