@@ -17,9 +17,10 @@ limitations under the License.
 package translator
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -34,7 +35,8 @@ const customMetricsPrefix = "custom.googleapis.com"
 
 // PrometheusResponse represents unprocessed response from Prometheus endpoint.
 type PrometheusResponse struct {
-	rawResponse string
+	rawResponse []byte
+	header      http.Header
 }
 
 var prometheusClient *http.Client
@@ -71,14 +73,14 @@ func getPrometheusMetrics(config *config.SourceConfig) (*PrometheusResponse, err
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body - %v", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("request failed - %q, response: %q", resp.Status, string(body))
 	}
-	return &PrometheusResponse{rawResponse: string(body)}, nil
+	return &PrometheusResponse{rawResponse: body, header: resp.Header}, nil
 }
 
 func doPrometheusRequest(url string, auth config.AuthConfig) (resp *http.Response, err error) {
@@ -86,6 +88,7 @@ func doPrometheusRequest(url string, auth config.AuthConfig) (resp *http.Respons
 	if err != nil {
 		return nil, err
 	}
+	request.Header.Set("Accept", string(expfmt.FmtProtoDelim))
 	if len(auth.Username) > 0 {
 		request.SetBasicAuth(auth.Username, auth.Password)
 	} else if len(auth.Token) > 0 {
@@ -96,11 +99,24 @@ func doPrometheusRequest(url string, auth config.AuthConfig) (resp *http.Respons
 
 // Build performs parsing and processing of the prometheus metrics response.
 func (p *PrometheusResponse) Build(config *config.CommonConfig, metricDescriptorCache *MetricDescriptorCache) (map[string]*dto.MetricFamily, error) {
-	parser := &expfmt.TextParser{}
-	metrics, err := parser.TextToMetricFamilies(strings.NewReader(p.rawResponse))
-	if err != nil {
-		return nil, err
+	format := expfmt.ResponseFormat(p.header)
+	if format == expfmt.FmtUnknown {
+		return nil, fmt.Errorf("failed to parse format from header: %s", p.header.Get("Content-Type"))
 	}
+	decoder := expfmt.NewDecoder(bytes.NewReader(p.rawResponse), format)
+	metrics := make(map[string]*dto.MetricFamily)
+	for {
+		metric := &dto.MetricFamily{}
+		err := decoder.Decode(metric)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		metrics[metric.GetName()] = metric
+	}
+
 	if config.OmitComponentName {
 		metrics = OmitComponentName(metrics, config.SourceConfig.Component)
 	}
