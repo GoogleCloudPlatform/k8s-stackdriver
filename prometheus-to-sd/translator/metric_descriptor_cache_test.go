@@ -22,7 +22,8 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
-	v3 "google.golang.org/api/monitoring/v3"
+	"google.golang.org/genproto/googleapis/api/label"
+	"google.golang.org/genproto/googleapis/api/metric"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/config"
 )
@@ -36,41 +37,41 @@ var differentLabels = "differentLabels"
 var description1 = "Simple description"
 var description2 = "Complex description"
 
-var label1 = &v3.LabelDescriptor{Key: "label1"}
-var label2 = &v3.LabelDescriptor{Key: "label2"}
-var label3 = &v3.LabelDescriptor{Key: "label3"}
+var label1 = &label.LabelDescriptor{Key: "label1"}
+var label2 = &label.LabelDescriptor{Key: "label2"}
+var label3 = &label.LabelDescriptor{Key: "label3"}
 
-var originalDescriptor = v3.MetricDescriptor{
+var originalDescriptor = metric.MetricDescriptor{
 	Name:        equalDescriptor,
 	Description: description1,
-	MetricKind:  "GAUGE",
-	Labels:      []*v3.LabelDescriptor{label1, label2},
+	MetricKind:  metric.MetricDescriptor_GAUGE,
+	Labels:      []*label.LabelDescriptor{label1, label2},
 }
 
-var otherDescriptors = map[*v3.MetricDescriptor]bool{
+var otherDescriptors = map[*metric.MetricDescriptor]bool{
 	{
 		Name:        equalDescriptor,
 		Description: description1,
-		MetricKind:  "GAUGE",
-		Labels:      []*v3.LabelDescriptor{label1, label2},
+		MetricKind:  metric.MetricDescriptor_GAUGE,
+		Labels:      []*label.LabelDescriptor{label1, label2},
 	}: false,
 	{
 		Name:        differentDescription,
 		Description: description2,
-		MetricKind:  "GAUGE",
-		Labels:      []*v3.LabelDescriptor{label1, label2},
+		MetricKind:  metric.MetricDescriptor_GAUGE,
+		Labels:      []*label.LabelDescriptor{label1, label2},
 	}: true,
 	{
 		Name:        differentLabels,
 		Description: description1,
-		MetricKind:  "GAUGE",
-		Labels:      []*v3.LabelDescriptor{label3},
+		MetricKind:  metric.MetricDescriptor_GAUGE,
+		Labels:      []*label.LabelDescriptor{label3},
 	}: true,
 	{
 		Name:        equalDescriptor,
 		Description: description1,
-		MetricKind:  "CUMULATIVE",
-		Labels:      []*v3.LabelDescriptor{label1, label2},
+		MetricKind:  metric.MetricDescriptor_CUMULATIVE,
+		Labels:      []*label.LabelDescriptor{label1, label2},
 	}: true,
 }
 
@@ -87,17 +88,17 @@ func TestDescriptorChanged(t *testing.T) {
 func TestValidateMetricDescriptors(t *testing.T) {
 	testCases := []struct {
 		description  string
-		descriptors  []*v3.MetricDescriptor
+		descriptors  []*metric.MetricDescriptor
 		metricFamily *dto.MetricFamily
 		missing      bool
 		broken       bool
 	}{
 		{
 			description: "Metric is broken if new label was added",
-			descriptors: []*v3.MetricDescriptor{
+			descriptors: []*metric.MetricDescriptor{
 				{
 					Name:       "descriptor1",
-					MetricKind: "CUMULATIVE",
+					MetricKind: metric.MetricDescriptor_CUMULATIVE,
 				},
 			},
 			metricFamily: &dto.MetricFamily{
@@ -122,10 +123,10 @@ func TestValidateMetricDescriptors(t *testing.T) {
 		},
 		{
 			description: "Metric is broken if metric kind was changed",
-			descriptors: []*v3.MetricDescriptor{
+			descriptors: []*metric.MetricDescriptor{
 				{
 					Name:       "descriptor1",
-					MetricKind: "GAUGE",
+					MetricKind: metric.MetricDescriptor_GAUGE,
 				},
 			},
 			metricFamily: &dto.MetricFamily{
@@ -144,10 +145,10 @@ func TestValidateMetricDescriptors(t *testing.T) {
 		},
 		{
 			description: "Metric family hasn't changed",
-			descriptors: []*v3.MetricDescriptor{
+			descriptors: []*metric.MetricDescriptor{
 				{
 					Name:       "descriptor1",
-					MetricKind: "CUMULATIVE",
+					MetricKind: metric.MetricDescriptor_CUMULATIVE,
 				},
 			},
 			metricFamily: &dto.MetricFamily{
@@ -166,10 +167,10 @@ func TestValidateMetricDescriptors(t *testing.T) {
 		},
 		{
 			description: "Metric is not in the cache",
-			descriptors: []*v3.MetricDescriptor{
+			descriptors: []*metric.MetricDescriptor{
 				{
 					Name:       "descriptor1",
-					MetricKind: "CUMULATIVE",
+					MetricKind: metric.MetricDescriptor_CUMULATIVE,
 				},
 			},
 			metricFamily: &dto.MetricFamily{
@@ -188,11 +189,11 @@ func TestValidateMetricDescriptors(t *testing.T) {
 		},
 		{
 			description: "Description change doesn't break metric family",
-			descriptors: []*v3.MetricDescriptor{
+			descriptors: []*metric.MetricDescriptor{
 				{
 					Name:        "descriptor1",
 					Description: "original description",
-					MetricKind:  "CUMULATIVE",
+					MetricKind:  metric.MetricDescriptor_CUMULATIVE,
 				},
 			},
 			metricFamily: &dto.MetricFamily{

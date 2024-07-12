@@ -17,6 +17,7 @@ limitations under the License.
 package translator
 
 import (
+	"context"
 	"math"
 	"net/http"
 	"reflect"
@@ -27,7 +28,10 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
-	v3 "google.golang.org/api/monitoring/v3"
+	"google.golang.org/genproto/googleapis/api/label"
+	"google.golang.org/genproto/googleapis/api/metric"
+	v3 "google.golang.org/genproto/googleapis/monitoring/v3"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/config"
 )
@@ -82,6 +86,8 @@ var testLabelValue1 = "labelValue1"
 var testLabelValue2 = "labelValue2"
 
 var now = time.Now()
+var startTime = time.Unix(1234567890, 0)
+var startTimePB = timestamppb.New(startTime)
 
 var metricsResponse = &PrometheusResponse{rawResponse: []byte(`
 # TYPE test_name counter
@@ -238,13 +244,13 @@ var metrics = map[string]*dto.MetricFamily{
 	},
 }
 
-var metricDescriptors = map[string]*v3.MetricDescriptor{
+var metricDescriptors = map[string]*metric.MetricDescriptor{
 	testMetricName: {
 		Type:        "container.googleapis.com/master/testcomponent/test_name",
 		Description: testMetricDescription,
-		MetricKind:  "CUMULATIVE",
-		ValueType:   "INT64",
-		Labels: []*v3.LabelDescriptor{
+		MetricKind:  metric.MetricDescriptor_CUMULATIVE,
+		ValueType:   metric.MetricDescriptor_INT64,
+		Labels: []*label.LabelDescriptor{
 			{
 				Key: "labelName",
 			},
@@ -252,9 +258,9 @@ var metricDescriptors = map[string]*v3.MetricDescriptor{
 	},
 	booleanMetricName: {
 		Type:       "container.googleapis.com/master/testcomponent/boolean_metric",
-		MetricKind: "GAUGE",
-		ValueType:  "BOOL",
-		Labels: []*v3.LabelDescriptor{
+		MetricKind: metric.MetricDescriptor_GAUGE,
+		ValueType:  metric.MetricDescriptor_BOOL,
+		Labels: []*label.LabelDescriptor{
 			{
 				Key: "labelName",
 			},
@@ -262,39 +268,39 @@ var metricDescriptors = map[string]*v3.MetricDescriptor{
 	},
 	floatMetricName: {
 		Type:       "container.googleapis.com/master/testcomponent/float_metric",
-		MetricKind: "CUMULATIVE",
-		ValueType:  "DOUBLE",
+		MetricKind: metric.MetricDescriptor_CUMULATIVE,
+		ValueType:  metric.MetricDescriptor_DOUBLE,
 	},
 	processStartTimeMetric: {
 		Type:       "container.googleapis.com/master/testcomponent/process_start_time_seconds",
-		MetricKind: "GAUGE",
-		ValueType:  "INT64",
+		MetricKind: metric.MetricDescriptor_GAUGE,
+		ValueType:  metric.MetricDescriptor_INT64,
 	},
 	unrelatedMetric: {
 		Type:       "container.googleapis.com/master/testcomponent/unrelated_metric",
-		MetricKind: "GAUGE",
-		ValueType:  "INT64",
+		MetricKind: metric.MetricDescriptor_GAUGE,
+		ValueType:  metric.MetricDescriptor_INT64,
 	},
 	testMetricHistogram: {
 		Type:        "container.googleapis.com/master/testcomponent/test_histogram",
 		Description: testMetricHistogramDescription,
-		MetricKind:  "CUMULATIVE",
-		ValueType:   "DISTRIBUTION",
+		MetricKind:  metric.MetricDescriptor_CUMULATIVE,
+		ValueType:   metric.MetricDescriptor_DISTRIBUTION,
 	},
 	floatSummaryMetricName + "_sum": {
 		Type:       "container.googleapis.com/master/testcomponent/float_summary_metric_sum",
-		MetricKind: "CUMULATIVE",
-		ValueType:  "DOUBLE",
+		MetricKind: metric.MetricDescriptor_CUMULATIVE,
+		ValueType:  metric.MetricDescriptor_DOUBLE,
 	},
 	intSummaryMetricName + "_sum": {
 		Type:       "container.googleapis.com/master/testcomponent/int_summary_metric_sum",
-		MetricKind: "CUMULATIVE",
-		ValueType:  "INT64",
+		MetricKind: metric.MetricDescriptor_CUMULATIVE,
+		ValueType:  metric.MetricDescriptor_INT64,
 	},
 	untypedMetricName: {
 		Type:       "container.googleapis.com/master/testcomponent/untyped_metric",
-		MetricKind: "GAUGE",
-		ValueType:  "DOUBLE",
+		MetricKind: metric.MetricDescriptor_GAUGE,
+		ValueType:  metric.MetricDescriptor_DOUBLE,
 	},
 }
 
@@ -551,11 +557,12 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 }
 
 func TestTranslatePrometheusToStackdriver(t *testing.T) {
+	ctx := context.Background()
 	cache := buildCacheForTesting()
 
 	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName}), cache)
 	tsb.Update(metricsResponse, now)
-	ts, timestamp, err := tsb.Build()
+	ts, timestamp, err := tsb.Build(ctx)
 	assert.Equal(t, timestamp, now)
 
 	assert.Equal(t, err, nil)
@@ -566,46 +573,46 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 
 	// First three int values.
 	for i := 0; i <= 2; i++ {
-		metric := ts[i]
-		assert.Equal(t, "gke_container", metric.Resource.Type)
-		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", metric.Metric.Type)
-		assert.Equal(t, "INT64", metric.ValueType)
-		assert.Equal(t, "CUMULATIVE", metric.MetricKind)
+		m := ts[i]
+		assert.Equal(t, "gke_container", m.Resource.Type)
+		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", m.Metric.Type)
+		assert.Equal(t, metric.MetricDescriptor_INT64, m.ValueType)
+		assert.Equal(t, metric.MetricDescriptor_CUMULATIVE, m.MetricKind)
 
-		assert.Equal(t, 1, len(metric.Points))
-		assert.Equal(t, "2009-02-13T23:31:30Z", metric.Points[0].Interval.StartTime)
+		assert.Equal(t, 1, len(m.Points))
+		assert.Equal(t, startTimePB, m.Points[0].Interval.StartTime)
 
-		labels := metric.Metric.Labels
+		labels := m.Metric.Labels
 		assert.Equal(t, 1, len(labels))
 
 		if labels["labelName"] == "labelValue1" {
-			assert.Equal(t, int64(42), *(metric.Points[0].Value.Int64Value))
+			assert.Equal(t, int64(42), m.Points[0].Value.GetInt64Value())
 		} else if labels["labelName"] == "labelValue2" {
-			assert.Equal(t, int64(106), *(metric.Points[0].Value.Int64Value))
+			assert.Equal(t, int64(106), m.Points[0].Value.GetInt64Value())
 		} else if labels["labelName"] == "labelValue3" {
-			assert.Equal(t, int64(136), *(metric.Points[0].Value.Int64Value))
+			assert.Equal(t, int64(136), m.Points[0].Value.GetInt64Value())
 		} else {
 			t.Errorf("Wrong label labelName value %s", labels["labelName"])
 		}
 	}
 
 	// Histogram
-	metric := ts[3]
-	assert.Equal(t, "gke_container", metric.Resource.Type)
-	assert.Equal(t, "container.googleapis.com/master/testcomponent/test_histogram", metric.Metric.Type)
-	assert.Equal(t, "DISTRIBUTION", metric.ValueType)
-	assert.Equal(t, "CUMULATIVE", metric.MetricKind)
-	assert.Equal(t, 1, len(metric.Points))
+	m := ts[3]
+	assert.Equal(t, "gke_container", m.Resource.Type)
+	assert.Equal(t, "container.googleapis.com/master/testcomponent/test_histogram", m.Metric.Type)
+	assert.Equal(t, metric.MetricDescriptor_DISTRIBUTION, m.ValueType)
+	assert.Equal(t, metric.MetricDescriptor_CUMULATIVE, m.MetricKind)
+	assert.Equal(t, 1, len(m.Points))
 
-	p := metric.Points[0]
+	p := m.Points[0]
 
-	dist := p.Value.DistributionValue
+	dist := p.Value.GetDistributionValue()
 	assert.NotNil(t, dist)
 	assert.Equal(t, int64(5), dist.Count)
 	assert.InEpsilon(t, 2.6, dist.Mean, epsilon)
 	assert.InEpsilon(t, 11.25, dist.SumOfSquaredDeviation, epsilon)
 
-	bounds := dist.BucketOptions.ExplicitBuckets.Bounds
+	bounds := dist.BucketOptions.GetExplicitBuckets().GetBounds()
 	assert.Equal(t, 3, len(bounds))
 	assert.InEpsilon(t, 1, bounds[0], epsilon)
 	assert.InEpsilon(t, 3, bounds[1], epsilon)
@@ -619,29 +626,29 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	assert.Equal(t, int64(1), counts[3])
 
 	// Then float value.
-	metric = ts[4]
-	assert.Equal(t, "gke_container", metric.Resource.Type)
-	assert.Equal(t, "container.googleapis.com/master/testcomponent/float_metric", metric.Metric.Type)
-	assert.Equal(t, "DOUBLE", metric.ValueType)
-	assert.Equal(t, "CUMULATIVE", metric.MetricKind)
-	assert.InEpsilon(t, 123.17, *(metric.Points[0].Value.DoubleValue), epsilon)
-	assert.Equal(t, 1, len(metric.Points))
-	assert.Equal(t, "2009-02-13T23:31:30Z", metric.Points[0].Interval.StartTime)
+	m = ts[4]
+	assert.Equal(t, "gke_container", m.Resource.Type)
+	assert.Equal(t, "container.googleapis.com/master/testcomponent/float_metric", m.Metric.Type)
+	assert.Equal(t, metric.MetricDescriptor_DOUBLE, m.ValueType)
+	assert.Equal(t, metric.MetricDescriptor_CUMULATIVE, m.MetricKind)
+	assert.InEpsilon(t, 123.17, m.Points[0].Value.GetDoubleValue(), epsilon)
+	assert.Equal(t, 1, len(m.Points))
+	assert.Equal(t, startTimePB, m.Points[0].Interval.StartTime)
 
 	// Then two boolean values.
 	for i := 5; i <= 6; i++ {
-		metric := ts[i]
-		assert.Equal(t, "gke_container", metric.Resource.Type)
-		assert.Equal(t, "container.googleapis.com/master/testcomponent/boolean_metric", metric.Metric.Type)
-		assert.Equal(t, "BOOL", metric.ValueType)
-		assert.Equal(t, "GAUGE", metric.MetricKind)
+		m := ts[i]
+		assert.Equal(t, "gke_container", m.Resource.Type)
+		assert.Equal(t, "container.googleapis.com/master/testcomponent/boolean_metric", m.Metric.Type)
+		assert.Equal(t, metric.MetricDescriptor_BOOL, m.ValueType)
+		assert.Equal(t, metric.MetricDescriptor_GAUGE, m.MetricKind)
 
-		labels := metric.Metric.Labels
+		labels := m.Metric.Labels
 		assert.Equal(t, 1, len(labels))
 		if labels["labelName"] == "falseValue" {
-			assert.Equal(t, false, *(metric.Points[0].Value.BoolValue))
+			assert.Equal(t, false, m.Points[0].Value.GetBoolValue())
 		} else if labels["labelName"] == "trueValue" {
-			assert.Equal(t, true, *(metric.Points[0].Value.BoolValue))
+			assert.Equal(t, true, m.Points[0].Value.GetBoolValue())
 		} else {
 			t.Errorf("Wrong label labelName value %s", labels["labelName"])
 		}
@@ -670,7 +677,7 @@ func TestTranslatePrometheusToStackdriverWithLabelFiltering(t *testing.T) {
 
 	tsb := NewTimeSeriesBuilder(commonConfigWithFiltering, cache)
 	tsb.Update(metricsResponse, now)
-	ts, timestamp, err := tsb.Build()
+	ts, timestamp, err := tsb.Build(context.Background())
 
 	assert.Equal(t, timestamp, now)
 	assert.Equal(t, err, nil)
@@ -681,22 +688,22 @@ func TestTranslatePrometheusToStackdriverWithLabelFiltering(t *testing.T) {
 
 	// First two int values.
 	for i := 0; i <= 1; i++ {
-		metric := ts[i]
-		assert.Equal(t, "gke_container", metric.Resource.Type)
-		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", metric.Metric.Type)
-		assert.Equal(t, "INT64", metric.ValueType)
-		assert.Equal(t, "CUMULATIVE", metric.MetricKind)
+		m := ts[i]
+		assert.Equal(t, "gke_container", m.Resource.Type)
+		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", m.Metric.Type)
+		assert.Equal(t, metric.MetricDescriptor_INT64, m.ValueType)
+		assert.Equal(t, metric.MetricDescriptor_CUMULATIVE, m.MetricKind)
 
-		assert.Equal(t, 1, len(metric.Points))
-		assert.Equal(t, "2009-02-13T23:31:30Z", metric.Points[0].Interval.StartTime)
+		assert.Equal(t, 1, len(m.Points))
+		assert.Equal(t, startTimePB, m.Points[0].Interval.StartTime)
 
-		labels := metric.Metric.Labels
+		labels := m.Metric.Labels
 		assert.Equal(t, 1, len(labels))
 
 		if labels["labelName"] == "labelValue1" {
-			assert.Equal(t, int64(42), *(metric.Points[0].Value.Int64Value))
+			assert.Equal(t, int64(42), m.Points[0].Value.GetInt64Value())
 		} else if labels["labelName"] == "labelValue2" {
-			assert.Equal(t, int64(106), *(metric.Points[0].Value.Int64Value))
+			assert.Equal(t, int64(106), m.Points[0].Value.GetInt64Value())
 		} else {
 			t.Errorf("Wrong label labelName value %s", labels["labelName"])
 		}
@@ -757,21 +764,21 @@ int_summary_metric_count{label="l2"} 10
 			summaryMetricName:  intSummaryMetricName,
 			expectedTimeSeries: []*v3.TimeSeries{
 				{
-					Metric: &v3.Metric{
+					Metric: &metric.Metric{
 						Labels: map[string]string{},
 						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric_sum",
 					},
-					MetricKind: "CUMULATIVE",
+					MetricKind: metric.MetricDescriptor_CUMULATIVE,
 					Points: []*v3.Point{
 						createIntPoint(42, start, end),
 					},
 				},
 				{
-					Metric: &v3.Metric{
+					Metric: &metric.Metric{
 						Labels: map[string]string{},
 						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric_count",
 					},
-					MetricKind: "CUMULATIVE",
+					MetricKind: metric.MetricDescriptor_CUMULATIVE,
 					Points: []*v3.Point{
 						createIntPoint(101010, start, end),
 					},
@@ -784,21 +791,21 @@ int_summary_metric_count{label="l2"} 10
 			summaryMetricName:  floatSummaryMetricName,
 			expectedTimeSeries: []*v3.TimeSeries{
 				{
-					Metric: &v3.Metric{
+					Metric: &metric.Metric{
 						Labels: map[string]string{},
 						Type:   "container.googleapis.com/master/testcomponent/float_summary_metric_sum",
 					},
-					MetricKind: "CUMULATIVE",
+					MetricKind: metric.MetricDescriptor_CUMULATIVE,
 					Points: []*v3.Point{
 						createDoublePoint(0.42, start, end),
 					},
 				},
 				{
-					Metric: &v3.Metric{
+					Metric: &metric.Metric{
 						Labels: map[string]string{},
 						Type:   "container.googleapis.com/master/testcomponent/float_summary_metric_count",
 					},
-					MetricKind: "CUMULATIVE",
+					MetricKind: metric.MetricDescriptor_CUMULATIVE,
 					Points: []*v3.Point{
 						createIntPoint(50, start, end),
 					},
@@ -811,41 +818,41 @@ int_summary_metric_count{label="l2"} 10
 			summaryMetricName:  intSummaryMetricName,
 			expectedTimeSeries: []*v3.TimeSeries{
 				{
-					Metric: &v3.Metric{
+					Metric: &metric.Metric{
 						Labels: map[string]string{"label": "l1"},
 						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric_sum",
 					},
-					MetricKind: "CUMULATIVE",
+					MetricKind: metric.MetricDescriptor_CUMULATIVE,
 					Points: []*v3.Point{
 						createIntPoint(7, start, end),
 					},
 				},
 				{
-					Metric: &v3.Metric{
+					Metric: &metric.Metric{
 						Labels: map[string]string{"label": "l2"},
 						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric_sum",
 					},
-					MetricKind: "CUMULATIVE",
+					MetricKind: metric.MetricDescriptor_CUMULATIVE,
 					Points: []*v3.Point{
 						createIntPoint(8, start, end),
 					},
 				},
 				{
-					Metric: &v3.Metric{
+					Metric: &metric.Metric{
 						Labels: map[string]string{"label": "l1"},
 						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric_count",
 					},
-					MetricKind: "CUMULATIVE",
+					MetricKind: metric.MetricDescriptor_CUMULATIVE,
 					Points: []*v3.Point{
 						createIntPoint(9, start, end),
 					},
 				},
 				{
-					Metric: &v3.Metric{
+					Metric: &metric.Metric{
 						Labels: map[string]string{"label": "l2"},
 						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric_count",
 					},
-					MetricKind: "CUMULATIVE",
+					MetricKind: metric.MetricDescriptor_CUMULATIVE,
 					Points: []*v3.Point{
 						createIntPoint(10, start, end),
 					},
@@ -860,7 +867,7 @@ int_summary_metric_count{label="l2"} 10
 
 			tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{tt.summaryMetricName + "_sum", tt.summaryMetricName + "_count"}), cache)
 			tsb.Update(tt.prometheusResponse, end)
-			tss, timestamp, err := tsb.Build()
+			tss, timestamp, err := tsb.Build(context.Background())
 			assert.Equal(t, timestamp, end)
 
 			sort.Sort(ByMetricTypeReversed(tss))
@@ -889,32 +896,29 @@ int_summary_metric_count{label="l2"} 10
 
 func createInterval(start time.Time, end time.Time) *v3.TimeInterval {
 	return &v3.TimeInterval{
-		StartTime: start.UTC().Format(time.RFC3339),
-		EndTime:   end.UTC().Format(time.RFC3339),
+		StartTime: timestamppb.New(start.UTC()),
+		EndTime:   timestamppb.New(end.UTC()),
 	}
 }
 
 func createIntValue(num int) *v3.TypedValue {
 	n := int64(num)
 	return &v3.TypedValue{
-		Int64Value:      &n,
-		ForceSendFields: []string{},
+		Value: &v3.TypedValue_Int64Value{Int64Value: n},
 	}
 }
 
 func createDoubleValue(double float64) *v3.TypedValue {
 	d := float64(double)
 	return &v3.TypedValue{
-		DoubleValue:     &d,
-		ForceSendFields: []string{},
+		Value: &v3.TypedValue_DoubleValue{DoubleValue: d},
 	}
 }
 
 func createPoint(value *v3.TypedValue, valueTypeString string, start time.Time, end time.Time) *v3.Point {
 	return &v3.Point{
-		Interval:        createInterval(start, end),
-		Value:           value,
-		ForceSendFields: []string{valueTypeString},
+		Interval: createInterval(start, end),
+		Value:    value,
 	}
 }
 
@@ -946,7 +950,7 @@ test_name{labelName="labelValue2"} 601.0
 process_start_time_seconds 1234567890.0
 `), header: http.Header{"Content-Type": []string{"text/plain; version=0.0.4; charset=UTF-8"}}}
 	tsb.Update(scrape, now)
-	ts, timestamp, err := tsb.Build()
+	ts, timestamp, err := tsb.Build(context.Background())
 	assert.Equal(t, timestamp, now)
 	assert.Equal(t, err, nil)
 	assert.Equal(t, 2, len(ts))
@@ -954,24 +958,24 @@ process_start_time_seconds 1234567890.0
 	sort.Sort(ByMetricTypeReversed(ts))
 
 	for i := 0; i <= 1; i++ {
-		metric := ts[i]
-		assert.Equal(t, "gke_container", metric.Resource.Type)
-		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", metric.Metric.Type)
-		assert.Equal(t, "INT64", metric.ValueType)
-		assert.Equal(t, "CUMULATIVE", metric.MetricKind)
+		m := ts[i]
+		assert.Equal(t, "gke_container", m.Resource.Type)
+		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", m.Metric.Type)
+		assert.Equal(t, metric.MetricDescriptor_INT64, m.ValueType)
+		assert.Equal(t, metric.MetricDescriptor_CUMULATIVE, m.MetricKind)
 
-		assert.Equal(t, 1, len(metric.Points))
-		assert.Equal(t, "2009-02-13T23:31:30Z", metric.Points[0].Interval.StartTime)
+		assert.Equal(t, 1, len(m.Points))
+		assert.Equal(t, startTimePB, m.Points[0].Interval.StartTime)
 
-		labels := metric.Metric.Labels
+		labels := m.Metric.Labels
 		assert.Equal(t, 1, len(labels))
 
 		if labels["labelName"] == "labelValue1" {
 			// This one stays stale
-			assert.Equal(t, int64(42), *(metric.Points[0].Value.Int64Value))
+			assert.Equal(t, int64(42), m.Points[0].Value.GetInt64Value())
 		} else if labels["labelName"] == "labelValue2" {
 			// This one gets updated
-			assert.Equal(t, int64(601), *(metric.Points[0].Value.Int64Value))
+			assert.Equal(t, int64(601), m.Points[0].Value.GetInt64Value())
 		} else {
 			t.Errorf("Wrong label labelName value %s", labels["labelName"])
 		}
@@ -1017,7 +1021,7 @@ func TestBuildWithoutUpdate(t *testing.T) {
 	cache := buildCacheForTesting()
 
 	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName}), cache)
-	ts, _, err := tsb.Build()
+	ts, _, err := tsb.Build(context.Background())
 
 	assert.Equal(t, err, nil)
 	assert.Equal(t, 0, len(ts))
@@ -1041,7 +1045,7 @@ func buildCacheForTesting() *MetricDescriptorCache {
 	return cache
 }
 
-func getOriginalDescriptor(metric string) *v3.MetricDescriptor {
+func getOriginalDescriptor(metric string) *metric.MetricDescriptor {
 	// For testing reason we provide metric descriptor only for boolean_metric and float_metric.
 	if metric == booleanMetricName || metric == floatMetricName {
 		return metricDescriptors[metric]

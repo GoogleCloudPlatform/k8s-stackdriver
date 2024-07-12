@@ -17,14 +17,19 @@ limitations under the License.
 package translator
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
+	"cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"github.com/golang/glog"
-	v3 "google.golang.org/api/monitoring/v3"
+	"google.golang.org/api/iterator"
+	"google.golang.org/genproto/googleapis/api/metric"
+	v3 "google.golang.org/genproto/googleapis/monitoring/v3"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/config"
 )
@@ -34,7 +39,7 @@ const (
 )
 
 // SendToStackdriver sends http request to Stackdriver to create the given timeseries.
-func SendToStackdriver(service *v3.Service, config *config.CommonConfig, ts []*v3.TimeSeries, scrapeTimestamp time.Time) {
+func SendToStackdriver(ctx context.Context, client *monitoring.MetricClient, config *config.CommonConfig, ts []*v3.TimeSeries, scrapeTimestamp time.Time) {
 	if len(ts) == 0 {
 		glog.V(3).Infof("No metrics to send to Stackdriver for component %v", config.SourceConfig.Component)
 		return
@@ -52,8 +57,11 @@ func SendToStackdriver(service *v3.Service, config *config.CommonConfig, ts []*v
 		wg.Add(1)
 		go func(begin int, end int) {
 			defer wg.Done()
-			req := &v3.CreateTimeSeriesRequest{TimeSeries: ts[begin:end]}
-			_, err := service.Projects.TimeSeries.Create(proj, req).Do()
+			req := &v3.CreateTimeSeriesRequest{
+				Name:       proj,
+				TimeSeries: ts[begin:end],
+			}
+			err := client.CreateServiceTimeSeries(ctx, req)
 			now := time.Now()
 			if err != nil {
 				atomic.AddUint32(&failedTs, uint32(end-begin))
@@ -72,33 +80,45 @@ func SendToStackdriver(service *v3.Service, config *config.CommonConfig, ts []*v
 	timeseriesDropped.WithLabelValues(config.SourceConfig.Component).Add(float64(failedTs))
 }
 
-func getMetricDescriptors(service *v3.Service, config *config.CommonConfig) (map[string]*v3.MetricDescriptor, error) {
+func getMetricDescriptors(ctx context.Context, client *monitoring.MetricClient, config *config.CommonConfig) (map[string]*metric.MetricDescriptor, error) {
 	proj := createProjectName(config.GceConfig)
 	filter := fmt.Sprintf("metric.type = starts_with(\"%s/%s\")", config.SourceConfig.MetricsPrefix, config.SourceConfig.Component)
-	metrics := make(map[string]*v3.MetricDescriptor)
-	fn := func(page *v3.ListMetricDescriptorsResponse) error {
-		for _, metricDescriptor := range page.MetricDescriptors {
-			if _, metricName, err := parseMetricType(config, metricDescriptor.Type); err == nil {
-				metrics[metricName] = metricDescriptor
-			} else {
-				glog.Warningf("Unable to parse %v: %v", metricDescriptor.Type, err)
-			}
+	metrics := make(map[string]*metric.MetricDescriptor)
+
+	req := &monitoringpb.ListMetricDescriptorsRequest{
+		Name:   proj,
+		Filter: filter,
+	}
+	it := client.ListMetricDescriptors(ctx, req)
+	for {
+		metricDescriptor, err := it.Next()
+		if err == iterator.Done {
+			break
 		}
-		return nil
+		if err != nil {
+			glog.Warningf("Error while fetching metric descriptors for %v: %v", config.SourceConfig.Component, err)
+			return metrics, nil
+		}
+		if _, metricName, err := parseMetricType(config, metricDescriptor.Type); err == nil {
+			metrics[metricName] = metricDescriptor
+		} else {
+			glog.Warningf("Unable to parse %v: %v", metricDescriptor.Type, err)
+		}
 	}
-	err := service.Projects.MetricDescriptors.List(proj).Filter(filter).Pages(nil, fn)
-	if err != nil {
-		glog.Warningf("Error while fetching metric descriptors for %v: %v", config.SourceConfig.Component, err)
-	}
-	return metrics, err
+
+	return metrics, nil
 }
 
 // updateMetricDescriptorInStackdriver writes metric descriptor to the stackdriver.
-func updateMetricDescriptorInStackdriver(service *v3.Service, config *config.GceConfig, metricDescriptor *v3.MetricDescriptor) bool {
+func updateMetricDescriptorInStackdriver(ctx context.Context, client *monitoring.MetricClient, config *config.GceConfig, metricDescriptor *metric.MetricDescriptor) bool {
 	glog.V(4).Infof("Updating metric descriptor: %+v", metricDescriptor)
 
 	projectName := createProjectName(config)
-	_, err := service.Projects.MetricDescriptors.Create(projectName, metricDescriptor).Do()
+	req := &monitoringpb.CreateMetricDescriptorRequest{
+		Name:             projectName,
+		MetricDescriptor: metricDescriptor,
+	}
+	_, err := client.CreateMetricDescriptor(ctx, req)
 	if err != nil {
 		glog.Errorf("Error in attempt to update metric descriptor %v", err)
 		return false
