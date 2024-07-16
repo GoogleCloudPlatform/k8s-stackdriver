@@ -358,11 +358,13 @@ func convertToDistributionValue(h *dto.Histogram) *v3.Distribution {
 
 	prevVal := uint64(0)
 	lower := float64(0)
+	infSeen := false
 	for _, b := range h.Bucket {
 		upper := b.GetUpperBound()
 		if !math.IsInf(b.GetUpperBound(), 1) {
 			bounds = append(bounds, b.GetUpperBound())
 		} else {
+			infSeen = true
 			upper = lower
 		}
 		val := b.GetCumulativeCount() - prevVal
@@ -373,6 +375,11 @@ func convertToDistributionValue(h *dto.Histogram) *v3.Distribution {
 
 		lower = b.GetUpperBound()
 		prevVal = b.GetCumulativeCount()
+	}
+
+	// +Inf Bucket is implicit so it needs to be added
+	if !infSeen && count > int64(prevVal) {
+		values = append(values, count-int64(prevVal))
 	}
 
 	return &v3.Distribution{
