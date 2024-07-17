@@ -18,6 +18,7 @@ package translator
 
 import (
 	"math"
+	"net/http"
 	"reflect"
 	"sort"
 	"strings"
@@ -82,7 +83,7 @@ var testLabelValue2 = "labelValue2"
 
 var now = time.Now()
 
-var metricsResponse = &PrometheusResponse{rawResponse: `
+var metricsResponse = &PrometheusResponse{rawResponse: []byte(`
 # TYPE test_name counter
 test_name{labelName="labelValue1"} 42.0
 test_name{labelName="labelValue2"} 106.0
@@ -105,8 +106,7 @@ test_histogram_sum 13.0
 test_histogram_count 5
 # TYPE untyped_metric untyped
 untyped_metric 98.6
-`,
-}
+`), header: http.Header{"Content-Type": []string{"text/plain; version=0.0.4; charset=UTF-8"}}}
 
 var metrics = map[string]*dto.MetricFamily{
 	testMetricName: {
@@ -704,7 +704,7 @@ func TestTranslatePrometheusToStackdriverWithLabelFiltering(t *testing.T) {
 }
 
 func TestTranslateSummary(t *testing.T) {
-	var intSummaryMetricsResponse = &PrometheusResponse{rawResponse: `
+	var intSummaryMetricsResponse = &PrometheusResponse{rawResponse: []byte(`
 # TYPE process_start_time_seconds gauge
 process_start_time_seconds 1234567890
 # TYPE int_summary_metric summary
@@ -713,8 +713,8 @@ int_summary_metric{quantile="0.9"} 8
 int_summary_metric{quantile="0.99"} 8
 int_summary_metric_sum 42
 int_summary_metric_count 101010
-`}
-	var floatSummaryMetricsResponse = &PrometheusResponse{rawResponse: `
+`), header: http.Header{"Content-Type": []string{"text/plain; version=0.0.4; charset=UTF-8"}}}
+	var floatSummaryMetricsResponse = &PrometheusResponse{rawResponse: []byte(`
 # TYPE process_start_time_seconds gauge
 process_start_time_seconds 1234567890
 # TYPE float_summary_metric summary
@@ -723,8 +723,8 @@ float_summary_metric{quantile="0.9"} 8.123
 float_summary_metric{quantile="0.99"} 8.123
 float_summary_metric_sum 0.42
 float_summary_metric_count 50
-`}
-	var labelIntSummaryMetricsResponse = &PrometheusResponse{rawResponse: `
+`), header: http.Header{"Content-Type": []string{"text/plain; version=0.0.4; charset=UTF-8"}}}
+	var labelIntSummaryMetricsResponse = &PrometheusResponse{rawResponse: []byte(`
 # TYPE process_start_time_seconds gauge
 process_start_time_seconds 1234567890
 # TYPE int_summary_metric summary
@@ -738,7 +738,7 @@ int_summary_metric_sum{label="l1"} 7
 int_summary_metric_sum{label="l2"} 8
 int_summary_metric_count{label="l1"} 9
 int_summary_metric_count{label="l2"} 10
-`}
+`), header: http.Header{"Content-Type": []string{"text/plain; version=0.0.4; charset=UTF-8"}}}
 
 	type summaryTest struct {
 		description        string
@@ -928,7 +928,7 @@ func createDoublePoint(d float64, start time.Time, end time.Time) *v3.Point {
 
 func TestUpdateScrapes(t *testing.T) {
 	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{testMetricName, floatMetricName}), buildCacheForTesting())
-	scrape := &PrometheusResponse{rawResponse: `
+	scrape := &PrometheusResponse{rawResponse: []byte(`
 # TYPE test_name counter
 test_name{labelName="labelValue1"} 42.0
 test_name{labelName="labelValue2"} 106.0
@@ -936,17 +936,15 @@ test_name{labelName="labelValue2"} 106.0
 float_metric 123.17
 # TYPE test_name counter
 process_start_time_seconds 1234567890.0
-`,
-	}
+`), header: http.Header{"Content-Type": []string{"text/plain; version=0.0.4; charset=UTF-8"}}}
 	tsb.Update(scrape, now)
-	scrape = &PrometheusResponse{rawResponse: `
+	scrape = &PrometheusResponse{rawResponse: []byte(`
 # TYPE test_name counter
 test_name{labelName="labelValue1"} 42.0
 test_name{labelName="labelValue2"} 601.0
 # TYPE process_start_time_seconds gauge
 process_start_time_seconds 1234567890.0
-`,
-	}
+`), header: http.Header{"Content-Type": []string{"text/plain; version=0.0.4; charset=UTF-8"}}}
 	tsb.Update(scrape, now)
 	ts, timestamp, err := tsb.Build()
 	assert.Equal(t, timestamp, now)
