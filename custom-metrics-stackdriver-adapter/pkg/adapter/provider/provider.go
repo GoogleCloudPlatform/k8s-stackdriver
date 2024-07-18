@@ -340,9 +340,13 @@ func (p *StackdriverProvider) GetExternalMetric(ctx context.Context, namespace s
 }
 
 // ListAllExternalMetrics returns a list of available external metrics.
-// Not implemented (currently returns empty list).
+// Not implemented (currently returns a list of one fake metric).
 func (p *StackdriverProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo {
-	return []provider.ExternalMetricInfo{}
+	return []provider.ExternalMetricInfo{
+		{
+			Metric: "externalmetrics",
+		},
+	}
 }
 
 func min(a, b int) int {
