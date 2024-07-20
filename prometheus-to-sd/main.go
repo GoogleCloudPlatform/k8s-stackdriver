@@ -29,11 +29,10 @@ import (
 	"syscall"
 	"time"
 
+	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
-	v3 "google.golang.org/api/monitoring/v3"
+	"google.golang.org/api/option"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/config"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/flags"
@@ -144,32 +143,18 @@ func main() {
 		glog.Error(http.ListenAndServe(fmt.Sprintf("%s:%d", *debugAddress, *debugPort), expvar.Handler()))
 	}()
 
-	var client *http.Client
-
+	var options []option.ClientOption
 	if *gceTokenURL != "" {
-		client = oauth2.NewClient(context.Background(), config.NewAltTokenSource(*gceTokenURL, *gceTokenBody))
-	} else if *projectOverride != "" {
-		client, err = google.DefaultClient(context.Background(), "https://www.googleapis.com/auth/cloud-platform")
-		if err != nil {
-			glog.Fatalf("Error getting default credentials: %v", err)
-		}
-		glog.Infof("Created a client with the default credentials")
-	} else {
-		ts, err := google.DefaultTokenSource(context.Background(), "https://www.googleapis.com/auth/cloud-platform")
-		if err != nil {
-			glog.Fatalf("Error creating default token source: %v", err)
-		}
-		client = oauth2.NewClient(context.Background(), ts)
+		ts := config.NewAltTokenSource(*gceTokenURL, *gceTokenBody)
+		options = append(options, option.WithTokenSource(ts))
 	}
 
-	stackdriverService, err := v3.New(client)
-	if *apioverride != "" {
-		stackdriverService.BasePath = *apioverride
-	}
+	ctx := context.Background()
+	client, err := monitoring.NewMetricClient(ctx, options...)
 	if err != nil {
-		glog.Fatalf("Failed to create Stackdriver client: %v", err)
+		glog.Fatalf("Failed to create client: %v", err)
 	}
-	glog.V(4).Infof("Successfully created Stackdriver client")
+	glog.V(4).Infof("Successfully created gcm client")
 
 	if len(sourceConfigs) == 0 {
 		glog.Fatalf("No sources defined. Please specify at least one --source flag.")
@@ -183,7 +168,7 @@ func main() {
 		glog.V(4).Infof("Starting goroutine for %+v", sourceConfig)
 
 		// Pass sourceConfig as a parameter to avoid using the last sourceConfig by all goroutines.
-		go readAndPushDataToStackdriver(stackdriverService, gceConf, sourceConfig, monitoredResourceLabels, *monitoredResourceTypePrefix)
+		go readAndPushDataToStackdriver(ctx, client, gceConf, sourceConfig, monitoredResourceLabels, *monitoredResourceTypePrefix)
 	}
 
 	// As worker goroutines work forever, block main thread as well.
@@ -201,7 +186,7 @@ func getSourceConfigs(defaultMetricsPrefix string, gceConfig *config.GceConfig) 
 	return append(staticSourceConfigs, dynamicSourceConfigs...)
 }
 
-func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *config.GceConfig, sourceConfig *config.SourceConfig, monitoredResourceLabels map[string]string, prefix string) {
+func readAndPushDataToStackdriver(ctx context.Context, client *monitoring.MetricClient, gceConf *config.GceConfig, sourceConfig *config.SourceConfig, monitoredResourceLabels map[string]string, prefix string) {
 	glog.Infof("Running prometheus-to-sd, monitored target is %s %s://%v:%v", sourceConfig.Component, sourceConfig.Protocol, sourceConfig.Host, sourceConfig.Port)
 	commonConfig := &config.CommonConfig{
 		GceConfig:                   gceConf,
@@ -211,7 +196,7 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 		MonitoredResourceLabels:     monitoredResourceLabels,
 		MonitoredResourceTypePrefix: prefix,
 	}
-	metricDescriptorCache := translator.NewMetricDescriptorCache(stackdriverService, commonConfig)
+	metricDescriptorCache := translator.NewMetricDescriptorCache(client, commonConfig)
 	signal := time.After(0)
 	useWhitelistedMetricsAutodiscovery := *autoWhitelistMetrics && len(sourceConfig.Whitelisted) == 0
 	timeSeriesBuilder := translator.NewTimeSeriesBuilder(commonConfig, metricDescriptorCache)
@@ -222,14 +207,14 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 		// road will jump to next iteration of the loop.
 		select {
 		case <-exportTicker:
-			ts, scrapeTimestamp, err := timeSeriesBuilder.Build()
+			ts, scrapeTimestamp, err := timeSeriesBuilder.Build(ctx)
 			// Mark cache as stale at the first export attempt after each refresh. Cache is considered refreshed only if after
 			// previous export there was successful call to Refresh function.
 			metricDescriptorCache.MarkStale()
 			if err != nil {
 				glog.Errorf("Could not build time series for component %v: %v", sourceConfig.Component, err)
 			} else {
-				translator.SendToStackdriver(stackdriverService, commonConfig, ts, scrapeTimestamp)
+				translator.SendToStackdriver(ctx, client, commonConfig, ts, scrapeTimestamp)
 			}
 		default:
 		}
@@ -238,7 +223,7 @@ func readAndPushDataToStackdriver(stackdriverService *v3.Service, gceConf *confi
 		select {
 		case <-signal:
 			glog.V(4).Infof("Updating metrics cache for component %v", sourceConfig.Component)
-			metricDescriptorCache.Refresh()
+			metricDescriptorCache.Refresh(ctx)
 			if useWhitelistedMetricsAutodiscovery {
 				sourceConfig.UpdateWhitelistedMetrics(metricDescriptorCache.GetMetricNames())
 				glog.V(2).Infof("Autodiscovered whitelisted metrics for component %v: %v", sourceConfig.Component, sourceConfig.Whitelisted)

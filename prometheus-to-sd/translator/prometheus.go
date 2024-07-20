@@ -18,6 +18,7 @@ package translator
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -98,7 +99,7 @@ func doPrometheusRequest(url string, auth config.AuthConfig) (resp *http.Respons
 }
 
 // Build performs parsing and processing of the prometheus metrics response.
-func (p *PrometheusResponse) Build(config *config.CommonConfig, metricDescriptorCache *MetricDescriptorCache) (map[string]*dto.MetricFamily, error) {
+func (p *PrometheusResponse) Build(ctx context.Context, config *config.CommonConfig, metricDescriptorCache *MetricDescriptorCache) (map[string]*dto.MetricFamily, error) {
 	format := expfmt.ResponseFormat(p.header)
 	if format == expfmt.FmtUnknown {
 		return nil, fmt.Errorf("failed to parse format from header: %s", p.header.Get("Content-Type"))
@@ -127,7 +128,7 @@ func (p *PrometheusResponse) Build(config *config.CommonConfig, metricDescriptor
 	// map to multiple stackdriver metrics.
 	metrics = FlattenSummaryMetricFamilies(metrics)
 	if strings.HasPrefix(config.SourceConfig.MetricsPrefix, customMetricsPrefix) {
-		metricDescriptorCache.UpdateMetricDescriptors(metrics, config.SourceConfig.Whitelisted)
+		metricDescriptorCache.UpdateMetricDescriptors(ctx, metrics, config.SourceConfig.Whitelisted)
 	} else {
 		metricDescriptorCache.ValidateMetricDescriptors(metrics, config.SourceConfig.Whitelisted)
 	}
