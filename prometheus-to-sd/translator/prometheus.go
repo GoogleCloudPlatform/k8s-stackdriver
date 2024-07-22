@@ -89,7 +89,8 @@ func doPrometheusRequest(url string, auth config.AuthConfig) (resp *http.Respons
 	if err != nil {
 		return nil, err
 	}
-	request.Header.Set("Accept", string(expfmt.FmtProtoDelim))
+	contentType := expfmt.NewFormat(expfmt.TypeProtoDelim)
+	request.Header.Set("Accept", string(contentType))
 	if len(auth.Username) > 0 {
 		request.SetBasicAuth(auth.Username, auth.Password)
 	} else if len(auth.Token) > 0 {
@@ -101,7 +102,7 @@ func doPrometheusRequest(url string, auth config.AuthConfig) (resp *http.Respons
 // Build performs parsing and processing of the prometheus metrics response.
 func (p *PrometheusResponse) Build(ctx context.Context, config *config.CommonConfig, metricDescriptorCache *MetricDescriptorCache) (map[string]*dto.MetricFamily, error) {
 	format := expfmt.ResponseFormat(p.header)
-	if format == expfmt.FmtUnknown {
+	if format.FormatType() == expfmt.TypeUnknown {
 		return nil, fmt.Errorf("failed to parse format from header: %s", p.header.Get("Content-Type"))
 	}
 	decoder := expfmt.NewDecoder(bytes.NewReader(p.rawResponse), format)
