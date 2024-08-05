@@ -8,7 +8,7 @@ require (
 	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/common v0.37.0
 	golang.org/x/net v0.8.0
-	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b
+	golang.org/x/oauth2 v0.22.0
 	google.golang.org/api v0.30.0
 	k8s.io/apimachinery v0.26.3
 	k8s.io/kubelet v0.26.3
