@@ -1,5 +1,19 @@
 # Changes
 
+## [0.5.1](https://github.com/googleapis/google-cloud-go/compare/compute/metadata/v0.5.0...compute/metadata/v0.5.1) (2024-09-12)
+
+
+### Bug Fixes
+
+* **compute/metadata:** Check error chain for retryable error ([#10840](https://github.com/googleapis/google-cloud-go/issues/10840)) ([2bdedef](https://github.com/googleapis/google-cloud-go/commit/2bdedeff621b223d63cebc4355fcf83bc68412cd))
+
+## [0.5.0](https://github.com/googleapis/google-cloud-go/compare/compute/metadata/v0.4.0...compute/metadata/v0.5.0) (2024-07-10)
+
+
+### Features
+
+* **compute/metadata:** Add sys check for windows OnGCE ([#10521](https://github.com/googleapis/google-cloud-go/issues/10521)) ([3b9a830](https://github.com/googleapis/google-cloud-go/commit/3b9a83063960d2a2ac20beb47cc15818a68bd302))
+
 ## [0.4.0](https://github.com/googleapis/google-cloud-go/compare/compute/metadata/v0.3.0...compute/metadata/v0.4.0) (2024-07-01)
 
 
