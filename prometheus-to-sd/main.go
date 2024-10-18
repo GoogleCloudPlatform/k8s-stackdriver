@@ -26,6 +26,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -149,6 +150,15 @@ func main() {
 		options = append(options, option.WithTokenSource(ts))
 	}
 
+	if *apioverride != "" {
+		// option.WithEndpoint() only works with "host:port"
+		endpoint, err := getEndpoint(*apioverride)
+		if err != nil {
+			glog.Fatalf("Error parsing --api-override: %s, with error: %v", *apioverride, err)
+		}
+		options = append(options, option.WithEndpoint(endpoint))
+	}
+
 	ctx := context.Background()
 	client, err := monitoring.NewMetricClient(ctx, options...)
 	if err != nil {
@@ -258,4 +268,33 @@ func parseMonitoredResourceLabels(monitoredResourceLabelsStr string) map[string]
 		labels[k] = v[0]
 	}
 	return labels
+}
+
+func getEndpoint(input string) (string, error) {
+	u, err := url.Parse(fixScheme(input))
+	if err != nil {
+		return "", fmt.Errorf("Failed to parse api override: %v", err)
+	}
+	port := u.Port()
+	if port == "" {
+		switch u.Scheme {
+		case "https":
+			port = "443"
+		case "http":
+			port = "80"
+		case "":
+			port = "80"
+		default:
+			return "", fmt.Errorf("Unrecognized scheme: %s in --api-override", u.Scheme)
+		}
+		return fmt.Sprintf("%s:%s", u.Host, port), nil
+	}
+	return u.Host, nil
+}
+
+func fixScheme(baseURL string) string {
+	if !strings.Contains(baseURL, "://") {
+		return "https://" + baseURL
+	}
+	return baseURL
 }
