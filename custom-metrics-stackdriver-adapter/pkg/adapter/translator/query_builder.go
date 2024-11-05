@@ -40,8 +40,8 @@ var (
 	allowedExternalMetricsLabelPrefixes  = []string{"metric.labels", "resource.labels", "metadata.system_labels", "metadata.user_labels"}
 	allowedExternalMetricsFullLabelNames = []string{"resource.type", "reducer"}
 	// allowedCustomMetricsLabelPrefixes and allowedCustomMetricsFullLabelNames specify all metric labels allowed for querying
-	allowedCustomMetricsLabelPrefixes  = []string{"metric.labels", "resource.labels"}
-	allowedCustomMetricsFullLabelNames = []string{"reducer"}
+	allowedCustomMetricsLabelPrefixes  = []string{"metric.labels"}
+	allowedCustomMetricsFullLabelNames = []string{"resource.labels.container_name", "reducer"}
 	allowedReducers                    = map[string]bool{
 		"REDUCE_NONE":          true,
 		"REDUCE_MEAN":          true,
