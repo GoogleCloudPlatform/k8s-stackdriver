@@ -188,6 +188,9 @@ func (p *StackdriverProvider) getNamespacedMetricByName(groupResource schema.Gro
 		return nil, err
 	}
 	queryBuilder := translator.NewQueryBuilder(p.translator, metricName)
+	if p.fallbackForContainerMetrics {
+		queryBuilder = queryBuilder.EnforcePodContainerType()
+	}
 
 	pods := &v1.PodList{Items: []v1.Pod{*matchingPod}}
 	stackdriverRequest, err := queryBuilder.
@@ -206,27 +209,9 @@ func (p *StackdriverProvider) getNamespacedMetricByName(groupResource schema.Gro
 		return nil, err
 	}
 
-	if p.fallbackForContainerMetrics && len(stackdriverResponse.TimeSeries) == 0 {
-		stackdriverRequest, err := queryBuilder.
-			AsContainerType().
-			WithPods(pods).
-			WithMetricKind(metricKind).
-			WithMetricValueType(metricValueType).
-			WithMetricSelector(metricSelector).
-			WithNamespace(namespace).
-			Build()
-		if err != nil {
-			return nil, err
-		}
-		stackdriverResponse, err = stackdriverRequest.Do()
-		if err != nil {
-			return nil, err
-		}
-
-		err = p.translator.CheckMetricUniquenessForPod(stackdriverResponse, escapedMetricName)
-		if err != nil {
-			return nil, err
-		}
+	stackdriverResponse, err = p.PostProcessPodContainerResp(stackdriverResponse, escapedMetricName)
+	if err != nil {
+		return nil, err
 	}
 	return p.translator.GetRespForSingleObject(stackdriverResponse, groupResource, escapedMetricName, metricSelector, namespace, name)
 }
@@ -255,6 +240,10 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 		WithMetricValueType(metricValueType).
 		WithNamespace(namespace)
 
+	if p.fallbackForContainerMetrics {
+		queryBuilder = queryBuilder.EnforcePodContainerType()
+	}
+
 	result := []custom_metrics.MetricValue{}
 	for i := 0; i < len(matchingPods.Items); i += translator.MaxNumOfArgsInOneOfFilter {
 		sliceSegmentEnd := min(i+translator.MaxNumOfArgsInOneOfFilter, len(matchingPods.Items))
@@ -267,42 +256,15 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 		if err != nil {
 			return nil, err
 		}
+		stackdriverResponse, err = p.PostProcessPodContainerResp(stackdriverResponse, escapedMetricName)
+		if err != nil {
+			return nil, err
+		}
 		slice, err := p.translator.GetRespForMultipleObjects(stackdriverResponse, p.translator.GetPodItems(matchingPods), groupResource, escapedMetricName, metricSelector)
 		if err != nil {
 			return nil, err
 		}
 		result = append(result, slice...)
-	}
-
-	if p.fallbackForContainerMetrics && len(result) == 0 {
-		for i := 0; i < len(matchingPods.Items); i += translator.MaxNumOfArgsInOneOfFilter {
-			sliceSegmentEnd := min(i+translator.MaxNumOfArgsInOneOfFilter, len(matchingPods.Items))
-			podsSlice := &v1.PodList{Items: matchingPods.Items[i:sliceSegmentEnd]}
-			stackdriverRequest, err := translator.NewQueryBuilder(p.translator, metricName).
-				AsContainerType().
-				WithPods(podsSlice).
-				WithMetricKind(metricKind).
-				WithMetricValueType(metricValueType).
-				WithMetricSelector(metricSelector).
-				WithNamespace(namespace).
-				Build()
-			if err != nil {
-				return nil, err
-			}
-			stackdriverResponse, err := stackdriverRequest.Do()
-			if err != nil {
-				return nil, err
-			}
-			err = p.translator.CheckMetricUniquenessForPod(stackdriverResponse, escapedMetricName)
-			if err != nil {
-				return nil, err
-			}
-			slice, err := p.translator.GetRespForMultipleObjects(stackdriverResponse, p.translator.GetPodItems(matchingPods), groupResource, escapedMetricName, metricSelector)
-			if err != nil {
-				return nil, err
-			}
-			result = append(result, slice...)
-		}
 	}
 
 	return &custom_metrics.MetricValueList{Items: result}, nil
@@ -347,6 +309,27 @@ func (p *StackdriverProvider) ListAllExternalMetrics() []provider.ExternalMetric
 			Metric: "externalmetrics",
 		},
 	}
+}
+
+func (p *StackdriverProvider) PostProcessPodContainerResp(response *stackdriver.ListTimeSeriesResponse, metricName string) (*stackdriver.ListTimeSeriesResponse, error) {
+	podTimeSeries := []*stackdriver.TimeSeries{}
+	containerTimeSeries := []*stackdriver.TimeSeries{}
+	for _, series := range response.TimeSeries {
+		if series.Resource.Type == "k8s_pod" {
+			podTimeSeries = append(podTimeSeries, series)
+			continue
+		}
+		if series.Resource.Type == "k8s_container" {
+			containerTimeSeries = append(podTimeSeries, series)
+			continue
+		}
+	}
+	response.TimeSeries = podTimeSeries
+	if len(podTimeSeries) != 0 || !p.fallbackForContainerMetrics {
+		return response, nil
+	}
+	response.TimeSeries = containerTimeSeries
+	return response, p.translator.CheckMetricUniquenessForPod(response, metricName)
 }
 
 func min(a, b int) int {
