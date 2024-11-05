@@ -115,6 +115,8 @@ func NewFilterBuilder(resourceType string) FilterBuilder {
 		schema = PodSchema
 	case PodContainerType:
 		schema = PodContainerSchema
+	case ContainerType:
+		schema = ContainerSchema
 	case PrometheusType:
 		schema = PrometheusSchema
 	case NodeType:
