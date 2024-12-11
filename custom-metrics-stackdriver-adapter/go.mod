@@ -10,9 +10,11 @@ require (
 	google.golang.org/api v0.126.0
 	k8s.io/api v0.29.4
 	k8s.io/apimachinery v0.29.4
+	k8s.io/apiserver v0.29.4
 	k8s.io/client-go v0.29.4
 	k8s.io/component-base v0.29.4
 	k8s.io/klog v1.0.0
+	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00
 	k8s.io/metrics v0.29.4
 	sigs.k8s.io/custom-metrics-apiserver v1.28.1-0.20240425173932-1a855fe8c789
 	sigs.k8s.io/metrics-server v0.7.1
@@ -80,16 +82,14 @@ require (
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
-	golang.org/x/crypto v0.21.0 // indirect
+	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/exp v0.0.0-20231226003508-02704c960a9b // indirect
-	golang.org/x/mod v0.14.0 // indirect
-	golang.org/x/net v0.23.0 // indirect
-	golang.org/x/sync v0.5.0 // indirect
-	golang.org/x/sys v0.18.0 // indirect
-	golang.org/x/term v0.18.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/net v0.25.0 // indirect
+	golang.org/x/sync v0.10.0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/term v0.27.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
-	golang.org/x/tools v0.16.1 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20231212172506-995d672761c0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20231212172506-995d672761c0 // indirect
@@ -100,11 +100,8 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiserver v0.29.4 // indirect
-	k8s.io/gengo v0.0.0-20230829151522-9cce18d56c01 // indirect
 	k8s.io/klog/v2 v2.120.0 // indirect
 	k8s.io/kms v0.29.4 // indirect
-	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00 // indirect
 	k8s.io/utils v0.0.0-20231127182322-b307cd553661 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.29.0 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
