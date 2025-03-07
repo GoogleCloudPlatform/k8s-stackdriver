@@ -56,10 +56,11 @@ type StackdriverProvider struct {
 	useNewResourceModel         bool
 	metricsCache                []provider.CustomMetricInfo
 	fallbackForContainerMetrics bool
+	externalMetricCache         *externalMetricCache
 }
 
 // NewStackdriverProvider creates a StackdriverProvider
-func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.RESTMapper, gceConf *config.GceConfig, stackdriverService *stackdriver.Service, translator *translator.Translator, rateInterval time.Duration, useNewResourceModel bool, fallbackForContainerMetrics bool, customMetricsListCache []provider.CustomMetricInfo) provider.MetricsProvider {
+func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.RESTMapper, gceConf *config.GceConfig, stackdriverService *stackdriver.Service, translator *translator.Translator, rateInterval time.Duration, useNewResourceModel bool, fallbackForContainerMetrics bool, customMetricsListCache []provider.CustomMetricInfo, externalMetricCacheWindow time.Duration) provider.MetricsProvider {
 	p := &StackdriverProvider{
 		kubeClient:                  kubeClient,
 		stackdriverService:          stackdriverService,
@@ -69,6 +70,7 @@ func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.REST
 		useNewResourceModel:         useNewResourceModel,
 		fallbackForContainerMetrics: fallbackForContainerMetrics,
 		metricsCache:                customMetricsListCache,
+		externalMetricCache:         newExternalMetricCache(externalMetricCacheWindow),
 	}
 
 	return p
@@ -316,6 +318,17 @@ func (p *StackdriverProvider) ListAllMetrics() []provider.CustomMetricInfo {
 
 // GetExternalMetric queries Stackdriver for external metrics.
 func (p *StackdriverProvider) GetExternalMetric(ctx context.Context, namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
+	key := cacheKey{
+		namespace:      namespace,
+		metricSelector: metricSelector,
+		info:           info,
+	}
+	resp, ok := p.externalMetricCache.Get(key)
+
+	if ok {
+		return resp, nil
+	}
+
 	metricNameEscaped := info.Metric
 	metricName := getExternalMetricName(metricNameEscaped)
 	metricKind, metricValueType, err := p.translator.GetMetricKind(metricName, metricSelector)
@@ -334,9 +347,13 @@ func (p *StackdriverProvider) GetExternalMetric(ctx context.Context, namespace s
 	if err != nil {
 		return nil, err
 	}
-	return &external_metrics.ExternalMetricValueList{
+
+	resp = &external_metrics.ExternalMetricValueList{
 		Items: externalMetricItems,
-	}, nil
+	}
+	p.externalMetricCache.Set(key, resp)
+
+	return resp, nil
 }
 
 // ListAllExternalMetrics returns a list of available external metrics.
