@@ -58,11 +58,14 @@ func (c *externalMetricCache) Get(key cacheKey) (*external_metrics.ExternalMetri
 	if !ok {
 		return nil, false
 	}
+
+	// TODO: Add metrics to record cache hits.
 	if entry.timestamp.After(time.Now().Add(-c.cacheWindow)) {
 		return entry.value, true
 	}
 
 	// Entry expired.
+	delete(c.cache, key)
 	return nil, false
 }
 
