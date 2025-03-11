@@ -74,6 +74,8 @@ type stackdriverAdapterServerOptions struct {
 	// ListFullCustomMetrics is a flag that whether list all pod custom metrics during api discovery.
 	// Default = false, which only list 1 metric. Enabling this back would increase memory usage.
 	ListFullCustomMetrics bool
+	// ExternalMetricCacheWindow specifies the cache expiration time for external metrics.
+	ExternalMetricCacheWindow time.Duration
 }
 
 func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptions, rateInterval time.Duration, alignmentPeriod time.Duration) (provider.MetricsProvider, *translator.Translator) {
@@ -122,7 +124,7 @@ func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptio
 
 	// If ListFullCustomMetrics is false, it returns one resource during api discovery `kubectl get --raw "/apis/custom.metrics.k8s.io/v1beta2"` to reduce memory usage.
 	customMetricsListCache := listStackdriverCustomMetrics(translator, o.ListFullCustomMetrics, o.FallbackForContainerMetrics)
-	return adapter.NewStackdriverProvider(client, mapper, gceConf, stackdriverService, translator, rateInterval, o.UseNewResourceModel, o.FallbackForContainerMetrics, customMetricsListCache), translator
+	return adapter.NewStackdriverProvider(client, mapper, gceConf, stackdriverService, translator, rateInterval, o.UseNewResourceModel, o.FallbackForContainerMetrics, customMetricsListCache, o.ExternalMetricCacheWindow), translator
 }
 
 func listStackdriverCustomMetrics(translator *translator.Translator, listFullCustomMetrics bool, fallbackForContainerMetrics bool) []provider.CustomMetricInfo {
@@ -211,6 +213,8 @@ func main() {
 		"Stackdriver Endpoint used by adapter. Default is https://monitoring.googleapis.com/")
 	flags.BoolVar(&serverOptions.EnableDistributionSupport, "enable-distribution-support", serverOptions.EnableDistributionSupport,
 		"enables support for scaling based on distribution values")
+	flags.DurationVar(&serverOptions.ExternalMetricCacheWindow, "external-metric-cache-window", serverOptions.ExternalMetricCacheWindow,
+		"The duration (e.g., 1m, 5s) for which external metric values are cached.")
 
 	flags.Parse(os.Args)
 
