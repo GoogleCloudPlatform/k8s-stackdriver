@@ -73,7 +73,13 @@ func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.REST
 		externalMetricCache:         newExternalMetricCache(externalMetricCacheWindow),
 	}
 
-	klog.Infof("Started stackdriver provider with cache TTL: %v", externalMetricCacheWindow)
+	if externalMetricCacheWindow > 0 {
+		p.externalMetricCache = newExternalMetricCache(externalMetricCacheWindow)
+		klog.Infof("Started stackdriver provider with cache TTL: %v", externalMetricCacheWindow)
+	} else {
+		klog.Info("Stackdriver provider external metric cache is disabled.")
+	}
+
 	return p
 }
 
@@ -319,15 +325,17 @@ func (p *StackdriverProvider) ListAllMetrics() []provider.CustomMetricInfo {
 
 // GetExternalMetric queries Stackdriver for external metrics.
 func (p *StackdriverProvider) GetExternalMetric(ctx context.Context, namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
-	key := cacheKey{
-		namespace:      namespace,
-		metricSelector: metricSelector.String(),
-		info:           info,
-	}
-	resp, ok := p.externalMetricCache.Get(key)
+	if p.externalMetricCache != nil {
+		key := cacheKey{
+			namespace:      namespace,
+			metricSelector: metricSelector.String(),
+			info:           info,
+		}
+		resp, ok := p.externalMetricCache.Get(key)
 
-	if ok {
-		return resp, nil
+		if ok {
+			return resp, nil
+		}
 	}
 
 	metricNameEscaped := info.Metric
@@ -349,10 +357,18 @@ func (p *StackdriverProvider) GetExternalMetric(ctx context.Context, namespace s
 		return nil, err
 	}
 
-	resp = &external_metrics.ExternalMetricValueList{
+	resp := &external_metrics.ExternalMetricValueList{
 		Items: externalMetricItems,
 	}
-	p.externalMetricCache.Set(key, resp)
+
+	if p.externalMetricCache != nil {
+		key := cacheKey{
+			namespace:      namespace,
+			metricSelector: metricSelector.String(),
+			info:           info,
+		}
+		p.externalMetricCache.Set(key, resp)
+	}
 
 	return resp, nil
 }
