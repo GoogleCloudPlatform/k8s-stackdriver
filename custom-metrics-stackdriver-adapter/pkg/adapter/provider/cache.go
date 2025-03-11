@@ -20,7 +20,6 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/metrics/pkg/apis/external_metrics"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 )
@@ -35,7 +34,7 @@ type externalMetricCache struct {
 // Cache key for GetExternalMetric requests.
 type cacheKey struct {
 	namespace      string
-	metricSelector labels.Selector
+	metricSelector string
 	info           provider.ExternalMetricInfo
 }
 

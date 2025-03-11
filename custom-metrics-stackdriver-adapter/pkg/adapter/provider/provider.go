@@ -73,6 +73,7 @@ func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.REST
 		externalMetricCache:         newExternalMetricCache(externalMetricCacheWindow),
 	}
 
+	klog.Infof("Started stackdriver provider with cache TTL: %v", externalMetricCacheWindow)
 	return p
 }
 
@@ -320,7 +321,7 @@ func (p *StackdriverProvider) ListAllMetrics() []provider.CustomMetricInfo {
 func (p *StackdriverProvider) GetExternalMetric(ctx context.Context, namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 	key := cacheKey{
 		namespace:      namespace,
-		metricSelector: metricSelector,
+		metricSelector: metricSelector.String(),
 		info:           info,
 	}
 	resp, ok := p.externalMetricCache.Get(key)
