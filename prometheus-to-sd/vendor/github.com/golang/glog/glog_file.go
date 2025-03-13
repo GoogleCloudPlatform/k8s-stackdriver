@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -68,9 +67,8 @@ func init() {
 		host = shortHostname(h)
 	}
 
-	current, err := user.Current()
-	if err == nil {
-		userName = current.Username
+	if u := lookupUser(); u != "" {
+		userName = u
 	}
 	// Sanitize userName since it is used to construct file paths.
 	userName = strings.Map(func(r rune) rune {
@@ -160,7 +158,10 @@ var sinks struct {
 func init() {
 	// Register stderr first: that way if we crash during file-writing at least
 	// the log will have gone somewhere.
-	logsink.TextSinks = append(logsink.TextSinks, &sinks.stderr, &sinks.file)
+	if shouldRegisterStderrSink() {
+		logsink.TextSinks = append(logsink.TextSinks, &sinks.stderr)
+	}
+	logsink.TextSinks = append(logsink.TextSinks, &sinks.file)
 
 	sinks.file.flushChan = make(chan logsink.Severity, 1)
 	go sinks.file.flushDaemon()
