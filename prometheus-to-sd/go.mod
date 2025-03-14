@@ -2,6 +2,8 @@ module github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd
 
 go 1.23.0
 
+toolchain go1.24.1
+
 require (
 	cloud.google.com/go/compute/metadata v0.6.0
 	cloud.google.com/go/monitoring v1.20.2
@@ -54,7 +56,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.34.0 // indirect
 	go.opentelemetry.io/otel/trace v1.34.0 // indirect
 	golang.org/x/crypto v0.35.0 // indirect
-	golang.org/x/net v0.35.0 // indirect
+	golang.org/x/net v0.36.0 // indirect
 	golang.org/x/sync v0.11.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/term v0.29.0 // indirect
