@@ -50,8 +50,9 @@ var (
 		"The resolution at which prometheus-to-sd will scrape metric descriptors from Stackdriver.")
 	apioverride = flag.String("api-override", "",
 		"The stackdriver API endpoint to override the default one used (which is prod).")
-	source = flags.Uris{}
-	podId  = flag.String("pod-id", "machine",
+	universeDomain = flag.String("universe-domain", "", "The universe domain where Stackdriver runs.")
+	source         = flags.Uris{}
+	podId          = flag.String("pod-id", "machine",
 		"Name of the pod in which monitored component is running.")
 	nodeOverride = flag.String("node-name", "",
 		"Node name to use. If not set, defaults to value from GCE Metadata Server.")
@@ -150,13 +151,30 @@ func main() {
 		options = append(options, option.WithTokenSource(ts))
 	}
 
+	uDomain := ""
 	if *apioverride != "" {
+		glog.Infof("Stackdriver API endpoint is overridden to %s", *apioverride)
+
 		// option.WithEndpoint() only works with "host:port"
 		endpoint, err := getEndpoint(*apioverride)
 		if err != nil {
 			glog.Fatalf("Error parsing --api-override: %s, with error: %v", *apioverride, err)
 		}
 		options = append(options, option.WithEndpoint(endpoint))
+
+		// infer universe domain from Stackdriver api endpoint
+		_, domain, found := strings.Cut(*apioverride, ".")
+		if found {
+			uDomain = strings.TrimSuffix(domain, "/")
+		}
+	}
+	// override inferred universe domain with specified value
+	if *universeDomain != "" {
+		uDomain = *universeDomain
+	}
+	if uDomain != "" {
+		glog.Infof("Universe domain is %s", uDomain)
+		options = append(options, option.WithUniverseDomain(uDomain))
 	}
 
 	ctx := context.Background()
