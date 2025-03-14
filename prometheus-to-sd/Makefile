@@ -18,7 +18,7 @@ ENVVAR = GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 IMAGE_NAME=prometheus-to-sd
 ALL_ARCH=amd64 arm64
 PREFIX ?= staging-k8s.gcr.io
-TAG ?= v0.12.1
+TAG ?= v0.12.3
 
 IMAGE=$(PREFIX)/$(IMAGE_NAME)
 
