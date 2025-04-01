@@ -35,8 +35,7 @@
 //
 // The Duration message represents a signed span of time.
 //
-//
-// Conversion to a Go Duration
+// # Conversion to a Go Duration
 //
 // The AsDuration method can be used to convert a Duration message to a
 // standard Go time.Duration value:
@@ -65,15 +64,13 @@
 // the resulting value to the closest representable value (e.g., math.MaxInt64
 // for positive overflow and math.MinInt64 for negative overflow).
 //
-//
-// Conversion from a Go Duration
+// # Conversion from a Go Duration
 //
 // The durationpb.New function can be used to construct a Duration message
 // from a standard Go time.Duration value:
 //
 //	dur := durationpb.New(d)
 //	... // make use of d as a *durationpb.Duration
-//
 package durationpb
 
 import (
@@ -96,43 +93,43 @@ import (
 //
 // Example 1: Compute Duration from two Timestamps in pseudo code.
 //
-//     Timestamp start = ...;
-//     Timestamp end = ...;
-//     Duration duration = ...;
+//	Timestamp start = ...;
+//	Timestamp end = ...;
+//	Duration duration = ...;
 //
-//     duration.seconds = end.seconds - start.seconds;
-//     duration.nanos = end.nanos - start.nanos;
+//	duration.seconds = end.seconds - start.seconds;
+//	duration.nanos = end.nanos - start.nanos;
 //
-//     if (duration.seconds < 0 && duration.nanos > 0) {
-//       duration.seconds += 1;
-//       duration.nanos -= 1000000000;
-//     } else if (duration.seconds > 0 && duration.nanos < 0) {
-//       duration.seconds -= 1;
-//       duration.nanos += 1000000000;
-//     }
+//	if (duration.seconds < 0 && duration.nanos > 0) {
+//	  duration.seconds += 1;
+//	  duration.nanos -= 1000000000;
+//	} else if (duration.seconds > 0 && duration.nanos < 0) {
+//	  duration.seconds -= 1;
+//	  duration.nanos += 1000000000;
+//	}
 //
 // Example 2: Compute Timestamp from Timestamp + Duration in pseudo code.
 //
-//     Timestamp start = ...;
-//     Duration duration = ...;
-//     Timestamp end = ...;
+//	Timestamp start = ...;
+//	Duration duration = ...;
+//	Timestamp end = ...;
 //
-//     end.seconds = start.seconds + duration.seconds;
-//     end.nanos = start.nanos + duration.nanos;
+//	end.seconds = start.seconds + duration.seconds;
+//	end.nanos = start.nanos + duration.nanos;
 //
-//     if (end.nanos < 0) {
-//       end.seconds -= 1;
-//       end.nanos += 1000000000;
-//     } else if (end.nanos >= 1000000000) {
-//       end.seconds += 1;
-//       end.nanos -= 1000000000;
-//     }
+//	if (end.nanos < 0) {
+//	  end.seconds -= 1;
+//	  end.nanos += 1000000000;
+//	} else if (end.nanos >= 1000000000) {
+//	  end.seconds += 1;
+//	  end.nanos -= 1000000000;
+//	}
 //
 // Example 3: Compute Duration from datetime.timedelta in Python.
 //
-//     td = datetime.timedelta(days=3, minutes=10)
-//     duration = Duration()
-//     duration.FromTimedelta(td)
+//	td = datetime.timedelta(days=3, minutes=10)
+//	duration = Duration()
+//	duration.FromTimedelta(td)
 //
 // # JSON Mapping
 //
@@ -143,13 +140,8 @@ import (
 // encoded in JSON format as "3s", while 3 seconds and 1 nanosecond should
 // be expressed in JSON format as "3.000000001s", and 3 seconds and 1
 // microsecond should be expressed in JSON format as "3.000001s".
-//
-//
 type Duration struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Signed seconds of the span of time. Must be from -315,576,000,000
 	// to +315,576,000,000 inclusive. Note: these bounds are computed from:
 	// 60 sec/min * 60 min/hr * 24 hr/day * 365.25 days/year * 10000 years
@@ -160,7 +152,9 @@ type Duration struct {
 	// of one second or more, a non-zero value for the `nanos` field must be
 	// of the same sign as the `seconds` field. Must be from -999,999,999
 	// to +999,999,999 inclusive.
-	Nanos int32 `protobuf:"varint,2,opt,name=nanos,proto3" json:"nanos,omitempty"`
+	Nanos         int32 `protobuf:"varint,2,opt,name=nanos,proto3" json:"nanos,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 // New constructs a new Duration from the provided time.Duration.
@@ -250,11 +244,9 @@ func (x *Duration) check() uint {
 
 func (x *Duration) Reset() {
 	*x = Duration{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_google_protobuf_duration_proto_msgTypes[0]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
+	mi := &file_google_protobuf_duration_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
 }
 
 func (x *Duration) String() string {
@@ -265,7 +257,7 @@ func (*Duration) ProtoMessage() {}
 
 func (x *Duration) ProtoReflect() protoreflect.Message {
 	mi := &file_google_protobuf_duration_proto_msgTypes[0]
-	if protoimpl.UnsafeEnabled && x != nil {
+	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
 			ms.StoreMessageInfo(mi)
@@ -328,7 +320,7 @@ func file_google_protobuf_duration_proto_rawDescGZIP() []byte {
 }
 
 var file_google_protobuf_duration_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
-var file_google_protobuf_duration_proto_goTypes = []interface{}{
+var file_google_protobuf_duration_proto_goTypes = []any{
 	(*Duration)(nil), // 0: google.protobuf.Duration
 }
 var file_google_protobuf_duration_proto_depIdxs = []int32{
@@ -343,20 +335,6 @@ func init() { file_google_protobuf_duration_proto_init() }
 func file_google_protobuf_duration_proto_init() {
 	if File_google_protobuf_duration_proto != nil {
 		return
-	}
-	if !protoimpl.UnsafeEnabled {
-		file_google_protobuf_duration_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Duration); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

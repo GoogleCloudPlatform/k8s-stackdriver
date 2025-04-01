@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"net/http"
+	http "net/http"
 
-	v1 "k8s.io/api/storage/v1"
-	"k8s.io/client-go/kubernetes/scheme"
+	storagev1 "k8s.io/api/storage/v1"
+	scheme "k8s.io/client-go/kubernetes/scheme"
 	rest "k8s.io/client-go/rest"
 )
 
@@ -30,6 +30,7 @@ type StorageV1Interface interface {
 	RESTClient() rest.Interface
 	CSIDriversGetter
 	CSINodesGetter
+	CSIStorageCapacitiesGetter
 	StorageClassesGetter
 	VolumeAttachmentsGetter
 }
@@ -45,6 +46,10 @@ func (c *StorageV1Client) CSIDrivers() CSIDriverInterface {
 
 func (c *StorageV1Client) CSINodes() CSINodeInterface {
 	return newCSINodes(c)
+}
+
+func (c *StorageV1Client) CSIStorageCapacities(namespace string) CSIStorageCapacityInterface {
+	return newCSIStorageCapacities(c, namespace)
 }
 
 func (c *StorageV1Client) StorageClasses() StorageClassInterface {
@@ -100,10 +105,10 @@ func New(c rest.Interface) *StorageV1Client {
 }
 
 func setConfigDefaults(config *rest.Config) error {
-	gv := v1.SchemeGroupVersion
+	gv := storagev1.SchemeGroupVersion
 	config.GroupVersion = &gv
 	config.APIPath = "/apis"
-	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
+	config.NegotiatedSerializer = rest.CodecFactoryForGeneratedClient(scheme.Scheme, scheme.Codecs).WithoutConversion()
 
 	if config.UserAgent == "" {
 		config.UserAgent = rest.DefaultKubernetesUserAgent()
