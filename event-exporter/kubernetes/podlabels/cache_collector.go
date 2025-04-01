@@ -63,25 +63,26 @@ func NewCollector(client kubernetes.Interface, ignoredNamespaces []string, podCa
 	return pc, nil
 }
 
-// Get returns the label mappings for a given Pod. If there's no local cache, we will attempt a
+// GetLabels returns the labels for a given Pod. If there's no local cache, we will attempt a
 // get from apiserver.
 func (pc *podLabelCollectorWithCache) GetLabels(namespaceName, podName string) map[string]string {
 	if _, ok := pc.ignoredNamespaces[namespaceName]; ok {
 		return nil
 	}
-	if labels, ok := pc.cache.Get(cacheKey{Namespace: namespaceName, Name: podName}); ok {
+	podID := cacheKey{Namespace: namespaceName, Name: podName}
+	if labels, ok := pc.cache.Get(podID); ok {
 		recordQueryHit()
 		return labels
 	}
 	recordQueryMiss()
 	// For pod with empty labels, return empty label directly.
-	if timestamp, ok := pc.emptyLabelPodCache.Get(cacheKey{Namespace: namespaceName, Name: podName}); ok {
+	if timestamp, ok := pc.emptyLabelPodCache.Get(podID); ok {
 		if timestamp.Add(pc.emptyLabelPodCacheTTL).After(time.Now()) {
 			recordEmptyLabelPodCacheHit()
 			return nil
 		} else {
 			recordEmptyLabelPodCacheExpire()
-			pc.emptyLabelPodCache.Remove(cacheKey{Namespace: namespaceName, Name: podName})
+			pc.emptyLabelPodCache.Remove(podID)
 		}
 	} else {
 		recordEmptyLabelPodCacheMiss()
@@ -97,7 +98,7 @@ func (pc *podLabelCollectorWithCache) GetLabels(namespaceName, podName string) m
 			recordPodGet(string(statusError.ErrStatus.Reason))
 			if apierrors.IsNotFound(statusError) {
 				recordEmptyLabelPodCacheAddition()
-				pc.emptyLabelPodCache.Add(cacheKey{Namespace: namespaceName, Name: podName}, time.Now())
+				pc.emptyLabelPodCache.Add(podID, time.Now())
 			}
 		} else {
 			recordPodGet("UnknownFailure")
@@ -107,12 +108,12 @@ func (pc *podLabelCollectorWithCache) GetLabels(namespaceName, podName string) m
 	recordPodGet("OK")
 	labels := getLabelsFromPod(pod)
 	if len(labels) > 0 {
-		pc.cache.Add(cacheKey{Namespace: namespaceName, Name: podName}, labels)
+		pc.cache.Add(podID, labels)
 		recordAddition()
 		return labels
 	}
 	recordEmptyLabelPodCacheAddition()
-	pc.emptyLabelPodCache.Add(cacheKey{Namespace: namespaceName, Name: podName}, time.Now())
+	pc.emptyLabelPodCache.Add(podID, time.Now())
 	return nil
 }
 
