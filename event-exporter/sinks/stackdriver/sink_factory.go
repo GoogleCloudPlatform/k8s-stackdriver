@@ -25,8 +25,9 @@ import (
 	sd "google.golang.org/api/logging/v2"
 	"google.golang.org/api/option"
 
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/podlabels"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/sinks"
 )
 
@@ -58,7 +59,7 @@ func NewSdSinkFactory() sinks.SinkFactory {
 }
 
 // CreateNew creates a new Stackdriver sink.
-func (f *sdSinkFactory) CreateNew(opts []string) (sinks.Sink, error) {
+func (f *sdSinkFactory) CreateNew(opts []string, podLabelCollector podlabels.PodLabelCollector) (sinks.Sink, error) {
 	err := f.flagSet.Parse(opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse sink opts: %v", err)
@@ -83,7 +84,7 @@ func (f *sdSinkFactory) CreateNew(opts []string) (sinks.Sink, error) {
 
 	clk := clock.RealClock{}
 
-	return newSdSink(writer, clk, config, resourceModelFactory), nil
+	return newSdSink(writer, clk, config, resourceModelFactory, podLabelCollector), nil
 }
 
 func (f *sdSinkFactory) createMonitoredResourceFactory() (*monitoredResourceFactory, error) {

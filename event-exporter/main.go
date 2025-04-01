@@ -32,6 +32,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/podlabels"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/sinks/stackdriver"
 )
 
@@ -40,6 +41,12 @@ var (
 	sinkOpts           = flag.String("sink-opts", "", "Parameters for configuring sink")
 	prometheusEndpoint = flag.String("prometheus-endpoint", ":80", "Endpoint on which to "+
 		"expose Prometheus http handler")
+	systemNamespaces = flag.String("system-namespaces", "kube-system,gke-connect", "Comma "+
+		"separated list of system namespaces to skip the owner label collection")
+	podCacheSize           = flag.Int("pod-label-cache-size", 2048, "Maximum number of pods in the label cache")
+	emptyLabelPodCacheSize = flag.Int("pod-empty-label-cache-size", 4096, "Maximum number of cached pods with empty label, to prevent repeated checks.")
+	emptyLabelPodCacheTTL  = flag.Duration("pod-empty-label-cache-ttl", 2*time.Hour, "For pods with empty label, how long to keep their cache before checking again.")
+	getPodTimeout          = flag.Duration("pod-get-timeout", 3*time.Second, "timeout when getting pod labels")
 )
 
 func newSystemStopChannel() chan struct{} {
@@ -73,13 +80,19 @@ func main() {
 	defer glog.Flush()
 	flag.Parse()
 
-	sink, err := stackdriver.NewSdSinkFactory().CreateNew(strings.Split(*sinkOpts, " "))
-	if err != nil {
-		glog.Fatalf("Failed to initialize sink: %v", err)
-	}
 	client, err := newKubernetesClient()
 	if err != nil {
 		glog.Fatalf("Failed to initialize kubernetes client: %v", err)
+	}
+
+	podLabelCollector, err := podlabels.NewCollector(client, strings.Split(*systemNamespaces, ","), *podCacheSize, *emptyLabelPodCacheSize, *emptyLabelPodCacheTTL, *getPodTimeout)
+	if err != nil {
+		glog.Fatalf("Failed to initialize pod label collector: %v", err)
+	}
+
+	sink, err := stackdriver.NewSdSinkFactory().CreateNew(strings.Split(*sinkOpts, " "), podLabelCollector)
+	if err != nil {
+		glog.Fatalf("Failed to initialize sink: %v", err)
 	}
 
 	eventExporter := newEventExporter(client, sink, *resyncPeriod)

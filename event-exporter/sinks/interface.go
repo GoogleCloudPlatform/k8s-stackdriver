@@ -19,7 +19,8 @@ package sinks
 import (
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/watchers/events"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/podlabels"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/watchers/events"
 )
 
 // Sink interface represents a generic sink that is responsible for handling
@@ -38,5 +39,5 @@ type Sink interface {
 
 // SinkFactory creates a new sink, using user-provided parameters.
 type SinkFactory interface {
-	CreateNew(opts []string) (Sink, error)
+	CreateNew(opts []string, podLabelCollector podlabels.PodLabelCollector) (Sink, error)
 }
