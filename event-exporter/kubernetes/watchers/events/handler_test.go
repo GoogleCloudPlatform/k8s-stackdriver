@@ -77,7 +77,7 @@ func TestEventWatchHandlerAdd(t *testing.T) {
 			}
 
 			c := newEventHandlerWrapper(fakeHandler)
-			c.OnAdd(tc.obj)
+			c.OnAdd(tc.obj, false)
 
 			if isTriggered != tc.expected {
 				t.Fatalf("Add is triggered = %v, expected %v", isTriggered, tc.expected)

@@ -21,10 +21,10 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/watchers"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/watchers/events"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/sinks"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/utils"
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/watchers"
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/watchers/events"
 )
 
 type eventExporter struct {

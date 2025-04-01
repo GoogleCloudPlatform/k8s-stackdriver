@@ -20,13 +20,14 @@ import (
 	go_json "encoding/json"
 	"time"
 
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/podlabels"
 	"github.com/golang/glog"
 	sd "google.golang.org/api/logging/v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
-	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/clock"
 )
 
 var (
@@ -42,16 +43,18 @@ var (
 
 // Constructs a log entry from either an event or a message.
 type sdLogEntryFactory struct {
-	clock           clock.Clock
-	encoder         runtime.Encoder
-	resourceFactory *monitoredResourceFactory
+	clock             clock.Clock
+	encoder           runtime.Encoder
+	resourceFactory   *monitoredResourceFactory
+	podLabelCollector podlabels.PodLabelCollector
 }
 
-func newSdLogEntryFactory(clock clock.Clock, resourceFactory *monitoredResourceFactory) *sdLogEntryFactory {
+func newSdLogEntryFactory(clock clock.Clock, resourceFactory *monitoredResourceFactory, podLabelCollector podlabels.PodLabelCollector) *sdLogEntryFactory {
 	return &sdLogEntryFactory{
-		clock:           clock,
-		encoder:         newEncoder(),
-		resourceFactory: resourceFactory,
+		clock:             clock,
+		encoder:           newEncoder(),
+		resourceFactory:   resourceFactory,
+		podLabelCollector: podLabelCollector,
 	}
 }
 
@@ -67,6 +70,9 @@ func (f *sdLogEntryFactory) FromEvent(event *corev1.Event) *sd.LogEntry {
 		JsonPayload: payload,
 		Severity:    f.detectSeverity(event),
 		Resource:    resource,
+	}
+	if resource.Type == k8sPod && f.podLabelCollector != nil {
+		entry.Labels = f.podLabelCollector.GetLabels(resource.Labels[namespaceName], resource.Labels[podName])
 	}
 	if !event.LastTimestamp.IsZero() {
 		// The event was emitted using k8s.io/api/core/v1 library.

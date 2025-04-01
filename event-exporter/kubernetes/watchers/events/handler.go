@@ -42,7 +42,7 @@ func newEventHandlerWrapper(handler EventHandler) *eventHandlerWrapper {
 	}
 }
 
-func (c *eventHandlerWrapper) OnAdd(obj interface{}) {
+func (c *eventHandlerWrapper) OnAdd(obj interface{}, isInInitialList bool) {
 	if event, ok := c.convert(obj); ok {
 		c.handler.OnAdd(event)
 	}

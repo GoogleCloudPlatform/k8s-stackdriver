@@ -48,7 +48,7 @@ type watcherStore struct {
 }
 
 func (s *watcherStore) Add(obj interface{}) error {
-	s.handler.OnAdd(obj)
+	s.handler.OnAdd(obj, false)
 	return nil
 }
 
