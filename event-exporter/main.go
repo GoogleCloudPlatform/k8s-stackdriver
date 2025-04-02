@@ -43,10 +43,12 @@ var (
 		"expose Prometheus http handler")
 	systemNamespaces = flag.String("system-namespaces", "kube-system,gke-connect", "Comma "+
 		"separated list of system namespaces to skip the owner label collection")
-	podCacheSize           = flag.Int("pod-label-cache-size", 2048, "Maximum number of pods in the label cache")
-	emptyLabelPodCacheSize = flag.Int("pod-empty-label-cache-size", 4096, "Maximum number of cached pods with empty label, to prevent repeated checks.")
-	emptyLabelPodCacheTTL  = flag.Duration("pod-empty-label-cache-ttl", 2*time.Hour, "For pods with empty label, how long to keep their cache before checking again.")
-	getPodTimeout          = flag.Duration("pod-get-timeout", 3*time.Second, "timeout when getting pod labels")
+
+	enablePodOwnerLabel    = flag.Bool("enable-pod-owner-label", true, "Whether to enable the pod label collector to add pod owner labels to log entries")
+	podCacheSize           = flag.Int("pod-label-cache-size", 2048, "When enable-pod-owner-label, the maximum number of pods in the label cache")
+	emptyLabelPodCacheSize = flag.Int("pod-empty-label-cache-size", 4096, "When enable-pod-owner-label, the maximum number of cached pods with empty label, to prevent repeated checks")
+	emptyLabelPodCacheTTL  = flag.Duration("pod-empty-label-cache-ttl", 2*time.Hour, "When enable-pod-owner-label, for pods with empty label, how long to keep their cache before checking again")
+	getPodTimeout          = flag.Duration("pod-get-timeout", 3*time.Second, "When enable-pod-owner-label, the timeout when getting pod labels")
 )
 
 func newSystemStopChannel() chan struct{} {
@@ -85,9 +87,12 @@ func main() {
 		glog.Fatalf("Failed to initialize kubernetes client: %v", err)
 	}
 
-	podLabelCollector, err := podlabels.NewCollector(client, strings.Split(*systemNamespaces, ","), *podCacheSize, *emptyLabelPodCacheSize, *emptyLabelPodCacheTTL, *getPodTimeout)
-	if err != nil {
-		glog.Fatalf("Failed to initialize pod label collector: %v", err)
+	var podLabelCollector podlabels.PodLabelCollector = nil
+	if *enablePodOwnerLabel {
+		podLabelCollector, err = podlabels.NewCollector(client, strings.Split(*systemNamespaces, ","), *podCacheSize, *emptyLabelPodCacheSize, *emptyLabelPodCacheTTL, *getPodTimeout)
+		if err != nil {
+			glog.Fatalf("Failed to initialize pod label collector: %v", err)
+		}
 	}
 
 	sink, err := stackdriver.NewSdSinkFactory().CreateNew(strings.Split(*sinkOpts, " "), podLabelCollector)
