@@ -26,22 +26,28 @@ import (
 	"golang.org/x/oauth2"
 )
 
-type awsSecurityCredentials struct {
-	AccessKeyID     string `json:"AccessKeyID"`
+// AwsSecurityCredentials models AWS security credentials.
+type AwsSecurityCredentials struct {
+	// AccessKeyID is the AWS Access Key ID - Required.
+	AccessKeyID string `json:"AccessKeyID"`
+	// SecretAccessKey is the AWS Secret Access Key - Required.
 	SecretAccessKey string `json:"SecretAccessKey"`
-	SecurityToken   string `json:"Token"`
+	// SessionToken is the AWS Session token. This should be provided for temporary AWS security credentials - Optional.
+	SessionToken string `json:"Token"`
 }
 
 // awsRequestSigner is a utility class to sign http requests using a AWS V4 signature.
 type awsRequestSigner struct {
 	RegionName             string
-	AwsSecurityCredentials awsSecurityCredentials
+	AwsSecurityCredentials *AwsSecurityCredentials
 }
 
 // getenv aliases os.Getenv for testing
 var getenv = os.Getenv
 
 const (
+	defaultRegionalCredentialVerificationUrl = "https://sts.{region}.amazonaws.com?Action=GetCallerIdentity&Version=2011-06-15"
+
 	// AWS Signature Version 4 signing algorithm identifier.
 	awsAlgorithm = "AWS4-HMAC-SHA256"
 
@@ -52,8 +58,22 @@ const (
 	// The AWS authorization header name for the security session token if available.
 	awsSecurityTokenHeader = "x-amz-security-token"
 
+	// The name of the header containing the session token for metadata endpoint calls
+	awsIMDSv2SessionTokenHeader = "X-aws-ec2-metadata-token"
+
+	awsIMDSv2SessionTtlHeader = "X-aws-ec2-metadata-token-ttl-seconds"
+
+	awsIMDSv2SessionTtl = "300"
+
 	// The AWS authorization header name for the auto-generated date.
 	awsDateHeader = "x-amz-date"
+
+	// Supported AWS configuration environment variables.
+	awsAccessKeyId     = "AWS_ACCESS_KEY_ID"
+	awsDefaultRegion   = "AWS_DEFAULT_REGION"
+	awsRegion          = "AWS_REGION"
+	awsSecretAccessKey = "AWS_SECRET_ACCESS_KEY"
+	awsSessionToken    = "AWS_SESSION_TOKEN"
 
 	awsTimeFormatLong  = "20060102T150405Z"
 	awsTimeFormatShort = "20060102"
@@ -183,8 +203,8 @@ func (rs *awsRequestSigner) SignRequest(req *http.Request) error {
 
 	signedRequest.Header.Add("host", requestHost(req))
 
-	if rs.AwsSecurityCredentials.SecurityToken != "" {
-		signedRequest.Header.Add(awsSecurityTokenHeader, rs.AwsSecurityCredentials.SecurityToken)
+	if rs.AwsSecurityCredentials.SessionToken != "" {
+		signedRequest.Header.Add(awsSecurityTokenHeader, rs.AwsSecurityCredentials.SessionToken)
 	}
 
 	if signedRequest.Header.Get("date") == "" {
@@ -237,15 +257,18 @@ func (rs *awsRequestSigner) generateAuthentication(req *http.Request, timestamp 
 }
 
 type awsCredentialSource struct {
-	EnvironmentID               string
-	RegionURL                   string
-	RegionalCredVerificationURL string
-	CredVerificationURL         string
-	TargetResource              string
-	requestSigner               *awsRequestSigner
-	region                      string
-	ctx                         context.Context
-	client                      *http.Client
+	environmentID                  string
+	regionURL                      string
+	regionalCredVerificationURL    string
+	credVerificationURL            string
+	imdsv2SessionTokenURL          string
+	targetResource                 string
+	requestSigner                  *awsRequestSigner
+	region                         string
+	ctx                            context.Context
+	client                         *http.Client
+	awsSecurityCredentialsSupplier AwsSecurityCredentialsSupplier
+	supplierOptions                SupplierOptions
 }
 
 type awsRequestHeader struct {
@@ -266,14 +289,52 @@ func (cs awsCredentialSource) doRequest(req *http.Request) (*http.Response, erro
 	return cs.client.Do(req.WithContext(cs.ctx))
 }
 
+func canRetrieveRegionFromEnvironment() bool {
+	// The AWS region can be provided through AWS_REGION or AWS_DEFAULT_REGION. Only one is
+	// required.
+	return getenv(awsRegion) != "" || getenv(awsDefaultRegion) != ""
+}
+
+func canRetrieveSecurityCredentialFromEnvironment() bool {
+	// Check if both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are available.
+	return getenv(awsAccessKeyId) != "" && getenv(awsSecretAccessKey) != ""
+}
+
+func (cs awsCredentialSource) shouldUseMetadataServer() bool {
+	return cs.awsSecurityCredentialsSupplier == nil && (!canRetrieveRegionFromEnvironment() || !canRetrieveSecurityCredentialFromEnvironment())
+}
+
+func (cs awsCredentialSource) credentialSourceType() string {
+	if cs.awsSecurityCredentialsSupplier != nil {
+		return "programmatic"
+	}
+	return "aws"
+}
+
 func (cs awsCredentialSource) subjectToken() (string, error) {
+	// Set Defaults
+	if cs.regionalCredVerificationURL == "" {
+		cs.regionalCredVerificationURL = defaultRegionalCredentialVerificationUrl
+	}
 	if cs.requestSigner == nil {
-		awsSecurityCredentials, err := cs.getSecurityCredentials()
+		headers := make(map[string]string)
+		if cs.shouldUseMetadataServer() {
+			awsSessionToken, err := cs.getAWSSessionToken()
+			if err != nil {
+				return "", err
+			}
+
+			if awsSessionToken != "" {
+				headers[awsIMDSv2SessionTokenHeader] = awsSessionToken
+			}
+		}
+
+		awsSecurityCredentials, err := cs.getSecurityCredentials(headers)
 		if err != nil {
 			return "", err
 		}
-
-		if cs.region, err = cs.getRegion(); err != nil {
+		cs.region, err = cs.getRegion(headers)
+		if err != nil {
 			return "", err
 		}
 
@@ -285,7 +346,7 @@ func (cs awsCredentialSource) subjectToken() (string, error) {
 
 	// Generate the signed request to AWS STS GetCallerIdentity API.
 	// Use the required regional endpoint. Otherwise, the request will fail.
-	req, err := http.NewRequest("POST", strings.Replace(cs.RegionalCredVerificationURL, "{region}", cs.region, 1), nil)
+	req, err := http.NewRequest("POST", strings.Replace(cs.regionalCredVerificationURL, "{region}", cs.region, 1), nil)
 	if err != nil {
 		return "", err
 	}
@@ -293,8 +354,8 @@ func (cs awsCredentialSource) subjectToken() (string, error) {
 	// provider, with or without the HTTPS prefix.
 	// Including this header as part of the signature is recommended to
 	// ensure data integrity.
-	if cs.TargetResource != "" {
-		req.Header.Add("x-goog-cloud-target-resource", cs.TargetResource)
+	if cs.targetResource != "" {
+		req.Header.Add("x-goog-cloud-target-resource", cs.targetResource)
 	}
 	cs.requestSigner.SignRequest(req)
 
@@ -340,21 +401,59 @@ func (cs awsCredentialSource) subjectToken() (string, error) {
 	return url.QueryEscape(string(result)), nil
 }
 
-func (cs *awsCredentialSource) getRegion() (string, error) {
-	if envAwsRegion := getenv("AWS_REGION"); envAwsRegion != "" {
-		return envAwsRegion, nil
-	}
-	if envAwsRegion := getenv("AWS_DEFAULT_REGION"); envAwsRegion != "" {
-		return envAwsRegion, nil
+func (cs *awsCredentialSource) getAWSSessionToken() (string, error) {
+	if cs.imdsv2SessionTokenURL == "" {
+		return "", nil
 	}
 
-	if cs.RegionURL == "" {
-		return "", errors.New("oauth2/google: unable to determine AWS region")
-	}
-
-	req, err := http.NewRequest("GET", cs.RegionURL, nil)
+	req, err := http.NewRequest("PUT", cs.imdsv2SessionTokenURL, nil)
 	if err != nil {
 		return "", err
+	}
+
+	req.Header.Add(awsIMDSv2SessionTtlHeader, awsIMDSv2SessionTtl)
+
+	resp, err := cs.doRequest(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := ioutil.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return "", err
+	}
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("oauth2/google/externalaccount: unable to retrieve AWS session token - %s", string(respBody))
+	}
+
+	return string(respBody), nil
+}
+
+func (cs *awsCredentialSource) getRegion(headers map[string]string) (string, error) {
+	if cs.awsSecurityCredentialsSupplier != nil {
+		return cs.awsSecurityCredentialsSupplier.AwsRegion(cs.ctx, cs.supplierOptions)
+	}
+	if canRetrieveRegionFromEnvironment() {
+		if envAwsRegion := getenv(awsRegion); envAwsRegion != "" {
+			cs.region = envAwsRegion
+			return envAwsRegion, nil
+		}
+		return getenv("AWS_DEFAULT_REGION"), nil
+	}
+
+	if cs.regionURL == "" {
+		return "", errors.New("oauth2/google/externalaccount: unable to determine AWS region")
+	}
+
+	req, err := http.NewRequest("GET", cs.regionURL, nil)
+	if err != nil {
+		return "", err
+	}
+
+	for name, value := range headers {
+		req.Header.Add(name, value)
 	}
 
 	resp, err := cs.doRequest(req)
@@ -369,7 +468,7 @@ func (cs *awsCredentialSource) getRegion() (string, error) {
 	}
 
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("oauth2/google: unable to retrieve AWS region - %s", string(respBody))
+		return "", fmt.Errorf("oauth2/google/externalaccount: unable to retrieve AWS region - %s", string(respBody))
 	}
 
 	// This endpoint will return the region in format: us-east-2b.
@@ -381,46 +480,50 @@ func (cs *awsCredentialSource) getRegion() (string, error) {
 	return string(respBody[:respBodyEnd]), nil
 }
 
-func (cs *awsCredentialSource) getSecurityCredentials() (result awsSecurityCredentials, err error) {
-	if accessKeyID := getenv("AWS_ACCESS_KEY_ID"); accessKeyID != "" {
-		if secretAccessKey := getenv("AWS_SECRET_ACCESS_KEY"); secretAccessKey != "" {
-			return awsSecurityCredentials{
-				AccessKeyID:     accessKeyID,
-				SecretAccessKey: secretAccessKey,
-				SecurityToken:   getenv("AWS_SESSION_TOKEN"),
-			}, nil
-		}
+func (cs *awsCredentialSource) getSecurityCredentials(headers map[string]string) (result *AwsSecurityCredentials, err error) {
+	if cs.awsSecurityCredentialsSupplier != nil {
+		return cs.awsSecurityCredentialsSupplier.AwsSecurityCredentials(cs.ctx, cs.supplierOptions)
+	}
+	if canRetrieveSecurityCredentialFromEnvironment() {
+		return &AwsSecurityCredentials{
+			AccessKeyID:     getenv(awsAccessKeyId),
+			SecretAccessKey: getenv(awsSecretAccessKey),
+			SessionToken:    getenv(awsSessionToken),
+		}, nil
 	}
 
-	roleName, err := cs.getMetadataRoleName()
+	roleName, err := cs.getMetadataRoleName(headers)
 	if err != nil {
 		return
 	}
 
-	credentials, err := cs.getMetadataSecurityCredentials(roleName)
+	credentials, err := cs.getMetadataSecurityCredentials(roleName, headers)
 	if err != nil {
 		return
 	}
 
 	if credentials.AccessKeyID == "" {
-		return result, errors.New("oauth2/google: missing AccessKeyId credential")
+		return result, errors.New("oauth2/google/externalaccount: missing AccessKeyId credential")
 	}
 
 	if credentials.SecretAccessKey == "" {
-		return result, errors.New("oauth2/google: missing SecretAccessKey credential")
+		return result, errors.New("oauth2/google/externalaccount: missing SecretAccessKey credential")
 	}
 
-	return credentials, nil
+	return &credentials, nil
 }
 
-func (cs *awsCredentialSource) getMetadataSecurityCredentials(roleName string) (awsSecurityCredentials, error) {
-	var result awsSecurityCredentials
+func (cs *awsCredentialSource) getMetadataSecurityCredentials(roleName string, headers map[string]string) (AwsSecurityCredentials, error) {
+	var result AwsSecurityCredentials
 
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s", cs.CredVerificationURL, roleName), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s", cs.credVerificationURL, roleName), nil)
 	if err != nil {
 		return result, err
 	}
-	req.Header.Add("Content-Type", "application/json")
+
+	for name, value := range headers {
+		req.Header.Add(name, value)
+	}
 
 	resp, err := cs.doRequest(req)
 	if err != nil {
@@ -434,21 +537,25 @@ func (cs *awsCredentialSource) getMetadataSecurityCredentials(roleName string) (
 	}
 
 	if resp.StatusCode != 200 {
-		return result, fmt.Errorf("oauth2/google: unable to retrieve AWS security credentials - %s", string(respBody))
+		return result, fmt.Errorf("oauth2/google/externalaccount: unable to retrieve AWS security credentials - %s", string(respBody))
 	}
 
 	err = json.Unmarshal(respBody, &result)
 	return result, err
 }
 
-func (cs *awsCredentialSource) getMetadataRoleName() (string, error) {
-	if cs.CredVerificationURL == "" {
-		return "", errors.New("oauth2/google: unable to determine the AWS metadata server security credentials endpoint")
+func (cs *awsCredentialSource) getMetadataRoleName(headers map[string]string) (string, error) {
+	if cs.credVerificationURL == "" {
+		return "", errors.New("oauth2/google/externalaccount: unable to determine the AWS metadata server security credentials endpoint")
 	}
 
-	req, err := http.NewRequest("GET", cs.CredVerificationURL, nil)
+	req, err := http.NewRequest("GET", cs.credVerificationURL, nil)
 	if err != nil {
 		return "", err
+	}
+
+	for name, value := range headers {
+		req.Header.Add(name, value)
 	}
 
 	resp, err := cs.doRequest(req)
@@ -463,7 +570,7 @@ func (cs *awsCredentialSource) getMetadataRoleName() (string, error) {
 	}
 
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("oauth2/google: unable to retrieve AWS role name - %s", string(respBody))
+		return "", fmt.Errorf("oauth2/google/externalaccount: unable to retrieve AWS role name - %s", string(respBody))
 	}
 
 	return string(respBody), nil
