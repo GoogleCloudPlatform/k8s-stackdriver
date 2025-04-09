@@ -17,15 +17,19 @@ limitations under the License.
 package translator
 
 import (
+	"context"
 	"net/http"
+	"testing"
 	"time"
 
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
 	sd "google.golang.org/api/monitoring/v3"
+	"google.golang.org/api/option"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/klog"
+
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
 )
 
 var (
@@ -64,6 +68,13 @@ func newFakeTranslatorForDistributions(reqWindow, alignmentPeriod time.Duration,
 	return newFakeTranslator(reqWindow, alignmentPeriod, project, cluster, location, currentTime, useNewResourceModel, true /* support distributions */)
 }
 
+func newFakeTranslatorForGetMetricKind(reqWindow, alignmentPeriod time.Duration, project string, currentTime time.Time, sdService *sd.Service, mkCache *metricKindCache) *Translator {
+	t, _ := newFakeTranslator(reqWindow, alignmentPeriod, project, "", "", currentTime, true, true)
+	t.service = sdService
+	t.metricKindCache = mkCache
+	return t
+}
+
 func newFakeTranslator(reqWindow, alignmentPeriod time.Duration, project, cluster, location string, currentTime time.Time, useNewResourceModel, supportDistributions bool) (*Translator, *sd.Service) {
 	sdService, err := sd.New(http.DefaultClient)
 	if err != nil {
@@ -81,9 +92,24 @@ func newFakeTranslator(reqWindow, alignmentPeriod time.Duration, project, cluste
 			Cluster:  cluster,
 			Location: location,
 		},
+		metricKindCache:      &metricKindCache{},
 		clock:                fakeClock{currentTime},
 		mapper:               restMapper,
 		useNewResourceModel:  useNewResourceModel,
 		supportDistributions: supportDistributions,
 	}, sdService
+}
+
+// newMockStackdriverService creates a mock Stackdriver service client.
+func NewMockStackdriverService(t *testing.T, roundTripper http.RoundTripper) *sd.Service {
+	mockClient := &http.Client{Transport: roundTripper}
+	mockSvc, err := sd.NewService(context.Background(), option.WithHTTPClient(mockClient))
+	if err != nil {
+		t.Fatalf("Failed to create mock Stackdriver service: %v", err)
+	}
+	mockSvc.Projects = &sd.ProjectsService{
+		MetricDescriptors: sd.NewProjectsMetricDescriptorsService(mockSvc),
+		TimeSeries:        sd.NewProjectsTimeSeriesService(mockSvc),
+	}
+	return mockSvc
 }
