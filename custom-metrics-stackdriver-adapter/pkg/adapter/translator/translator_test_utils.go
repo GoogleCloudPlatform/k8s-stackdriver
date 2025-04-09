@@ -20,12 +20,14 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
 	sd "google.golang.org/api/monitoring/v3"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/cache"
 	"k8s.io/klog"
+
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
 )
 
 var (
@@ -75,6 +77,7 @@ func newFakeTranslator(reqWindow, alignmentPeriod time.Duration, project, cluste
 			Location: location,
 		},
 		clock:                fakeClock{currentTime},
+		metricCache:          cache.NewLRUExpireCacheWithClock(1000, fakeClock{currentTime}),
 		mapper:               restMapper,
 		useNewResourceModel:  useNewResourceModel,
 		supportDistributions: supportDistributions,
