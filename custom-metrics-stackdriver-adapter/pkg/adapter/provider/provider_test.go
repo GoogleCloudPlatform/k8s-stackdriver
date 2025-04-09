@@ -12,7 +12,6 @@ import (
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/translator"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
-	"google.golang.org/api/option"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/metrics/pkg/apis/external_metrics"
@@ -117,7 +116,7 @@ func TestStackdriverProvider_GetExternalMetric(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			mockSDService := newMockStackdriverService(t, tt.mockRoundTripper)
+			mockSDService := translator.NewMockStackdriverService(t, tt.mockRoundTripper)
 			fakeTranslator := newFakeTranslator(t, mockSDService)
 			p := &StackdriverProvider{
 				stackdriverService: mockSDService,
@@ -177,7 +176,7 @@ func TestStackdriverProvider_GetExternalMetric_CacheExpiration(t *testing.T) {
 		testSelector,
 		baseTimeSeriesResponse,
 	)
-	mockSDService := newMockStackdriverService(t, mockRoundTripper)
+	mockSDService := translator.NewMockStackdriverService(t, mockRoundTripper)
 	fakeTranslator := newFakeTranslator(t, mockSDService)
 	p := &StackdriverProvider{
 		stackdriverService:   mockSDService,
@@ -229,20 +228,6 @@ func TestStackdriverProvider_GetExternalMetric_CacheExpiration(t *testing.T) {
 	if !compareExternalMetricValue(secondResponse.Items[0], wantMetricValueList.Items[0]) {
 		t.Errorf("GetExternalMetric() item[0] got = %v, want %v (ignoring Timestamp) after expiration", secondResponse.Items[0], wantMetricValueList.Items[0])
 	}
-}
-
-// newMockStackdriverService creates a mock Stackdriver service client.
-func newMockStackdriverService(t *testing.T, roundTripper http.RoundTripper) *sd.Service {
-	mockClient := &http.Client{Transport: roundTripper}
-	mockSvc, err := sd.NewService(context.Background(), option.WithHTTPClient(mockClient))
-	if err != nil {
-		t.Fatalf("Failed to create mock Stackdriver service: %v", err)
-	}
-	mockSvc.Projects = &sd.ProjectsService{
-		MetricDescriptors: sd.NewProjectsMetricDescriptorsService(mockSvc),
-		TimeSeries:        sd.NewProjectsTimeSeriesService(mockSvc),
-	}
-	return mockSvc
 }
 
 // newFakeTranslator creates a fake translator for testing.
