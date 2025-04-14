@@ -22,8 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/translator/utils"
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
 	stackdriver "google.golang.org/api/monitoring/v3"
 	v1 "k8s.io/api/core/v1"
 	apierr "k8s.io/apimachinery/pkg/api/errors"
@@ -31,7 +29,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
+	"k8s.io/apimachinery/pkg/util/cache"
 	"k8s.io/klog"
+
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/translator/utils"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
 )
 
 var (
@@ -87,6 +89,7 @@ type Translator struct {
 	alignmentPeriod      time.Duration
 	clock                clock
 	mapper               apimeta.RESTMapper
+	metricCache          *cache.LRUExpireCache
 	useNewResourceModel  bool
 	supportDistributions bool
 }
@@ -463,13 +466,18 @@ func (qb QueryBuilder) Build() (*stackdriver.ProjectsTimeSeriesListCall, error) 
 }
 
 // NewTranslator creates a Translator
-func NewTranslator(service *stackdriver.Service, gceConf *config.GceConfig, rateInterval time.Duration, alignmentPeriod time.Duration, mapper apimeta.RESTMapper, useNewResourceModel, supportDistributions bool) *Translator {
+func NewTranslator(service *stackdriver.Service, gceConf *config.GceConfig, rateInterval time.Duration, alignmentPeriod time.Duration, mapper apimeta.RESTMapper, useNewResourceModel, supportDistributions bool, metricKindCacheSize int) *Translator {
+	var metricCache *cache.LRUExpireCache
+	if metricKindCacheSize > 0 {
+		metricCache = cache.NewLRUExpireCacheWithClock(metricKindCacheSize, realClock{})
+	}
 	return &Translator{
 		service:              service,
 		config:               gceConf,
 		reqWindow:            rateInterval,
 		alignmentPeriod:      alignmentPeriod,
 		clock:                realClock{},
+		metricCache:          metricCache,
 		mapper:               mapper,
 		useNewResourceModel:  useNewResourceModel,
 		supportDistributions: supportDistributions,
@@ -509,9 +517,22 @@ func (t *Translator) ListMetricDescriptors(fallbackForContainerMetrics bool) *st
 		Filter(filter)
 }
 
+type cachedMetricInfo struct {
+	metricKind string
+	valueType  string
+}
+
 // GetMetricKind returns metricKind for metric metricName, obtained from Stackdriver Monitoring API.
 func (t *Translator) GetMetricKind(metricName string, metricSelector labels.Selector) (string, string, error) {
 	metricProj := t.config.Project
+	cacheKey := metricProj + "-" + metricName
+	if t.metricCache == nil {
+		// skip cache check
+	} else if cachedValue, ok := t.metricCache.Get(cacheKey); ok {
+		if metricInfo, ok := cachedValue.(cachedMetricInfo); ok {
+			return metricInfo.metricKind, metricInfo.valueType, nil
+		}
+	}
 	requirements, selectable := metricSelector.Requirements()
 	if !selectable {
 		return "", "", apierr.NewBadRequest(fmt.Sprintf("Label selector is impossible to match: %s", metricSelector))
@@ -528,6 +549,9 @@ func (t *Translator) GetMetricKind(metricName string, metricSelector labels.Sele
 	response, err := t.service.Projects.MetricDescriptors.Get(fmt.Sprintf("projects/%s/metricDescriptors/%s", metricProj, metricName)).Do()
 	if err != nil {
 		return "", "", NewNoSuchMetricError(metricName, err)
+	}
+	if t.metricCache != nil {
+		t.metricCache.Add(cacheKey, cachedMetricInfo{metricKind: response.MetricKind, valueType: response.ValueType}, 5*time.Minute)
 	}
 	return response.MetricKind, response.ValueType, nil
 }
