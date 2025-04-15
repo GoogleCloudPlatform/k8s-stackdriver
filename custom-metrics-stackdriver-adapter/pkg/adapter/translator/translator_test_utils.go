@@ -51,6 +51,13 @@ func newFakeTranslatorForExternalMetrics(reqWindow, alignmentPeriod time.Duratio
 	return newFakeTranslator(reqWindow, alignmentPeriod, project, "", "", currentTime, false /* don't use new resouce model */, false /* don't support distributions */)
 }
 
+// NewFakeTranslatorForExternalMetricsWithSDService returns a simplified translator with the provided stackdriver service.
+func NewFakeTranslatorForExternalMetricsWithSDService(reqWindow, alignmentPeriod time.Duration, project string, currentTime time.Time, sdService *sd.Service) *Translator {
+	t, _ := newFakeTranslator(reqWindow, alignmentPeriod, project, "", "", currentTime, false /* don't use new resouce model */, false /* don't support distributions */)
+	t.service = sdService
+	return t
+}
+
 // newFakeTranslatorForDistributions creates a Translator that supports Distributions for testing purposes.
 // This
 func newFakeTranslatorForDistributions(reqWindow, alignmentPeriod time.Duration, project, cluster, location string, currentTime time.Time, useNewResourceModel bool) (*Translator, *sd.Service) {
