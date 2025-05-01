@@ -29,6 +29,7 @@ const (
 	defaultMaxBufferSize  = 100
 	defaultMaxConcurrency = 10
 	defaultEndpoint       = ""
+	defaultUniverseDomain = "googleapis.com"
 
 	eventsLogName = "events"
 )
@@ -39,6 +40,7 @@ type sdSinkConfig struct {
 	MaxConcurrency int
 	LogName        string
 	Endpoint       string
+	UniverseDomain string
 }
 
 // Provides Stackdriver sink default values for GCE instances.
