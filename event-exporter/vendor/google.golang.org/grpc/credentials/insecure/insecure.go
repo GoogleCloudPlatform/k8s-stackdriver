@@ -40,7 +40,7 @@ func NewCredentials() credentials.TransportCredentials {
 // NoSecurity.
 type insecureTC struct{}
 
-func (insecureTC) ClientHandshake(ctx context.Context, _ string, conn net.Conn) (net.Conn, credentials.AuthInfo, error) {
+func (insecureTC) ClientHandshake(_ context.Context, _ string, conn net.Conn) (net.Conn, credentials.AuthInfo, error) {
 	return conn, info{credentials.CommonAuthInfo{SecurityLevel: credentials.NoSecurity}}, nil
 }
 
@@ -69,4 +69,30 @@ type info struct {
 // AuthType returns the type of info as a string.
 func (info) AuthType() string {
 	return "insecure"
+}
+
+// insecureBundle implements an insecure bundle.
+// An insecure bundle provides a thin wrapper around insecureTC to support
+// the credentials.Bundle interface.
+type insecureBundle struct{}
+
+// NewBundle returns a bundle with disabled transport security and no per rpc credential.
+func NewBundle() credentials.Bundle {
+	return insecureBundle{}
+}
+
+// NewWithMode returns a new insecure Bundle. The mode is ignored.
+func (insecureBundle) NewWithMode(string) (credentials.Bundle, error) {
+	return insecureBundle{}, nil
+}
+
+// PerRPCCredentials returns an nil implementation as insecure
+// bundle does not support a per rpc credential.
+func (insecureBundle) PerRPCCredentials() credentials.PerRPCCredentials {
+	return nil
+}
+
+// TransportCredentials returns the underlying insecure transport credential.
+func (insecureBundle) TransportCredentials() credentials.TransportCredentials {
+	return NewCredentials()
 }

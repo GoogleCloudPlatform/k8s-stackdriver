@@ -38,6 +38,7 @@ type sdSinkFactory struct {
 	maxConcurrency       *int
 	resourceModelVersion *string
 	endpoint             *string
+	universeDomain       *string
 }
 
 // NewSdSinkFactory creates a new Stackdriver sink factory.
@@ -54,7 +55,8 @@ func NewSdSinkFactory() sinks.SinkFactory {
 			"concurrent requests to Stackdriver"),
 		resourceModelVersion: fs.String("stackdriver-resource-model", "", "Stackdriver resource model "+
 			"to be used for exports"),
-		endpoint: fs.String("endpoint", defaultEndpoint, "Base path for Stackdriver API"),
+		endpoint:       fs.String("endpoint", defaultEndpoint, "Base path for Stackdriver API"),
+		universeDomain: fs.String("universeDomain", defaultUniverseDomain, "The domain of the universe."),
 	}
 }
 
@@ -76,7 +78,7 @@ func (f *sdSinkFactory) CreateNew(opts []string, podLabelCollector podlabels.Pod
 	}
 
 	ctx := context.Background()
-	service, err := sd.NewService(ctx, option.WithEndpoint(config.Endpoint))
+	service, err := sd.NewService(ctx, option.WithEndpoint(config.Endpoint), option.WithUniverseDomain(config.UniverseDomain))
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize Stackdriver service: %v", err)
 	}
@@ -105,5 +107,6 @@ func (f *sdSinkFactory) createSinkConfig() (*sdSinkConfig, error) {
 	config.MaxBufferSize = *f.maxBufferSize
 	config.MaxConcurrency = *f.maxConcurrency
 	config.Endpoint = *f.endpoint
+	config.UniverseDomain = *f.universeDomain
 	return config, nil
 }
