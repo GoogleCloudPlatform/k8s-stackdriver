@@ -5,7 +5,7 @@ go 1.23.0
 require (
 	cloud.google.com/go/compute/metadata v0.6.0
 	cloud.google.com/go/monitoring v1.20.2
-	github.com/golang/glog v1.2.3
+	github.com/golang/glog v1.2.5
 	github.com/prometheus/client_golang v1.19.1
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/common v0.55.0
