@@ -29,6 +29,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
@@ -49,6 +50,7 @@ var (
 	emptyLabelPodCacheSize = flag.Int("pod-empty-label-cache-size", 4096, "When enable-pod-owner-label, the maximum number of cached pods with empty label, to prevent repeated checks")
 	emptyLabelPodCacheTTL  = flag.Duration("pod-empty-label-cache-ttl", 2*time.Hour, "When enable-pod-owner-label, for pods with empty label, how long to keep their cache before checking again")
 	getPodTimeout          = flag.Duration("pod-get-timeout", 3*time.Second, "When enable-pod-owner-label, the timeout when getting pod labels")
+	eventLabelSelector     = flag.String("event-label-selector", "", "Export events only if they match the given label selector. Same syntax as kubectl label")
 )
 
 func newSystemStopChannel() chan struct{} {
@@ -100,7 +102,11 @@ func main() {
 		glog.Fatalf("Failed to initialize sink: %v", err)
 	}
 
-	eventExporter := newEventExporter(client, sink, *resyncPeriod)
+	parsedLabelSelector, err := labels.Parse(*eventLabelSelector)
+	if err != nil {
+		glog.Fatalf("Invalid event label selector:%v", err)
+	}
+	eventExporter := newEventExporter(client, sink, *resyncPeriod, parsedLabelSelector)
 
 	// Expose the Prometheus http endpoint
 	go func() {
