@@ -19,6 +19,7 @@ package main
 import (
 	"time"
 
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/watchers"
@@ -36,17 +37,18 @@ func (e *eventExporter) Run(stopCh <-chan struct{}) {
 	utils.RunConcurrentlyUntil(stopCh, e.sink.Run, e.watcher.Run)
 }
 
-func newEventExporter(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration) *eventExporter {
+func newEventExporter(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration, eventLabelSelector labels.Selector) *eventExporter {
 	return &eventExporter{
 		sink:    sink,
-		watcher: createWatcher(client, sink, resyncPeriod),
+		watcher: createWatcher(client, sink, resyncPeriod, eventLabelSelector),
 	}
 }
 
-func createWatcher(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration) watchers.Watcher {
+func createWatcher(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration, eventLabelSelector labels.Selector) watchers.Watcher {
 	return events.NewEventWatcher(client, &events.EventWatcherConfig{
-		OnList:       sink.OnList,
-		ResyncPeriod: resyncPeriod,
-		Handler:      sink,
+		OnList:             sink.OnList,
+		ResyncPeriod:       resyncPeriod,
+		Handler:            sink,
+		EventLabelSelector: eventLabelSelector,
 	})
 }
