@@ -134,6 +134,20 @@ when given metric is not present on k8s_pod.
 At most one container with given metric is allowed for each pod.
 Works only with **new resource model**.
 
+#### Metric Cache
+
+Starting with the `cm-sd-adapter-v0.16.0` release, a new cache is available to
+reduce downstream calls to Cloud Monitoring by the adapter. The cache will
+simply keep in memory a previously fetched metric up to the provided TTL value.
+
+To use, set the `--external-metric-cache-ttl` flag to the desired value. For
+example `--external-metric-cache-ttl=1m` will keep the fetched metric values
+in memory for 1 minute.
+
+See an [example deployment with this flag set].
+
+NOTE: This cache currently only works for external metrics.
+
 ### Export custom metrics to Stackdriver
 
 To learn how to create your custom metric and write your data to Stackdriver,
@@ -311,3 +325,5 @@ https://prometheus.io/docs/instrumenting/exposition_formats
 https://cloud.google.com/monitoring/api/metrics_gcp
 [fallback-for-container-metrics]:
 https://github.com/znirzej/k8s-stackdriver/tree/adapter-container-metrics/custom-metrics-stackdriver-adapter#fallback-for-container-metrics
+[example deployment with this flag set]:
+https://github.com/GoogleCloudPlatform/k8s-stackdriver/blob/master/custom-metrics-stackdriver-adapter/deploy/staging/adapter_new_resource_model_external_cache.yaml
