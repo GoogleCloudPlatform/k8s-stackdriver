@@ -22,6 +22,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
@@ -58,9 +59,10 @@ type EventWatcherConfig struct {
 	// there can be many, e.g. because of network problems. Note also, that
 	// items in the List response WILL NOT trigger OnAdd method in handler,
 	// instead Store contents will be completely replaced.
-	OnList       OnListFunc
-	ResyncPeriod time.Duration
-	Handler      EventHandler
+	OnList             OnListFunc
+	ResyncPeriod       time.Duration
+	Handler            EventHandler
+	EventLabelSelector labels.Selector
 }
 
 // NewEventWatcher create a new watcher that only watches the events resource.
@@ -72,6 +74,7 @@ func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) wa
 				// Only return 1 item to help Reflector retrieve ResourceVersion to reestablish
 				// Watch.
 				options.Limit = 1
+				options.LabelSelector = config.EventLabelSelector.String()
 				list, err := client.CoreV1().Events(meta_v1.NamespaceAll).List(context.TODO(), options)
 				if err == nil {
 					config.OnList(list)
@@ -79,6 +82,7 @@ func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) wa
 				return list, err
 			},
 			WatchFunc: func(options meta_v1.ListOptions) (watch.Interface, error) {
+				options.LabelSelector = config.EventLabelSelector.String()
 				return client.CoreV1().Events(meta_v1.NamespaceAll).Watch(context.TODO(), options)
 			},
 		},
