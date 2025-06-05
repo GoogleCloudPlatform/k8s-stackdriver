@@ -23,9 +23,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/translator"
-	generatedopenapi "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/api/generated/openapi"
-	gceconfig "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -36,19 +33,28 @@ import (
 	customexternalmetrics "sigs.k8s.io/custom-metrics-apiserver/pkg/apiserver"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/translator"
+	generatedopenapi "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/api/generated/openapi"
+	gceconfig "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
+
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/component-base/logs"
 	"k8s.io/klog"
 	"sigs.k8s.io/metrics-server/pkg/api"
 
-	coreadapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/coreprovider"
-	adapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/provider"
 	corev1 "k8s.io/api/core/v1"
 	basecmd "sigs.k8s.io/custom-metrics-apiserver/pkg/cmd"
+
+	coreadapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/coreprovider"
+	adapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/provider"
 )
 
-const defaultExternalMetricsCacheSize = 300
+const (
+	defaultExternalMetricsCacheSize = 300
+	// This is only metric info and likely to be much smaller than separate metrics of each kind above
+	defaultMetricKindCacheSize = 25
+)
 
 // StackdriverAdapter is an adapter for Stackdriver
 type StackdriverAdapter struct {
@@ -80,6 +86,10 @@ type stackdriverAdapterServerOptions struct {
 	ExternalMetricsCacheTTL time.Duration
 	// ExternalMetricsCacheSize specifies the maximum number of stored entries in the external metric cache.
 	ExternalMetricsCacheSize int
+	// MetricKindCacheTTL specifies the cache expiration time for metric kind information.
+	MetricKindCacheTTL time.Duration
+	// MetricKindCacheSize specifies the maximum number of stored entries in the metric kind cache.
+	MetricKindCacheSize int
 }
 
 func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptions, rateInterval time.Duration, alignmentPeriod time.Duration) (provider.MetricsProvider, *translator.Translator) {
@@ -124,7 +134,7 @@ func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptio
 	}
 	conf.GenericConfig.EnableMetrics = true
 
-	translator := translator.NewTranslator(stackdriverService, gceConf, rateInterval, alignmentPeriod, mapper, o.UseNewResourceModel, o.EnableDistributionSupport)
+	translator := translator.NewTranslator(stackdriverService, gceConf, rateInterval, alignmentPeriod, mapper, o.UseNewResourceModel, o.EnableDistributionSupport, o.MetricKindCacheSize, o.MetricKindCacheTTL)
 
 	// If ListFullCustomMetrics is false, it returns one resource during api discovery `kubectl get --raw "/apis/custom.metrics.k8s.io/v1beta2"` to reduce memory usage.
 	customMetricsListCache := listStackdriverCustomMetrics(translator, o.ListFullCustomMetrics, o.FallbackForContainerMetrics)
@@ -198,6 +208,7 @@ func main() {
 		EnableDistributionSupport:   false,
 		ListFullCustomMetrics:       false,
 		ExternalMetricsCacheSize:    defaultExternalMetricsCacheSize,
+		MetricKindCacheSize:         defaultMetricKindCacheSize,
 	}
 
 	flags.BoolVar(&serverOptions.UseNewResourceModel, "use-new-resource-model", serverOptions.UseNewResourceModel,
@@ -222,6 +233,10 @@ func main() {
 		"The duration (e.g., 1m, 5s) for which external metric values are cached.")
 	flags.IntVar(&serverOptions.ExternalMetricsCacheSize, "external-metric-cache-size", serverOptions.ExternalMetricsCacheSize,
 		"The maximum number of entries in the external metric cache.")
+	flags.DurationVar(&serverOptions.MetricKindCacheTTL, "metric-kind-cache-ttl", serverOptions.MetricKindCacheTTL,
+		"The duration (e.g., 1m, 5s) for which metric kind info calls are cached.")
+	flags.IntVar(&serverOptions.MetricKindCacheSize, "metric-kind-cache-size", serverOptions.MetricKindCacheSize,
+		"The maximum number of entries in the metric kind cache. Defaults to 0 (off). For clusters using a lot of stackdriver based auto-scaling; adjusting this value to equal the separate metric types used will help reduce internal api rate limits")
 
 	flags.Parse(os.Args)
 
