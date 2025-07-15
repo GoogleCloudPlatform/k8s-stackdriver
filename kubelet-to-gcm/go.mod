@@ -1,13 +1,13 @@
 module github.com/GoogleCloudPlatform/k8s-stackdriver/kubelet-to-gcm
 
-go 1.20
+go 1.23.0
 
 require (
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/google/gofuzz v1.1.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/common v0.37.0
-	golang.org/x/net v0.25.0
+	golang.org/x/net v0.42.0
 	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b
 	google.golang.org/api v0.30.0
 	k8s.io/apimachinery v0.26.3
@@ -30,8 +30,8 @@ require (
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
 	go.opencensus.io v0.22.4 // indirect
-	golang.org/x/sys v0.20.0 // indirect
-	golang.org/x/text v0.15.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
+	golang.org/x/text v0.27.0 // indirect
 	google.golang.org/appengine v1.6.6 // indirect
 	google.golang.org/genproto v0.0.0-20220502173005-c8bf987b8c21 // indirect
 	google.golang.org/grpc v1.49.0 // indirect
