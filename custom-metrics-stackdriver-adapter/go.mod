@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.3.0
 	github.com/google/go-cmp v0.6.0
 	github.com/prometheus/client_golang v1.18.0
-	golang.org/x/oauth2 v0.19.0
+	golang.org/x/oauth2 v0.27.0
 	google.golang.org/api v0.126.0
 	k8s.io/api v0.29.4
 	k8s.io/apimachinery v0.29.4
