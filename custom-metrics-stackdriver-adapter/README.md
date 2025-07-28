@@ -323,7 +323,6 @@ https://github.com/GoogleCloudPlatform/k8s-stackdriver/tree/master/prometheus-to
 https://prometheus.io/docs/instrumenting/exposition_formats
 [existing metrics from other GCP services]:
 https://cloud.google.com/monitoring/api/metrics_gcp
-[fallback-for-container-metrics]:
-https://github.com/znirzej/k8s-stackdriver/tree/adapter-container-metrics/custom-metrics-stackdriver-adapter#fallback-for-container-metrics
+[fallback-for-container-metrics]: #fallback-for-container-metrics
 [example deployment with this flag set]:
-https://github.com/GoogleCloudPlatform/k8s-stackdriver/blob/master/custom-metrics-stackdriver-adapter/deploy/staging/adapter_new_resource_model_external_cache.yaml
+https://github.com/GoogleCloudPlatform/k8s-stackdriver/blob/master/custom-metrics-stackdriver-adapter/deploy/production/adapter_new_resource_model.yaml
