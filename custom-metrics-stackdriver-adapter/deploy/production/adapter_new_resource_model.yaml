@@ -89,7 +89,7 @@ spec:
     spec:
       serviceAccountName: custom-metrics-stackdriver-adapter
       containers:
-      - image: gcr.io/gke-release/custom-metrics-stackdriver-adapter:v0.16.1-gke.0
+      - image: gcr.io/gke-release/custom-metrics-stackdriver-adapter:v0.16.2-gke.0
         imagePullPolicy: Always
         name: pod-custom-metrics-stackdriver-adapter
         command:
