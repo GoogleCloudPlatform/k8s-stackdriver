@@ -90,15 +90,15 @@ func main() {
 		glog.Fatalf("Failed to initialize kubernetes client: %v", err)
 	}
 
-	var podLabelCollector podlabels.PodLabelCollector = nil
+	var informer podlabels.PodLabelCollector = nil
+	stopCh := newSystemStopChannel()
 	if *enablePodOwnerLabel {
-		podLabelCollector, err = podlabels.NewCollector(client, strings.Split(*systemNamespaces, ","), *podCacheSize, *emptyLabelPodCacheSize, *emptyLabelPodCacheTTL, *getPodTimeout)
-		if err != nil {
-			glog.Fatalf("Failed to initialize pod label collector: %v", err)
-		}
+		factory := podlabels.NewPodLabelsSharedInformerFactory(client, strings.Split(*systemNamespaces, ","))
+		informer = factory.NewPodLabelsSharedInformer()
+		factory.Run(stopCh)
 	}
 
-	sink, err := stackdriver.NewSdSinkFactory().CreateNew(strings.Split(*sinkOpts, " "), podLabelCollector)
+	sink, err := stackdriver.NewSdSinkFactory().CreateNew(strings.Split(*sinkOpts, " "), informer)
 	if err != nil {
 		glog.Fatalf("Failed to initialize sink: %v", err)
 	}
@@ -115,6 +115,5 @@ func main() {
 		glog.Fatalf("Prometheus monitoring failed: %v", http.ListenAndServe(*prometheusEndpoint, nil))
 	}()
 
-	stopCh := newSystemStopChannel()
 	eventExporter.Run(stopCh)
 }
