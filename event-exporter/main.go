@@ -44,11 +44,12 @@ var (
 	systemNamespaces = flag.String("system-namespaces", "kube-system,gke-connect", "Comma "+
 		"separated list of system namespaces to skip the owner label collection")
 
-	enablePodOwnerLabel    = flag.Bool("enable-pod-owner-label", true, "Whether to enable the pod label collector to add pod owner labels to log entries")
-	podCacheSize           = flag.Int("pod-label-cache-size", 2048, "When enable-pod-owner-label, the maximum number of pods in the label cache")
-	emptyLabelPodCacheSize = flag.Int("pod-empty-label-cache-size", 4096, "When enable-pod-owner-label, the maximum number of cached pods with empty label, to prevent repeated checks")
-	emptyLabelPodCacheTTL  = flag.Duration("pod-empty-label-cache-ttl", 2*time.Hour, "When enable-pod-owner-label, for pods with empty label, how long to keep their cache before checking again")
-	getPodTimeout          = flag.Duration("pod-get-timeout", 3*time.Second, "When enable-pod-owner-label, the timeout when getting pod labels")
+	enablePodOwnerLabel      = flag.Bool("enable-pod-owner-label", true, "Whether to enable the pod label collector to add pod owner labels to log entries")
+	podCacheSize             = flag.Int("pod-label-cache-size", 2048, "When enable-pod-owner-label, the maximum number of pods in the label cache")
+	emptyLabelPodCacheSize   = flag.Int("pod-empty-label-cache-size", 4096, "When enable-pod-owner-label, the maximum number of cached pods with empty label, to prevent repeated checks")
+	emptyLabelPodCacheTTL    = flag.Duration("pod-empty-label-cache-ttl", 2*time.Hour, "When enable-pod-owner-label, for pods with empty label, how long to keep their cache before checking again")
+	getPodTimeout            = flag.Duration("pod-get-timeout", 3*time.Second, "When enable-pod-owner-label, the timeout when getting pod labels")
+	enableRemoveOptionsLimit = flag.Bool("enable-remove-options-limit", false, "When enable-remove-options-limit, `options.Limit=1` will be removed from `kubernetes/watchers/events/watcher.go`")
 )
 
 func newSystemStopChannel() chan struct{} {
@@ -100,7 +101,7 @@ func main() {
 		glog.Fatalf("Failed to initialize sink: %v", err)
 	}
 
-	eventExporter := newEventExporter(client, sink, *resyncPeriod)
+	eventExporter := newEventExporter(client, sink, *resyncPeriod, *enableRemoveOptionsLimit)
 
 	// Expose the Prometheus http endpoint
 	go func() {
