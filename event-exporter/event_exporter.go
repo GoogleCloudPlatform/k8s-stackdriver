@@ -37,18 +37,19 @@ func (e *eventExporter) Run(stopCh <-chan struct{}) {
 	utils.RunConcurrentlyUntil(stopCh, e.sink.Run, e.watcher.Run)
 }
 
-func newEventExporter(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration, eventLabelSelector labels.Selector) *eventExporter {
+func newEventExporter(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration, eventLabelSelector labels.Selector, enableRemoveOptionsLimit bool) *eventExporter {
 	return &eventExporter{
 		sink:    sink,
-		watcher: createWatcher(client, sink, resyncPeriod, eventLabelSelector),
+		watcher: createWatcher(client, sink, resyncPeriod, eventLabelSelector, enableRemoveOptionsLimit),
 	}
 }
 
-func createWatcher(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration, eventLabelSelector labels.Selector) watchers.Watcher {
+func createWatcher(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration, eventLabelSelector labels.Selector, enableRemoveOptionsLimit bool) watchers.Watcher {
 	return events.NewEventWatcher(client, &events.EventWatcherConfig{
-		OnList:             sink.OnList,
-		ResyncPeriod:       resyncPeriod,
-		Handler:            sink,
-		EventLabelSelector: eventLabelSelector,
+		OnList:                   sink.OnList,
+		ResyncPeriod:             resyncPeriod,
+		Handler:                  sink,
+		EventLabelSelector:       eventLabelSelector,
+		EnableRemoveOptionsLimit: enableRemoveOptionsLimit,
 	})
 }
