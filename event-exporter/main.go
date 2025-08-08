@@ -45,12 +45,13 @@ var (
 	systemNamespaces = flag.String("system-namespaces", "kube-system,gke-connect", "Comma "+
 		"separated list of system namespaces to skip the owner label collection")
 
-	enablePodOwnerLabel    = flag.Bool("enable-pod-owner-label", true, "Whether to enable the pod label collector to add pod owner labels to log entries")
-	podCacheSize           = flag.Int("pod-label-cache-size", 2048, "When enable-pod-owner-label, the maximum number of pods in the label cache")
-	emptyLabelPodCacheSize = flag.Int("pod-empty-label-cache-size", 4096, "When enable-pod-owner-label, the maximum number of cached pods with empty label, to prevent repeated checks")
-	emptyLabelPodCacheTTL  = flag.Duration("pod-empty-label-cache-ttl", 2*time.Hour, "When enable-pod-owner-label, for pods with empty label, how long to keep their cache before checking again")
-	getPodTimeout          = flag.Duration("pod-get-timeout", 3*time.Second, "When enable-pod-owner-label, the timeout when getting pod labels")
-	eventLabelSelector     = flag.String("event-label-selector", "", "Export events only if they match the given label selector. Same syntax as kubectl label")
+	enablePodOwnerLabel      = flag.Bool("enable-pod-owner-label", true, "Whether to enable the pod label collector to add pod owner labels to log entries")
+	podCacheSize             = flag.Int("pod-label-cache-size", 2048, "When enable-pod-owner-label, the maximum number of pods in the label cache")
+	emptyLabelPodCacheSize   = flag.Int("pod-empty-label-cache-size", 4096, "When enable-pod-owner-label, the maximum number of cached pods with empty label, to prevent repeated checks")
+	emptyLabelPodCacheTTL    = flag.Duration("pod-empty-label-cache-ttl", 2*time.Hour, "When enable-pod-owner-label, for pods with empty label, how long to keep their cache before checking again")
+	getPodTimeout            = flag.Duration("pod-get-timeout", 3*time.Second, "When enable-pod-owner-label, the timeout when getting pod labels")
+	eventLabelSelector       = flag.String("event-label-selector", "", "Export events only if they match the given label selector. Same syntax as kubectl label")
+	enableRemoveOptionsLimit = flag.Bool("enable-remove-options-limit", false, "When enable-remove-options-limit, `options.Limit=1` at kubernetes/watchers/events/watcher.go will be removed.")
 )
 
 func newSystemStopChannel() chan struct{} {
@@ -106,7 +107,7 @@ func main() {
 	if err != nil {
 		glog.Fatalf("Invalid event label selector:%v", err)
 	}
-	eventExporter := newEventExporter(client, sink, *resyncPeriod, parsedLabelSelector)
+	eventExporter := newEventExporter(client, sink, *resyncPeriod, parsedLabelSelector, *enableRemoveOptionsLimit)
 
 	// Expose the Prometheus http endpoint
 	go func() {
