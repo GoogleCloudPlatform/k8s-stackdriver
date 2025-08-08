@@ -1,8 +1,6 @@
 package podlabels
 
 import (
-	"time"
-
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -35,11 +33,9 @@ var podGetCount = prometheus.NewCounterVec(
 
 func init() {
 	prometheus.MustRegister(cacheOpsCount)
-	prometheus.MustRegister(podGetCount)
-	prometheus.MustRegister(noLabelPodCacheOpsCount)
 }
 
-func recordEviction(pod cacheKey, labels map[string]string) {
+func recordEviction() {
 	cacheOpsCount.WithLabelValues("evict").Add(1)
 }
 func recordAddition() {
@@ -52,28 +48,4 @@ func recordQueryHit() {
 
 func recordQueryMiss() {
 	cacheOpsCount.WithLabelValues("querymiss").Add(1)
-}
-
-func recordPodGet(status string) {
-	podGetCount.WithLabelValues(status).Add(1)
-}
-
-func recordEmptyLabelPodCacheEvict(pod cacheKey, timestamp time.Time) {
-	noLabelPodCacheOpsCount.WithLabelValues("evict").Add(1)
-}
-
-func recordEmptyLabelPodCacheAddition() {
-	noLabelPodCacheOpsCount.WithLabelValues("add").Add(1)
-}
-
-func recordEmptyLabelPodCacheHit() {
-	noLabelPodCacheOpsCount.WithLabelValues("queryhit").Add(1)
-}
-
-func recordEmptyLabelPodCacheExpire() {
-	noLabelPodCacheOpsCount.WithLabelValues("expire").Add(1)
-}
-
-func recordEmptyLabelPodCacheMiss() {
-	noLabelPodCacheOpsCount.WithLabelValues("querymiss").Add(1)
 }
