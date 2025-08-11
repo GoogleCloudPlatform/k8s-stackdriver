@@ -58,6 +58,7 @@ func NewPodLabelsSharedInformerFactory(client kubernetes.Interface, ignoredNames
 						Name:            pod.Name,
 						Namespace:       pod.Namespace,
 						OwnerReferences: pod.OwnerReferences,
+						Labels:          pod.Labels,
 					},
 				}, nil
 			}),

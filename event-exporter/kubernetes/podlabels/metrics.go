@@ -13,24 +13,6 @@ var cacheOpsCount = prometheus.NewCounterVec(
 	[]string{"operation"},
 )
 
-var noLabelPodCacheOpsCount = prometheus.NewCounterVec(
-	prometheus.CounterOpts{
-		Name:      "nolabel_pod_cache_ops_count",
-		Help:      "Number of operations in the cache for pods with empty labels",
-		Subsystem: "podlabel",
-	},
-	[]string{"operation"},
-)
-
-var podGetCount = prometheus.NewCounterVec(
-	prometheus.CounterOpts{
-		Name:      "get_count",
-		Help:      "Number of get pod requests to apiserver",
-		Subsystem: "podlabel",
-	},
-	[]string{"status"},
-)
-
 func init() {
 	prometheus.MustRegister(cacheOpsCount)
 }

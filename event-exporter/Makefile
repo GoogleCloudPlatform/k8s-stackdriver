@@ -20,7 +20,7 @@ ALL_ARCH=amd64 arm64
 IMAGE_NAME = event-exporter
 
 PREFIX ?= staging-k8s.gcr.io
-TAG ?= v0.5.2
+TAG ?= v0.5.6
 
 IMAGE=$(PREFIX)/$(IMAGE_NAME)
 
