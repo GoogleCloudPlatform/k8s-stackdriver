@@ -66,11 +66,23 @@ func TestIsMetricLabel(t *testing.T) {
 			want:  false,
 		},
 		{
+			desc: "tenantUIDLabel matches",
+			config: &podConfigImpl{
+				containerNameLabel: "foo",
+				podIdLabel:         "bar",
+				namespaceIdLabel:   "abc",
+				tenantUIDLabel:     "def",
+			},
+			label: "def",
+			want:  false,
+		},
+		{
 			desc: "none match",
 			config: &podConfigImpl{
 				containerNameLabel: "foo",
 				podIdLabel:         "bar",
 				namespaceIdLabel:   "abc",
+				tenantUIDLabel:     "def",
 			},
 			label: "xyz",
 			want:  true,
@@ -89,6 +101,7 @@ func TestGetPodInfo(t *testing.T) {
 	container, containerLabel := "container", "cLabel"
 	pod, podLabel := "pod", "pLabel"
 	namespace, namespaceLabel := "namespace", "nLabel"
+	tenantUID, tenantUIDLabel := "tenantUID", "tLabel"
 	other, otherLabel := "other", "olabel"
 	labels := []*dto.LabelPair{
 		{
@@ -107,6 +120,10 @@ func TestGetPodInfo(t *testing.T) {
 			Name:  &namespaceLabel,
 			Value: &namespace,
 		},
+		{
+			Name:  &tenantUIDLabel,
+			Value: &tenantUID,
+		},
 	}
 	for _, tc := range []struct {
 		desc              string
@@ -114,6 +131,7 @@ func TestGetPodInfo(t *testing.T) {
 		wantContainerName string
 		wantPodId         string
 		wantNamespaceId   string
+		wantTenantUID     string
 	}{
 		{
 			desc:              "empty",
@@ -193,9 +211,16 @@ func TestGetPodInfo(t *testing.T) {
 			wantPodId:         "podid",
 			wantNamespaceId:   "namespaceid",
 		},
+		{
+			desc: "tenant UID specified",
+			config: &podConfigImpl{
+				tenantUIDLabel: tenantUIDLabel,
+			},
+			wantTenantUID: tenantUID,
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			container, pod, namespace := tc.config.GetPodInfo(labels)
+			container, pod, namespace, tenantUID := tc.config.GetPodInfo(labels)
 			if container != tc.wantContainerName {
 				t.Errorf("Unexpected containerName; got %q, want %q", container, tc.wantContainerName)
 			}
@@ -204,6 +229,9 @@ func TestGetPodInfo(t *testing.T) {
 			}
 			if namespace != tc.wantNamespaceId {
 				t.Errorf("Unexpected namespaceId; got %q, want %q", namespace, tc.wantNamespaceId)
+			}
+			if tenantUID != tc.wantTenantUID {
+				t.Errorf("Unexpected tenantUID; got %q, want %q", tenantUID, tc.wantTenantUID)
 			}
 		})
 	}

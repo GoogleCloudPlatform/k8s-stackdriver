@@ -480,10 +480,11 @@ func createProjectName(config *config.GceConfig) string {
 }
 
 func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.LabelPair) *monitoredres.MonitoredResource {
+	container, pod, namespace, tenantUID := config.SourceConfig.PodConfig.GetPodInfo(labels)
+
 	if config.SourceConfig.CustomResourceType != "" {
-		return getCustomMonitoredResource(config)
+		return getCustomMonitoredResource(config, tenantUID)
 	}
-	container, pod, namespace := config.SourceConfig.PodConfig.GetPodInfo(labels)
 	prefix := config.MonitoredResourceTypePrefix
 
 	if prefix == "" {
@@ -552,13 +553,14 @@ func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.L
 	}
 }
 
-func getCustomMonitoredResource(config *config.CommonConfig) *monitoredres.MonitoredResource {
+func getCustomMonitoredResource(config *config.CommonConfig, tenantUID string) *monitoredres.MonitoredResource {
 	resourceLabels := config.SourceConfig.CustomLabels
 	applyDefaultIfEmpty(resourceLabels, "instance_id", config.GceConfig.InstanceId)
 	applyDefaultIfEmpty(resourceLabels, "project_id", config.GceConfig.Project)
 	applyDefaultIfEmpty(resourceLabels, "cluster_name", config.GceConfig.Cluster)
 	applyDefaultIfEmpty(resourceLabels, "location", config.GceConfig.ClusterLocation)
 	applyDefaultIfEmpty(resourceLabels, "node_name", config.GceConfig.Instance)
+	applyDefaultIfEmpty(resourceLabels, "tenant_uid", tenantUID)
 	return &monitoredres.MonitoredResource{
 		Type:   config.SourceConfig.CustomResourceType,
 		Labels: resourceLabels,
