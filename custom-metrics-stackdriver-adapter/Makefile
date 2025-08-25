@@ -6,7 +6,7 @@ PREFIX?=staging-k8s.gcr.io
 TAG = v0.16.2
 PKG := $(shell find pkg/* -type f)
 
-.PHONY: build docker push test clean
+.PHONY: build docker push test clean verify-generated update-generated
 
 build: build/adapter
 
@@ -34,11 +34,15 @@ coverage:
 
 generated_files=pkg/api/generated/openapi/zz_generated.openapi.go
 
-.PHONY: verify-generated
 verify-generated: update-generated
 	@git diff --exit-code -- $(generated_files)
 
-.PHONY: update-generated
 update-generated:
-	go install -mod=readonly k8s.io/kube-openapi/cmd/openapi-gen
-	$(GOPATH)/bin/openapi-gen --logtostderr -i k8s.io/metrics/pkg/apis/custom_metrics,k8s.io/metrics/pkg/apis/custom_metrics/v1beta1,k8s.io/metrics/pkg/apis/custom_metrics/v1beta2,k8s.io/metrics/pkg/apis/external_metrics,k8s.io/metrics/pkg/apis/external_metrics/v1beta1,k8s.io/metrics/pkg/apis/metrics,k8s.io/metrics/pkg/apis/metrics/v1beta1,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/version,k8s.io/api/core/v1 -h ./hack/boilerplate.go.txt -p ./pkg/api/generated/openapi -O zz_generated.openapi -o ./ -r /dev/null
+	go run k8s.io/kube-openapi/cmd/openapi-gen \
+	  --logtostderr \
+	  --input-dirs k8s.io/metrics/pkg/apis/custom_metrics,k8s.io/metrics/pkg/apis/custom_metrics/v1beta1,k8s.io/metrics/pkg/apis/custom_metrics/v1beta2,k8s.io/metrics/pkg/apis/external_metrics,k8s.io/metrics/pkg/apis/external_metrics/v1beta1,k8s.io/metrics/pkg/apis/metrics,k8s.io/metrics/pkg/apis/metrics/v1beta1,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/version,k8s.io/api/core/v1 \
+	  --go-header-file ./hack/boilerplate.go.txt \
+	  --output-package ./pkg/api/generated/openapi \
+	  --output-file-base zz_generated.openapi \
+	  --output-base ./ \
+	  --report-filename /dev/null
