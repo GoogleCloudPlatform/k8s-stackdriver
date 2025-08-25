@@ -1,9 +1,9 @@
 ## Google Cloud Operations integration for GKE
 
-> :exclamation: **Tools in this repository are not meant for 
-> end-users.**
-> It contains source code for tools that are pre-installed in 
-> the GKE clusters.
+> :exclamation: **Most tools in this repository are not meant for end-users.**
+> It contains source code for tools that are pre-installed in the GKE clusters.
+> An exception to this is the [Custom Metrics - Stackdriver Adapter](custom-metrics-stackdriver-adapter),
+> which is meant for end-user consumption.
 
 [Google Cloud Operations suite][cloudOperationsSite] (fka Stackdriver) provides advanced 
 monitoring and logging solution that will allow you to get more
