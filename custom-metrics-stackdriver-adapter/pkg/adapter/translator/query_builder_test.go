@@ -17,12 +17,16 @@ limitations under the License.
 package translator
 
 import (
+	"fmt"
+	"io"
+	"net/http"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
 	"time"
 
+	sd "google.golang.org/api/monitoring/v3"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1372,6 +1376,98 @@ func TestTranslator_GetSDReqForContainer_SingleWithMetricSelector_Distribution(t
 	if !reflect.DeepEqual(*request, *expectedRequest) {
 		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
 	}
+}
+
+func TestTranslator_GetMetricKind_KindFoundInCache(t *testing.T) {
+	// should not make a call to the mockMetricKindRoundTripper
+	sdService := NewMockStackdriverService(t, &mockMetricKindRoundTripper{err: fmt.Errorf("unexpected call to Stackdriver")})
+	cache := newMetricKindCache(2, 10*time.Minute)
+	cache.add(metricKindCacheKey{
+		project: testProjectID,
+		name:    "pubsub.googleapis.com/subscription/num_undelivered_messages",
+	}, cachedMetricInfo{
+		MetricKind: "GAUGE",
+		ValueType:  "INT64",
+	})
+
+	translator := newFakeTranslatorForGetMetricKind(2*time.Minute, time.Minute, testProjectID, time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), sdService, cache)
+
+	kind, value, err := translator.GetMetricKind("pubsub.googleapis.com/subscription/num_undelivered_messages", labels.Everything())
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	if kind != "GAUGE" {
+		t.Errorf("Unexpected MetricKind. Expected: GUAGE, received: %s", kind)
+	}
+	if value != "INT64" {
+		t.Errorf("Unexpected ValueType. Expected: INT64, received: %s", value)
+	}
+}
+
+func TestTranslator_GetMetricKind_KindNotFoundInCache(t *testing.T) {
+	metricKind := "pubsub.googleapis.com/subscription/num_undelivered_messages"
+	sdService := NewMockStackdriverService(t, &mockMetricKindRoundTripper{
+		wantMetricName:  metricKind,
+		wantProjectName: testProjectID,
+		response: &sd.MetricDescriptor{
+			Type:       metricKind,
+			MetricKind: "GAUGE",
+			ValueType:  "INT64",
+		},
+	})
+	// cache is empty
+	cache := newMetricKindCache(2, 10*time.Minute)
+	translator := newFakeTranslatorForGetMetricKind(2*time.Minute, time.Minute, testProjectID, time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), sdService, cache)
+
+	kind, value, err := translator.GetMetricKind(metricKind, labels.Everything())
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	if kind != "GAUGE" {
+		t.Errorf("Unexpected MetricKind. Expected: GUAGE, received: %s", kind)
+	}
+	if value != "INT64" {
+		t.Errorf("Unexpected ValueType. Expected: INT64, received: %s", value)
+	}
+	if _, found := translator.metricKindCache.get(metricKindCacheKey{
+		project: testProjectID,
+		name:    metricKind,
+	}); !found {
+		t.Errorf("Expected metric kind to be cached, but was not found")
+	}
+}
+
+type mockMetricKindRoundTripper struct {
+	wantMetricName  string
+	wantProjectName string
+	response        *sd.MetricDescriptor
+	err             error
+}
+
+func (m *mockMetricKindRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if m.err != nil {
+		return &http.Response{StatusCode: http.StatusInternalServerError}, m.err
+	}
+	if req.Method == http.MethodGet && strings.Contains(req.URL.Path, "/metricDescriptors/") {
+		parts := strings.Split(req.URL.Path, "/")
+		if len(parts) > 5 && parts[4] == "metricDescriptors" {
+			requestedMetricName := strings.Join(parts[5:], "/")
+			if requestedMetricName != m.wantMetricName {
+				return nil, fmt.Errorf("unexpected metric name: got %s, want %s", requestedMetricName, m.wantMetricName)
+			}
+			resp := &http.Response{StatusCode: http.StatusOK, Header: make(http.Header)}
+			resp.Header.Set("Content-Type", "application/json")
+			respBody, err := m.response.MarshalJSON()
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(strings.NewReader(string(respBody)))
+			return resp, nil
+		} else {
+			return &http.Response{StatusCode: http.StatusBadRequest}, nil
+		}
+	}
+	return &http.Response{StatusCode: http.StatusNotImplemented}, nil
 }
 
 func TestQueryBuilder_Node_Single_Distribution(t *testing.T) {
