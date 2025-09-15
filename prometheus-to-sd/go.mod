@@ -14,7 +14,7 @@ require (
 	google.golang.org/api v0.224.0
 	google.golang.org/genproto v0.0.0-20240711142825-46eb208f015d
 	google.golang.org/genproto/googleapis/api v0.0.0-20241209162323-e6fa225c2576
-	google.golang.org/protobuf v1.36.5
+	google.golang.org/protobuf v1.36.9
 	k8s.io/api v0.26.2
 	k8s.io/apimachinery v0.26.2
 	k8s.io/client-go v0.26.2
