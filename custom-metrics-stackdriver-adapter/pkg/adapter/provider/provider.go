@@ -113,13 +113,18 @@ func (p *StackdriverProvider) getRootScopedMetricByName(groupResource schema.Gro
 	if err != nil {
 		return nil, err
 	}
+	metricsProject, metricSelector, err := p.translator.MetricsHostProjectFromSelector(metricSelector, false)
+	if err != nil {
+		return nil, err
+	}
 	metricName := getCustomMetricName(escapedMetricName)
-	metricKind, metricValueType, err := p.translator.GetMetricKind(metricName, metricSelector)
+	metricKind, metricValueType, err := p.translator.GetMetricKind(metricsProject, metricName)
 	if err != nil {
 		return nil, err
 	}
 	stackdriverRequest, err := translator.NewQueryBuilder(p.translator, metricName).
 		WithNodes(&v1.NodeList{Items: []v1.Node{*matchingNode}}).
+		WithMetricsProject(metricsProject).
 		WithMetricKind(metricKind).
 		WithMetricValueType(metricValueType).
 		WithMetricSelector(metricSelector).
@@ -147,8 +152,12 @@ func (p *StackdriverProvider) getRootScopedMetricBySelector(groupResource schema
 	if err != nil {
 		return nil, err
 	}
+	metricsProject, metricSelector, err := p.translator.MetricsHostProjectFromSelector(metricSelector, false)
+	if err != nil {
+		return nil, err
+	}
 	metricName := getCustomMetricName(escapedMetricName)
-	metricKind, metricValueType, err := p.translator.GetMetricKind(metricName, metricSelector)
+	metricKind, metricValueType, err := p.translator.GetMetricKind(metricsProject, metricName)
 	if err != nil {
 		return nil, err
 	}
@@ -159,6 +168,7 @@ func (p *StackdriverProvider) getRootScopedMetricBySelector(groupResource schema
 		stackdriverRequest, err := translator.NewQueryBuilder(p.translator, metricName).
 			WithNodes(nodesSlice).
 			WithMetricKind(metricKind).
+			WithMetricsProject(metricsProject).
 			WithMetricValueType(metricValueType).
 			WithMetricSelector(metricSelector).
 			Build()
@@ -189,9 +199,12 @@ func (p *StackdriverProvider) getNamespacedMetricByName(groupResource schema.Gro
 	if err != nil {
 		return nil, err
 	}
-
+	metricsProject, metricSelector, err := p.translator.MetricsHostProjectFromSelector(metricSelector, false)
+	if err != nil {
+		return nil, err
+	}
 	metricName := getCustomMetricName(escapedMetricName)
-	metricKind, metricValueType, err := p.translator.GetMetricKind(metricName, metricSelector)
+	metricKind, metricValueType, err := p.translator.GetMetricKind(metricsProject, metricName)
 	if err != nil {
 		return nil, err
 	}
@@ -201,6 +214,7 @@ func (p *StackdriverProvider) getNamespacedMetricByName(groupResource schema.Gro
 	stackdriverRequest, err := queryBuilder.
 		WithPods(pods).
 		WithMetricKind(metricKind).
+		WithMetricsProject(metricsProject).
 		WithMetricValueType(metricValueType).
 		WithMetricSelector(metricSelector).
 		WithNamespace(namespace).
@@ -219,6 +233,7 @@ func (p *StackdriverProvider) getNamespacedMetricByName(groupResource schema.Gro
 			AsContainerType().
 			WithPods(pods).
 			WithMetricKind(metricKind).
+			WithMetricsProject(metricsProject).
 			WithMetricValueType(metricValueType).
 			WithMetricSelector(metricSelector).
 			WithNamespace(namespace).
@@ -249,10 +264,14 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 	if err != nil {
 		return nil, err
 	}
+	metricsProject, metricSelector, err := p.translator.MetricsHostProjectFromSelector(metricSelector, false)
+	if err != nil {
+		return nil, err
+	}
 	metricName := getCustomMetricName(escapedMetricName)
 	klog.V(4).Infof("Querying for metric: %s", metricName)
 
-	metricKind, metricValueType, err := p.translator.GetMetricKind(metricName, metricSelector)
+	metricKind, metricValueType, err := p.translator.GetMetricKind(metricsProject, metricName)
 	if err != nil {
 		return nil, err
 	}
@@ -260,6 +279,7 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 	queryBuilder := translator.NewQueryBuilder(p.translator, metricName).
 		WithMetricKind(metricKind).
 		WithMetricSelector(metricSelector).
+		WithMetricsProject(metricsProject).
 		WithMetricValueType(metricValueType).
 		WithNamespace(namespace)
 
@@ -290,6 +310,7 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 				AsContainerType().
 				WithPods(podsSlice).
 				WithMetricKind(metricKind).
+				WithMetricsProject(metricsProject).
 				WithMetricValueType(metricValueType).
 				WithMetricSelector(metricSelector).
 				WithNamespace(namespace).
@@ -335,17 +356,22 @@ func (p *StackdriverProvider) GetExternalMetric(ctx context.Context, namespace s
 		}
 	}
 
+	metricsProject, metricSelector, err := p.translator.MetricsHostProjectFromSelector(metricSelector, true)
+	if err != nil {
+		return nil, err
+	}
+
 	// Proceed to do a fresh fetch for metrics since one of the following is true at this point
 	// a) externalMetricCache is disabled
 	// b) the key was never added to the cache
 	// c) the key was in the cache, but its corrupt or its TTL has expired
 	metricNameEscaped := info.Metric
 	metricName := getExternalMetricName(metricNameEscaped)
-	metricKind, metricValueType, err := p.translator.GetMetricKind(metricName, metricSelector)
+	metricKind, metricValueType, err := p.translator.GetMetricKind(metricsProject, metricName)
 	if err != nil {
 		return nil, err
 	}
-	stackdriverRequest, err := p.translator.GetExternalMetricRequest(metricName, metricKind, metricValueType, metricSelector)
+	stackdriverRequest, err := p.translator.GetExternalMetricRequest(metricsProject, metricName, metricKind, metricValueType, metricSelector)
 	if err != nil {
 		return nil, err
 	}
