@@ -2748,6 +2748,10 @@ type LogEntry struct {
 	// LogEntry. May be empty if there is no associated AppHub application or
 	// multiple associated applications (such as for VPC flow logs)
 	Apphub *AppHub `json:"apphub,omitempty"`
+	// ApphubDestination: Output only. AppHub application metadata associated with
+	// the destination application. This is only populated if the log represented
+	// "edge"-like data (such as for VPC flow logs) with a source and destination.
+	ApphubDestination *AppHub `json:"apphubDestination,omitempty"`
 	// ErrorGroups: Output only. The Error Reporting
 	// (https://cloud.google.com/error-reporting) error groups associated with this
 	// LogEntry. Error Reporting sets the values for this field during error group
@@ -3027,7 +3031,7 @@ type LogExclusion struct {
 	// Storage buckets:resource.type=gcs_bucket severity<ERROR sample(insertId,
 	// 0.99)
 	Filter string `json:"filter,omitempty"`
-	// Name: Output only. A client-assigned identifier, such as
+	// Name: Optional. A client-assigned identifier, such as
 	// "load-balancer-exclusion". Identifiers are limited to 100 characters and can
 	// include only letters, digits, underscores, hyphens, and periods. First
 	// character has to be alphanumeric.
@@ -3284,7 +3288,7 @@ type LogSink struct {
 	Disabled bool `json:"disabled,omitempty"`
 	// Exclusions: Optional. Log entries that match any of these exclusion filters
 	// will not be exported.If a log entry is matched by both filter and one of
-	// exclusion_filters it will not be exported.
+	// exclusions it will not be exported.
 	Exclusions []*LogExclusion `json:"exclusions,omitempty"`
 	// Filter: Optional. An advanced logs filter
 	// (https://cloud.google.com/logging/docs/view/advanced-queries). The only
@@ -3314,7 +3318,7 @@ type LogSink struct {
 	// results of a ListSinks call from a child resource if the value of the filter
 	// field in its request is either 'in_scope("ALL")' or 'in_scope("ANCESTOR")'.
 	InterceptChildren bool `json:"interceptChildren,omitempty"`
-	// Name: Output only. The client-assigned sink identifier, unique within the
+	// Name: Optional. The client-assigned sink identifier, unique within the
 	// project.For example: "my-syslog-errors-to-pubsub".Sink identifiers are
 	// limited to 100 characters and can include only the following characters:
 	// upper and lower-case alphanumeric characters, underscores, hyphens,
@@ -5707,9 +5711,9 @@ func (r *BillingAccountsLocationsService) List(name string) *BillingAccountsLoca
 	return c
 }
 
-// ExtraLocationTypes sets the optional parameter "extraLocationTypes": A list
-// of extra location types that should be used as conditions for controlling
-// the visibility of the locations.
+// ExtraLocationTypes sets the optional parameter "extraLocationTypes": Do not
+// use this field. It is unsupported and is ignored unless explicitly
+// documented otherwise. This is primarily for internal usage.
 func (c *BillingAccountsLocationsListCall) ExtraLocationTypes(extraLocationTypes ...string) *BillingAccountsLocationsListCall {
 	c.urlParams_.SetMulti("extraLocationTypes", append([]string{}, extraLocationTypes...))
 	return c
@@ -9259,10 +9263,11 @@ type BillingAccountsLogsDeleteCall struct {
 	header_    http.Header
 }
 
-// Delete: Deletes all the log entries in a log for the _Default Log Bucket.
-// The log reappears if it receives new entries. Log entries written shortly
-// before the delete operation might not be deleted. Entries received after the
-// delete operation with a timestamp before the operation will be deleted.
+// Delete: Deletes all the log entries in a log for the global _Default Log
+// Bucket. The log reappears if it receives new entries. Log entries written
+// shortly before the delete operation might not be deleted. Entries received
+// after the delete operation with a timestamp before the operation will be
+// deleted.
 //
 //   - logName: The resource name of the log to delete:
 //     projects/[PROJECT_ID]/logs/[LOG_ID]
@@ -12456,9 +12461,9 @@ func (r *FoldersLocationsService) List(name string) *FoldersLocationsListCall {
 	return c
 }
 
-// ExtraLocationTypes sets the optional parameter "extraLocationTypes": A list
-// of extra location types that should be used as conditions for controlling
-// the visibility of the locations.
+// ExtraLocationTypes sets the optional parameter "extraLocationTypes": Do not
+// use this field. It is unsupported and is ignored unless explicitly
+// documented otherwise. This is primarily for internal usage.
 func (c *FoldersLocationsListCall) ExtraLocationTypes(extraLocationTypes ...string) *FoldersLocationsListCall {
 	c.urlParams_.SetMulti("extraLocationTypes", append([]string{}, extraLocationTypes...))
 	return c
@@ -16922,10 +16927,11 @@ type FoldersLogsDeleteCall struct {
 	header_    http.Header
 }
 
-// Delete: Deletes all the log entries in a log for the _Default Log Bucket.
-// The log reappears if it receives new entries. Log entries written shortly
-// before the delete operation might not be deleted. Entries received after the
-// delete operation with a timestamp before the operation will be deleted.
+// Delete: Deletes all the log entries in a log for the global _Default Log
+// Bucket. The log reappears if it receives new entries. Log entries written
+// shortly before the delete operation might not be deleted. Entries received
+// after the delete operation with a timestamp before the operation will be
+// deleted.
 //
 //   - logName: The resource name of the log to delete:
 //     projects/[PROJECT_ID]/logs/[LOG_ID]
@@ -18143,9 +18149,9 @@ func (r *LocationsService) List(name string) *LocationsListCall {
 	return c
 }
 
-// ExtraLocationTypes sets the optional parameter "extraLocationTypes": A list
-// of extra location types that should be used as conditions for controlling
-// the visibility of the locations.
+// ExtraLocationTypes sets the optional parameter "extraLocationTypes": Do not
+// use this field. It is unsupported and is ignored unless explicitly
+// documented otherwise. This is primarily for internal usage.
 func (c *LocationsListCall) ExtraLocationTypes(extraLocationTypes ...string) *LocationsListCall {
 	c.urlParams_.SetMulti("extraLocationTypes", append([]string{}, extraLocationTypes...))
 	return c
@@ -21045,10 +21051,11 @@ type LogsDeleteCall struct {
 	header_    http.Header
 }
 
-// Delete: Deletes all the log entries in a log for the _Default Log Bucket.
-// The log reappears if it receives new entries. Log entries written shortly
-// before the delete operation might not be deleted. Entries received after the
-// delete operation with a timestamp before the operation will be deleted.
+// Delete: Deletes all the log entries in a log for the global _Default Log
+// Bucket. The log reappears if it receives new entries. Log entries written
+// shortly before the delete operation might not be deleted. Entries received
+// after the delete operation with a timestamp before the operation will be
+// deleted.
 //
 //   - logName: The resource name of the log to delete:
 //     projects/[PROJECT_ID]/logs/[LOG_ID]
@@ -22675,9 +22682,9 @@ func (r *OrganizationsLocationsService) List(name string) *OrganizationsLocation
 	return c
 }
 
-// ExtraLocationTypes sets the optional parameter "extraLocationTypes": A list
-// of extra location types that should be used as conditions for controlling
-// the visibility of the locations.
+// ExtraLocationTypes sets the optional parameter "extraLocationTypes": Do not
+// use this field. It is unsupported and is ignored unless explicitly
+// documented otherwise. This is primarily for internal usage.
 func (c *OrganizationsLocationsListCall) ExtraLocationTypes(extraLocationTypes ...string) *OrganizationsLocationsListCall {
 	c.urlParams_.SetMulti("extraLocationTypes", append([]string{}, extraLocationTypes...))
 	return c
@@ -27141,10 +27148,11 @@ type OrganizationsLogsDeleteCall struct {
 	header_    http.Header
 }
 
-// Delete: Deletes all the log entries in a log for the _Default Log Bucket.
-// The log reappears if it receives new entries. Log entries written shortly
-// before the delete operation might not be deleted. Entries received after the
-// delete operation with a timestamp before the operation will be deleted.
+// Delete: Deletes all the log entries in a log for the global _Default Log
+// Bucket. The log reappears if it receives new entries. Log entries written
+// shortly before the delete operation might not be deleted. Entries received
+// after the delete operation with a timestamp before the operation will be
+// deleted.
 //
 //   - logName: The resource name of the log to delete:
 //     projects/[PROJECT_ID]/logs/[LOG_ID]
@@ -29199,9 +29207,9 @@ func (r *ProjectsLocationsService) List(name string) *ProjectsLocationsListCall 
 	return c
 }
 
-// ExtraLocationTypes sets the optional parameter "extraLocationTypes": A list
-// of extra location types that should be used as conditions for controlling
-// the visibility of the locations.
+// ExtraLocationTypes sets the optional parameter "extraLocationTypes": Do not
+// use this field. It is unsupported and is ignored unless explicitly
+// documented otherwise. This is primarily for internal usage.
 func (c *ProjectsLocationsListCall) ExtraLocationTypes(extraLocationTypes ...string) *ProjectsLocationsListCall {
 	c.urlParams_.SetMulti("extraLocationTypes", append([]string{}, extraLocationTypes...))
 	return c
@@ -33665,10 +33673,11 @@ type ProjectsLogsDeleteCall struct {
 	header_    http.Header
 }
 
-// Delete: Deletes all the log entries in a log for the _Default Log Bucket.
-// The log reappears if it receives new entries. Log entries written shortly
-// before the delete operation might not be deleted. Entries received after the
-// delete operation with a timestamp before the operation will be deleted.
+// Delete: Deletes all the log entries in a log for the global _Default Log
+// Bucket. The log reappears if it receives new entries. Log entries written
+// shortly before the delete operation might not be deleted. Entries received
+// after the delete operation with a timestamp before the operation will be
+// deleted.
 //
 //   - logName: The resource name of the log to delete:
 //     projects/[PROJECT_ID]/logs/[LOG_ID]
