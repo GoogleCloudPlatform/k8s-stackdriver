@@ -1,0 +1,18 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: dummy
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dummy
+  template:
+    metadata:
+      labels:
+        app: dummy
+    spec:
+      containers:
+      - name: long
+        image: busybox
+        command: ["/bin/sh",  "-c", "sleep 180000000"]
