@@ -560,7 +560,7 @@ func getCustomMonitoredResource(config *config.CommonConfig, tenantUID string) *
 	applyDefaultIfEmpty(resourceLabels, "cluster_name", config.GceConfig.Cluster)
 	applyDefaultIfEmpty(resourceLabels, "location", config.GceConfig.ClusterLocation)
 	applyDefaultIfEmpty(resourceLabels, "node_name", config.GceConfig.Instance)
-	applyDefaultIfEmpty(resourceLabels, "tenant_uid", tenantUID)
+	applyDefaultIfFound(resourceLabels, "tenant_uid", tenantUID)
 	return &monitoredres.MonitoredResource{
 		Type:   config.SourceConfig.CustomResourceType,
 		Labels: resourceLabels,
@@ -569,6 +569,12 @@ func getCustomMonitoredResource(config *config.CommonConfig, tenantUID string) *
 
 func applyDefaultIfEmpty(resourceLabels map[string]string, key, defaultValue string) {
 	if val, found := resourceLabels[key]; found && val == "" {
+		resourceLabels[key] = defaultValue
+	}
+}
+
+func applyDefaultIfFound(resourceLabels map[string]string, key, defaultValue string) {
+	if _, found := resourceLabels[key]; found {
 		resourceLabels[key] = defaultValue
 	}
 }

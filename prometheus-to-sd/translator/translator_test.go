@@ -563,7 +563,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 						"location":     "",
 						"instance_id":  "",
 						"node_name":    "",
-						"tenant_uid":   "",
+						"tenant_uid":   "old-tenant-uid",
 					},
 					PodConfig: config.NewPodConfig("", "", "", "", "", "tenantUIDLabel"),
 				},
