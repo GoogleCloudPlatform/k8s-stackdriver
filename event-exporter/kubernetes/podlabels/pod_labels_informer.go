@@ -53,12 +53,19 @@ func NewPodLabelsSharedInformerFactory(client kubernetes.Interface, ignoredNames
 				if _, ok := ignoredNamespacesMap[pod.Namespace]; ok {
 					return nil, nil
 				}
+				labels := make(map[string]string)
+				if v, ok := pod.Labels["pod-template-hash"]; ok {
+					labels["pod-template-hash"] = v
+				}
+				if v, ok := pod.Labels[jobSetNameLabelKey]; ok {
+					labels[jobSetNameLabelKey] = v
+				}
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:            pod.Name,
 						Namespace:       pod.Namespace,
 						OwnerReferences: pod.OwnerReferences,
-						Labels:          pod.Labels,
+						Labels:          labels,
 					},
 				}, nil
 			}),

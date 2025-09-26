@@ -31,6 +31,10 @@ const (
 	// TTLStorage storage type indicates storage with expiration. When this
 	// type of storage is used, TTL should be specified.
 	TTLStorage
+	// DeltaFIFOStorage storage type indicates a producer-consumer queue that
+	// stores a slice of event deltas (Deltas)** for each object key,
+	// typically used for the Reflector to produce and a consumer to Pop.
+	DeltaFIFOStorage
 )
 
 // WatcherStoreConfig represents the configuration of the storage backing the watcher.
@@ -42,7 +46,7 @@ type WatcherStoreConfig struct {
 }
 
 type watcherStore struct {
-	cache.Store
+	cache.ReflectorStore
 
 	handler cache.ResourceEventHandler
 }
@@ -63,19 +67,19 @@ func (s *watcherStore) Delete(obj interface{}) error {
 }
 
 func newWatcherStore(config *WatcherStoreConfig) *watcherStore {
-	var cacheStorage cache.Store
+	var cacheStorage cache.ReflectorStore
 	switch config.StorageType {
 	case TTLStorage:
 		cacheStorage = cache.NewTTLStore(config.KeyFunc, config.StorageTTL)
-		break
+	case DeltaFIFOStorage:
+		cacheStorage = cache.NewDeltaFIFOWithOptions(cache.DeltaFIFOOptions{KeyFunction: config.KeyFunc})
 	case SimpleStorage:
 	default:
 		cacheStorage = cache.NewStore(config.KeyFunc)
-		break
 	}
 
 	return &watcherStore{
-		Store:   cacheStorage,
-		handler: config.Handler,
+		ReflectorStore: cacheStorage,
+		handler:        config.Handler,
 	}
 }
