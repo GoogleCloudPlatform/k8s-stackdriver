@@ -59,11 +59,12 @@ type EventWatcherConfig struct {
 	// there can be many, e.g. because of network problems. Note also, that
 	// items in the List response WILL NOT trigger OnAdd method in handler,
 	// instead Store contents will be completely replaced.
-	OnList                   OnListFunc
-	ResyncPeriod             time.Duration
-	Handler                  EventHandler
-	EventLabelSelector       labels.Selector
-	EnableRemoveOptionsLimit bool
+	OnList                    OnListFunc
+	ResyncPeriod              time.Duration
+	Handler                   EventHandler
+	EventLabelSelector        labels.Selector
+	ListerWatcherOptionsLimit int64
+	StorageType               watchers.StorageType
 }
 
 // NewEventWatcher create a new watcher that only watches the events resource.
@@ -72,10 +73,8 @@ func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) wa
 		// List and watch events in all namespaces.
 		ListerWatcher: &cache.ListWatch{
 			ListFunc: func(options meta_v1.ListOptions) (runtime.Object, error) {
-				if !config.EnableRemoveOptionsLimit {
-					// Only return 1 item to help Reflector retrieve ResourceVersion to reestablish
-					// Watch.
-					options.Limit = 1
+				if config.ListerWatcherOptionsLimit > 0 {
+					options.Limit = config.ListerWatcherOptionsLimit
 				}
 				options.LabelSelector = config.EventLabelSelector.String()
 				list, err := client.CoreV1().Events(meta_v1.NamespaceAll).List(context.TODO(), options)
@@ -93,7 +92,7 @@ func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) wa
 		StoreConfig: &watchers.WatcherStoreConfig{
 			KeyFunc:     cache.DeletionHandlingMetaNamespaceKeyFunc,
 			Handler:     newEventHandlerWrapper(config.Handler),
-			StorageType: watchers.TTLStorage,
+			StorageType: config.StorageType,
 			StorageTTL:  eventStorageTTL,
 		},
 		ResyncPeriod:      config.ResyncPeriod,

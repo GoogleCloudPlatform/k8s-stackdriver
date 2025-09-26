@@ -34,6 +34,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/podlabels"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/watchers"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/sinks/stackdriver"
 )
 
@@ -45,13 +46,10 @@ var (
 	systemNamespaces = flag.String("system-namespaces", "kube-system,gke-connect", "Comma "+
 		"separated list of system namespaces to skip the owner label collection")
 
-	enablePodOwnerLabel      = flag.Bool("enable-pod-owner-label", true, "Whether to enable the pod label collector to add pod owner labels to log entries")
-	podCacheSize             = flag.Int("pod-label-cache-size", 2048, "When enable-pod-owner-label, the maximum number of pods in the label cache")
-	emptyLabelPodCacheSize   = flag.Int("pod-empty-label-cache-size", 4096, "When enable-pod-owner-label, the maximum number of cached pods with empty label, to prevent repeated checks")
-	emptyLabelPodCacheTTL    = flag.Duration("pod-empty-label-cache-ttl", 2*time.Hour, "When enable-pod-owner-label, for pods with empty label, how long to keep their cache before checking again")
-	getPodTimeout            = flag.Duration("pod-get-timeout", 3*time.Second, "When enable-pod-owner-label, the timeout when getting pod labels")
-	eventLabelSelector       = flag.String("event-label-selector", "", "Export events only if they match the given label selector. Same syntax as kubectl label")
-	enableRemoveOptionsLimit = flag.Bool("enable-remove-options-limit", false, "When enable-remove-options-limit, `options.Limit=1` at kubernetes/watchers/events/watcher.go will be removed.")
+	enablePodOwnerLabel       = flag.Bool("enable-pod-owner-label", true, "Whether to enable the pod label collector to add pod owner labels to log entries")
+	eventLabelSelector        = flag.String("event-label-selector", "", "Export events only if they match the given label selector. Same syntax as kubectl label")
+	listerWatcherOptionsLimit = flag.Int64("lister-watcher-options-limit", 100, "Maximum number of responses to return for a list call on events watch. Larger the number, higher the memory event-exporter will consume. No limits when set to 0.")
+	storageType               = flag.String("storage-type", "DeltaFIFOStorage", "What storage should be used as a cache for the watcher. Supported sotrage type: SimpleStorage, TTLStorage and DeltaFIFOStorage.")
 )
 
 func newSystemStopChannel() chan struct{} {
@@ -107,7 +105,19 @@ func main() {
 	if err != nil {
 		glog.Fatalf("Invalid event label selector:%v", err)
 	}
-	eventExporter := newEventExporter(client, sink, *resyncPeriod, parsedLabelSelector, *enableRemoveOptionsLimit)
+
+	var st watchers.StorageType
+	switch *storageType {
+	case "SimpleStorage":
+		st = watchers.SimpleStorage
+	case "TTLStorage":
+		st = watchers.TTLStorage
+	case "DeltaFIFOStorage":
+		st = watchers.DeltaFIFOStorage
+	}
+	glog.Fatalf("Unsupported storage type:%v.", *storageType)
+
+	eventExporter := newEventExporter(client, sink, *resyncPeriod, parsedLabelSelector, *listerWatcherOptionsLimit, st)
 
 	// Expose the Prometheus http endpoint
 	go func() {
