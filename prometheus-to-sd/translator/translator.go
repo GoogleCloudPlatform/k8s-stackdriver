@@ -19,6 +19,7 @@ package translator
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math"
 	"strings"
 	"time"
@@ -312,7 +313,7 @@ func translateOne(config *config.CommonConfig,
 			Labels: getMetricLabels(config, m.GetLabel()),
 			Type:   getMetricType(config, name),
 		},
-		Resource:   getMonitoredResourceFromLabels(config, m.GetLabel()),
+		Resource:   mr,
 		MetricKind: metricKind,
 		ValueType:  valueType,
 		Points:     []*v3.Point{point},
@@ -560,10 +561,12 @@ func getCustomMonitoredResource(config *config.CommonConfig, tenantUID string) *
 	applyDefaultIfEmpty(resourceLabels, "cluster_name", config.GceConfig.Cluster)
 	applyDefaultIfEmpty(resourceLabels, "location", config.GceConfig.ClusterLocation)
 	applyDefaultIfEmpty(resourceLabels, "node_name", config.GceConfig.Instance)
-	applyDefaultIfFound(resourceLabels, "tenant_uid", tenantUID)
 	return &monitoredres.MonitoredResource{
-		Type:   config.SourceConfig.CustomResourceType,
-		Labels: resourceLabels,
+		Type: config.SourceConfig.CustomResourceType,
+		// Need to clone the map because timeseries created using this label can
+		// have its label value overwritten by a newer value of tenant_uid before
+		// it was even exported since map would have pointed to the same address.
+		Labels: cloneAndApplyDefaultIfFound(resourceLabels, "tenant_uid", tenantUID),
 	}
 }
 
@@ -573,8 +576,11 @@ func applyDefaultIfEmpty(resourceLabels map[string]string, key, defaultValue str
 	}
 }
 
-func applyDefaultIfFound(resourceLabels map[string]string, key, defaultValue string) {
+func cloneAndApplyDefaultIfFound(resourceLabels map[string]string, key, defaultValue string) map[string]string {
 	if _, found := resourceLabels[key]; found {
-		resourceLabels[key] = defaultValue
+		resourceLabelsClone := maps.Clone(resourceLabels)
+		resourceLabelsClone[key] = defaultValue
+		return resourceLabelsClone
 	}
+	return resourceLabels
 }
