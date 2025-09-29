@@ -595,6 +595,9 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 			assert.Equal(t, tc.expectedType, monitoredResource.Type)
 			assert.Equal(t, tc.expectedLabels, monitoredResource.Labels)
 			assert.Equal(t, originalResourceLabelsInConfig, tc.config.MonitoredResourceLabels)
+			if val, ok := tc.config.SourceConfig.CustomLabels["tenant_uid"]; ok {
+				assert.NotEqual(t, tc.expectedLabels["tenant_uid"], val)
+			}
 		})
 	}
 }
