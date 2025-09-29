@@ -171,6 +171,7 @@ func (nc nodeValues) getNodeNames() []string {
 // use NewQueryBuilder() to initialize
 type QueryBuilder struct {
 	translator           *Translator     // translator provides configurations to filter
+	metricProject        string          // The project where the metrics are stored.
 	metricName           string          // metricName is the metric name to filter
 	metricKind           string          // metricKind is the metric kind to filter
 	metricValueType      string          // metricValueType is the metric value type to filter
@@ -192,9 +193,15 @@ type QueryBuilder struct {
 //	queryBuilder := NewQueryBuilder(NewTranslator(...), "custom.googleapis.com/foo")
 func NewQueryBuilder(translator *Translator, metricName string) QueryBuilder {
 	return QueryBuilder{
-		translator: translator,
-		metricName: metricName,
+		translator:    translator,
+		metricName:    metricName,
+		metricProject: translator.config.Project,
 	}
+}
+
+func (qb QueryBuilder) WithMetricsProject(projectID string) QueryBuilder {
+	qb.metricProject = projectID
+	return qb
 }
 
 // WithMetricKind adds a metric kind filter to the QueryBuilder
@@ -344,10 +351,10 @@ func (qb QueryBuilder) validate() error {
 			return apierr.NewInternalError(fmt.Errorf("invalid nodes parameter is set to QueryBuilder"))
 		}
 		if qb.namespace != "" {
-			return apierr.NewInternalError(fmt.Errorf("both nodes and namespace are provided, expect only one of them."))
+			return apierr.NewInternalError(fmt.Errorf("both nodes and namespace are provided, expect only one of them"))
 		}
 		if !qb.pods.isPodValuesEmpty() {
-			return apierr.NewInternalError(fmt.Errorf("both nodes and pods are provided, expect only one of them."))
+			return apierr.NewInternalError(fmt.Errorf("both nodes and pods are provided, expect only one of them"))
 		}
 	} else {
 		// pod metric
@@ -453,14 +460,14 @@ func (qb QueryBuilder) Build() (*stackdriver.ProjectsTimeSeriesListCall, error) 
 	filter := qb.composeFilter()
 
 	if qb.metricSelector.Empty() {
-		return qb.translator.createListTimeseriesRequest(filter, qb.metricKind, qb.metricValueType, ""), nil
+		return qb.translator.createListTimeseriesRequest(filter, qb.metricKind, qb.metricProject, qb.metricValueType, ""), nil
 	}
 
 	filterForSelector, reducer, err := qb.translator.filterForSelector(qb.metricSelector, allowedCustomMetricsLabelPrefixes, allowedCustomMetricsFullLabelNames)
 	if err != nil {
 		return nil, err
 	}
-	return qb.translator.createListTimeseriesRequest(joinFilters(filterForSelector, filter), qb.metricKind, qb.metricValueType, reducer), nil
+	return qb.translator.createListTimeseriesRequest(joinFilters(filterForSelector, filter), qb.metricKind, qb.metricProject, qb.metricValueType, reducer), nil
 }
 
 // NewTranslator creates a Translator
@@ -484,23 +491,21 @@ func NewTranslator(service *stackdriver.Service, gceConf *config.GceConfig, rate
 }
 
 // GetExternalMetricRequest returns Stackdriver request for query for external metric.
-func (t *Translator) GetExternalMetricRequest(metricName, metricKind, metricValueType string, metricSelector labels.Selector) (*stackdriver.ProjectsTimeSeriesListCall, error) {
+func (t *Translator) GetExternalMetricRequest(metricProject, metricName, metricKind, metricValueType string, metricSelector labels.Selector) (*stackdriver.ProjectsTimeSeriesListCall, error) {
 	if metricValueType == "DISTRIBUTION" && !t.supportDistributions {
 		return nil, apierr.NewBadRequest("Distributions are not supported")
 	}
-	metricProject, err := t.GetExternalMetricProject(metricSelector)
-	if err != nil {
-		return nil, err
+	filter := t.filterForMetric(metricName)
+	reducer := ""
+	if !metricSelector.Empty() {
+		filterForSelector, reducerForSelector, err := t.filterForSelector(metricSelector, allowedExternalMetricsLabelPrefixes, allowedExternalMetricsFullLabelNames)
+		if err != nil {
+			return nil, err
+		}
+		filter = joinFilters(filter, filterForSelector)
+		reducer = reducerForSelector
 	}
-	filterForMetric := t.filterForMetric(metricName)
-	if metricSelector.Empty() {
-		return t.createListTimeseriesRequest(filterForMetric, metricKind, metricValueType, ""), nil
-	}
-	filterForSelector, reducer, err := t.filterForSelector(metricSelector, allowedExternalMetricsLabelPrefixes, allowedExternalMetricsFullLabelNames)
-	if err != nil {
-		return nil, err
-	}
-	return t.createListTimeseriesRequestProject(joinFilters(filterForMetric, filterForSelector), metricKind, metricProject, metricValueType, reducer), nil
+	return t.createListTimeseriesRequest(filter, metricKind, metricProject, metricValueType, reducer), nil
 }
 
 // ListMetricDescriptors returns Stackdriver request for all custom metrics descriptors.
@@ -517,30 +522,15 @@ func (t *Translator) ListMetricDescriptors(fallbackForContainerMetrics bool) *st
 }
 
 // GetMetricKind returns metricKind for metric metricName, obtained from Stackdriver Monitoring API.
-func (t *Translator) GetMetricKind(metricName string, metricSelector labels.Selector) (string, string, error) {
-	metricProj := t.config.Project
+func (t *Translator) GetMetricKind(metricsProject string, metricName string) (string, string, error) {
 	cacheKey := metricKindCacheKey{
-		project: metricProj,
+		project: metricsProject,
 		name:    metricName,
 	}
 	if value, ok := t.metricKindCache.get(cacheKey); ok {
 		return value.MetricKind, value.ValueType, nil
 	}
-
-	requirements, selectable := metricSelector.Requirements()
-	if !selectable {
-		return "", "", apierr.NewBadRequest(fmt.Sprintf("Label selector is impossible to match: %s", metricSelector))
-	}
-	for _, req := range requirements {
-		if req.Key() == "resource.labels.project_id" {
-			if req.Operator() == selection.Equals || req.Operator() == selection.DoubleEquals {
-				metricProj = req.Values().List()[0]
-				break
-			}
-			return "", "", NewLabelNotAllowedError(fmt.Sprintf("Project selector must use '=' or '==': You used %s", req.Operator()))
-		}
-	}
-	response, err := t.service.Projects.MetricDescriptors.Get(fmt.Sprintf("projects/%s/metricDescriptors/%s", metricProj, metricName)).Do()
+	response, err := t.service.Projects.MetricDescriptors.Get(fmt.Sprintf("projects/%s/metricDescriptors/%s", metricsProject, metricName)).Do()
 	if err != nil {
 		return "", "", NewNoSuchMetricError(metricName, err)
 	}
@@ -551,18 +541,34 @@ func (t *Translator) GetMetricKind(metricName string, metricSelector labels.Sele
 	return response.MetricKind, response.ValueType, nil
 }
 
-// GetExternalMetricProject If the metric has "resource.labels.project_id" as a selector, then use a different project
-func (t *Translator) GetExternalMetricProject(metricSelector labels.Selector) (string, error) {
-	requirements, _ := metricSelector.Requirements()
+// MetricsHostProjectFromSelector returns the project id from the metric selector, if it's specified.
+// It supports both "resource.labels.metrics_host_project_id" and the legacy "resource.labels.project_id".
+// If "resource.labels.metrics_host_project_id" is found, it's removed from the selector.
+func (t *Translator) MetricsHostProjectFromSelector(metricSelector labels.Selector, lookupLegacySelector bool) (string, labels.Selector, error) {
+	const hostMetricProjectLabel = "resource.labels.metrics_host_project_id"
+	requirements, selectable := metricSelector.Requirements()
+	if !selectable {
+		return "", metricSelector, apierr.NewBadRequest(fmt.Sprintf("Label selector is impossible to match: %s", metricSelector))
+	}
 	for _, req := range requirements {
-		if req.Key() == "resource.labels.project_id" {
+		if req.Key() == hostMetricProjectLabel {
 			if req.Operator() == selection.Equals || req.Operator() == selection.DoubleEquals {
-				return req.Values().List()[0], nil
+				return req.Values().List()[0], removeKeyFromSelector(metricSelector, hostMetricProjectLabel), nil
 			}
-			return "", NewLabelNotAllowedError(fmt.Sprintf("Project selector must use '=' or '==': You used %s", req.Operator()))
+			return "", metricSelector, NewLabelNotAllowedError(fmt.Sprintf("Metrics project selector must use '=' or '==': You used %s", req.Operator()))
 		}
 	}
-	return t.config.Project, nil
+	if lookupLegacySelector {
+		for _, req := range requirements {
+			if req.Key() == "resource.labels.project_id" {
+				if req.Operator() == selection.Equals || req.Operator() == selection.DoubleEquals {
+					return req.Values().List()[0], metricSelector, nil
+				}
+				return "", metricSelector, NewLabelNotAllowedError(fmt.Sprintf("Metrics project selector must use '=' or '==': You used %s", req.Operator()))
+			}
+		}
+	}
+	return t.config.Project, metricSelector, nil
 }
 
 func isAllowedLabelName(labelName string, allowedLabelPrefixes []string, allowedFullLabelNames []string) bool {
@@ -577,6 +583,31 @@ func isAllowedLabelName(labelName string, allowedLabelPrefixes []string, allowed
 		}
 	}
 	return false
+}
+
+// removeKeyFromSelector returns a new selector that doesn't contain any requirement with the given key.
+func removeKeyFromSelector(selector labels.Selector, key string) labels.Selector {
+	if selector == nil || selector.Empty() {
+		return selector
+	}
+
+	reqs, selectable := selector.Requirements()
+	if !selectable {
+		return selector
+	}
+
+	var newReqs []labels.Requirement
+	for _, r := range reqs {
+		if r.Key() != key {
+			newReqs = append(newReqs, r)
+		}
+	}
+
+	if len(newReqs) == len(reqs) {
+		return selector
+	}
+
+	return labels.NewSelector().Add(newReqs...)
 }
 
 func splitMetricLabel(labelName string, allowedLabelPrefixes []string) (string, string, error) {
@@ -621,43 +652,11 @@ func (t *Translator) filterForMetric(metricName string) string {
 }
 
 // Deprecated, use FilterBuilder instead
-func (t *Translator) filterForAnyPod() string {
-	return "resource.type = \"k8s_pod\""
-}
-
-// Deprecated, use FilterBuilder instead
-func (t *Translator) filterForAnyNode() string {
-	return "resource.type = \"k8s_node\""
-}
-
-// Deprecated, use FilterBuilder instead
-func (t *Translator) filterForAnyContainer() string {
-	return "resource.type = \"k8s_container\""
-}
-
-// Deprecated, use FilterBuilder instead
 func (t *Translator) filterForAnyResource(fallbackForContainerMetrics bool) string {
 	if fallbackForContainerMetrics {
 		return "resource.type = one_of(\"k8s_pod\",\"k8s_node\",\"k8s_container\")"
 	}
 	return "resource.type = one_of(\"k8s_pod\",\"k8s_node\")"
-}
-
-// Deprecated, use FilterBuilder instead
-// The namespace string can be empty. If so, all namespaces are allowed.
-func (t *Translator) filterForPods(podNames []string, namespace string) string {
-	if len(podNames) == 0 {
-		klog.Fatalf("createFilterForPods called with empty list of pod names")
-	} else if len(podNames) == 1 {
-		if namespace == AllNamespaces {
-			return fmt.Sprintf("resource.labels.pod_name = %s", podNames[0])
-		}
-		return fmt.Sprintf("resource.labels.namespace_name = %q AND resource.labels.pod_name = %s", namespace, podNames[0])
-	}
-	if namespace == AllNamespaces {
-		return fmt.Sprintf("resource.labels.pod_name = one_of(%s)", strings.Join(podNames, ","))
-	}
-	return fmt.Sprintf("resource.labels.namespace_name = %q AND resource.labels.pod_name = one_of(%s)", namespace, strings.Join(podNames, ","))
 }
 
 // Deprecated, use FilterBuilder instead
@@ -682,16 +681,6 @@ func (t *Translator) legacyFilterForCluster() string {
 // Deprecated, use FilterBuilder instead
 func (t *Translator) legacyFilterForAnyPod() string {
 	return "resource.labels.pod_id != \"\" AND resource.labels.pod_id != \"machine\""
-}
-
-// Deprecated, use FilterBuilder instead
-func (t *Translator) legacyFilterForPods(podIDs []string) string {
-	if len(podIDs) == 0 {
-		klog.Fatalf("createFilterForIDs called with empty list of pod IDs")
-	} else if len(podIDs) == 1 {
-		return fmt.Sprintf("resource.labels.pod_id = %s", podIDs[0])
-	}
-	return fmt.Sprintf("resource.labels.pod_id = one_of(%s)", strings.Join(podIDs, ","))
 }
 
 func (t *Translator) filterForSelector(metricSelector labels.Selector, allowedLabelPrefixes []string, allowedFullLabelNames []string) (string, string, error) {
@@ -767,7 +756,7 @@ func (t *Translator) filterForSelector(metricSelector labels.Selector, allowedLa
 			if isAllowedLabelName(req.Key(), allowedLabelPrefixes, allowedFullLabelNames) {
 				value, err := strconv.ParseInt(l[0], 10, 64)
 				if err != nil {
-					return "", "", apierr.NewInternalError(fmt.Errorf("Unexpected error: value %s could not be parsed to integer", l[0]))
+					return "", "", apierr.NewInternalError(fmt.Errorf("unexpected error: value %s could not be parsed to integer", l[0]))
 				}
 				filters = append(filters, fmt.Sprintf("%s > %v", req.Key(), value))
 			} else {
@@ -777,7 +766,7 @@ func (t *Translator) filterForSelector(metricSelector labels.Selector, allowedLa
 			if isAllowedLabelName(req.Key(), allowedLabelPrefixes, allowedFullLabelNames) {
 				value, err := strconv.ParseInt(l[0], 10, 64)
 				if err != nil {
-					return "", "", apierr.NewInternalError(fmt.Errorf("Unexpected error: value %s could not be parsed to integer", l[0]))
+					return "", "", apierr.NewInternalError(fmt.Errorf("unexpected error: value %s could not be parsed to integer", l[0]))
 				}
 				filters = append(filters, fmt.Sprintf("%s < %v", req.Key(), value))
 			} else {
@@ -802,12 +791,7 @@ func (t *Translator) getMetricLabels(series *stackdriver.TimeSeries) map[string]
 	return metricLabels
 }
 
-func (t *Translator) createListTimeseriesRequest(filter, metricKind, metricValueType, reducer string) *stackdriver.ProjectsTimeSeriesListCall {
-	return t.createListTimeseriesRequestProject(filter, metricKind, t.config.Project, metricValueType, reducer)
-}
-
-func (t *Translator) createListTimeseriesRequestProject(filter, metricKind, metricProject, metricValueType, reducer string) *stackdriver.ProjectsTimeSeriesListCall {
-	project := fmt.Sprintf("projects/%s", metricProject)
+func (t *Translator) createListTimeseriesRequest(filter, metricKind, metricProject, metricValueType, reducer string) *stackdriver.ProjectsTimeSeriesListCall {
 	endTime := t.clock.Now()
 	startTime := endTime.Add(-t.reqWindow)
 	// use "ALIGN_NEXT_OLDER" by default, i.e. for metricKind "GAUGE"
@@ -820,7 +804,9 @@ func (t *Translator) createListTimeseriesRequestProject(filter, metricKind, metr
 	if metricValueType == "DISTRIBUTION" {
 		aligner = "ALIGN_DELTA"
 	}
-	ptslc := t.service.Projects.TimeSeries.List(project).Filter(filter).
+	ptslc := t.service.Projects.TimeSeries.
+		List(fmt.Sprintf("projects/%s", metricProject)).
+		Filter(filter).
 		IntervalStartTime(startTime.Format(time.RFC3339)).
 		IntervalEndTime(endTime.Format(time.RFC3339)).
 		AggregationPerSeriesAligner(aligner).
