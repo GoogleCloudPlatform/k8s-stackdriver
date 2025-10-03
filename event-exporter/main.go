@@ -114,8 +114,9 @@ func main() {
 		st = watchers.TTLStorage
 	case "DeltaFIFOStorage":
 		st = watchers.DeltaFIFOStorage
+	default:
+		glog.Fatalf("Unsupported storage type:%v.", *storageType)
 	}
-	glog.Fatalf("Unsupported storage type:%v.", *storageType)
 
 	eventExporter := newEventExporter(client, sink, *resyncPeriod, parsedLabelSelector, *listerWatcherOptionsLimit, st)
 
