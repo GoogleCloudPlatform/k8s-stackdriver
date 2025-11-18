@@ -20,7 +20,7 @@ TAG = 1.4.1
 # Rules for building the real image for deployment to gcr.io
 
 compile: monitor/kubelet monitor/controller
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -a -o $(OUT_DIR)/monitor monitor/main/daemon.go
+	GOOS=$(if $(GOOS),$(GOOS),linux) GOARCH=$(if $(GOARCH),$(GOARCH),amd64) CGO_ENABLED=0 go build -mod=vendor -a -o $(OUT_DIR)/monitor monitor/main/daemon.go
 
 test: monitor/kubelet monitor/controller
 	go test -mod=vendor ${PACKAGE}/monitor ${PACKAGE}/monitor/kubelet ${PACKAGE}/monitor/controller ${PACKAGE}/monitor/config -v
@@ -30,8 +30,12 @@ go: compile test;
 clean:
 	rm -rf build
 
-build: go
-	docker build --pull -t ${PREFIX}/kubelet-to-gcm:$(TAG) .
+docker-setup:
+	# Create a new builder instance and set it as the current active builder
+	docker buildx create --use --name multiplatformbuilder
+
+build: go docker-setup
+	docker buildx build --platform linux/amd64,linux/arm64 --pull -t ${PREFIX}/kubelet-to-gcm:$(TAG) .
 
 docker: build
 
