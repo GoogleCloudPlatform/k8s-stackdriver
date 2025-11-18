@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 FROM gcr.io/anthos-observability-agents/golang:1.24 as builder
+ARG TARGETOS
+ARG TARGETARCH
 WORKDIR /workspace/
 COPY . /workspace/
-RUN make compile
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH make compile
 
-FROM gcr.io/distroless/static:latest
+FROM --platform=$TARGETPLATFORM gcr.io/distroless/static:latest
 
 COPY --from=builder /workspace/build/monitor /
 
