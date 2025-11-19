@@ -74,12 +74,15 @@ func (f *sdLogEntryFactory) FromEvent(event *corev1.Event) *sd.LogEntry {
 	if resource.Type == k8sPod && f.podLabelCollector != nil {
 		entry.Labels = f.podLabelCollector.GetLabels(resource.Labels[namespaceName], resource.Labels[podName])
 	}
-	if !event.LastTimestamp.IsZero() {
-		// The event was emitted using k8s.io/api/core/v1 library.
-		entry.Timestamp = event.LastTimestamp.Format(time.RFC3339Nano)
-	} else if event.Series != nil && !event.Series.LastObservedTime.IsZero() {
-		// The event was emitted using k8s.io/api/events/v1 library.
+	// Prioritize the high-precision timestamp from the newer events.k8s.io/v1 schema.
+	if event.Series != nil && !event.Series.LastObservedTime.IsZero() {
+		// Event emitted using k8s.io/api/events/v1, provides higher precision.
 		entry.Timestamp = event.Series.LastObservedTime.Format(time.RFC3339Nano)
+	} else if !event.LastTimestamp.IsZero() {
+		// Fallback for events using k8s.io/api/core/v1. LastTimestamp has lower precision.
+		entry.Timestamp = event.LastTimestamp.Format(time.RFC3339Nano)
+	} else {
+		glog.Warningf("No LastObservedTime or LastTimestamp found for event %+v, log entry might have inaccurate timestamp.", event)
 	}
 
 	return entry
