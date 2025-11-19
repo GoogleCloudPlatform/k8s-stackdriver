@@ -134,6 +134,23 @@ func TestFromEvent(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc: "Both LastTimestamp (core/v1) and Series.LastObservedTime (events/v1) are set",
+			event: &corev1.Event{
+				Type:           "Normal",
+				InvolvedObject: involvedNodeObject,
+				LastTimestamp:  lastTimestamp,
+				Series: &corev1.EventSeries{
+					Count:            1,
+					LastObservedTime: lastObservedTime,
+				},
+			},
+			wanted: &sd.LogEntry{
+				Timestamp: lastObservedTime.Format(time.RFC3339Nano),
+				Resource:  wantedNodeMonitoredResource,
+				Severity:  "INFO",
+			},
+		},
 	}
 
 	for _, test := range tests {
