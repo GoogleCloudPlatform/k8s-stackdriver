@@ -15,8 +15,8 @@
 OUT_DIR = build
 PACKAGE = github.com/GoogleCloudPlatform/k8s-stackdriver/kubelet-to-gcm
 IMAGE_NAME = kubelet-to-gcm
-PREFIX = staging-k8s.gcr.io
-TAG = 1.4.1
+PREFIX ?= staging-k8s.gcr.io
+TAG ?= 1.4.1
 ALL_ARCH=amd64 arm64
 
 IMAGE=$(PREFIX)/$(IMAGE_NAME)
