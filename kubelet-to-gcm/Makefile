@@ -14,8 +14,17 @@
 
 OUT_DIR = build
 PACKAGE = github.com/GoogleCloudPlatform/k8s-stackdriver/kubelet-to-gcm
-PREFIX = staging-k8s.gcr.io
-TAG = 1.4.1
+IMAGE_NAME = kubelet-to-gcm
+PREFIX ?= staging-k8s.gcr.io
+TAG ?= 1.4.1
+ALL_ARCH=amd64 arm64
+
+IMAGE=$(PREFIX)/$(IMAGE_NAME)
+
+ifdef ARCH
+	IMAGE=$(PREFIX)/$(IMAGE_NAME)-$(ARCH)
+	BUILD_FLAGS=--platform=linux/$(ARCH)
+endif
 
 # Rules for building the real image for deployment to gcr.io
 
@@ -30,17 +39,34 @@ go: compile test;
 clean:
 	rm -rf build
 
-docker-setup:
-	# Create a new builder instance and set it as the current active builder
-	docker buildx create --use --name multiplatformbuilder
+.container:
+	docker buildx build . --pull -t $(IMAGE):$(TAG) $(BUILD_FLAGS) --load
+
+.sub-container-%:
+	$(MAKE) --no-print-directory ARCH=$* .container
+
+container-multiarch:  $(addprefix .sub-container-,$(ALL_ARCH))
+
+.push: .container
+	docker push $(IMAGE):$(TAG)
+
+push: .push
+
+.sub-push-%:
+	$(MAKE) --no-print-directory ARCH=$* .push
+
+push-multiarch: $(addprefix .sub-push-,$(ALL_ARCH))
+	docker manifest create --amend $(IMAGE):$(TAG) $(addsuffix :$(TAG),$(addprefix $(IMAGE)-,$(ALL_ARCH)))
+	for arch in $(ALL_ARCH); do \
+	  docker manifest annotate --os=linux --arch=$$arch $(IMAGE):$(TAG) $(IMAGE)-$$arch:$(TAG); \
+	done
+	docker manifest push -p $(IMAGE):$(TAG)
+
+clean:
+	rm -rf monitor
 
 build: go docker-setup
-	docker buildx build --platform linux/amd64,linux/arm64 --pull -t ${PREFIX}/kubelet-to-gcm:$(TAG) .
-
-docker: build
-
-push: docker
-	gcloud docker -- push ${PREFIX}/kubelet-to-gcm:$(TAG)
+	docker build --pull -t ${PREFIX}/kubelet-to-gcm:$(TAG) .
 
 coverage:
 	rm -f coverage.out
