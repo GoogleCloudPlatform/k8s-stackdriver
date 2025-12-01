@@ -1,9 +1,9 @@
 module github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd
 
-go 1.23.0
+go 1.24.0
 
 require (
-	cloud.google.com/go/compute/metadata v0.6.0
+	cloud.google.com/go/compute/metadata v0.9.0
 	cloud.google.com/go/monitoring v1.20.2
 	github.com/golang/glog v1.2.3
 	github.com/prometheus/client_golang v1.19.1
@@ -56,7 +56,7 @@ require (
 	golang.org/x/crypto v0.35.0 // indirect
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/sync v0.11.0 // indirect
-	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/term v0.29.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 	golang.org/x/time v0.10.0 // indirect
