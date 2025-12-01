@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package externalaccount
+package impersonate
 
 import (
 	"bytes"
@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -48,12 +47,19 @@ type ImpersonateTokenSource struct {
 	// Each service account must be granted roles/iam.serviceAccountTokenCreator
 	// on the next service account in the chain. Optional.
 	Delegates []string
+	// TokenLifetimeSeconds is the number of seconds the impersonation token will
+	// be valid for.
+	TokenLifetimeSeconds int
 }
 
 // Token performs the exchange to get a temporary service account token to allow access to GCP.
 func (its ImpersonateTokenSource) Token() (*oauth2.Token, error) {
+	lifetimeString := "3600s"
+	if its.TokenLifetimeSeconds != 0 {
+		lifetimeString = fmt.Sprintf("%ds", its.TokenLifetimeSeconds)
+	}
 	reqBody := generateAccessTokenReq{
-		Lifetime:  "3600s",
+		Lifetime:  lifetimeString,
 		Scope:     its.Scopes,
 		Delegates: its.Delegates,
 	}
@@ -74,7 +80,7 @@ func (its ImpersonateTokenSource) Token() (*oauth2.Token, error) {
 		return nil, fmt.Errorf("oauth2/google: unable to generate access token: %v", err)
 	}
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return nil, fmt.Errorf("oauth2/google: unable to read body: %v", err)
 	}
