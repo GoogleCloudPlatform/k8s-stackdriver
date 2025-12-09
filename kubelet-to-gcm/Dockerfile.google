@@ -11,16 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-FROM --platform=$BUILDPLATFORM golang:1.24 as builder
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.5@sha256:b9b992fbef86e816ebac77aa06d28a5c92c6619cc0ed3548df91cccf3328e9ca AS builder
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /workspace/
 COPY . /workspace/
-RUN GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -mod=vendor -a -o $(OUT_DIR)/monitor monitor/main/daemon.go
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -mod=vendor -a -o /output/monitor monitor/main/daemon.go
 
-FROM --platform=$TARGETPLATFORM gcr.io/distroless/static:latest
+FROM gcr.io/gke-release/gke-distroless/static@sha256:286f395d0797f4c29b7f3d190b92f43b114f1d430ff865caa749c39101a0a2d1
 
-COPY --from=builder /workspace/build/monitor /
+COPY --from=builder /output/monitor /
 
 # nobody:nobody
 USER 65534:65534
