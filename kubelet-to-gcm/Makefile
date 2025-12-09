@@ -65,9 +65,6 @@ push-multiarch: $(addprefix .sub-push-,$(ALL_ARCH))
 clean:
 	rm -rf monitor
 
-build: go docker-setup
-	docker build --pull -t ${PREFIX}/kubelet-to-gcm:$(TAG) .
-
 coverage:
 	rm -f coverage.out
 	go test -coverpkg=./... -coverprofile=coverage.out ./...
