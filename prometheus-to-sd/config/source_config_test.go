@@ -30,8 +30,8 @@ var (
 )
 
 func TestNewSourceConfig(t *testing.T) {
-	podConfig := NewPodConfig("podId", "namespaceId", "", "", "", "")
-	emptyPodConfig := NewPodConfig("", "", "", "", "", "")
+	podConfig := NewPodConfig("podId", "namespaceId", "", "", "", "", "", "")
+	emptyPodConfig := NewPodConfig("", "", "", "", "", "", "", "")
 	authConfig := AuthConfig{Token: "token"}
 	correct := [...]struct {
 		component            string
@@ -156,7 +156,7 @@ func TestParseSourceConfig(t *testing.T) {
 				Path:                 defaultMetricsPath,
 				AuthConfig:           tokenAuthConfig,
 				Whitelisted:          []string{"a", "b", "c", "d"},
-				PodConfig:            NewPodConfig(podId, namespaceId, "", "", "", ""),
+				PodConfig:            NewPodConfig(podId, namespaceId, "", "", "", "", "", ""),
 				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
 				CustomLabels:         map[string]string{},
 			},
@@ -179,7 +179,7 @@ func TestParseSourceConfig(t *testing.T) {
 				Path:                 "/status/prometheus",
 				AuthConfig:           userAuthConfig,
 				Whitelisted:          []string{"a", "b", "c", "d"},
-				PodConfig:            NewPodConfig(podId, namespaceId, "", "", "", ""),
+				PodConfig:            NewPodConfig(podId, namespaceId, "", "", "", "", "", ""),
 				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
 				CustomLabels:         map[string]string{},
 			},
@@ -201,7 +201,7 @@ func TestParseSourceConfig(t *testing.T) {
 				Port:                 8080,
 				Path:                 defaultMetricsPath,
 				MetricsPrefix:        "container.googleapis.com/newPrefix",
-				PodConfig:            NewPodConfig(podId, namespaceId, "", "", "", ""),
+				PodConfig:            NewPodConfig(podId, namespaceId, "", "", "", "", "", ""),
 				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
 				CustomLabels:         map[string]string{},
 			},
@@ -226,7 +226,7 @@ func TestParseSourceConfig(t *testing.T) {
 					"containerNameLabel": {"testContainer": true},
 					"podIdLabel":         {"pod1": true},
 				},
-				PodConfig:    NewPodConfig(podId, namespaceId, "", "", "", ""),
+				PodConfig:    NewPodConfig(podId, namespaceId, "", "", "", "", "", ""),
 				CustomLabels: map[string]string{},
 			},
 		},
@@ -249,7 +249,7 @@ func TestParseSourceConfig(t *testing.T) {
 				WhitelistedLabelsMap: map[string]map[string]bool{
 					"containerNameLabel": {"testContainer1": true, "testContainer2": true},
 				},
-				PodConfig:    NewPodConfig(podId, namespaceId, "", "", "", ""),
+				PodConfig:    NewPodConfig(podId, namespaceId, "", "", "", "", "", ""),
 				CustomLabels: map[string]string{},
 			},
 		},
@@ -270,7 +270,7 @@ func TestParseSourceConfig(t *testing.T) {
 				Port:                 1234,
 				Path:                 defaultMetricsPath,
 				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
-				PodConfig:            NewPodConfig(podId, namespaceId, "", "", "", ""),
+				PodConfig:            NewPodConfig(podId, namespaceId, "", "", "", "", "", ""),
 				CustomResourceType:   "quux",
 				CustomLabels: map[string]string{
 					"foo": "bar",
@@ -295,7 +295,7 @@ func TestParseSourceConfig(t *testing.T) {
 				Port:                 1234,
 				Path:                 defaultMetricsPath,
 				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
-				PodConfig:            NewPodConfig(podId, namespaceId, "", "", "", ""),
+				PodConfig:            NewPodConfig(podId, namespaceId, "", "", "", "", "", ""),
 				CustomResourceType:   "quux",
 				CustomLabels: map[string]string{
 					"foo": "",
@@ -320,10 +320,58 @@ func TestParseSourceConfig(t *testing.T) {
 				Port:                 1234,
 				Path:                 defaultMetricsPath,
 				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
-				PodConfig:            NewPodConfig(podId, namespaceId, "", "", "", "some_uid"),
+				PodConfig:            NewPodConfig(podId, namespaceId, "", "", "", "some_uid", "", ""),
 				CustomResourceType:   "quux",
 				CustomLabels: map[string]string{
 					"some_uid": "",
+				},
+			},
+		},
+		{
+			flags.Uri{
+				Key: "testComponent",
+				Val: url.URL{
+					Scheme:   "http",
+					Host:     "hostname:1234",
+					Path:     defaultMetricsPath,
+					RawQuery: "customResourceType=quux&customLabels[type]=&&entityTypeLabel=type",
+				},
+			},
+			SourceConfig{
+				Component:            "testComponent",
+				Protocol:             "http",
+				Host:                 "hostname",
+				Port:                 1234,
+				Path:                 defaultMetricsPath,
+				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
+				PodConfig:            NewPodConfig(podId, namespaceId, "", "", "", "", "type", ""),
+				CustomResourceType:   "quux",
+				CustomLabels: map[string]string{
+					"type": "",
+				},
+			},
+		},
+		{
+			flags.Uri{
+				Key: "testComponent",
+				Val: url.URL{
+					Scheme:   "http",
+					Host:     "hostname:1234",
+					Path:     defaultMetricsPath,
+					RawQuery: "customResourceType=quux&customLabels[name]=&&entityNameLabel=name",
+				},
+			},
+			SourceConfig{
+				Component:            "testComponent",
+				Protocol:             "http",
+				Host:                 "hostname",
+				Port:                 1234,
+				Path:                 defaultMetricsPath,
+				WhitelistedLabelsMap: emptyWhitelistedLabelsMap,
+				PodConfig:            NewPodConfig(podId, namespaceId, "", "", "", "", "", "name"),
+				CustomResourceType:   "quux",
+				CustomLabels: map[string]string{
+					"name": "",
 				},
 			},
 		},
