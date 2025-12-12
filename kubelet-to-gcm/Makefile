@@ -16,13 +16,14 @@ OUT_DIR = build
 PACKAGE = github.com/GoogleCloudPlatform/k8s-stackdriver/kubelet-to-gcm
 IMAGE_NAME = kubelet-to-gcm
 PREFIX ?= staging-k8s.gcr.io
-TAG ?= 1.4.4
+VERSION_TAG ?= 1.4.4
 ALL_ARCH=amd64 arm64
 
 IMAGE=$(PREFIX)/$(IMAGE_NAME)
 
+TAG=$(VERSION_TAG)
 ifdef ARCH
-	TAG=$(TAG)-$(ARCH)
+	TAG=$(VERSION_TAG)-$(ARCH)
 	BUILD_FLAGS=--platform=linux/$(ARCH)
 endif
 
@@ -40,6 +41,7 @@ clean:
 	rm -rf build
 
 .container:
+	echo $(IMAGE):$(TAG)
 	docker buildx build . --pull -t $(IMAGE):$(TAG) $(BUILD_FLAGS) --load
 
 .sub-container-%:
