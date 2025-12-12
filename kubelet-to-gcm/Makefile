@@ -22,7 +22,7 @@ ALL_ARCH=amd64 arm64
 IMAGE=$(PREFIX)/$(IMAGE_NAME)
 
 ifdef ARCH
-	IMAGE=$(PREFIX)/$(IMAGE_NAME)-$(ARCH)
+	TAG=$(TAG)-$(ARCH)
 	BUILD_FLAGS=--platform=linux/$(ARCH)
 endif
 
@@ -56,9 +56,9 @@ push: .push
 	$(MAKE) --no-print-directory ARCH=$* .push
 
 push-multiarch: $(addprefix .sub-push-,$(ALL_ARCH))
-	docker manifest create --amend $(IMAGE):$(TAG) $(addsuffix :$(TAG),$(addprefix $(IMAGE)-,$(ALL_ARCH)))
+	docker manifest create --amend $(IMAGE):$(TAG) $(addprefix $(IMAGE):$(TAG)-, $(ALL_ARCH))
 	for arch in $(ALL_ARCH); do \
-	  docker manifest annotate --os=linux --arch=$$arch $(IMAGE):$(TAG) $(IMAGE)-$$arch:$(TAG); \
+	  docker manifest annotate --os=linux --arch=$$arch $(IMAGE):$(TAG) $(IMAGE):$(TAG)-$$arch; \
 	done
 	docker manifest push -p $(IMAGE):$(TAG)
 
