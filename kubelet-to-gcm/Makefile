@@ -41,7 +41,6 @@ clean:
 	rm -rf build
 
 .container:
-	echo $(IMAGE):$(TAG)
 	docker buildx build . --pull -t $(IMAGE):$(TAG) $(BUILD_FLAGS) --load
 
 .sub-container-%:
