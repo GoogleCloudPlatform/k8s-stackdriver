@@ -108,6 +108,8 @@ func mapToSourceConfig(componentName string, url url.URL, ip string, podId, name
 	namespaceIdLabel := values.Get("namespaceIdLabel")
 	containerNamelabel := values.Get("containerNamelabel")
 	tenantUIDLabel := values.Get("tenantUIDLabel")
+	entityTypeLabel := values.Get("entityTypeLabel")
+	entityNameLabel := values.Get("entityNameLabel")
 	metricsPrefix := values.Get("metricsPrefix")
 	customResource := values.Get("customResourceType")
 	customLabels := getMap(values, "customLabels")
@@ -115,7 +117,7 @@ func mapToSourceConfig(componentName string, url url.URL, ip string, podId, name
 	if err != nil {
 		return nil, err
 	}
-	podConfig := NewPodConfig(podId, namespaceId, podIdLabel, namespaceIdLabel, containerNamelabel, tenantUIDLabel)
+	podConfig := NewPodConfig(podId, namespaceId, podIdLabel, namespaceIdLabel, containerNamelabel, tenantUIDLabel, entityTypeLabel, entityNameLabel)
 	whitelistedLabelsMap, err := parseWhitelistedLabels(url.Query().Get("whitelistedLabels"))
 	if err != nil {
 		return nil, err

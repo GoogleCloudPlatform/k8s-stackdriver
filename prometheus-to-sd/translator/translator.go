@@ -481,10 +481,10 @@ func createProjectName(config *config.GceConfig) string {
 }
 
 func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.LabelPair) *monitoredres.MonitoredResource {
-	container, pod, namespace, tenantUID := config.SourceConfig.PodConfig.GetPodInfo(labels)
+	container, pod, namespace, tenantUID, entityType, entityName := config.SourceConfig.PodConfig.GetPodInfo(labels)
 
 	if config.SourceConfig.CustomResourceType != "" {
-		return getCustomMonitoredResource(config, tenantUID)
+		return getCustomMonitoredResource(config, tenantUID, entityType, entityName)
 	}
 	prefix := config.MonitoredResourceTypePrefix
 
@@ -554,19 +554,28 @@ func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.L
 	}
 }
 
-func getCustomMonitoredResource(config *config.CommonConfig, tenantUID string) *monitoredres.MonitoredResource {
+func getCustomMonitoredResource(config *config.CommonConfig, tenantUID, entityType, entityName string) *monitoredres.MonitoredResource {
 	resourceLabels := config.SourceConfig.CustomLabels
 	applyDefaultIfEmpty(resourceLabels, "instance_id", config.GceConfig.InstanceId)
 	applyDefaultIfEmpty(resourceLabels, "project_id", config.GceConfig.Project)
 	applyDefaultIfEmpty(resourceLabels, "cluster_name", config.GceConfig.Cluster)
 	applyDefaultIfEmpty(resourceLabels, "location", config.GceConfig.ClusterLocation)
 	applyDefaultIfEmpty(resourceLabels, "node_name", config.GceConfig.Instance)
+	finalLabels := maps.Clone(resourceLabels)
+	dynamicLabels := map[string]string{
+		"tenant_uid":  tenantUID,
+		"entity_type": entityType,
+		"entity_name": entityName,
+	}
+
+	for key, value := range dynamicLabels {
+		if _, found := finalLabels[key]; found {
+			finalLabels[key] = value
+		}
+	}
 	return &monitoredres.MonitoredResource{
-		Type: config.SourceConfig.CustomResourceType,
-		// Need to clone the map because timeseries created using this label can
-		// have its label value overwritten by a newer value of tenant_uid before
-		// it was even exported since map would have pointed to the same address.
-		Labels: cloneAndApplyDefaultIfFound(resourceLabels, "tenant_uid", tenantUID),
+		Type:   config.SourceConfig.CustomResourceType,
+		Labels: finalLabels,
 	}
 }
 
@@ -574,13 +583,4 @@ func applyDefaultIfEmpty(resourceLabels map[string]string, key, defaultValue str
 	if val, found := resourceLabels[key]; found && val == "" {
 		resourceLabels[key] = defaultValue
 	}
-}
-
-func cloneAndApplyDefaultIfFound(resourceLabels map[string]string, key, defaultValue string) map[string]string {
-	if _, found := resourceLabels[key]; found {
-		resourceLabelsClone := maps.Clone(resourceLabels)
-		resourceLabelsClone[key] = defaultValue
-		return resourceLabelsClone
-	}
-	return resourceLabels
 }

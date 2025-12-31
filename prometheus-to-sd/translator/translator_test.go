@@ -60,7 +60,7 @@ var commonConfig = &config.CommonConfig{
 		Instance: "kubernetes-master.c.test-proj.internal",
 	},
 	SourceConfig: &config.SourceConfig{
-		PodConfig:     config.NewPodConfig("machine", "", "", "", "", ""),
+		PodConfig:     config.NewPodConfig("machine", "", "", "", "", "", "", ""),
 		Component:     "testcomponent",
 		MetricsPrefix: "container.googleapis.com/master",
 	},
@@ -323,7 +323,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 					InstanceId: "123",
 				},
 				SourceConfig: &config.SourceConfig{
-					PodConfig: config.NewPodConfig("", "", "", "", "", ""),
+					PodConfig: config.NewPodConfig("", "", "", "", "", "", "", ""),
 				},
 				MonitoredResourceLabels: map[string]string{},
 			},
@@ -345,7 +345,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 			&config.CommonConfig{
 				GceConfig: &config.GceConfig{},
 				SourceConfig: &config.SourceConfig{
-					PodConfig: config.NewPodConfig("machine", "", "", "", "", ""),
+					PodConfig: config.NewPodConfig("machine", "", "", "", "", "", "", ""),
 				},
 				MonitoredResourceTypePrefix: "k8s_",
 				MonitoredResourceLabels: map[string]string{
@@ -376,7 +376,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 					InstanceId:      "123",
 				},
 				SourceConfig: &config.SourceConfig{
-					PodConfig: config.NewPodConfig("machine", "", "", "", "", ""),
+					PodConfig: config.NewPodConfig("machine", "", "", "", "", "", "", ""),
 				},
 				MonitoredResourceTypePrefix: "k8s_",
 				MonitoredResourceLabels:     map[string]string{},
@@ -401,7 +401,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 					InstanceId: "123",
 				},
 				SourceConfig: &config.SourceConfig{
-					PodConfig: config.NewPodConfig("test-pod", "test-namespace", "", "", "", ""),
+					PodConfig: config.NewPodConfig("test-pod", "test-namespace", "", "", "", "", "", ""),
 				},
 				MonitoredResourceTypePrefix: "k8s_",
 				MonitoredResourceLabels: map[string]string{
@@ -425,7 +425,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 			&config.CommonConfig{
 				GceConfig: &config.GceConfig{},
 				SourceConfig: &config.SourceConfig{
-					PodConfig: config.NewPodConfig("test-pod", "test-namespace", "", "", "containerNameLabel", ""),
+					PodConfig: config.NewPodConfig("test-pod", "test-namespace", "", "", "containerNameLabel", "", "", ""),
 				},
 				MonitoredResourceTypePrefix: "k8s_",
 				MonitoredResourceLabels: map[string]string{
@@ -461,7 +461,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 					InstanceId: "123",
 				},
 				SourceConfig: &config.SourceConfig{
-					PodConfig: config.NewPodConfig("machine", "", "", "", "", ""),
+					PodConfig: config.NewPodConfig("machine", "", "", "", "", "", "", ""),
 				},
 				MonitoredResourceTypePrefix: "other_prefix_",
 				MonitoredResourceLabels: map[string]string{
@@ -496,7 +496,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 					CustomLabels: map[string]string{
 						"foo": "bar",
 					},
-					PodConfig: config.NewPodConfig("", "", "", "", "", ""),
+					PodConfig: config.NewPodConfig("", "", "", "", "", "", "", ""),
 				},
 			},
 			nil,
@@ -528,7 +528,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 						"instance_id":  "",
 						"node_name":    "",
 					},
-					PodConfig: config.NewPodConfig("", "", "", "", "", ""),
+					PodConfig: config.NewPodConfig("", "", "", "", "", "", "", ""),
 				},
 			},
 			nil,
@@ -565,7 +565,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 						"node_name":    "",
 						"tenant_uid":   "old-tenant-uid",
 					},
-					PodConfig: config.NewPodConfig("", "", "", "", "", "tenantUIDLabel"),
+					PodConfig: config.NewPodConfig("", "", "", "", "", "tenantUIDLabel", "", ""),
 				},
 			},
 			[]*dto.LabelPair{
@@ -582,6 +582,79 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 				"instance_id":  "123",
 				"node_name":    "default-instance",
 				"tenant_uid":   "tenant_uid",
+			},
+		},
+		{
+			"Add entity type label to custom monitored resource via dynamic mapping",
+			&config.CommonConfig{
+				MonitoredResourceLabels: map[string]string{},
+				GceConfig:               &config.GceConfig{},
+				SourceConfig: &config.SourceConfig{
+					CustomResourceType: "resource_foo",
+					CustomLabels: map[string]string{
+						"entity_type": "placeholder",
+					},
+					PodConfig: config.NewPodConfig("", "", "", "", "", "", "entityTypeLabel", ""),
+				},
+			},
+			[]*dto.LabelPair{
+				{
+					Name:  stringPtr("entityTypeLabel"),
+					Value: stringPtr("actual-type"),
+				},
+			},
+			"resource_foo",
+			map[string]string{
+				"entity_type": "actual-type",
+			},
+		},
+		{
+			"Add entity name label to custom monitored resource via dynamic mapping",
+			&config.CommonConfig{
+				MonitoredResourceLabels: map[string]string{},
+				GceConfig:               &config.GceConfig{},
+				SourceConfig: &config.SourceConfig{
+					CustomResourceType: "resource_foo",
+					CustomLabels: map[string]string{
+						"entity_name": "placeholder",
+					},
+					PodConfig: config.NewPodConfig("", "", "", "", "", "", "", "entityNameLabel"),
+				},
+			},
+			[]*dto.LabelPair{
+				{
+					Name:  stringPtr("entityNameLabel"),
+					Value: stringPtr("actual-name"),
+				},
+			},
+			"resource_foo",
+			map[string]string{
+				"entity_name": "actual-name",
+			},
+		},
+		{
+			"Ensure entity labels remain empty if metric label is missing (No default logic)",
+			&config.CommonConfig{
+				MonitoredResourceLabels: map[string]string{},
+				GceConfig: &config.GceConfig{
+					Project: "default-project",
+				},
+				SourceConfig: &config.SourceConfig{
+					CustomResourceType: "internal_multitenant_gke_container",
+					CustomLabels: map[string]string{
+						"project_id":  "",
+						"entity_name": "",
+					},
+					PodConfig: config.NewPodConfig("", "", "", "", "", "", "", "entityNameLabel"),
+				},
+			},
+			[]*dto.LabelPair{
+				{Name: stringPtr("wrong_label"), Value: stringPtr("my-app")},
+			},
+			"internal_multitenant_gke_container",
+			map[string]string{
+				"project_id":  "default-project",
+				"entity_name": "",
 			},
 		},
 	}
@@ -713,7 +786,7 @@ func TestTranslatePrometheusToStackdriverWithLabelFiltering(t *testing.T) {
 			Instance: "kubernetes-master.c.test-proj.internal",
 		},
 		SourceConfig: &config.SourceConfig{
-			PodConfig:            config.NewPodConfig("machine", "", "", "", "", ""),
+			PodConfig:            config.NewPodConfig("machine", "", "", "", "", "", "", ""),
 			Component:            "testcomponent",
 			MetricsPrefix:        "container.googleapis.com/master",
 			Whitelisted:          []string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName},
