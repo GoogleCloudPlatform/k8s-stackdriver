@@ -81,6 +81,8 @@ func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) wa
 				list, err := client.CoreV1().Events(meta_v1.NamespaceAll).List(context.TODO(), options)
 				if err == nil {
 					config.OnList(list)
+					// Clear items to prevent Reflector from buffering them in memeory.
+					list.Items = []corev1.Event{}
 				}
 				return list, err
 			},
