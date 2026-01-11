@@ -21,6 +21,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	eventsv1 "k8s.io/api/events/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -65,10 +66,28 @@ type EventWatcherConfig struct {
 	EventLabelSelector        labels.Selector
 	ListerWatcherOptionsLimit int64
 	StorageType               watchers.StorageType
+	EventsAPIVersion          EventsAPIVersion
 }
 
 // NewEventWatcher create a new watcher that only watches the events resource.
 func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) watchers.Watcher {
+	version := config.EventsAPIVersion
+	if version == "" {
+		version = EventsV1EventsAPIVersion
+	}
+	version = resolveEventsAPIVersion(client, version)
+
+	switch version {
+	case EventsV1EventsAPIVersion:
+		return newEventV1Watcher(client, config)
+	case CoreV1EventsAPIVersion:
+		return newCoreV1EventWatcher(client, config)
+	default:
+		return newCoreV1EventWatcher(client, config)
+	}
+}
+
+func newCoreV1EventWatcher(client kubernetes.Interface, config *EventWatcherConfig) watchers.Watcher {
 	return watchers.NewWatcher(&watchers.WatcherConfig{
 		// List and watch events in all namespaces.
 		ListerWatcher: &cache.ListWatch{
@@ -80,7 +99,7 @@ func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) wa
 				list, err := client.CoreV1().Events(meta_v1.NamespaceAll).List(context.TODO(), options)
 				if err == nil {
 					config.OnList(list)
-					// Clear items to prevent Reflector from buffering them in memeory.
+					// Clear items to prevent Reflector from buffering them in memory.
 					list.Items = []corev1.Event{}
 				}
 				return list, err
@@ -91,6 +110,40 @@ func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) wa
 			},
 		},
 		ExpectedType: &corev1.Event{},
+		StoreConfig: &watchers.WatcherStoreConfig{
+			KeyFunc:     cache.DeletionHandlingMetaNamespaceKeyFunc,
+			Handler:     newEventHandlerWrapper(config.Handler),
+			StorageType: config.StorageType,
+			StorageTTL:  eventStorageTTL,
+		},
+		ResyncPeriod:      config.ResyncPeriod,
+		WatchListPageSize: eventWatchListPageSize,
+	})
+}
+
+func newEventV1Watcher(client kubernetes.Interface, config *EventWatcherConfig) watchers.Watcher {
+	return watchers.NewWatcher(&watchers.WatcherConfig{
+		// List and watch events in all namespaces.
+		ListerWatcher: &cache.ListWatch{
+			ListFunc: func(options meta_v1.ListOptions) (runtime.Object, error) {
+				if config.ListerWatcherOptionsLimit > 0 {
+					options.Limit = config.ListerWatcherOptionsLimit
+				}
+				options.LabelSelector = config.EventLabelSelector.String()
+				list, err := client.EventsV1().Events(meta_v1.NamespaceAll).List(context.TODO(), options)
+				if err == nil {
+					config.OnList(&corev1.EventList{})
+					// Clear items to prevent Reflector from buffering them in memory.
+					list.Items = []eventsv1.Event{}
+				}
+				return list, err
+			},
+			WatchFunc: func(options meta_v1.ListOptions) (watch.Interface, error) {
+				options.LabelSelector = config.EventLabelSelector.String()
+				return client.EventsV1().Events(meta_v1.NamespaceAll).Watch(context.TODO(), options)
+			},
+		},
+		ExpectedType: &eventsv1.Event{},
 		StoreConfig: &watchers.WatcherStoreConfig{
 			KeyFunc:     cache.DeletionHandlingMetaNamespaceKeyFunc,
 			Handler:     newEventHandlerWrapper(config.Handler),

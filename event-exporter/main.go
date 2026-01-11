@@ -35,6 +35,7 @@ import (
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/podlabels"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/watchers"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/watchers/events"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/sinks/stackdriver"
 )
 
@@ -50,6 +51,7 @@ var (
 	eventLabelSelector        = flag.String("event-label-selector", "", "Export events only if they match the given label selector. Same syntax as kubectl label")
 	listerWatcherOptionsLimit = flag.Int64("lister-watcher-options-limit", 100, "Maximum number of responses to return for a list call on events watch. Larger the number, higher the memory event-exporter will consume. No limits when set to 0.")
 	storageType               = flag.String("storage-type", "DeltaFIFOStorage", "What storage should be used as a cache for the watcher. Supported sotrage type: SimpleStorage, TTLStorage and DeltaFIFOStorage.")
+	eventsAPIVersion          = flag.String("events-api", string(events.AutoEventsAPIVersion), "Events API group/version to watch. Supported: auto, events.k8s.io/v1, core/v1.")
 )
 
 func newSystemStopChannel() chan struct{} {
@@ -106,6 +108,11 @@ func main() {
 		glog.Fatalf("Invalid event label selector:%v", err)
 	}
 
+	parsedEventsAPIVersion, err := events.ParseEventsAPIVersion(*eventsAPIVersion)
+	if err != nil {
+		glog.Fatalf("Invalid events API version: %v", err)
+	}
+
 	var st watchers.StorageType
 	switch *storageType {
 	case "SimpleStorage":
@@ -118,7 +125,7 @@ func main() {
 		glog.Fatalf("Unsupported storage type:%v.", *storageType)
 	}
 
-	eventExporter := newEventExporter(client, sink, *resyncPeriod, parsedLabelSelector, *listerWatcherOptionsLimit, st)
+	eventExporter := newEventExporter(client, sink, *resyncPeriod, parsedLabelSelector, *listerWatcherOptionsLimit, st, parsedEventsAPIVersion)
 
 	// Expose the Prometheus http endpoint
 	go func() {
