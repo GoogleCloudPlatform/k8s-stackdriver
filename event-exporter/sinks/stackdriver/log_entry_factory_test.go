@@ -37,6 +37,7 @@ func TestFromEvent(t *testing.T) {
 
 	lastTimestamp := metav1.NewTime(time.Now())
 	lastObservedTime := metav1.NewMicroTime(time.Now())
+	eventTime := metav1.NewMicroTime(time.Now())
 
 	tests := []struct {
 		desc   string
@@ -68,6 +69,19 @@ func TestFromEvent(t *testing.T) {
 			},
 			wanted: &sd.LogEntry{
 				Timestamp: lastObservedTime.Format(time.RFC3339Nano),
+				Resource:  wantedNodeMonitoredResource,
+				Severity:  "WARNING",
+			},
+		},
+		{
+			desc: "event time fallback",
+			event: &corev1.Event{
+				Type:           "Warning",
+				InvolvedObject: involvedNodeObject,
+				EventTime:      eventTime,
+			},
+			wanted: &sd.LogEntry{
+				Timestamp: eventTime.Time.Format(time.RFC3339Nano),
 				Resource:  wantedNodeMonitoredResource,
 				Severity:  "WARNING",
 			},

@@ -70,9 +70,14 @@ spec:
       containers:
       - name: event-exporter
         image: gcr.io/google-containers/event-exporter:v0.1.4
-        command:
-        - '/event-exporter'
+    command:
+    - '/event-exporter'
 ```
+
+## E2E workflow
+
+For local end-to-end validation (functional parity + perf numbers) using a kind
+cluster, see `docs/e2e.md`.
 
 ## Notes
 ### ClusterRoleBinding

@@ -18,8 +18,12 @@ package events
 
 import (
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	eventsv1 "k8s.io/api/events/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
 type fakeEventHandler struct {
@@ -65,6 +69,11 @@ func TestEventWatchHandlerAdd(t *testing.T) {
 		{
 			"obj=event",
 			&corev1.Event{},
+			true,
+		},
+		{
+			"obj=eventsv1",
+			&eventsv1.Event{},
 			true,
 		},
 	}
@@ -123,6 +132,24 @@ func TestEventWatchHandlerUpdate(t *testing.T) {
 			&corev1.Event{},
 			true,
 		},
+		{
+			"oldObj=nil,newObj=eventsv1",
+			nil,
+			&eventsv1.Event{},
+			true,
+		},
+		{
+			"oldObj=non-event,newObj=eventsv1",
+			42,
+			&eventsv1.Event{},
+			false,
+		},
+		{
+			"oldObj=eventsv1,newObj=eventsv1",
+			&eventsv1.Event{},
+			&eventsv1.Event{},
+			true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -163,6 +190,11 @@ func TestEventWatchHandlerDelete(t *testing.T) {
 			&corev1.Event{},
 			true,
 		},
+		{
+			"obj=eventsv1",
+			&eventsv1.Event{},
+			true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -179,5 +211,56 @@ func TestEventWatchHandlerDelete(t *testing.T) {
 				t.Fatalf("Delete is triggered = %v, expected %v", isTriggered, tc.expected)
 			}
 		})
+	}
+}
+
+func TestEventWatchHandlerDeleteTombstoneEventsV1(t *testing.T) {
+	isTriggered := false
+	fakeHandler := &fakeEventHandler{
+		onDeleteFunc: func(*corev1.Event) { isTriggered = true },
+	}
+
+	c := newEventHandlerWrapper(fakeHandler)
+	tombstone := cache.DeletedFinalStateUnknown{
+		Key: "default/test",
+		Obj: &eventsv1.Event{},
+	}
+	c.OnDelete(tombstone)
+
+	if !isTriggered {
+		t.Fatalf("Delete is triggered = %v, expected true", isTriggered)
+	}
+}
+
+func TestEventWatchHandlerConvertsEventsV1(t *testing.T) {
+	gotCh := make(chan *corev1.Event, 1)
+	fakeHandler := &fakeEventHandler{
+		onAddFunc: func(event *corev1.Event) {
+			gotCh <- event
+		},
+	}
+
+	c := newEventHandlerWrapper(fakeHandler)
+	event := &eventsv1.Event{
+		Regarding: corev1.ObjectReference{
+			Kind:      "Pod",
+			Name:      "test-pod",
+			Namespace: "default",
+		},
+		Reason:    "Scheduled",
+		Note:      "pod scheduled",
+		EventTime: metav1.NewMicroTime(time.Now()),
+	}
+	c.OnAdd(event, false)
+
+	got := <-gotCh
+	if got.InvolvedObject.Name != "test-pod" {
+		t.Fatalf("InvolvedObject.Name = %s, expected %s", got.InvolvedObject.Name, "test-pod")
+	}
+	if got.Reason != "Scheduled" {
+		t.Fatalf("Reason = %s, expected %s", got.Reason, "Scheduled")
+	}
+	if got.Message != "pod scheduled" {
+		t.Fatalf("Message = %s, expected %s", got.Message, "pod scheduled")
 	}
 }

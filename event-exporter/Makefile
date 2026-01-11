@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+.PHONY: e2e
+
 all: container
 
 ENVVAR = GOOS=linux GOARCH=amd64 CGO_ENABLED=0
@@ -34,6 +36,9 @@ build: test
 
 test:
 	${ENVVAR} go test -mod=vendor ./...
+
+e2e:
+	./hack/e2e-kind.sh
 
 container: .container
 

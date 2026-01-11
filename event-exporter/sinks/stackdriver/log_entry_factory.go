@@ -80,6 +80,9 @@ func (f *sdLogEntryFactory) FromEvent(event *corev1.Event) *sd.LogEntry {
 	} else if event.Series != nil && !event.Series.LastObservedTime.IsZero() {
 		// The event was emitted using k8s.io/api/events/v1 library.
 		entry.Timestamp = event.Series.LastObservedTime.Format(time.RFC3339Nano)
+	} else if !event.EventTime.IsZero() {
+		// Fall back to EventTime when last timestamp is not available.
+		entry.Timestamp = event.EventTime.Time.Format(time.RFC3339Nano)
 	}
 
 	return entry

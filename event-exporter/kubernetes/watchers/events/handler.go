@@ -20,6 +20,7 @@ import (
 	"github.com/golang/glog"
 
 	corev1 "k8s.io/api/core/v1"
+	eventsv1 "k8s.io/api/events/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -59,6 +60,12 @@ func (c *eventHandlerWrapper) OnUpdate(oldObj interface{}, newObj interface{}) {
 func (c *eventHandlerWrapper) OnDelete(obj interface{}) {
 
 	event, ok := obj.(*corev1.Event)
+	if !ok {
+		if eventsV1, v1Ok := obj.(*eventsv1.Event); v1Ok {
+			event = eventV1ToCoreEvent(eventsV1)
+			ok = true
+		}
+	}
 
 	// When a delete is dropped, the relist will notice a pod in the store not
 	// in the list, leading to the insertion of a tombstone object which contains
@@ -71,8 +78,13 @@ func (c *eventHandlerWrapper) OnDelete(obj interface{}) {
 		}
 		event, ok = tombstone.Obj.(*corev1.Event)
 		if !ok {
-			glog.V(2).Infof("Tombstone contains object that is not a pod: %+v", obj)
-			return
+			if eventsV1, v1Ok := tombstone.Obj.(*eventsv1.Event); v1Ok {
+				event = eventV1ToCoreEvent(eventsV1)
+				ok = true
+			} else {
+				glog.V(2).Infof("Tombstone contains object that is not an event: %+v", obj)
+				return
+			}
 		}
 	}
 
@@ -83,6 +95,9 @@ func (c *eventHandlerWrapper) OnDelete(obj interface{}) {
 func (c *eventHandlerWrapper) convert(obj interface{}) (*corev1.Event, bool) {
 	if event, ok := obj.(*corev1.Event); ok {
 		return event, true
+	}
+	if event, ok := obj.(*eventsv1.Event); ok {
+		return eventV1ToCoreEvent(event), true
 	}
 	glog.V(2).Infof("Event watch handler received not an event, but %+v", obj)
 	return nil, false

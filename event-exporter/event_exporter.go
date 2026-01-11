@@ -37,14 +37,14 @@ func (e *eventExporter) Run(stopCh <-chan struct{}) {
 	utils.RunConcurrentlyUntil(stopCh, e.sink.Run, e.watcher.Run)
 }
 
-func newEventExporter(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration, eventLabelSelector labels.Selector, listerWatcherOptionsLimit int64, storageType watchers.StorageType) *eventExporter {
+func newEventExporter(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration, eventLabelSelector labels.Selector, listerWatcherOptionsLimit int64, storageType watchers.StorageType, eventsAPIVersion events.EventsAPIVersion) *eventExporter {
 	return &eventExporter{
 		sink:    sink,
-		watcher: createWatcher(client, sink, resyncPeriod, eventLabelSelector, listerWatcherOptionsLimit, storageType),
+		watcher: createWatcher(client, sink, resyncPeriod, eventLabelSelector, listerWatcherOptionsLimit, storageType, eventsAPIVersion),
 	}
 }
 
-func createWatcher(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration, eventLabelSelector labels.Selector, listerWatcherOptionsLimit int64, storageType watchers.StorageType) watchers.Watcher {
+func createWatcher(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration, eventLabelSelector labels.Selector, listerWatcherOptionsLimit int64, storageType watchers.StorageType, eventsAPIVersion events.EventsAPIVersion) watchers.Watcher {
 	return events.NewEventWatcher(client, &events.EventWatcherConfig{
 		OnList:                    sink.OnList,
 		ResyncPeriod:              resyncPeriod,
@@ -52,5 +52,6 @@ func createWatcher(client kubernetes.Interface, sink sinks.Sink, resyncPeriod ti
 		EventLabelSelector:        eventLabelSelector,
 		ListerWatcherOptionsLimit: listerWatcherOptionsLimit,
 		StorageType:               storageType,
+		EventsAPIVersion:          eventsAPIVersion,
 	})
 }
