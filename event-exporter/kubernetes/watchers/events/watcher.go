@@ -77,7 +77,6 @@ func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) wa
 			ListFunc: func(options meta_v1.ListOptions) (runtime.Object, error) {
 				if config.ListerWatcherEnableStreaming {
 					return streamingListEvents(client, config, options)
-					return streamingListEvents(client, config, options)
 				} else {
 					if config.ListerWatcherOptionsLimit > 0 {
 						options.Limit = config.ListerWatcherOptionsLimit
@@ -147,8 +146,7 @@ eventLoop:
 			// Check for the annotation that signals the initial list is done.
 			if m, ok := event.Object.(meta_v1.Object); ok {
 				if val, ok := m.GetAnnotations()["k8s.io/initial-events-end"]; ok && val == "true" {
-					// Stop the watcher to close the channel and break the loop
-					watcher.Stop()
+					// Close the channel and break the loop
 					bookmarkReceived = true
 					break eventLoop
 				}
