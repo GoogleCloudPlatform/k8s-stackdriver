@@ -76,59 +76,7 @@ func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) wa
 		ListerWatcher: &cache.ListWatch{
 			ListFunc: func(options meta_v1.ListOptions) (runtime.Object, error) {
 				if config.ListerWatcherEnableStreaming {
-					// Use Streaming List (SendInitialEvents=true) to avoid buffering.
-					// This allows us to process initial events incrementally.
-					sendInitialEvents := true
-					options.SendInitialEvents = &sendInitialEvents
-					options.ResourceVersionMatch = meta_v1.ResourceVersionMatchNotOlderThan
-					options.Watch = true
-					// Will not be used
-					// if config.ListerWatcherOptionsLimit > 0 {
-					// options.Limit = config.ListerWatcherOptionsLimit
-					// }
-					options.LabelSelector = config.EventLabelSelector.String()
-
-					// Perform the streaming list (actually a Watch)
-					watcher, err := client.CoreV1().Events(meta_v1.NamespaceAll).Watch(context.TODO(), options)
-					if err != nil {
-						return nil, err
-					}
-					defer watcher.Stop()
-
-					// Call OnList once to start the sink (it just logs "Started watching")
-					config.OnList(&corev1.EventList{})
-
-					lastRV := ""
-					for event := range watcher.ResultChan() {
-						if meta, ok := event.Object.(meta_v1.Object); ok {
-							lastRV = meta.GetResourceVersion()
-						}
-
-						switch event.Type {
-						case watch.Added:
-							if e, ok := event.Object.(*corev1.Event); ok {
-								// Manually pass to handler since we bypass Reflector's store
-								config.Handler.OnAdd(e)
-							}
-						case watch.Bookmark:
-							// Bookmark signals end of initial events if used with SendInitialEvents
-						case watch.Error:
-							// If we get an error, Reflector will retry ListFunc anyway.
-							// We can return the error here to trigger that retry.
-							if status, ok := event.Object.(*meta_v1.Status); ok {
-								return nil, errors.New(status.Message)
-							}
-						}
-					}
-
-					// Return an empty list with the correct ResourceVersion.
-					// Reflector will then start Watching from this version.
-					return &corev1.EventList{
-						ListMeta: meta_v1.ListMeta{
-							ResourceVersion: lastRV,
-						},
-						Items: []corev1.Event{},
-					}, nil
+					return streamingListEvents(client, config, options)
 				} else {
 					if config.ListerWatcherOptionsLimit > 0 {
 						options.Limit = config.ListerWatcherOptionsLimit
@@ -157,4 +105,63 @@ func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) wa
 		ResyncPeriod:      config.ResyncPeriod,
 		WatchListPageSize: eventWatchListPageSize,
 	})
+}
+
+// streamingListEvents uses Streaming List (SendInitialEvents=true) to avoid buffering.
+// This allows us to process initial events incrementally.
+func streamingListEvents(client kubernetes.Interface, config *EventWatcherConfig, options meta_v1.ListOptions) (runtime.Object, error) {
+	sendInitialEvents := true
+	options.SendInitialEvents = &sendInitialEvents
+	options.ResourceVersionMatch = meta_v1.ResourceVersionMatchNotOlderThan
+	options.Watch = true
+	options.LabelSelector = config.EventLabelSelector.String()
+	options.AllowWatchBookmarks = true
+
+	// Perform the streaming list (actually a Watch)
+	watcher, err := client.CoreV1().Events(meta_v1.NamespaceAll).Watch(context.TODO(), options)
+	if err != nil {
+		return nil, err
+	}
+	defer watcher.Stop()
+
+	// Call OnList once to start the sink (it just logs "Started watching")
+	config.OnList(&corev1.EventList{})
+
+	lastRV := ""
+	for event := range watcher.ResultChan() {
+		if meta, ok := event.Object.(meta_v1.Object); ok {
+			lastRV = meta.GetResourceVersion()
+		}
+
+		switch event.Type {
+		case watch.Added:
+			if e, ok := event.Object.(*corev1.Event); ok {
+				// Manually pass to handler since we bypass Reflector's store
+				config.Handler.OnAdd(e)
+			}
+		case watch.Bookmark:
+			// Check for the annotation that signals the initial list is done.
+			if m, ok := event.Object.(meta_v1.Object); ok {
+				if val, ok := m.GetAnnotations()["k8s.io/initial-events-end"]; ok && val == "true" {
+					// Stop the watcher to close the channel and break the loop
+					watcher.Stop()
+				}
+			}
+		case watch.Error:
+			// If we get an error, Reflector will retry ListFunc anyway.
+			// We can return the error here to trigger that retry.
+			if status, ok := event.Object.(*meta_v1.Status); ok {
+				return nil, errors.New(status.Message)
+			}
+		}
+	}
+
+	// Return an empty list with the correct ResourceVersion.
+	// Reflector will then start Watching from this version.
+	return &corev1.EventList{
+		ListMeta: meta_v1.ListMeta{
+			ResourceVersion: lastRV,
+		},
+		Items: []corev1.Event{},
+	}, nil
 }
