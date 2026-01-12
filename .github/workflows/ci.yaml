@@ -88,3 +88,130 @@ jobs:
       run: |
         cd prometheus-to-sd
         make build
+
+  ci-unit-tests-event-exporter:
+    name: ci-unit-tests-event-exporter
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v4
+
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+      id: go
+
+    - name: Unit tests
+      run: |
+        cd event-exporter
+        make test
+
+  ci-build-event-exporter:
+    name: ci-build-event-exporter
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v4
+
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+      id: go
+
+    - name: Build
+      run: |
+        cd event-exporter
+        make build
+
+  ci-unit-tests-kubelet-to-gcm:
+    name: ci-unit-tests-kubelet-to-gcm
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v4
+
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+      id: go
+
+    - name: Unit tests
+      run: |
+        cd kubelet-to-gcm
+        make test
+
+  ci-build-kubelet-to-gcm:
+    name: ci-build-kubelet-to-gcm
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v4
+
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+      id: go
+
+    - name: Build
+      run: |
+        cd kubelet-to-gcm
+        make compile
+
+  ci-container-build-custom-metrics-stackdriver-adapter:
+    name: ci-container-build-custom-metrics-stackdriver-adapter
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+    - name: Build container
+      run: |
+        cd custom-metrics-stackdriver-adapter
+        docker build .
+
+  ci-container-build-prometheus-to-sd:
+    name: ci-container-build-prometheus-to-sd
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+    - name: Build container
+      run: |
+        cd prometheus-to-sd
+        docker build .
+
+  ci-container-build-event-exporter:
+    name: ci-container-build-event-exporter
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+    - name: Build container
+      run: |
+        cd event-exporter
+        docker build .
+
+  ci-container-build-kubelet-to-gcm:
+    name: ci-container-build-kubelet-to-gcm
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+    - name: Build container
+      run: |
+        cd kubelet-to-gcm
+        docker build .
+
+  ci-container-build-fluentd-gcp-scaler:
+    name: ci-container-build-fluentd-gcp-scaler
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+    - name: Build container
+      run: |
+        cd fluentd-gcp-scaler
+        docker build .
