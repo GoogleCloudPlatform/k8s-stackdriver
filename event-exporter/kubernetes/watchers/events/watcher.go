@@ -77,6 +77,7 @@ func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) wa
 			ListFunc: func(options meta_v1.ListOptions) (runtime.Object, error) {
 				if config.ListerWatcherEnableStreaming {
 					return streamingListEvents(client, config, options)
+					return streamingListEvents(client, config, options)
 				} else {
 					if config.ListerWatcherOptionsLimit > 0 {
 						options.Limit = config.ListerWatcherOptionsLimit
@@ -128,6 +129,9 @@ func streamingListEvents(client kubernetes.Interface, config *EventWatcherConfig
 	config.OnList(&corev1.EventList{})
 
 	lastRV := ""
+	bookmarkReceived := false
+
+eventLoop:
 	for event := range watcher.ResultChan() {
 		if meta, ok := event.Object.(meta_v1.Object); ok {
 			lastRV = meta.GetResourceVersion()
@@ -145,6 +149,8 @@ func streamingListEvents(client kubernetes.Interface, config *EventWatcherConfig
 				if val, ok := m.GetAnnotations()["k8s.io/initial-events-end"]; ok && val == "true" {
 					// Stop the watcher to close the channel and break the loop
 					watcher.Stop()
+					bookmarkReceived = true
+					break eventLoop
 				}
 			}
 		case watch.Error:
@@ -154,6 +160,11 @@ func streamingListEvents(client kubernetes.Interface, config *EventWatcherConfig
 				return nil, errors.New(status.Message)
 			}
 		}
+	}
+
+	if !bookmarkReceived {
+		// If we exited the loop without receiving the bookmark, something went wrong.
+		return nil, errors.New("streaming list ended without receiving initial-events-end bookmark")
 	}
 
 	// Return an empty list with the correct ResourceVersion.
