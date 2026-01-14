@@ -121,6 +121,14 @@ func getLabelsFromPod(pod *corev1.Pod) map[string]string {
 				// Pod that is eventually owned by a JobSet has the jobset name label set.
 				transformedLabels[ownerTypeKeyName] = "JobSet"
 				transformedLabels[ownerNameKeyName] = jobsetName
+
+				// Add restart_attempt and uid labels for JobSet events.
+				if restartAttempt, ok := pod.GetObjectMeta().GetLabels()[jobSetRestartAttemptLabelKey]; ok {
+					transformedLabels[jobSetRestartAttemptLabelKey] = restartAttempt
+				}
+				if uid, ok := pod.GetObjectMeta().GetLabels()[jobsetUIDLabelKey]; ok {
+					transformedLabels[jobsetUIDLabelKey] = uid
+				}
 			} else {
 				transformedLabels[ownerTypeKeyName] = "Job"
 				transformedLabels[ownerNameKeyName] = owner.Name
