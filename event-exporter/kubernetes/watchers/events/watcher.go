@@ -19,7 +19,7 @@ package events
 import (
 	"context"
 	"errors"
-	"strings"
+	"regexp"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -73,13 +73,13 @@ type EventWatcherConfig struct {
 
 // NewEventWatcher create a new watcher that only watches the events resource.
 func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) watchers.Watcher {
-	featureGateEnabled := IsFeatureGateEnabled(client, "WatchList")
-	glog.Infof("Feature gate WatchList is enabled: %v", featureGateEnabled)
+	watchListFeatureGateEnabled := IsFeatureGateEnabled(client, "WatchList")
+	glog.Infof("Feature gate WatchList is enabled: %v", watchListFeatureGateEnabled)
 	return watchers.NewWatcher(&watchers.WatcherConfig{
 		// List and watch events in all namespaces.
 		ListerWatcher: &cache.ListWatch{
 			ListFunc: func(options meta_v1.ListOptions) (runtime.Object, error) {
-				if config.ListerWatcherEnableStreaming && featureGateEnabled {
+				if config.ListerWatcherEnableStreaming && watchListFeatureGateEnabled {
 					return streamingListEvents(client, config, options)
 				} else {
 					if config.ListerWatcherOptionsLimit > 0 {
@@ -181,19 +181,24 @@ eventLoop:
 
 func IsFeatureGateEnabled(client kubernetes.Interface, featureName string) bool {
 	// Request raw metrics from the API server
-	data, err := client.CoreV1().RESTClient().Get().AbsPath("/metrics").DoRaw(context.TODO())
+	data, err := client.CoreV1().RESTClient().Get().
+		AbsPath("/metrics").
+		SetHeader("Accept", "text/plain").
+		DoRaw(context.TODO())
+
 	if err != nil {
-		glog.Errorf("fail to get raw metrics from the API server: %v, fall back to false", err)
+		glog.Errorf("fail to get raw metrics: %v", err)
 		return false
 	}
 
-	// Look for: kubernetes_feature_enabled{name="WatchList",stage="BETA"} 1
-	metricLine := "kubernetes_feature_enabled{name=\"" + featureName + "\""
-	lines := strings.Split(string(data), "\n")
-	for _, line := range lines {
-		if strings.Contains(line, metricLine) {
-			return strings.HasSuffix(line, "1")
-		}
-	}
-	return false
+	// Pattern explained:
+	// 1. Match the metric name and the feature name label
+	// 2. [^}]* matches any other labels (like stage="BETA")
+	// 3. \s+ matches the whitespace before the value
+	// 4. (1(\.0+)?) matches "1" or "1.0", "1.00", etc.
+	// 5. (\s+|$) ensures it's the end of the value (whitespace or end of line)
+	pattern := `kubernetes_feature_enabled\{name="` + featureName + `"[^}]*\}\s+(1(\.0+)?)(\s+|$)`
+	re := regexp.MustCompile(pattern)
+
+	return re.Match(data)
 }
