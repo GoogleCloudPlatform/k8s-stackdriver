@@ -19,6 +19,7 @@ package events
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -30,6 +31,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/watchers"
+	"github.com/golang/glog"
 )
 
 const (
@@ -71,11 +73,13 @@ type EventWatcherConfig struct {
 
 // NewEventWatcher create a new watcher that only watches the events resource.
 func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) watchers.Watcher {
+	featureGateEnabled := IsFeatureGateEnabled(client, "WatchList")
+	glog.Infof("Feature gate WatchList is enabled: %v", featureGateEnabled)
 	return watchers.NewWatcher(&watchers.WatcherConfig{
 		// List and watch events in all namespaces.
 		ListerWatcher: &cache.ListWatch{
 			ListFunc: func(options meta_v1.ListOptions) (runtime.Object, error) {
-				if config.ListerWatcherEnableStreaming {
+				if config.ListerWatcherEnableStreaming && featureGateEnabled {
 					return streamingListEvents(client, config, options)
 				} else {
 					if config.ListerWatcherOptionsLimit > 0 {
@@ -173,4 +177,23 @@ eventLoop:
 		},
 		Items: []corev1.Event{},
 	}, nil
+}
+
+func IsFeatureGateEnabled(client kubernetes.Interface, featureName string) bool {
+	// Request raw metrics from the API server
+	data, err := client.CoreV1().RESTClient().Get().AbsPath("/metrics").DoRaw(context.TODO())
+	if err != nil {
+		glog.Errorf("fail to get raw metrics from the API server: %v, fall back to false", err)
+		return false
+	}
+
+	// Look for: kubernetes_feature_enabled{name="WatchList",stage="BETA"} 1
+	metricLine := "kubernetes_feature_enabled{name=\"" + featureName + "\""
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, metricLine) {
+			return strings.HasSuffix(line, "1")
+		}
+	}
+	return false
 }
