@@ -425,7 +425,7 @@ func MetricFamilyToMetricDescriptor(config *config.CommonConfig,
 		Type:        getMetricType(config, family.GetName()),
 		MetricKind:  extractMetricKind(family.GetType()),
 		ValueType:   extractValueType(family.GetType(), originalDescriptor),
-		Labels:      extractAllLabels(family, originalDescriptor),
+		Labels:      extractAllLabels(config, family, originalDescriptor),
 	}
 }
 
@@ -452,11 +452,15 @@ func extractValueType(mType dto.MetricType, originalDescriptor *metric.MetricDes
 	return metric.MetricDescriptor_INT64
 }
 
-func extractAllLabels(family *dto.MetricFamily, originalDescriptor *metric.MetricDescriptor) []*label.LabelDescriptor {
+func extractAllLabels(config *config.CommonConfig, family *dto.MetricFamily, originalDescriptor *metric.MetricDescriptor) []*label.LabelDescriptor {
 	var labels []*label.LabelDescriptor
 	labelSet := make(map[string]bool)
 	for _, metric := range family.GetMetric() {
 		for _, l := range metric.GetLabel() {
+			// Filter out labels that aren't metric labels
+			if !config.SourceConfig.PodConfig.IsMetricLabel(l.GetName()) {
+				continue
+			}
 			_, ok := labelSet[l.GetName()]
 			if !ok {
 				labels = append(labels, &label.LabelDescriptor{Key: l.GetName()})
