@@ -219,6 +219,7 @@ func TestValidateMetricDescriptors(t *testing.T) {
 			SourceConfig: &config.SourceConfig{
 				Component:     "test-component",
 				MetricsPrefix: "container.googleapis.com",
+				PodConfig:     config.NewPodConfig("", "", "", "", "", "", "", ""),
 			},
 		})
 		cache.fresh = true
