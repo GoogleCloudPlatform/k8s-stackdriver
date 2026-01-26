@@ -60,6 +60,12 @@ func NewPodLabelsSharedInformerFactory(client kubernetes.Interface, ignoredNames
 				if v, ok := pod.Labels[jobSetNameLabelKey]; ok {
 					labels[jobSetNameLabelKey] = v
 				}
+				if v, ok := pod.Labels[jobSetRestartAttemptLabelKey]; ok {
+					labels[jobSetRestartAttemptLabelKey] = v
+				}
+				if v, ok := pod.Labels[jobsetUIDLabelKey]; ok {
+					labels[jobsetUIDLabelKey] = v
+				}
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:            pod.Name,
