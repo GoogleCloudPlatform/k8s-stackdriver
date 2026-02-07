@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"net/http"
 	"net/url"
@@ -37,7 +38,6 @@ import (
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/component-base/logs"
 	"k8s.io/klog"
 	"sigs.k8s.io/metrics-server/pkg/api"
@@ -267,7 +267,7 @@ func main() {
 	if serverOptions.MetricsAddress != "" {
 		go runPrometheusMetricsServer(serverOptions.MetricsAddress)
 	}
-	if err := cmd.Run(wait.NeverStop); err != nil {
+	if err := cmd.Run(context.Background()); err != nil {
 		klog.Fatalf("unable to run custom metrics adapter: %v", err)
 	}
 }
