@@ -18,15 +18,26 @@ limitations under the License.
 
 package v1alpha1
 
-// ServerStorageVersionApplyConfiguration represents an declarative configuration of the ServerStorageVersion type for use
+// ServerStorageVersionApplyConfiguration represents a declarative configuration of the ServerStorageVersion type for use
 // with apply.
+//
+// An API server instance reports the version it can decode and the version it
+// encodes objects to when persisting objects in the backend.
 type ServerStorageVersionApplyConfiguration struct {
-	APIServerID       *string  `json:"apiServerID,omitempty"`
-	EncodingVersion   *string  `json:"encodingVersion,omitempty"`
+	// The ID of the reporting API server.
+	APIServerID *string `json:"apiServerID,omitempty"`
+	// The API server encodes the object to this version when persisting it in
+	// the backend (e.g., etcd).
+	EncodingVersion *string `json:"encodingVersion,omitempty"`
+	// The API server can decode objects encoded in these versions.
+	// The encodingVersion must be included in the decodableVersions.
 	DecodableVersions []string `json:"decodableVersions,omitempty"`
+	// The API server can serve these versions.
+	// DecodableVersions must include all ServedVersions.
+	ServedVersions []string `json:"servedVersions,omitempty"`
 }
 
-// ServerStorageVersionApplyConfiguration constructs an declarative configuration of the ServerStorageVersion type for use with
+// ServerStorageVersionApplyConfiguration constructs a declarative configuration of the ServerStorageVersion type for use with
 // apply.
 func ServerStorageVersion() *ServerStorageVersionApplyConfiguration {
 	return &ServerStorageVersionApplyConfiguration{}
@@ -54,6 +65,16 @@ func (b *ServerStorageVersionApplyConfiguration) WithEncodingVersion(value strin
 func (b *ServerStorageVersionApplyConfiguration) WithDecodableVersions(values ...string) *ServerStorageVersionApplyConfiguration {
 	for i := range values {
 		b.DecodableVersions = append(b.DecodableVersions, values[i])
+	}
+	return b
+}
+
+// WithServedVersions adds the given value to the ServedVersions field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the ServedVersions field.
+func (b *ServerStorageVersionApplyConfiguration) WithServedVersions(values ...string) *ServerStorageVersionApplyConfiguration {
+	for i := range values {
+		b.ServedVersions = append(b.ServedVersions, values[i])
 	}
 	return b
 }
