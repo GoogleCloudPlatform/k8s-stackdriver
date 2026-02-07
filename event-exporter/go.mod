@@ -6,7 +6,7 @@ toolchain go1.24.4
 
 require (
 	cloud.google.com/go/compute/metadata v0.6.0
-	github.com/golang/glog v1.2.4
+	github.com/golang/glog v1.2.5
 	github.com/google/go-cmp v0.7.0
 	github.com/prometheus/client_golang v1.21.1
 	golang.org/x/net v0.47.0
