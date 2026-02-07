@@ -3,7 +3,7 @@ module github.com/GoogleCloudPlatform/k8s-stackdriver/kubelet-to-gcm
 go 1.24.0
 
 require (
-	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
+	github.com/golang/glog v1.2.5
 	github.com/google/gofuzz v1.2.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/common v0.37.0
