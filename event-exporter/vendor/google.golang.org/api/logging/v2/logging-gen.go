@@ -1,4 +1,4 @@
-// Copyright 2025 Google LLC.
+// Copyright 2026 Google LLC.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -2210,14 +2210,14 @@ func (s ListLocationsResponse) MarshalJSON() ([]byte, error) {
 type ListLogEntriesRequest struct {
 	// Filter: Optional. A filter that chooses which log entries to return. For
 	// more information, see Logging query language
-	// (https://cloud.google.com/logging/docs/view/logging-query-language).Only log
-	// entries that match the filter are returned. An empty filter matches all log
-	// entries in the resources listed in resource_names. Referencing a parent
+	// (https://{$universe.dns_names.final_documentation_domain}/logging/docs/view/logging-query-language).Only
+	// log entries that match the filter are returned. An empty filter matches all
+	// log entries in the resources listed in resource_names. Referencing a parent
 	// resource that is not listed in resource_names will cause the filter to
 	// return no results. The maximum length of a filter is 20,000 characters.To
 	// make queries faster, you can make the filter more selective by using
 	// restrictions on indexed fields
-	// (https://cloud.google.com/logging/docs/view/logging-query-language#indexed-fields)
+	// (https://{$universe.dns_names.final_documentation_domain}/logging/docs/view/logging-query-language#indexed-fields)
 	// as well as limit the time range of the query by adding range restrictions on
 	// the timestamp field.
 	Filter string `json:"filter,omitempty"`
@@ -2446,6 +2446,11 @@ type ListOperationsResponse struct {
 	// Operations: A list of operations that matches the specified filter in the
 	// request.
 	Operations []*Operation `json:"operations,omitempty"`
+	// Unreachable: Unordered list. Unreachable resources. Populated when the
+	// request sets ListOperationsRequest.return_partial_success and reads across
+	// collections. For example, when attempting to list all resources across all
+	// supported locations.
+	Unreachable []string `json:"unreachable,omitempty"`
 
 	// ServerResponse contains the HTTP response code and headers from the server.
 	googleapi.ServerResponse `json:"-"`
@@ -2750,8 +2755,12 @@ type LogEntry struct {
 	Apphub *AppHub `json:"apphub,omitempty"`
 	// ApphubDestination: Output only. AppHub application metadata associated with
 	// the destination application. This is only populated if the log represented
-	// "edge"-like data (such as for VPC flow logs) with a source and destination.
+	// "edge"-like data (such as for VPC flow logs) with a destination.
 	ApphubDestination *AppHub `json:"apphubDestination,omitempty"`
+	// ApphubSource: Output only. AppHub application metadata associated with the
+	// source application. This is only populated if the log represented
+	// "edge"-like data (such as for VPC flow logs) with a source.
+	ApphubSource *AppHub `json:"apphubSource,omitempty"`
 	// ErrorGroups: Output only. The Error Reporting
 	// (https://cloud.google.com/error-reporting) error groups associated with this
 	// LogEntry. Error Reporting sets the values for this field during error group
@@ -2778,7 +2787,7 @@ type LogEntry struct {
 	// Labels: Optional. A map of key, value pairs that provides additional
 	// information about the log entry. The labels can be user-defined or
 	// system-defined.User-defined labels are arbitrary key, value pairs that you
-	// can use to classify logs.System-defined labels are defined by GCP services
+	// can use to classify logs.System-defined labels are defined by cloud services
 	// for platform logs. They have two components - a service namespace component
 	// and the attribute name. For example:
 	// compute.googleapis.com/resource_name.Cloud Logging truncates label keys that
@@ -2841,25 +2850,23 @@ type LogEntry struct {
 	// SourceLocation: Optional. Source code location information associated with
 	// the log entry, if any.
 	SourceLocation *LogEntrySourceLocation `json:"sourceLocation,omitempty"`
-	// SpanId: Optional. The ID of the Cloud Trace (https://cloud.google.com/trace)
-	// span associated with the current operation in which the log is being
-	// written. For example, if a span has the REST resource name of
-	// "projects/some-project/traces/some-trace/spans/some-span-id", then the
-	// span_id field is "some-span-id".A Span
-	// (https://cloud.google.com/trace/docs/reference/v2/rest/v2/projects.traces/batchWrite#Span)
+	// SpanId: Optional. The ID of the Cloud Trace
+	// (https://docs.cloud.google.com/trace/docs) span associated with the current
+	// operation in which the log is being written.A Span
+	// (https://docs.cloud.google.com/trace/docs/reference/v2/rest/v2/projects.traces/batchWrite#Span)
 	// represents a single operation within a trace. Whereas a trace may involve
 	// multiple different microservices running on multiple different machines, a
 	// span generally corresponds to a single logical operation being performed in
 	// a single instance of a microservice on one specific machine. Spans are the
 	// nodes within the tree that is a trace.Applications that are instrumented for
-	// tracing (https://cloud.google.com/trace/docs/setup) will generally assign a
-	// new, unique span ID on each incoming request. It is also common to create
-	// and record additional spans corresponding to internal processing elements as
-	// well as issuing requests to dependencies.The span ID is expected to be a
-	// 16-character, hexadecimal encoding of an 8-byte array and should not be
-	// zero. It should be unique within the trace and should, ideally, be generated
-	// in a manner that is uniformly random.Example values: 000000000000004a
-	// 7a2190356c3fc94b 0000f00300090021 d39223e101960076
+	// tracing (https://docs.cloud.google.com/trace/docs/setup) will generally
+	// assign a new, unique span ID on each incoming request. It is also common to
+	// create and record additional spans corresponding to internal processing
+	// elements as well as issuing requests to dependencies.The span ID is expected
+	// to be a 16-character, hexadecimal encoding of an 8-byte array and should not
+	// be zero. It should be unique within the trace and should, ideally, be
+	// generated in a manner that is uniformly random.Example values:
+	// 000000000000004a 7a2190356c3fc94b 0000f00300090021 d39223e101960076
 	SpanId string `json:"spanId,omitempty"`
 	// Split: Optional. Information indicating this LogEntry is part of a sequence
 	// of multiple log entries split from a single LogEntry.
@@ -2877,14 +2884,16 @@ type LogEntry struct {
 	// past, and that don't exceed 24 hours in the future. Log entries outside
 	// those time boundaries are rejected by Logging.
 	Timestamp string `json:"timestamp,omitempty"`
-	// Trace: Optional. The REST resource name of the trace being written to Cloud
-	// Trace (https://cloud.google.com/trace) in association with this log entry.
-	// For example, if your trace data is stored in the Cloud project
+	// Trace: Optional. The trace ID being written to Cloud Trace
+	// (https://docs.cloud.google.com/trace/docs) in association with this log
+	// entry. For example, if your trace data is stored in the Cloud project
 	// "my-trace-project" and if the service that is creating the log entry
 	// receives a trace header that includes the trace ID "12345", then the service
-	// should use "projects/my-trace-project/traces/12345".The trace field provides
-	// the link between logs and traces. By using this field, you can navigate from
-	// a log entry to a trace.
+	// should use "12345".The REST resource name of the trace is also supported,
+	// but using this format is not recommended. An example trace REST resource
+	// name is similar to "projects/my-trace-project/traces/12345".The trace field
+	// provides the link between logs and traces. By using this field, you can
+	// navigate from a log entry to a trace.
 	Trace string `json:"trace,omitempty"`
 	// TraceSampled: Optional. The sampling decision of the span associated with
 	// the log entry at the time the log entry was created. This field corresponds
@@ -4506,11 +4515,13 @@ type TailLogEntriesRequest struct {
 	// arriving log entries. Valid values are between 0-60000 milliseconds.
 	// Defaults to 2000 milliseconds.
 	BufferWindow string `json:"bufferWindow,omitempty"`
-	// Filter: Optional. Only log entries that match the filter are returned. An
-	// empty filter matches all log entries in the resources listed in
-	// resource_names. Referencing a parent resource that is not listed in
-	// resource_names will cause the filter to return no results. The maximum
-	// length of a filter is 20,000 characters.
+	// Filter: Optional. A filter that chooses which log entries to return. For
+	// more information, see Logging query language
+	// (https://{$universe.dns_names.final_documentation_domain}/logging/docs/view/logging-query-language).Only
+	// log entries that match the filter are returned. An empty filter matches all
+	// log entries in the resources listed in resource_names. Referencing a parent
+	// resource that is not listed in resource_names will cause the filter to
+	// return no results. The maximum length of a filter is 20,000 characters.
 	Filter string `json:"filter,omitempty"`
 	// ResourceNames: Required. Name of a parent resource from which to retrieve
 	// log entries: projects/[PROJECT_ID] organizations/[ORGANIZATION_ID]
@@ -5712,9 +5723,9 @@ func (r *BillingAccountsLocationsService) List(name string) *BillingAccountsLoca
 	return c
 }
 
-// ExtraLocationTypes sets the optional parameter "extraLocationTypes": Unless
-// explicitly documented otherwise, don't use this unsupported field which is
-// primarily intended for internal usage.
+// ExtraLocationTypes sets the optional parameter "extraLocationTypes": Do not
+// use this field. It is unsupported and is ignored unless explicitly
+// documented otherwise. This is primarily for internal usage.
 func (c *BillingAccountsLocationsListCall) ExtraLocationTypes(extraLocationTypes ...string) *BillingAccountsLocationsListCall {
 	c.urlParams_.SetMulti("extraLocationTypes", append([]string{}, extraLocationTypes...))
 	return c
@@ -8336,6 +8347,19 @@ func (c *BillingAccountsLocationsOperationsListCall) PageSize(pageSize int64) *B
 // token.
 func (c *BillingAccountsLocationsOperationsListCall) PageToken(pageToken string) *BillingAccountsLocationsOperationsListCall {
 	c.urlParams_.Set("pageToken", pageToken)
+	return c
+}
+
+// ReturnPartialSuccess sets the optional parameter "returnPartialSuccess":
+// When set to true, operations that are reachable are returned as normal, and
+// those that are unreachable are returned in the
+// ListOperationsResponse.unreachable field.This can only be true when reading
+// across collections. For example, when parent is set to
+// "projects/example/locations/-".This field is not supported by default and
+// will result in an UNIMPLEMENTED error if set unless explicitly documented
+// otherwise in service or product specific documentation.
+func (c *BillingAccountsLocationsOperationsListCall) ReturnPartialSuccess(returnPartialSuccess bool) *BillingAccountsLocationsOperationsListCall {
+	c.urlParams_.Set("returnPartialSuccess", fmt.Sprint(returnPartialSuccess))
 	return c
 }
 
@@ -12462,9 +12486,9 @@ func (r *FoldersLocationsService) List(name string) *FoldersLocationsListCall {
 	return c
 }
 
-// ExtraLocationTypes sets the optional parameter "extraLocationTypes": Unless
-// explicitly documented otherwise, don't use this unsupported field which is
-// primarily intended for internal usage.
+// ExtraLocationTypes sets the optional parameter "extraLocationTypes": Do not
+// use this field. It is unsupported and is ignored unless explicitly
+// documented otherwise. This is primarily for internal usage.
 func (c *FoldersLocationsListCall) ExtraLocationTypes(extraLocationTypes ...string) *FoldersLocationsListCall {
 	c.urlParams_.SetMulti("extraLocationTypes", append([]string{}, extraLocationTypes...))
 	return c
@@ -16009,6 +16033,19 @@ func (c *FoldersLocationsOperationsListCall) PageToken(pageToken string) *Folder
 	return c
 }
 
+// ReturnPartialSuccess sets the optional parameter "returnPartialSuccess":
+// When set to true, operations that are reachable are returned as normal, and
+// those that are unreachable are returned in the
+// ListOperationsResponse.unreachable field.This can only be true when reading
+// across collections. For example, when parent is set to
+// "projects/example/locations/-".This field is not supported by default and
+// will result in an UNIMPLEMENTED error if set unless explicitly documented
+// otherwise in service or product specific documentation.
+func (c *FoldersLocationsOperationsListCall) ReturnPartialSuccess(returnPartialSuccess bool) *FoldersLocationsOperationsListCall {
+	c.urlParams_.Set("returnPartialSuccess", fmt.Sprint(returnPartialSuccess))
+	return c
+}
+
 // Fields allows partial responses to be retrieved. See
 // https://developers.google.com/gdata/docs/2.0/basics#PartialResponse for more
 // details.
@@ -18156,9 +18193,9 @@ func (r *LocationsService) List(name string) *LocationsListCall {
 	return c
 }
 
-// ExtraLocationTypes sets the optional parameter "extraLocationTypes": Unless
-// explicitly documented otherwise, don't use this unsupported field which is
-// primarily intended for internal usage.
+// ExtraLocationTypes sets the optional parameter "extraLocationTypes": Do not
+// use this field. It is unsupported and is ignored unless explicitly
+// documented otherwise. This is primarily for internal usage.
 func (c *LocationsListCall) ExtraLocationTypes(extraLocationTypes ...string) *LocationsListCall {
 	c.urlParams_.SetMulti("extraLocationTypes", append([]string{}, extraLocationTypes...))
 	return c
@@ -20937,6 +20974,19 @@ func (c *LocationsOperationsListCall) PageToken(pageToken string) *LocationsOper
 	return c
 }
 
+// ReturnPartialSuccess sets the optional parameter "returnPartialSuccess":
+// When set to true, operations that are reachable are returned as normal, and
+// those that are unreachable are returned in the
+// ListOperationsResponse.unreachable field.This can only be true when reading
+// across collections. For example, when parent is set to
+// "projects/example/locations/-".This field is not supported by default and
+// will result in an UNIMPLEMENTED error if set unless explicitly documented
+// otherwise in service or product specific documentation.
+func (c *LocationsOperationsListCall) ReturnPartialSuccess(returnPartialSuccess bool) *LocationsOperationsListCall {
+	c.urlParams_.Set("returnPartialSuccess", fmt.Sprint(returnPartialSuccess))
+	return c
+}
+
 // Fields allows partial responses to be retrieved. See
 // https://developers.google.com/gdata/docs/2.0/basics#PartialResponse for more
 // details.
@@ -22689,9 +22739,9 @@ func (r *OrganizationsLocationsService) List(name string) *OrganizationsLocation
 	return c
 }
 
-// ExtraLocationTypes sets the optional parameter "extraLocationTypes": Unless
-// explicitly documented otherwise, don't use this unsupported field which is
-// primarily intended for internal usage.
+// ExtraLocationTypes sets the optional parameter "extraLocationTypes": Do not
+// use this field. It is unsupported and is ignored unless explicitly
+// documented otherwise. This is primarily for internal usage.
 func (c *OrganizationsLocationsListCall) ExtraLocationTypes(extraLocationTypes ...string) *OrganizationsLocationsListCall {
 	c.urlParams_.SetMulti("extraLocationTypes", append([]string{}, extraLocationTypes...))
 	return c
@@ -26236,6 +26286,19 @@ func (c *OrganizationsLocationsOperationsListCall) PageToken(pageToken string) *
 	return c
 }
 
+// ReturnPartialSuccess sets the optional parameter "returnPartialSuccess":
+// When set to true, operations that are reachable are returned as normal, and
+// those that are unreachable are returned in the
+// ListOperationsResponse.unreachable field.This can only be true when reading
+// across collections. For example, when parent is set to
+// "projects/example/locations/-".This field is not supported by default and
+// will result in an UNIMPLEMENTED error if set unless explicitly documented
+// otherwise in service or product specific documentation.
+func (c *OrganizationsLocationsOperationsListCall) ReturnPartialSuccess(returnPartialSuccess bool) *OrganizationsLocationsOperationsListCall {
+	c.urlParams_.Set("returnPartialSuccess", fmt.Sprint(returnPartialSuccess))
+	return c
+}
+
 // Fields allows partial responses to be retrieved. See
 // https://developers.google.com/gdata/docs/2.0/basics#PartialResponse for more
 // details.
@@ -29220,9 +29283,9 @@ func (r *ProjectsLocationsService) List(name string) *ProjectsLocationsListCall 
 	return c
 }
 
-// ExtraLocationTypes sets the optional parameter "extraLocationTypes": Unless
-// explicitly documented otherwise, don't use this unsupported field which is
-// primarily intended for internal usage.
+// ExtraLocationTypes sets the optional parameter "extraLocationTypes": Do not
+// use this field. It is unsupported and is ignored unless explicitly
+// documented otherwise. This is primarily for internal usage.
 func (c *ProjectsLocationsListCall) ExtraLocationTypes(extraLocationTypes ...string) *ProjectsLocationsListCall {
 	c.urlParams_.SetMulti("extraLocationTypes", append([]string{}, extraLocationTypes...))
 	return c
@@ -32764,6 +32827,19 @@ func (c *ProjectsLocationsOperationsListCall) PageSize(pageSize int64) *Projects
 // token.
 func (c *ProjectsLocationsOperationsListCall) PageToken(pageToken string) *ProjectsLocationsOperationsListCall {
 	c.urlParams_.Set("pageToken", pageToken)
+	return c
+}
+
+// ReturnPartialSuccess sets the optional parameter "returnPartialSuccess":
+// When set to true, operations that are reachable are returned as normal, and
+// those that are unreachable are returned in the
+// ListOperationsResponse.unreachable field.This can only be true when reading
+// across collections. For example, when parent is set to
+// "projects/example/locations/-".This field is not supported by default and
+// will result in an UNIMPLEMENTED error if set unless explicitly documented
+// otherwise in service or product specific documentation.
+func (c *ProjectsLocationsOperationsListCall) ReturnPartialSuccess(returnPartialSuccess bool) *ProjectsLocationsOperationsListCall {
+	c.urlParams_.Set("returnPartialSuccess", fmt.Sprint(returnPartialSuccess))
 	return c
 }
 
