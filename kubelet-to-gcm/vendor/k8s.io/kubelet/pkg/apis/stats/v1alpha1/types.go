@@ -46,6 +46,9 @@ type NodeStats struct {
 	// Stats pertaining to memory (RAM) resources.
 	// +optional
 	Memory *MemoryStats `json:"memory,omitempty"`
+	// Stats pertaining to IO resources.
+	// +optional
+	IO *IOStats `json:"io,omitempty"`
 	// Stats pertaining to network resources.
 	// +optional
 	Network *NetworkStats `json:"network,omitempty"`
@@ -59,6 +62,9 @@ type NodeStats struct {
 	// Stats about the rlimit of system.
 	// +optional
 	Rlimit *RlimitStats `json:"rlimit,omitempty"`
+	// Stats pertaining to swap resources. This is reported to non-windows systems only.
+	// +optional
+	Swap *SwapStats `json:"swap,omitempty"`
 }
 
 // RlimitStats are stats rlimit of OS.
@@ -80,6 +86,11 @@ type RuntimeStats struct {
 	// Usage here refers to the total number of bytes occupied by images on the filesystem.
 	// +optional
 	ImageFs *FsStats `json:"imageFs,omitempty"`
+	// Stats about the underlying filesystem where container's writeable layer is stored.
+	// This filesystem could be the same as the primary (root) filesystem or the ImageFS.
+	// Usage here refers to the total number of bytes occupied by the writeable layer on the filesystem.
+	// +optional
+	ContainerFs *FsStats `json:"containerFs,omitempty"`
 }
 
 const (
@@ -91,6 +102,9 @@ const (
 	SystemContainerMisc = "misc"
 	// SystemContainerPods is the container name for the system container tracking user pods.
 	SystemContainerPods = "pods"
+	// SystemContainerWindowsGlobalCommitMemory (only used on Windows) is the container name for the system container
+	// tracking global commit memory usage and is used for memory-pressure eviction.
+	SystemContainerWindowsGlobalCommitMemory = "windows-global-commit-memory"
 )
 
 // ProcessStats are stats pertaining to processes.
@@ -116,6 +130,9 @@ type PodStats struct {
 	// Stats pertaining to memory (RAM) resources consumed by pod cgroup (which includes all containers' resource usage and pod overhead).
 	// +optional
 	Memory *MemoryStats `json:"memory,omitempty"`
+	// Stats pertaining to IO resources consumed by pod cgroup (which includes all containers' resource usage and pod overhead).
+	// +optional
+	IO *IOStats `json:"io,omitempty"`
 	// Stats pertaining to network resources.
 	// +optional
 	Network *NetworkStats `json:"network,omitempty"`
@@ -131,6 +148,9 @@ type PodStats struct {
 	// ProcessStats pertaining to processes.
 	// +optional
 	ProcessStats *ProcessStats `json:"process_stats,omitempty"`
+	// Stats pertaining to swap resources. This is reported to non-windows systems only.
+	// +optional
+	Swap *SwapStats `json:"swap,omitempty"`
 }
 
 // ContainerStats holds container-level unprocessed sample stats.
@@ -145,6 +165,9 @@ type ContainerStats struct {
 	// Stats pertaining to memory (RAM) resources.
 	// +optional
 	Memory *MemoryStats `json:"memory,omitempty"`
+	// Stats pertaining to IO resources.
+	// +optional
+	IO *IOStats `json:"io,omitempty"`
 	// Metrics for Accelerators. Each Accelerator corresponds to one element in the array.
 	Accelerators []AcceleratorStats `json:"accelerators,omitempty"`
 	// Stats pertaining to container rootfs usage of filesystem resources.
@@ -159,6 +182,9 @@ type ContainerStats struct {
 	// +patchMergeKey=name
 	// +patchStrategy=merge
 	UserDefinedMetrics []UserDefinedMetric `json:"userDefinedMetrics,omitempty" patchStrategy:"merge" patchMergeKey:"name"`
+	// Stats pertaining to swap resources. This is reported to non-windows systems only.
+	// +optional
+	Swap *SwapStats `json:"swap,omitempty"`
 }
 
 // PodReference contains enough information to locate the referenced pod.
@@ -208,6 +234,9 @@ type CPUStats struct {
 	// Cumulative CPU usage (sum of all cores) since object creation.
 	// +optional
 	UsageCoreNanoSeconds *uint64 `json:"usageCoreNanoSeconds,omitempty"`
+	// CPU PSI stats.
+	// +optional
+	PSI *PSIStats `json:"psi,omitempty"`
 }
 
 // MemoryStats contains data about memory usage.
@@ -235,6 +264,52 @@ type MemoryStats struct {
 	// Cumulative number of major page faults.
 	// +optional
 	MajorPageFaults *uint64 `json:"majorPageFaults,omitempty"`
+	// Memory PSI stats.
+	// +optional
+	PSI *PSIStats `json:"psi,omitempty"`
+}
+
+// IOStats contains data about IO usage.
+type IOStats struct {
+	// The time at which these stats were updated.
+	Time metav1.Time `json:"time"`
+	// IO PSI stats.
+	// +optional
+	PSI *PSIStats `json:"psi,omitempty"`
+}
+
+// PSI statistics for an individual resource.
+type PSIStats struct {
+	// PSI data for all tasks in the cgroup.
+	Full PSIData `json:"full"`
+	// PSI data for some tasks in the cgroup.
+	Some PSIData `json:"some"`
+}
+
+// PSI data for an individual resource.
+type PSIData struct {
+	// Total time duration for tasks in the cgroup have waited due to congestion.
+	// Unit: nanoseconds.
+	Total uint64 `json:"total"`
+	// The average (in %) tasks have waited due to congestion over a 10 second window.
+	Avg10 float64 `json:"avg10"`
+	// The average (in %) tasks have waited due to congestion over a 60 second window.
+	Avg60 float64 `json:"avg60"`
+	// The average (in %) tasks have waited due to congestion over a 300 second window.
+	Avg300 float64 `json:"avg300"`
+}
+
+// SwapStats contains data about memory usage
+type SwapStats struct {
+	// The time at which these stats were updated.
+	Time metav1.Time `json:"time"`
+	// Available swap memory for use.  This is defined as the <swap-limit> - <current-swap-usage>.
+	// If swap limit is undefined, this value is omitted.
+	// +optional
+	SwapAvailableBytes *uint64 `json:"swapAvailableBytes,omitempty"`
+	// Total swap memory in use.
+	// +optional
+	SwapUsageBytes *uint64 `json:"swapUsageBytes,omitempty"`
 }
 
 // AcceleratorStats contains stats for accelerators attached to the container.
