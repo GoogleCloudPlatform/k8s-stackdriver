@@ -29,20 +29,59 @@
 
 // Package apierror implements a wrapper error for parsing error details from
 // API calls. Both HTTP & gRPC status errors are supported.
+//
+// For examples of how to use [APIError] with client libraries please reference
+// [Inspecting errors](https://pkg.go.dev/cloud.google.com/go#hdr-Inspecting_errors)
+// in the client library documentation.
 package apierror
 
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	jsonerror "github.com/googleapis/gax-go/v2/apierror/internal/proto"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
+
+// canonicalMap maps HTTP codes to gRPC status code equivalents.
+var canonicalMap = map[int]codes.Code{
+	http.StatusOK:                           codes.OK,
+	http.StatusBadRequest:                   codes.InvalidArgument,
+	http.StatusForbidden:                    codes.PermissionDenied,
+	http.StatusNotFound:                     codes.NotFound,
+	http.StatusConflict:                     codes.Aborted,
+	http.StatusRequestedRangeNotSatisfiable: codes.OutOfRange,
+	http.StatusTooManyRequests:              codes.ResourceExhausted,
+	http.StatusGatewayTimeout:               codes.DeadlineExceeded,
+	http.StatusNotImplemented:               codes.Unimplemented,
+	http.StatusServiceUnavailable:           codes.Unavailable,
+	http.StatusUnauthorized:                 codes.Unauthenticated,
+}
+
+// toCode maps an http code to the most correct equivalent.
+func toCode(httpCode int) codes.Code {
+	if sCode, ok := canonicalMap[httpCode]; ok {
+		return sCode
+	}
+	switch {
+	case httpCode >= 200 && httpCode < 300:
+		return codes.OK
+
+	case httpCode >= 400 && httpCode < 500:
+		return codes.FailedPrecondition
+
+	case httpCode >= 500 && httpCode < 600:
+		return codes.Internal
+	}
+	return codes.Unknown
+}
 
 // ErrDetails holds the google/rpc/error_details.proto messages.
 type ErrDetails struct {
@@ -197,12 +236,14 @@ func (a *APIError) Unwrap() error {
 // Error returns a readable representation of the APIError.
 func (a *APIError) Error() string {
 	var msg string
-	if a.status != nil {
-		msg = a.err.Error()
-	} else if a.httpErr != nil {
+	if a.httpErr != nil {
 		// Truncate the googleapi.Error message because it dumps the Details in
 		// an ugly way.
 		msg = fmt.Sprintf("googleapi: Error %d: %s", a.httpErr.Code, a.httpErr.Message)
+	} else if a.status != nil && a.err != nil {
+		msg = a.err.Error()
+	} else if a.status != nil {
+		msg = a.status.Message()
 	}
 	return strings.TrimSpace(fmt.Sprintf("%s\n%s", msg, a.details))
 }
@@ -210,6 +251,11 @@ func (a *APIError) Error() string {
 // GRPCStatus extracts the underlying gRPC Status error.
 // This method is necessary to fulfill the interface
 // described in https://pkg.go.dev/google.golang.org/grpc/status#FromError.
+//
+// For errors that originated as an HTTP-based googleapi.Error, GRPCStatus()
+// returns a status that attempts to map from the original HTTP code to an
+// equivalent gRPC status code.  For use cases where you want to avoid this
+// behavior, error unwrapping can be used.
 func (a *APIError) GRPCStatus() *status.Status {
 	return a.status
 }
@@ -236,6 +282,9 @@ func (a *APIError) Metadata() map[string]string {
 // setDetailsFromError parses a Status error or a googleapi.Error
 // and sets status and details or httpErr and details, respectively.
 // It returns false if neither Status nor googleapi.Error can be parsed.
+//
+// When err is a googleapi.Error, the status of the returned error will be
+// mapped to the closest equivalent gGRPC status code.
 func (a *APIError) setDetailsFromError(err error) bool {
 	st, isStatus := status.FromError(err)
 	var herr *googleapi.Error
@@ -248,6 +297,7 @@ func (a *APIError) setDetailsFromError(err error) bool {
 	case isHTTPErr:
 		a.httpErr = herr
 		a.details = parseHTTPDetails(herr)
+		a.status = status.New(toCode(a.httpErr.Code), herr.Message)
 	default:
 		return false
 	}
@@ -339,4 +389,14 @@ func parseHTTPDetails(gae *googleapi.Error) ErrDetails {
 	}
 
 	return parseDetails(details)
+}
+
+// HTTPCode returns the underlying HTTP response status code. This method returns
+// `-1` if the underlying error is a [google.golang.org/grpc/status.Status]. To
+// check gRPC error codes use [google.golang.org/grpc/status.Code].
+func (a *APIError) HTTPCode() int {
+	if a.httpErr == nil {
+		return -1
+	}
+	return a.httpErr.Code
 }
