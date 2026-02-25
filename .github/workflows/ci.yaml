@@ -3,88 +3,109 @@ name: continuous-integration
 on:
   push:
     branches:
-    - master
+      - master
     tags:
-    - v0.*
+      - v0.*
   pull_request:
     branches:
-    - master
+      - master
 
 permissions:
   contents: read
 
-env:
-  SUDO: sudo
-  GO_VERSION: "^1.21"
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  ci-unit-tests-custom-metrics-stackdriver-adapter:
-    name: ci-unit-tests-custom-metrics-stackdriver-adapter
+  ci-unit-tests:
+    name: ci-unit-tests-${{ matrix.component.name }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        component:
+          - name: custom-metrics-stackdriver-adapter
+            dir: custom-metrics-stackdriver-adapter
+            build-target: build
+          - name: prometheus-to-sd
+            dir: prometheus-to-sd
+            build-target: build
+          - name: event-exporter
+            dir: event-exporter
+            build-target: build
+          - name: kubelet-to-gcm
+            dir: kubelet-to-gcm
+            build-target: compile
+    if: ${{ hashFiles(format('{0}/go.mod', matrix.component.dir)) != '' }}
     steps:
     - name: Check out code into the Go module directory
       uses: actions/checkout@v4
 
-    - name: Set up Go 1.x
+    - name: Set up Go from module
       uses: actions/setup-go@v5
       with:
-        go-version: ${{ env.GO_VERSION }}
+        go-version-file: ${{ matrix.component.dir }}/go.mod
+        cache: true
+        cache-dependency-path: ${{ matrix.component.dir }}/go.sum
       id: go
 
     - name: Unit tests
-      run: |
-        cd custom-metrics-stackdriver-adapter
-        make test
+      working-directory: ${{ matrix.component.dir }}
+      run: make test
 
-  ci-build-custom-metrics-stackdriver-adapter:
-    name: ci-build-custom-metrics-stackdriver-adapter
+  ci-build:
+    name: ci-build-${{ matrix.component.name }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        component:
+          - name: custom-metrics-stackdriver-adapter
+            dir: custom-metrics-stackdriver-adapter
+            build-target: build
+          - name: prometheus-to-sd
+            dir: prometheus-to-sd
+            build-target: build
+          - name: event-exporter
+            dir: event-exporter
+            build-target: build
+          - name: kubelet-to-gcm
+            dir: kubelet-to-gcm
+            build-target: compile
+    if: ${{ hashFiles(format('{0}/go.mod', matrix.component.dir)) != '' }}
     steps:
     - name: Check out code into the Go module directory
       uses: actions/checkout@v4
 
-    - name: Set up Go 1.x
+    - name: Set up Go from module
       uses: actions/setup-go@v5
       with:
-        go-version: ${{ env.GO_VERSION }}
+        go-version-file: ${{ matrix.component.dir }}/go.mod
+        cache: true
+        cache-dependency-path: ${{ matrix.component.dir }}/go.sum
       id: go
 
     - name: Build
-      run: |
-        cd custom-metrics-stackdriver-adapter
-        make build
-  ci-unit-tests-prometheus-to-sd:
-    name: ci-unit-tests-prometheus-to-sd
+      working-directory: ${{ matrix.component.dir }}
+      run: make ${{ matrix.component.build-target }}
+
+  ci-container-build:
+    name: ci-container-build-${{ matrix.component }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        component:
+          - custom-metrics-stackdriver-adapter
+          - prometheus-to-sd
+          - event-exporter
+          - kubelet-to-gcm
+          - fluentd-gcp-scaler
+    if: ${{ hashFiles(format('{0}/Dockerfile', matrix.component)) != '' }}
     steps:
-    - name: Check out code into the Go module directory
+    - name: Check out code
       uses: actions/checkout@v4
-
-    - name: Set up Go 1.x
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
-      id: go
-
-    - name: Unit tests
-      run: |
-        cd prometheus-to-sd
-        make test
-
-  ci-build-prometheus-to-sd:
-    name: ci-build-prometheus-to-sd
-    runs-on: ubuntu-latest
-    steps:
-    - name: Check out code into the Go module directory
-      uses: actions/checkout@v4
-
-    - name: Set up Go 1.x
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
-      id: go
-
-    - name: Build
-      run: |
-        cd prometheus-to-sd
-        make build
+    - name: Build container
+      working-directory: ${{ matrix.component }}
+      run: docker build .
