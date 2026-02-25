@@ -20,11 +20,7 @@ import (
 	"fmt"
 	"io"
 	"math/bits"
-
-	"github.com/gogo/protobuf/proto"
 )
-
-var _ proto.Sizer = &Quantity{}
 
 func (m *Quantity) Marshal() (data []byte, err error) {
 	size := m.Size()
@@ -166,7 +162,7 @@ func (m *Quantity) Unmarshal(data []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthGenerated
 			}
 			if (iNdEx + skippy) > l {

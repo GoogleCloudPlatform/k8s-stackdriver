@@ -14,13 +14,23 @@
 
 OUT_DIR = build
 PACKAGE = github.com/GoogleCloudPlatform/k8s-stackdriver/kubelet-to-gcm
-PREFIX = staging-k8s.gcr.io
-TAG = 1.4.0
+IMAGE_NAME = kubelet-to-gcm
+PREFIX ?= staging-k8s.gcr.io
+VERSION_TAG ?= 1.4.4
+ALL_ARCH=amd64 arm64
+
+IMAGE=$(PREFIX)/$(IMAGE_NAME)
+
+TAG=$(VERSION_TAG)
+ifdef ARCH
+	TAG=$(VERSION_TAG)-$(ARCH)
+	BUILD_FLAGS=--platform=linux/$(ARCH)
+endif
 
 # Rules for building the real image for deployment to gcr.io
 
 compile: monitor/kubelet monitor/controller
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -a -o $(OUT_DIR)/monitor monitor/main/daemon.go
+	GOOS=$(if $(GOOS),$(GOOS),linux) GOARCH=$(if $(GOARCH),$(GOARCH),amd64) CGO_ENABLED=0 go build -mod=vendor -a -o $(OUT_DIR)/monitor monitor/main/daemon.go
 
 test: monitor/kubelet monitor/controller
 	go test -mod=vendor ${PACKAGE}/monitor ${PACKAGE}/monitor/kubelet ${PACKAGE}/monitor/controller ${PACKAGE}/monitor/config -v
@@ -30,13 +40,31 @@ go: compile test;
 clean:
 	rm -rf build
 
-build: go
-	docker build --pull -t ${PREFIX}/kubelet-to-gcm:$(TAG) .
+.container:
+	docker buildx build . --pull -t $(IMAGE):$(TAG) $(BUILD_FLAGS) --load
 
-docker: build
+.sub-container-%:
+	$(MAKE) --no-print-directory ARCH=$* .container
 
-push: docker
-	gcloud docker -- push ${PREFIX}/kubelet-to-gcm:$(TAG)
+container-multiarch:  $(addprefix .sub-container-,$(ALL_ARCH))
+
+.push: .container
+	docker push $(IMAGE):$(TAG)
+
+push: .push
+
+.sub-push-%:
+	$(MAKE) --no-print-directory ARCH=$* .push
+
+push-multiarch: $(addprefix .sub-push-,$(ALL_ARCH))
+	docker manifest create --amend $(IMAGE):$(TAG) $(addprefix $(IMAGE):$(TAG)-, $(ALL_ARCH))
+	for arch in $(ALL_ARCH); do \
+	  docker manifest annotate --os=linux --arch=$$arch $(IMAGE):$(TAG) $(IMAGE):$(TAG)-$$arch; \
+	done
+	docker manifest push -p $(IMAGE):$(TAG)
+
+clean:
+	rm -rf monitor
 
 coverage:
 	rm -f coverage.out

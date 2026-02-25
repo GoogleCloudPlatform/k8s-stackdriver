@@ -68,10 +68,10 @@ Kubernetes monitored resources, including for example `k8s_pod`, `k8s_node`. See
   ```
 
 If you use Workload Identity in your cluster, additional steps are necessary. In
-the commands below, use your Project ID as **<project-id>** and Google Service Account as
-**<google-service-account>**.
+the commands below, use your Project ID as **`<project-id>`** and Google Service Account as
+**`<google-service-account>`**.
 
-* Make sure your **<google-service-account>** has `monitoring.viewer` IAM role.
+* Make sure your **`<google-service-account>`** has `monitoring.viewer` IAM role.
 
 * Create IAM Policy Binding:
 
@@ -133,6 +133,20 @@ limited scope. In particular, adapter will fallback to k8s_container resource
 when given metric is not present on k8s_pod.
 At most one container with given metric is allowed for each pod.
 Works only with **new resource model**.
+
+#### Metric Cache
+
+Starting with the `cm-sd-adapter-v0.16.0` release, a new cache is available to
+reduce downstream calls to Cloud Monitoring by the adapter. The cache will
+simply keep in memory a previously fetched metric up to the provided TTL value.
+
+To use, set the `--external-metric-cache-ttl` flag to the desired value. For
+example `--external-metric-cache-ttl=1m` will keep the fetched metric values
+in memory for 1 minute.
+
+See an [example deployment with this flag set].
+
+NOTE: This cache currently only works for external metrics.
 
 ### Export custom metrics to Stackdriver
 
@@ -309,5 +323,6 @@ https://github.com/GoogleCloudPlatform/k8s-stackdriver/tree/master/prometheus-to
 https://prometheus.io/docs/instrumenting/exposition_formats
 [existing metrics from other GCP services]:
 https://cloud.google.com/monitoring/api/metrics_gcp
-[fallback-for-container-metrics]:
-https://github.com/znirzej/k8s-stackdriver/tree/adapter-container-metrics/custom-metrics-stackdriver-adapter#fallback-for-container-metrics
+[fallback-for-container-metrics]: #fallback-for-container-metrics
+[example deployment with this flag set]:
+https://github.com/GoogleCloudPlatform/k8s-stackdriver/blob/master/custom-metrics-stackdriver-adapter/deploy/production/adapter_new_resource_model.yaml

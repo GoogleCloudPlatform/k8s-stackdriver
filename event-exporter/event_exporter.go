@@ -19,12 +19,13 @@ package main
 import (
 	"time"
 
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/watchers"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/watchers/events"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/sinks"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/utils"
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/watchers"
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/watchers/events"
 )
 
 type eventExporter struct {
@@ -36,17 +37,21 @@ func (e *eventExporter) Run(stopCh <-chan struct{}) {
 	utils.RunConcurrentlyUntil(stopCh, e.sink.Run, e.watcher.Run)
 }
 
-func newEventExporter(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration) *eventExporter {
+func newEventExporter(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration, eventLabelSelector labels.Selector, listerWatcherOptionsLimit int64, listerWatcherEnableStreaming bool, storageType watchers.StorageType) *eventExporter {
 	return &eventExporter{
 		sink:    sink,
-		watcher: createWatcher(client, sink, resyncPeriod),
+		watcher: createWatcher(client, sink, resyncPeriod, eventLabelSelector, listerWatcherOptionsLimit, listerWatcherEnableStreaming, storageType),
 	}
 }
 
-func createWatcher(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration) watchers.Watcher {
+func createWatcher(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration, eventLabelSelector labels.Selector, listerWatcherOptionsLimit int64, listerWatcherEnableStreaming bool, storageType watchers.StorageType) watchers.Watcher {
 	return events.NewEventWatcher(client, &events.EventWatcherConfig{
-		OnList:       sink.OnList,
-		ResyncPeriod: resyncPeriod,
-		Handler:      sink,
+		OnList:                       sink.OnList,
+		ResyncPeriod:                 resyncPeriod,
+		Handler:                      sink,
+		EventLabelSelector:           eventLabelSelector,
+		ListerWatcherOptionsLimit:    listerWatcherOptionsLimit,
+		ListerWatcherEnableStreaming: listerWatcherEnableStreaming,
+		StorageType:                  storageType,
 	})
 }

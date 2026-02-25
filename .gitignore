@@ -26,3 +26,5 @@ Session.vim
 
 # Idea files
 **/.idea/**
+
+kubelet-to-gcm/build/**

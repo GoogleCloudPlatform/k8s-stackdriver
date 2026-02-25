@@ -19,10 +19,9 @@ package validation
 import (
 	"fmt"
 	"math"
-	"net"
 	"regexp"
-	"strconv"
 	"strings"
+	"unicode"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -106,7 +105,50 @@ func IsFullyQualifiedDomainName(fldPath *field.Path, name string) field.ErrorLis
 	if len(strings.Split(name, ".")) < 2 {
 		return append(allErrors, field.Invalid(fldPath, name, "should be a domain with at least two segments separated by dots"))
 	}
+	for _, label := range strings.Split(name, ".") {
+		if errs := IsDNS1123Label(label); len(errs) > 0 {
+			return append(allErrors, field.Invalid(fldPath, label, strings.Join(errs, ",")))
+		}
+	}
 	return allErrors
+}
+
+// Allowed characters in an HTTP Path as defined by RFC 3986. A HTTP path may
+// contain:
+// * unreserved characters (alphanumeric, '-', '.', '_', '~')
+// * percent-encoded octets
+// * sub-delims ("!", "$", "&", "'", "(", ")", "*", "+", ",", ";", "=")
+// * a colon character (":")
+const httpPathFmt string = `[A-Za-z0-9/\-._~%!$&'()*+,;=:]+`
+
+var httpPathRegexp = regexp.MustCompile("^" + httpPathFmt + "$")
+
+// IsDomainPrefixedPath checks if the given string is a domain-prefixed path
+// (e.g. acme.io/foo). All characters before the first "/" must be a valid
+// subdomain as defined by RFC 1123. All characters trailing the first "/" must
+// be valid HTTP Path characters as defined by RFC 3986.
+func IsDomainPrefixedPath(fldPath *field.Path, dpPath string) field.ErrorList {
+	var allErrs field.ErrorList
+	if len(dpPath) == 0 {
+		return append(allErrs, field.Required(fldPath, ""))
+	}
+
+	segments := strings.SplitN(dpPath, "/", 2)
+	if len(segments) != 2 || len(segments[0]) == 0 || len(segments[1]) == 0 {
+		return append(allErrs, field.Invalid(fldPath, dpPath, "must be a domain-prefixed path (such as \"acme.io/foo\")"))
+	}
+
+	host := segments[0]
+	for _, err := range IsDNS1123Subdomain(host) {
+		allErrs = append(allErrs, field.Invalid(fldPath, host, err))
+	}
+
+	path := segments[1]
+	if !httpPathRegexp.MatchString(path) {
+		return append(allErrs, field.Invalid(fldPath, path, RegexError("Invalid path", httpPathFmt)))
+	}
+
+	return allErrs
 }
 
 const labelValueFmt string = "(" + qualifiedNameFmt + ")?"
@@ -132,7 +174,9 @@ func IsValidLabelValue(value string) []string {
 }
 
 const dns1123LabelFmt string = "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
-const dns1123LabelErrMsg string = "a DNS-1123 label must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character"
+const dns1123LabelFmtWithUnderscore string = "_?[a-z0-9]([-_a-z0-9]*[a-z0-9])?"
+
+const dns1123LabelErrMsg string = "a lowercase RFC 1123 label must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character"
 
 // DNS1123LabelMaxLength is a label's max length in DNS (RFC 1123)
 const DNS1123LabelMaxLength int = 63
@@ -147,18 +191,28 @@ func IsDNS1123Label(value string) []string {
 		errs = append(errs, MaxLenError(DNS1123LabelMaxLength))
 	}
 	if !dns1123LabelRegexp.MatchString(value) {
-		errs = append(errs, RegexError(dns1123LabelErrMsg, dns1123LabelFmt, "my-name", "123-abc"))
+		if dns1123SubdomainRegexp.MatchString(value) {
+			// It was a valid subdomain and not a valid label.  Since we
+			// already checked length, it must be dots.
+			errs = append(errs, "must not contain dots")
+		} else {
+			errs = append(errs, RegexError(dns1123LabelErrMsg, dns1123LabelFmt, "my-name", "123-abc"))
+		}
 	}
 	return errs
 }
 
 const dns1123SubdomainFmt string = dns1123LabelFmt + "(\\." + dns1123LabelFmt + ")*"
-const dns1123SubdomainErrorMsg string = "a DNS-1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character"
+const dns1123SubdomainErrorMsg string = "a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character"
+
+const dns1123SubdomainFmtWithUnderscore string = dns1123LabelFmtWithUnderscore + "(\\." + dns1123LabelFmtWithUnderscore + ")*"
+const dns1123SubdomainErrorMsgFG string = "a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '_', '-' or '.', and must start and end with an alphanumeric character"
 
 // DNS1123SubdomainMaxLength is a subdomain's max length in DNS (RFC 1123)
 const DNS1123SubdomainMaxLength int = 253
 
 var dns1123SubdomainRegexp = regexp.MustCompile("^" + dns1123SubdomainFmt + "$")
+var dns1123SubdomainRegexpWithUnderscore = regexp.MustCompile("^" + dns1123SubdomainFmtWithUnderscore + "$")
 
 // IsDNS1123Subdomain tests for a string that conforms to the definition of a
 // subdomain in DNS (RFC 1123).
@@ -169,6 +223,19 @@ func IsDNS1123Subdomain(value string) []string {
 	}
 	if !dns1123SubdomainRegexp.MatchString(value) {
 		errs = append(errs, RegexError(dns1123SubdomainErrorMsg, dns1123SubdomainFmt, "example.com"))
+	}
+	return errs
+}
+
+// IsDNS1123SubdomainWithUnderscore tests for a string that conforms to the definition of a
+// subdomain in DNS (RFC 1123), but allows the use of an underscore in the string
+func IsDNS1123SubdomainWithUnderscore(value string) []string {
+	var errs []string
+	if len(value) > DNS1123SubdomainMaxLength {
+		errs = append(errs, MaxLenError(DNS1123SubdomainMaxLength))
+	}
+	if !dns1123SubdomainRegexpWithUnderscore.MatchString(value) {
+		errs = append(errs, RegexError(dns1123SubdomainErrorMsgFG, dns1123SubdomainFmtWithUnderscore, "example.com"))
 	}
 	return errs
 }
@@ -290,7 +357,7 @@ func IsValidPortName(port string) []string {
 		errs = append(errs, "must contain only alpha-numeric characters (a-z, 0-9), and hyphens (-)")
 	}
 	if !portNameOneLetterRegexp.MatchString(port) {
-		errs = append(errs, "must contain at least one letter or number (a-z, 0-9)")
+		errs = append(errs, "must contain at least one letter (a-z)")
 	}
 	if strings.Contains(port, "--") {
 		errs = append(errs, "must not contain consecutive hyphens")
@@ -299,34 +366,6 @@ func IsValidPortName(port string) []string {
 		errs = append(errs, "must not begin or end with a hyphen")
 	}
 	return errs
-}
-
-// IsValidIP tests that the argument is a valid IP address.
-func IsValidIP(value string) []string {
-	if net.ParseIP(value) == nil {
-		return []string{"must be a valid IP address, (e.g. 10.9.8.7)"}
-	}
-	return nil
-}
-
-// IsValidIPv4Address tests that the argument is a valid IPv4 address.
-func IsValidIPv4Address(fldPath *field.Path, value string) field.ErrorList {
-	var allErrors field.ErrorList
-	ip := net.ParseIP(value)
-	if ip == nil || ip.To4() == nil {
-		allErrors = append(allErrors, field.Invalid(fldPath, value, "must be a valid IPv4 address"))
-	}
-	return allErrors
-}
-
-// IsValidIPv6Address tests that the argument is a valid IPv6 address.
-func IsValidIPv6Address(fldPath *field.Path, value string) field.ErrorList {
-	var allErrors field.ErrorList
-	ip := net.ParseIP(value)
-	if ip == nil || ip.To4() != nil {
-		allErrors = append(allErrors, field.Invalid(fldPath, value, "must be a valid IPv6 address"))
-	}
-	return allErrors
 }
 
 const percentFmt string = "[0-9]+%"
@@ -359,6 +398,9 @@ func IsHTTPHeaderName(value string) []string {
 const envVarNameFmt = "[-._a-zA-Z][-._a-zA-Z0-9]*"
 const envVarNameFmtErrMsg string = "a valid environment variable name must consist of alphabetic characters, digits, '_', '-', or '.', and must not start with a digit"
 
+// TODO(hirazawaui): Rename this when the RelaxedEnvironmentVariableValidation gate is removed.
+const relaxedEnvVarNameFmtErrMsg string = "a valid environment variable name must consist only of printable ASCII characters other than '='"
+
 var envVarNameRegexp = regexp.MustCompile("^" + envVarNameFmt + "$")
 
 // IsEnvVarName tests if a string is a valid environment variable name.
@@ -369,6 +411,24 @@ func IsEnvVarName(value string) []string {
 	}
 
 	errs = append(errs, hasChDirPrefix(value)...)
+	return errs
+}
+
+// IsRelaxedEnvVarName tests if a string is a valid environment variable name.
+func IsRelaxedEnvVarName(value string) []string {
+	var errs []string
+
+	if len(value) == 0 {
+		errs = append(errs, "environment variable name "+EmptyError())
+	}
+
+	for _, r := range value {
+		if r > unicode.MaxASCII || !unicode.IsPrint(r) || r == '=' {
+			errs = append(errs, relaxedEnvVarNameFmtErrMsg)
+			break
+		}
+	}
+
 	return errs
 }
 
@@ -441,20 +501,5 @@ func hasChDirPrefix(value string) []string {
 	case strings.HasPrefix(value, ".."):
 		errs = append(errs, `must not start with '..'`)
 	}
-	return errs
-}
-
-// IsValidSocketAddr checks that string represents a valid socket address
-// as defined in RFC 789. (e.g 0.0.0.0:10254 or [::]:10254))
-func IsValidSocketAddr(value string) []string {
-	var errs []string
-	ip, port, err := net.SplitHostPort(value)
-	if err != nil {
-		errs = append(errs, "must be a valid socket address format, (e.g. 0.0.0.0:10254 or [::]:10254)")
-		return errs
-	}
-	portInt, _ := strconv.Atoi(port)
-	errs = append(errs, IsValidPortNum(portInt)...)
-	errs = append(errs, IsValidIP(ip)...)
 	return errs
 }

@@ -23,6 +23,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
 	"k8s.io/metrics/pkg/apis/metrics"
@@ -49,9 +50,86 @@ type coreClientInterface interface {
 	getNodeRAM(nodesNames []string) (map[string]resource.Quantity, map[string]api.TimeInfo, error)
 }
 
-// GetPodMetrics implements the api.MetricsProvider interface.
+// GetPodMetrics implements the api.MetricsProvider interface. It translate data from getPodMetrics to the new api.
+func (p *CoreProvider) GetPodMetrics(pods ...*metav1.PartialObjectMetadata) ([]metrics.PodMetrics, error) {
+	resMetrics := make([]metrics.PodMetrics, 0, len(pods))
+
+	if len(pods) == 0 {
+		return resMetrics, nil
+	}
+
+	podNames := []apitypes.NamespacedName{}
+	for _, pod := range pods {
+		podNames = append(podNames, apitypes.NamespacedName{
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+		})
+	}
+
+	timeInfos, containerMetrics, err := p.getPodMetrics(podNames...)
+	if err != nil {
+		return []metrics.PodMetrics{}, err
+	}
+
+	for i, pod := range pods {
+		podMetric := metrics.PodMetrics{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:              pod.Name,
+				Namespace:         pod.Namespace,
+				Labels:            pod.Labels,
+				CreationTimestamp: metav1.Now(),
+			},
+			Timestamp: metav1.NewTime(timeInfos[i].Timestamp),
+			Window:    metav1.Duration{Duration: timeInfos[i].Window},
+		}
+
+		podMetric.Containers = containerMetrics[i]
+
+		resMetrics = append(resMetrics, podMetric)
+	}
+
+	return resMetrics, nil
+}
+
+// GetNodeMetrics implements the api.MetricsProvider interface. It translate data from getNodeMetrics to the new api.
+func (p *CoreProvider) GetNodeMetrics(nodes ...*corev1.Node) ([]metrics.NodeMetrics, error) {
+	resMetrics := make([]metrics.NodeMetrics, 0, len(nodes))
+	if len(nodes) == 0 {
+		return resMetrics, nil
+	}
+
+	nodeNames := []string{}
+	for _, node := range nodes {
+		nodeNames = append(nodeNames, node.Name)
+	}
+
+	timeInfos, resourceList, err := p.getNodeMetrics(nodeNames...)
+	if err != nil {
+		return []metrics.NodeMetrics{}, err
+	}
+
+	for i, node := range nodes {
+		resMetrics = append(resMetrics, metrics.NodeMetrics{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:              node.Name,
+				Labels:            node.Labels,
+				CreationTimestamp: metav1.Now(),
+			},
+			Usage: corev1.ResourceList{
+				corev1.ResourceCPU:    resourceList[i][corev1.ResourceCPU],
+				corev1.ResourceMemory: resourceList[i][corev1.ResourceMemory],
+			},
+			Timestamp: metav1.NewTime(timeInfos[i].Timestamp),
+			Window:    metav1.Duration{Duration: timeInfos[i].Window},
+		})
+	}
+	return resMetrics, nil
+}
+
+//	Wrapping this method with the new GetPodMetrics for easily re-using the old unit test and a quick merge for the vulnerability fix. In the long run it's still better to directly updating this with the new API without another layer of wrap.
+//
 // If metrics from i-th pod are not present, ContainerMetrics[i] will be nil and TimeInfo[i] will be default TimeInfo value.
-func (p *CoreProvider) GetPodMetrics(pods ...apitypes.NamespacedName) ([]api.TimeInfo, [][]metrics.ContainerMetrics, error) {
+func (p *CoreProvider) getPodMetrics(pods ...apitypes.NamespacedName) ([]api.TimeInfo, [][]metrics.ContainerMetrics, error) {
 	timeInfo := make([]api.TimeInfo, len(pods))
 	coreMetrics := make([][]metrics.ContainerMetrics, len(pods))
 	resourceNames := make([]string, len(pods))
@@ -107,9 +185,10 @@ func (p *CoreProvider) GetPodMetrics(pods ...apitypes.NamespacedName) ([]api.Tim
 	return timeInfo, coreMetrics, nil
 }
 
-// GetNodeMetrics implements the api.MetricsProvider interface.
+//	Wrapping this method with the new GetPodMetrics for easily re-using the old unit test and a quick merge for the vulnerability fix. In the long run it's still better to directly updating this with the new API without another layer of wrap.
+//
 // If metrics from i-th node are not present, ResourceList[i] will be nil and TimeInfo[i] will be default TimeInfo value.
-func (p *CoreProvider) GetNodeMetrics(nodes ...string) ([]api.TimeInfo, []corev1.ResourceList, error) {
+func (p *CoreProvider) getNodeMetrics(nodes ...string) ([]api.TimeInfo, []corev1.ResourceList, error) {
 	timeInfo := make([]api.TimeInfo, len(nodes))
 	coreMetrics := make([]corev1.ResourceList, len(nodes))
 	resourceNames := make([]string, len(nodes))
@@ -148,4 +227,16 @@ func (p *CoreProvider) GetNodeMetrics(nodes ...string) ([]api.TimeInfo, []corev1
 		}
 	}
 	return timeInfo, coreMetrics, nil
+}
+
+// GetPodMetricsOldAPI use old parameter lists. Making it public for testing purpose.
+// We're wrapping this method with the new GetPodMetrics for easily re-using the old unit test and a quick merge for the vulnerability fix.
+// In the long run it's still better to directly updating this with the new API without another layer of wrap.
+func (p *CoreProvider) GetPodMetricsOldAPI(pods ...apitypes.NamespacedName) ([]api.TimeInfo, [][]metrics.ContainerMetrics, error) {
+	return p.getPodMetrics(pods...)
+}
+
+// GetNodeMetricsOldAPI use old parameter lists. Making it public for testing purpose.
+func (p *CoreProvider) GetNodeMetricsOldAPI(nodes ...string) ([]api.TimeInfo, []corev1.ResourceList, error) {
+	return p.getNodeMetrics(nodes...)
 }

@@ -1,0 +1,90 @@
+name: continuous-integration
+
+on:
+  push:
+    branches:
+    - master
+    tags:
+    - v0.*
+  pull_request:
+    branches:
+    - master
+
+permissions:
+  contents: read
+
+env:
+  SUDO: sudo
+  GO_VERSION: "^1.21"
+
+jobs:
+  ci-unit-tests-custom-metrics-stackdriver-adapter:
+    name: ci-unit-tests-custom-metrics-stackdriver-adapter
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v4
+
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+      id: go
+
+    - name: Unit tests
+      run: |
+        cd custom-metrics-stackdriver-adapter
+        make test
+
+  ci-build-custom-metrics-stackdriver-adapter:
+    name: ci-build-custom-metrics-stackdriver-adapter
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v4
+
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+      id: go
+
+    - name: Build
+      run: |
+        cd custom-metrics-stackdriver-adapter
+        make build
+  ci-unit-tests-prometheus-to-sd:
+    name: ci-unit-tests-prometheus-to-sd
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v4
+
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+      id: go
+
+    - name: Unit tests
+      run: |
+        cd prometheus-to-sd
+        make test
+
+  ci-build-prometheus-to-sd:
+    name: ci-build-prometheus-to-sd
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v4
+
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+      id: go
+
+    - name: Build
+      run: |
+        cd prometheus-to-sd
+        make build

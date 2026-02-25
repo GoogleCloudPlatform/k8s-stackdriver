@@ -19,14 +19,15 @@ limitations under the License.
 package v1beta1
 
 import (
-	"time"
+	context "context"
 
-	v1beta1 "k8s.io/api/node/v1beta1"
+	nodev1beta1 "k8s.io/api/node/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
+	applyconfigurationsnodev1beta1 "k8s.io/client-go/applyconfigurations/node/v1beta1"
+	gentype "k8s.io/client-go/gentype"
 	scheme "k8s.io/client-go/kubernetes/scheme"
-	rest "k8s.io/client-go/rest"
 )
 
 // RuntimeClassesGetter has a method to return a RuntimeClassInterface.
@@ -37,128 +38,34 @@ type RuntimeClassesGetter interface {
 
 // RuntimeClassInterface has methods to work with RuntimeClass resources.
 type RuntimeClassInterface interface {
-	Create(*v1beta1.RuntimeClass) (*v1beta1.RuntimeClass, error)
-	Update(*v1beta1.RuntimeClass) (*v1beta1.RuntimeClass, error)
-	Delete(name string, options *v1.DeleteOptions) error
-	DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error
-	Get(name string, options v1.GetOptions) (*v1beta1.RuntimeClass, error)
-	List(opts v1.ListOptions) (*v1beta1.RuntimeClassList, error)
-	Watch(opts v1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1beta1.RuntimeClass, err error)
+	Create(ctx context.Context, runtimeClass *nodev1beta1.RuntimeClass, opts v1.CreateOptions) (*nodev1beta1.RuntimeClass, error)
+	Update(ctx context.Context, runtimeClass *nodev1beta1.RuntimeClass, opts v1.UpdateOptions) (*nodev1beta1.RuntimeClass, error)
+	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
+	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*nodev1beta1.RuntimeClass, error)
+	List(ctx context.Context, opts v1.ListOptions) (*nodev1beta1.RuntimeClassList, error)
+	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *nodev1beta1.RuntimeClass, err error)
+	Apply(ctx context.Context, runtimeClass *applyconfigurationsnodev1beta1.RuntimeClassApplyConfiguration, opts v1.ApplyOptions) (result *nodev1beta1.RuntimeClass, err error)
 	RuntimeClassExpansion
 }
 
 // runtimeClasses implements RuntimeClassInterface
 type runtimeClasses struct {
-	client rest.Interface
+	*gentype.ClientWithListAndApply[*nodev1beta1.RuntimeClass, *nodev1beta1.RuntimeClassList, *applyconfigurationsnodev1beta1.RuntimeClassApplyConfiguration]
 }
 
 // newRuntimeClasses returns a RuntimeClasses
 func newRuntimeClasses(c *NodeV1beta1Client) *runtimeClasses {
 	return &runtimeClasses{
-		client: c.RESTClient(),
+		gentype.NewClientWithListAndApply[*nodev1beta1.RuntimeClass, *nodev1beta1.RuntimeClassList, *applyconfigurationsnodev1beta1.RuntimeClassApplyConfiguration](
+			"runtimeclasses",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			"",
+			func() *nodev1beta1.RuntimeClass { return &nodev1beta1.RuntimeClass{} },
+			func() *nodev1beta1.RuntimeClassList { return &nodev1beta1.RuntimeClassList{} },
+			gentype.PrefersProtobuf[*nodev1beta1.RuntimeClass](),
+		),
 	}
-}
-
-// Get takes name of the runtimeClass, and returns the corresponding runtimeClass object, and an error if there is any.
-func (c *runtimeClasses) Get(name string, options v1.GetOptions) (result *v1beta1.RuntimeClass, err error) {
-	result = &v1beta1.RuntimeClass{}
-	err = c.client.Get().
-		Resource("runtimeclasses").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do().
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of RuntimeClasses that match those selectors.
-func (c *runtimeClasses) List(opts v1.ListOptions) (result *v1beta1.RuntimeClassList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v1beta1.RuntimeClassList{}
-	err = c.client.Get().
-		Resource("runtimeclasses").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do().
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested runtimeClasses.
-func (c *runtimeClasses) Watch(opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Resource("runtimeclasses").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch()
-}
-
-// Create takes the representation of a runtimeClass and creates it.  Returns the server's representation of the runtimeClass, and an error, if there is any.
-func (c *runtimeClasses) Create(runtimeClass *v1beta1.RuntimeClass) (result *v1beta1.RuntimeClass, err error) {
-	result = &v1beta1.RuntimeClass{}
-	err = c.client.Post().
-		Resource("runtimeclasses").
-		Body(runtimeClass).
-		Do().
-		Into(result)
-	return
-}
-
-// Update takes the representation of a runtimeClass and updates it. Returns the server's representation of the runtimeClass, and an error, if there is any.
-func (c *runtimeClasses) Update(runtimeClass *v1beta1.RuntimeClass) (result *v1beta1.RuntimeClass, err error) {
-	result = &v1beta1.RuntimeClass{}
-	err = c.client.Put().
-		Resource("runtimeclasses").
-		Name(runtimeClass.Name).
-		Body(runtimeClass).
-		Do().
-		Into(result)
-	return
-}
-
-// Delete takes name of the runtimeClass and deletes it. Returns an error if one occurs.
-func (c *runtimeClasses) Delete(name string, options *v1.DeleteOptions) error {
-	return c.client.Delete().
-		Resource("runtimeclasses").
-		Name(name).
-		Body(options).
-		Do().
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *runtimeClasses) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	var timeout time.Duration
-	if listOptions.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Resource("runtimeclasses").
-		VersionedParams(&listOptions, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(options).
-		Do().
-		Error()
-}
-
-// Patch applies the patch and returns the patched runtimeClass.
-func (c *runtimeClasses) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1beta1.RuntimeClass, err error) {
-	result = &v1beta1.RuntimeClass{}
-	err = c.client.Patch(pt).
-		Resource("runtimeclasses").
-		SubResource(subresources...).
-		Name(name).
-		Body(data).
-		Do().
-		Into(result)
-	return
 }

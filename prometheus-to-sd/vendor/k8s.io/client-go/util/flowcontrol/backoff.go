@@ -17,11 +17,11 @@ limitations under the License.
 package flowcontrol
 
 import (
+	"math/rand"
 	"sync"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/clock"
-	"k8s.io/utils/integer"
+	"k8s.io/utils/clock"
 )
 
 type backoffEntry struct {
@@ -31,27 +31,52 @@ type backoffEntry struct {
 
 type Backoff struct {
 	sync.RWMutex
-	Clock           clock.Clock
+	Clock clock.Clock
+	// HasExpiredFunc controls the logic that determines whether the backoff
+	// counter should be reset, and when to GC old backoff entries. If nil, the
+	// default hasExpired function will restart the backoff factor to the
+	// beginning after observing time has passed at least equal to 2*maxDuration
+	HasExpiredFunc  func(eventTime time.Time, lastUpdate time.Time, maxDuration time.Duration) bool
 	defaultDuration time.Duration
 	maxDuration     time.Duration
 	perItemBackoff  map[string]*backoffEntry
+	rand            *rand.Rand
+
+	// maxJitterFactor adds jitter to the exponentially backed off delay.
+	// if maxJitterFactor is zero, no jitter is added to the delay in
+	// order to maintain current behavior.
+	maxJitterFactor float64
 }
 
-func NewFakeBackOff(initial, max time.Duration, tc *clock.FakeClock) *Backoff {
-	return &Backoff{
-		perItemBackoff:  map[string]*backoffEntry{},
-		Clock:           tc,
-		defaultDuration: initial,
-		maxDuration:     max,
-	}
+func NewFakeBackOff(initial, max time.Duration, tc clock.Clock) *Backoff {
+	return newBackoff(tc, initial, max, 0.0)
 }
 
 func NewBackOff(initial, max time.Duration) *Backoff {
+	return NewBackOffWithJitter(initial, max, 0.0)
+}
+
+func NewFakeBackOffWithJitter(initial, max time.Duration, tc clock.Clock, maxJitterFactor float64) *Backoff {
+	return newBackoff(tc, initial, max, maxJitterFactor)
+}
+
+func NewBackOffWithJitter(initial, max time.Duration, maxJitterFactor float64) *Backoff {
+	clock := clock.RealClock{}
+	return newBackoff(clock, initial, max, maxJitterFactor)
+}
+
+func newBackoff(clock clock.Clock, initial, max time.Duration, maxJitterFactor float64) *Backoff {
+	var random *rand.Rand
+	if maxJitterFactor > 0 {
+		random = rand.New(rand.NewSource(clock.Now().UnixNano()))
+	}
 	return &Backoff{
 		perItemBackoff:  map[string]*backoffEntry{},
-		Clock:           clock.RealClock{},
+		Clock:           clock,
 		defaultDuration: initial,
 		maxDuration:     max,
+		maxJitterFactor: maxJitterFactor,
+		rand:            random,
 	}
 }
 
@@ -72,11 +97,13 @@ func (p *Backoff) Next(id string, eventTime time.Time) {
 	p.Lock()
 	defer p.Unlock()
 	entry, ok := p.perItemBackoff[id]
-	if !ok || hasExpired(eventTime, entry.lastUpdate, p.maxDuration) {
+	if !ok || p.hasExpired(eventTime, entry.lastUpdate, p.maxDuration) {
 		entry = p.initEntryUnsafe(id)
+		entry.backoff += p.jitter(entry.backoff)
 	} else {
-		delay := entry.backoff * 2 // exponential
-		entry.backoff = time.Duration(integer.Int64Min(int64(delay), int64(p.maxDuration)))
+		delay := entry.backoff * 2       // exponential
+		delay += p.jitter(entry.backoff) // add some jitter to the delay
+		entry.backoff = min(delay, p.maxDuration)
 	}
 	entry.lastUpdate = p.Clock.Now()
 }
@@ -96,7 +123,7 @@ func (p *Backoff) IsInBackOffSince(id string, eventTime time.Time) bool {
 	if !ok {
 		return false
 	}
-	if hasExpired(eventTime, entry.lastUpdate, p.maxDuration) {
+	if p.hasExpired(eventTime, entry.lastUpdate, p.maxDuration) {
 		return false
 	}
 	return p.Clock.Since(eventTime) < entry.backoff
@@ -110,21 +137,21 @@ func (p *Backoff) IsInBackOffSinceUpdate(id string, eventTime time.Time) bool {
 	if !ok {
 		return false
 	}
-	if hasExpired(eventTime, entry.lastUpdate, p.maxDuration) {
+	if p.hasExpired(eventTime, entry.lastUpdate, p.maxDuration) {
 		return false
 	}
 	return eventTime.Sub(entry.lastUpdate) < entry.backoff
 }
 
-// Garbage collect records that have aged past maxDuration. Backoff users are expected
-// to invoke this periodically.
+// Garbage collect records that have aged past their expiration, which defaults
+// to 2*maxDuration (see hasExpired godoc). Backoff users are expected to invoke
+// this periodically.
 func (p *Backoff) GC() {
 	p.Lock()
 	defer p.Unlock()
 	now := p.Clock.Now()
 	for id, entry := range p.perItemBackoff {
-		if now.Sub(entry.lastUpdate) > p.maxDuration*2 {
-			// GC when entry has not been updated for 2*maxDuration
+		if p.hasExpired(now, entry.lastUpdate, p.maxDuration) {
 			delete(p.perItemBackoff, id)
 		}
 	}
@@ -143,7 +170,18 @@ func (p *Backoff) initEntryUnsafe(id string) *backoffEntry {
 	return entry
 }
 
-// After 2*maxDuration we restart the backoff factor to the beginning
-func hasExpired(eventTime time.Time, lastUpdate time.Time, maxDuration time.Duration) bool {
+func (p *Backoff) jitter(delay time.Duration) time.Duration {
+	if p.rand == nil {
+		return 0
+	}
+
+	return time.Duration(p.rand.Float64() * p.maxJitterFactor * float64(delay))
+}
+
+// Unless an alternate function is provided, after 2*maxDuration we restart the backoff factor to the beginning
+func (p *Backoff) hasExpired(eventTime time.Time, lastUpdate time.Time, maxDuration time.Duration) bool {
+	if p.HasExpiredFunc != nil {
+		return p.HasExpiredFunc(eventTime, lastUpdate, maxDuration)
+	}
 	return eventTime.Sub(lastUpdate) > maxDuration*2 // consider stable if it's ok for twice the maxDuration
 }

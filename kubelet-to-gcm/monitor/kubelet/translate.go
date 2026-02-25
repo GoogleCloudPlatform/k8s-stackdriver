@@ -22,7 +22,7 @@ import (
 
 	"github.com/golang/glog"
 	v3 "google.golang.org/api/monitoring/v3"
-	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
+	stats "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/kubelet-to-gcm/monitor"
 )
@@ -525,34 +525,28 @@ func translateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, st
 
 	// Only send page fault metric if start time is before current time. Right after container is started, kubelet can return start time == end time.
 	if pageFaultsMD != nil && memory.Time.Time.After(startTime) {
-		if memory.MajorPageFaults == nil {
-			return nil, fmt.Errorf("MajorPageFaults missing in MemoryStats %v", memory)
+		if memory.MajorPageFaults != nil {
+			// Major page faults.
+			majorPFPoint := tsFactory.newPoint(&v3.TypedValue{
+				Int64Value:      monitor.Int64Ptr(int64(*memory.MajorPageFaults)),
+				ForceSendFields: []string{"Int64Value"},
+			}, startTime, memory.Time.Time, pageFaultsMD.MetricKind)
+			timeSeries = append(timeSeries, tsFactory.newTimeSeries(majorPageFaultLabels, pageFaultsMD, majorPFPoint))
 		}
-		if memory.PageFaults == nil {
-			return nil, fmt.Errorf("PageFaults missing in MemoryStats %v", memory)
+		if memory.PageFaults != nil {
+			// Minor page faults.
+			minorPFPoint := tsFactory.newPoint(&v3.TypedValue{
+				Int64Value:      monitor.Int64Ptr(int64(*memory.PageFaults - *memory.MajorPageFaults)),
+				ForceSendFields: []string{"Int64Value"},
+			}, startTime, memory.Time.Time, pageFaultsMD.MetricKind)
+			timeSeries = append(timeSeries, tsFactory.newTimeSeries(minorPageFaultLabels, pageFaultsMD, minorPFPoint))
 		}
-		// Major page faults.
-		majorPFPoint := tsFactory.newPoint(&v3.TypedValue{
-			Int64Value:      monitor.Int64Ptr(int64(*memory.MajorPageFaults)),
-			ForceSendFields: []string{"Int64Value"},
-		}, startTime, memory.Time.Time, pageFaultsMD.MetricKind)
-		timeSeries = append(timeSeries, tsFactory.newTimeSeries(majorPageFaultLabels, pageFaultsMD, majorPFPoint))
-		// Minor page faults.
-		minorPFPoint := tsFactory.newPoint(&v3.TypedValue{
-			Int64Value:      monitor.Int64Ptr(int64(*memory.PageFaults - *memory.MajorPageFaults)),
-			ForceSendFields: []string{"Int64Value"},
-		}, startTime, memory.Time.Time, pageFaultsMD.MetricKind)
-		timeSeries = append(timeSeries, tsFactory.newTimeSeries(minorPageFaultLabels, pageFaultsMD, minorPFPoint))
 	}
 
 	if memUsedMD != nil {
 		if memory.WorkingSetBytes == nil {
 			return nil, fmt.Errorf("WorkingSetBytes information missing in MemoryStats %v", memory)
 		}
-		if memory.UsageBytes == nil {
-			return nil, fmt.Errorf("UsageBytes information missing in MemoryStats %v", memory)
-		}
-
 		// Non-evictable memory.
 		nonEvictMemPoint := tsFactory.newPoint(&v3.TypedValue{
 			Int64Value:      monitor.Int64Ptr(int64(*memory.WorkingSetBytes)),
@@ -564,16 +558,18 @@ func translateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, st
 		}
 		timeSeries = append(timeSeries, tsFactory.newTimeSeries(labels, memUsedMD, nonEvictMemPoint))
 
-		// Evictable memory.
-		evictMemPoint := tsFactory.newPoint(&v3.TypedValue{
-			Int64Value:      monitor.Int64Ptr(int64(*memory.UsageBytes - *memory.WorkingSetBytes)),
-			ForceSendFields: []string{"Int64Value"},
-		}, startTime, memory.Time.Time, memUsedMD.MetricKind)
-		labels = map[string]string{"memory_type": "evictable"}
-		if component != "" {
-			labels["component"] = component
+		if memory.UsageBytes != nil {
+			// Evictable memory.
+			evictMemPoint := tsFactory.newPoint(&v3.TypedValue{
+				Int64Value:      monitor.Int64Ptr(int64(*memory.UsageBytes - *memory.WorkingSetBytes)),
+				ForceSendFields: []string{"Int64Value"},
+			}, startTime, memory.Time.Time, memUsedMD.MetricKind)
+			labels = map[string]string{"memory_type": "evictable"}
+			if component != "" {
+				labels["component"] = component
+			}
+			timeSeries = append(timeSeries, tsFactory.newTimeSeries(labels, memUsedMD, evictMemPoint))
 		}
-		timeSeries = append(timeSeries, tsFactory.newTimeSeries(labels, memUsedMD, evictMemPoint))
 	}
 
 	if memTotalMD != nil {

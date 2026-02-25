@@ -24,7 +24,7 @@ import (
 	fuzz "github.com/google/gofuzz"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
+	stats "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
 const (
@@ -154,6 +154,96 @@ const (
         }
     ]
 }`
+
+	incompleteContainerMemStatJSON = `{
+    "podRef": {
+        "name": "auditproxy-gke-12345678-1248-332a-vm",
+        "namespace": "kube-system",
+        "uid": "43780f1ce6e2171bc9e70cae3118ab6b"
+    },
+    "startTime": "2025-04-06T11:28:17Z",
+    "containers": [
+        {
+            "name": "auditproxy",
+            "startTime": "2025-04-23T15:17:45Z",
+            "cpu": {
+                "time": "2025-04-29T15:24:11Z",
+                "usageNanoCores": 12352231,
+                "usageCoreNanoSeconds": 4106274919000
+            },
+            "memory": {
+                "time": "2025-04-29T15:24:11Z",
+                "workingSetBytes": 76451840
+            },
+            "rootfs": {
+                "time": "2025-04-29T15:24:04Z",
+                "availableBytes": 4546961408,
+                "capacityBytes": 16656896000,
+                "usedBytes": 57344,
+                "inodesFree": 963008,
+                "inodes": 1036320,
+                "inodesUsed": 18
+            },
+            "logs": {
+                "time": "2025-04-29T15:24:11Z",
+                "availableBytes": 4546961408,
+                "capacityBytes": 16656896000,
+                "usedBytes": 44961792,
+                "inodesFree": 963008,
+                "inodes": 1036320,
+                "inodesUsed": 9
+            },
+            "swap": {
+                "time": "2025-04-29T15:24:11Z",
+                "swapAvailableBytes": 0,
+                "swapUsageBytes": 0
+            }
+        }
+    ],
+    "cpu": {
+        "time": "2025-04-29T15:23:59Z",
+        "usageNanoCores": 7444062,
+        "usageCoreNanoSeconds": 15900193844000
+    },
+    "memory": {
+        "time": "2025-04-29T15:23:59Z",
+        "usageBytes": 91631616,
+        "workingSetBytes": 88707072,
+        "rssBytes": 70098944,
+        "pageFaults": 63466572,
+        "majorPageFaults": 2461
+    },
+    "network": {
+        "time": "2025-04-29T15:24:07Z",
+        "name": "eth0",
+        "rxBytes": 208635268392,
+        "rxErrors": 0,
+        "txBytes": 939343805472,
+        "txErrors": 0,
+        "interfaces": [
+            {
+                "name": "eth0",
+                "rxBytes": 208635268392,
+                "rxErrors": 0,
+                "txBytes": 939343805472,
+                "txErrors": 0
+            }
+        ]
+    },
+    "ephemeral-storage": {
+        "time": "2025-04-29T15:24:11Z",
+        "availableBytes": 4546961408,
+        "capacityBytes": 16656896000,
+        "usedBytes": 45023232,
+        "inodesFree": 963008,
+        "inodes": 1036320,
+        "inodesUsed": 28
+    },
+    "swap": {
+        "time": "2025-04-29T15:23:59Z",
+        "swapUsageBytes": 0
+    }
+}`
 )
 
 // TestTranslator
@@ -226,6 +316,10 @@ func TestTranslateContainers(t *testing.T) {
 	badTimestampOnCumulativeMetricsContrainer.CPU.Time = badTimestampOnCumulativeMetricsContrainer.StartTime
 	legacyTsPerContainer := 11
 	tsPerContainer := 8
+	inCompleteContainerMemPodStat := &stats.PodStats{}
+	if err := json.Unmarshal([]byte(incompleteContainerMemStatJSON), inCompleteContainerMemPodStat); err != nil {
+		t.Errorf("Failed to unmarshal incompleteContainerMemStatJSON, err: %v", err)
+	}
 	testCases := []struct {
 		name                  string
 		ExpectedLegacyTSCount int
@@ -319,6 +413,12 @@ func TestTranslateContainers(t *testing.T) {
 					badTimestampOnCumulativeMetricsContrainer,
 				),
 			},
+		},
+		{
+			name:                  "inCompleteContainerMemPodStat missing memory usageBytes pageFaults, and majorPageFaults",
+			ExpectedLegacyTSCount: 7,
+			ExpectedTSCount:       4,
+			pods:                  []stats.PodStats{*inCompleteContainerMemPodStat},
 		},
 	}
 

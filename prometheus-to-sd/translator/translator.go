@@ -17,14 +17,21 @@ limitations under the License.
 package translator
 
 import (
+	"context"
 	"fmt"
+	"maps"
 	"math"
 	"strings"
 	"time"
 
 	"github.com/golang/glog"
 	dto "github.com/prometheus/client_model/go"
-	v3 "google.golang.org/api/monitoring/v3"
+	"google.golang.org/genproto/googleapis/api/distribution"
+	"google.golang.org/genproto/googleapis/api/label"
+	"google.golang.org/genproto/googleapis/api/metric"
+	"google.golang.org/genproto/googleapis/api/monitoredres"
+	v3 "google.golang.org/genproto/googleapis/monitoring/v3"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/config"
 )
@@ -70,13 +77,13 @@ func (t *TimeSeriesBuilder) Update(batch *PrometheusResponse, timestamp time.Tim
 }
 
 // Build returns a new TimeSeries array and restarts the internal state.
-func (t *TimeSeriesBuilder) Build() ([]*v3.TimeSeries, time.Time, error) {
+func (t *TimeSeriesBuilder) Build(ctx context.Context) ([]*v3.TimeSeries, time.Time, error) {
 	var ts []*v3.TimeSeries
 	if t.batch == nil {
 		return ts, time.Now(), nil
 	}
 	defer func() { t.batch = nil }()
-	metricFamilies, err := t.batch.metrics.Build(t.config, t.cache)
+	metricFamilies, err := t.batch.metrics.Build(ctx, t.config, t.cache)
 	if err != nil {
 		return ts, time.Now(), err
 	}
@@ -281,46 +288,46 @@ func getMetricType(config *config.CommonConfig, name string) string {
 func translateOne(config *config.CommonConfig,
 	name string,
 	mType dto.MetricType,
-	metric *dto.Metric,
+	m *dto.Metric,
 	start time.Time,
 	end time.Time,
 	cache *MetricDescriptorCache) *v3.TimeSeries {
 	interval := &v3.TimeInterval{
-		EndTime: end.UTC().Format(time.RFC3339),
+		EndTime: timestamppb.New(end.UTC()),
 	}
 	metricKind := extractMetricKind(mType)
-	if metricKind == "CUMULATIVE" {
-		interval.StartTime = start.UTC().Format(time.RFC3339)
+	if metricKind == metric.MetricDescriptor_CUMULATIVE {
+		interval.StartTime = timestamppb.New(start.UTC())
 	}
 	valueType := extractValueType(mType, cache.getMetricDescriptor(name))
 	point := &v3.Point{
 		Interval: interval,
-		Value: &v3.TypedValue{
-			ForceSendFields: []string{},
-		},
+		Value:    &v3.TypedValue{},
 	}
-	setValue(mType, valueType, metric, point)
+	setValue(mType, valueType, m, point)
 
-	mr := getMonitoredResourceFromLabels(config, metric.GetLabel())
+	mr := getMonitoredResourceFromLabels(config, m.GetLabel())
 	glog.V(4).Infof("MonitoredResource to write: %v", mr)
 	return &v3.TimeSeries{
-		Metric: &v3.Metric{
-			Labels: getMetricLabels(config, metric.GetLabel()),
+		Metric: &metric.Metric{
+			Labels: getMetricLabels(config, m.GetLabel()),
 			Type:   getMetricType(config, name),
 		},
-		Resource:   getMonitoredResourceFromLabels(config, metric.GetLabel()),
+		Resource:   mr,
 		MetricKind: metricKind,
 		ValueType:  valueType,
 		Points:     []*v3.Point{point},
 	}
 }
 
-func setValue(mType dto.MetricType, valueType string, metric *dto.Metric, point *v3.Point) {
+func setValue(mType dto.MetricType, valueType metric.MetricDescriptor_ValueType, metric *dto.Metric, point *v3.Point) {
 	if mType == dto.MetricType_GAUGE {
 		setValueBaseOnSimpleType(metric.GetGauge().GetValue(), valueType, point)
 	} else if mType == dto.MetricType_HISTOGRAM {
-		point.Value.DistributionValue = convertToDistributionValue(metric.GetHistogram())
-		point.ForceSendFields = append(point.ForceSendFields, "DistributionValue")
+		val := convertToDistributionValue(metric.GetHistogram())
+		point.Value = &v3.TypedValue{
+			Value: &v3.TypedValue_DistributionValue{DistributionValue: val},
+		}
 	} else if mType == dto.MetricType_UNTYPED {
 		setValueBaseOnSimpleType(metric.GetUntyped().GetValue(), valueType, point)
 	} else {
@@ -328,24 +335,26 @@ func setValue(mType dto.MetricType, valueType string, metric *dto.Metric, point 
 	}
 }
 
-func setValueBaseOnSimpleType(value float64, valueType string, point *v3.Point) {
-	if valueType == "INT64" {
-		val := int64(value)
-		point.Value.Int64Value = &val
-		point.ForceSendFields = append(point.ForceSendFields, "Int64Value")
-	} else if valueType == "DOUBLE" {
-		point.Value.DoubleValue = &value
-		point.ForceSendFields = append(point.ForceSendFields, "DoubleValue")
-	} else if valueType == "BOOL" {
+func setValueBaseOnSimpleType(value float64, valueType metric.MetricDescriptor_ValueType, point *v3.Point) {
+	if valueType == metric.MetricDescriptor_INT64 {
+		point.Value = &v3.TypedValue{
+			Value: &v3.TypedValue_Int64Value{Int64Value: int64(value)},
+		}
+	} else if valueType == metric.MetricDescriptor_DOUBLE {
+		point.Value = &v3.TypedValue{
+			Value: &v3.TypedValue_DoubleValue{DoubleValue: value},
+		}
+	} else if valueType == metric.MetricDescriptor_BOOL {
 		var val = math.Abs(value) > falseValueEpsilon
-		point.Value.BoolValue = &val
-		point.ForceSendFields = append(point.ForceSendFields, "BoolValue")
+		point.Value = &v3.TypedValue{
+			Value: &v3.TypedValue_BoolValue{BoolValue: val},
+		}
 	} else {
 		glog.Errorf("Value type '%s' is not supported yet.", valueType)
 	}
 }
 
-func convertToDistributionValue(h *dto.Histogram) *v3.Distribution {
+func convertToDistributionValue(h *dto.Histogram) *distribution.Distribution {
 	count := int64(h.GetSampleCount())
 	mean := float64(0)
 	dev := float64(0)
@@ -358,11 +367,13 @@ func convertToDistributionValue(h *dto.Histogram) *v3.Distribution {
 
 	prevVal := uint64(0)
 	lower := float64(0)
+	infSeen := false
 	for _, b := range h.Bucket {
 		upper := b.GetUpperBound()
 		if !math.IsInf(b.GetUpperBound(), 1) {
 			bounds = append(bounds, b.GetUpperBound())
 		} else {
+			infSeen = true
 			upper = lower
 		}
 		val := b.GetCumulativeCount() - prevVal
@@ -375,13 +386,20 @@ func convertToDistributionValue(h *dto.Histogram) *v3.Distribution {
 		prevVal = b.GetCumulativeCount()
 	}
 
-	return &v3.Distribution{
+	// +Inf Bucket is implicit so it needs to be added
+	if !infSeen && count > int64(prevVal) {
+		values = append(values, count-int64(prevVal))
+	}
+
+	return &distribution.Distribution{
 		Count:                 count,
 		Mean:                  mean,
 		SumOfSquaredDeviation: dev,
-		BucketOptions: &v3.BucketOptions{
-			ExplicitBuckets: &v3.Explicit{
-				Bounds: bounds,
+		BucketOptions: &distribution.Distribution_BucketOptions{
+			Options: &distribution.Distribution_BucketOptions_ExplicitBuckets{
+				ExplicitBuckets: &distribution.Distribution_BucketOptions_Explicit{
+					Bounds: bounds,
+				},
 			},
 		},
 		BucketCounts: values,
@@ -401,24 +419,24 @@ func getMetricLabels(config *config.CommonConfig, labels []*dto.LabelPair) map[s
 // MetricFamilyToMetricDescriptor converts MetricFamily object to the MetricDescriptor. If needed it uses information
 // from the previously created metricDescriptor (for example to merge label sets).
 func MetricFamilyToMetricDescriptor(config *config.CommonConfig,
-	family *dto.MetricFamily, originalDescriptor *v3.MetricDescriptor) *v3.MetricDescriptor {
-	return &v3.MetricDescriptor{
+	family *dto.MetricFamily, originalDescriptor *metric.MetricDescriptor) *metric.MetricDescriptor {
+	return &metric.MetricDescriptor{
 		Description: family.GetHelp(),
 		Type:        getMetricType(config, family.GetName()),
 		MetricKind:  extractMetricKind(family.GetType()),
 		ValueType:   extractValueType(family.GetType(), originalDescriptor),
-		Labels:      extractAllLabels(family, originalDescriptor),
+		Labels:      extractAllLabels(config, family, originalDescriptor),
 	}
 }
 
-func extractMetricKind(mType dto.MetricType) string {
+func extractMetricKind(mType dto.MetricType) metric.MetricDescriptor_MetricKind {
 	if mType == dto.MetricType_COUNTER || mType == dto.MetricType_HISTOGRAM {
-		return "CUMULATIVE"
+		return metric.MetricDescriptor_CUMULATIVE
 	}
-	return "GAUGE"
+	return metric.MetricDescriptor_GAUGE
 }
 
-func extractValueType(mType dto.MetricType, originalDescriptor *v3.MetricDescriptor) string {
+func extractValueType(mType dto.MetricType, originalDescriptor *metric.MetricDescriptor) metric.MetricDescriptor_ValueType {
 	// If MetricDescriptor is created already in the Stackdriver use stored value type.
 	// This is going to work perfectly for "container.googleapis.com" metrics.
 	if originalDescriptor != nil {
@@ -426,32 +444,36 @@ func extractValueType(mType dto.MetricType, originalDescriptor *v3.MetricDescrip
 		return originalDescriptor.ValueType
 	}
 	if mType == dto.MetricType_HISTOGRAM {
-		return "DISTRIBUTION"
+		return metric.MetricDescriptor_DISTRIBUTION
 	}
 	if mType == dto.MetricType_UNTYPED {
-		return "DOUBLE"
+		return metric.MetricDescriptor_DOUBLE
 	}
-	return "INT64"
+	return metric.MetricDescriptor_INT64
 }
 
-func extractAllLabels(family *dto.MetricFamily, originalDescriptor *v3.MetricDescriptor) []*v3.LabelDescriptor {
-	var labels []*v3.LabelDescriptor
+func extractAllLabels(config *config.CommonConfig, family *dto.MetricFamily, originalDescriptor *metric.MetricDescriptor) []*label.LabelDescriptor {
+	var labels []*label.LabelDescriptor
 	labelSet := make(map[string]bool)
 	for _, metric := range family.GetMetric() {
-		for _, label := range metric.GetLabel() {
-			_, ok := labelSet[label.GetName()]
+		for _, l := range metric.GetLabel() {
+			// Filter out labels that aren't metric labels
+			if !config.SourceConfig.PodConfig.IsMetricLabel(l.GetName()) {
+				continue
+			}
+			_, ok := labelSet[l.GetName()]
 			if !ok {
-				labels = append(labels, &v3.LabelDescriptor{Key: label.GetName()})
-				labelSet[label.GetName()] = true
+				labels = append(labels, &label.LabelDescriptor{Key: l.GetName()})
+				labelSet[l.GetName()] = true
 			}
 		}
 	}
 	if originalDescriptor != nil {
-		for _, label := range originalDescriptor.Labels {
-			_, ok := labelSet[label.Key]
+		for _, l := range originalDescriptor.Labels {
+			_, ok := labelSet[l.Key]
 			if !ok {
-				labels = append(labels, label)
-				labelSet[label.Key] = true
+				labels = append(labels, l)
+				labelSet[l.Key] = true
 			}
 		}
 	}
@@ -462,15 +484,16 @@ func createProjectName(config *config.GceConfig) string {
 	return fmt.Sprintf("projects/%s", config.Project)
 }
 
-func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.LabelPair) *v3.MonitoredResource {
+func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.LabelPair) *monitoredres.MonitoredResource {
+	container, pod, namespace, tenantUID, entityType, entityName := config.SourceConfig.PodConfig.GetPodInfo(labels)
+
 	if config.SourceConfig.CustomResourceType != "" {
-		return getCustomMonitoredResource(config)
+		return getCustomMonitoredResource(config, tenantUID, entityType, entityName)
 	}
-	container, pod, namespace := config.SourceConfig.PodConfig.GetPodInfo(labels)
 	prefix := config.MonitoredResourceTypePrefix
 
 	if prefix == "" {
-		return &v3.MonitoredResource{
+		return &monitoredres.MonitoredResource{
 			Type: "gke_container",
 			Labels: map[string]string{
 				"project_id":     config.GceConfig.Project,
@@ -513,7 +536,7 @@ func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.L
 				resourceLabels["node_name"] = config.GceConfig.Instance
 			}
 		}
-		return &v3.MonitoredResource{
+		return &monitoredres.MonitoredResource{
 			Type:   prefix + "node",
 			Labels: resourceLabels,
 		}
@@ -522,29 +545,41 @@ func getMonitoredResourceFromLabels(config *config.CommonConfig, labels []*dto.L
 	resourceLabels["namespace_name"] = namespace
 	resourceLabels["pod_name"] = pod
 	if container == "" {
-		return &v3.MonitoredResource{
+		return &monitoredres.MonitoredResource{
 			Type:   prefix + "pod",
 			Labels: resourceLabels,
 		}
 	}
 
 	resourceLabels["container_name"] = container
-	return &v3.MonitoredResource{
+	return &monitoredres.MonitoredResource{
 		Type:   prefix + "container",
 		Labels: resourceLabels,
 	}
 }
 
-func getCustomMonitoredResource(config *config.CommonConfig) *v3.MonitoredResource {
+func getCustomMonitoredResource(config *config.CommonConfig, tenantUID, entityType, entityName string) *monitoredres.MonitoredResource {
 	resourceLabels := config.SourceConfig.CustomLabels
 	applyDefaultIfEmpty(resourceLabels, "instance_id", config.GceConfig.InstanceId)
 	applyDefaultIfEmpty(resourceLabels, "project_id", config.GceConfig.Project)
 	applyDefaultIfEmpty(resourceLabels, "cluster_name", config.GceConfig.Cluster)
 	applyDefaultIfEmpty(resourceLabels, "location", config.GceConfig.ClusterLocation)
 	applyDefaultIfEmpty(resourceLabels, "node_name", config.GceConfig.Instance)
-	return &v3.MonitoredResource{
+	finalLabels := maps.Clone(resourceLabels)
+	dynamicLabels := map[string]string{
+		"tenant_uid":  tenantUID,
+		"entity_type": entityType,
+		"entity_name": entityName,
+	}
+
+	for key, value := range dynamicLabels {
+		if _, found := finalLabels[key]; found {
+			finalLabels[key] = value
+		}
+	}
+	return &monitoredres.MonitoredResource{
 		Type:   config.SourceConfig.CustomResourceType,
-		Labels: resourceLabels,
+		Labels: finalLabels,
 	}
 }
 

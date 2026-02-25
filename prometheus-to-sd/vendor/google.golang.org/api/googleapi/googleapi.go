@@ -11,10 +11,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"google.golang.org/api/internal/third_party/uritemplates"
 )
@@ -69,6 +69,8 @@ type Error struct {
 	// Message is the server response message and is only populated when
 	// explicitly referenced by the JSON server response.
 	Message string `json:"message"`
+	// Details provide more context to an error.
+	Details []interface{} `json:"details"`
 	// Body is the raw response returned by the server.
 	// It is often but not always JSON, depending on how the request fails.
 	Body string
@@ -76,6 +78,9 @@ type Error struct {
 	Header http.Header
 
 	Errors []ErrorItem
+	// err is typically a wrapped apierror.APIError, see
+	// google-api-go-client/internal/gensupport/error.go.
+	err error
 }
 
 // ErrorItem is a detailed error code & message from the Google API frontend.
@@ -95,6 +100,16 @@ func (e *Error) Error() string {
 	if e.Message != "" {
 		fmt.Fprintf(&buf, "%s", e.Message)
 	}
+	if len(e.Details) > 0 {
+		var detailBuf bytes.Buffer
+		enc := json.NewEncoder(&detailBuf)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(e.Details); err == nil {
+			fmt.Fprint(&buf, "\nDetails:")
+			fmt.Fprintf(&buf, "\n%s", detailBuf.String())
+
+		}
+	}
 	if len(e.Errors) == 0 {
 		return strings.TrimSpace(buf.String())
 	}
@@ -109,6 +124,15 @@ func (e *Error) Error() string {
 	return buf.String()
 }
 
+// Wrap allows an existing Error to wrap another error. See also [Error.Unwrap].
+func (e *Error) Wrap(err error) {
+	e.err = err
+}
+
+func (e *Error) Unwrap() error {
+	return e.err
+}
+
 type errorReply struct {
 	Error *Error `json:"error"`
 }
@@ -119,23 +143,56 @@ func CheckResponse(res *http.Response) error {
 	if res.StatusCode >= 200 && res.StatusCode <= 299 {
 		return nil
 	}
-	slurp, err := ioutil.ReadAll(res.Body)
+	slurp, err := io.ReadAll(res.Body)
 	if err == nil {
-		jerr := new(errorReply)
-		err = json.Unmarshal(slurp, jerr)
-		if err == nil && jerr.Error != nil {
-			if jerr.Error.Code == 0 {
-				jerr.Error.Code = res.StatusCode
-			}
-			jerr.Error.Body = string(slurp)
-			return jerr.Error
-		}
+		return CheckResponseWithBody(res, slurp)
 	}
 	return &Error{
 		Code:   res.StatusCode,
 		Body:   string(slurp),
 		Header: res.Header,
 	}
+
+}
+
+// CheckResponseWithBody returns an error (of type *Error) if the response
+// status code is not 2xx. Distinct from CheckResponse to allow for checking
+// a previously-read body to maintain error detail content.
+func CheckResponseWithBody(res *http.Response, body []byte) error {
+	if res.StatusCode >= 200 && res.StatusCode <= 299 {
+		return nil
+	}
+
+	jerr, err := errorReplyFromBody(body)
+	if err == nil && jerr.Error != nil {
+		if jerr.Error.Code == 0 {
+			jerr.Error.Code = res.StatusCode
+		}
+		jerr.Error.Body = string(body)
+		jerr.Error.Header = res.Header
+		return jerr.Error
+	}
+
+	return &Error{
+		Code:   res.StatusCode,
+		Body:   string(body),
+		Header: res.Header,
+	}
+}
+
+// errorReplyFromBody attempts to get the error from body. The body
+// may be a JSON object or JSON array, or may be something else.
+func errorReplyFromBody(body []byte) (*errorReply, error) {
+	jerr := new(errorReply)
+	if len(body) > 0 && body[0] == '[' {
+		// Attempt JSON array
+		jsonArr := []*errorReply{jerr}
+		err := json.Unmarshal(body, &jsonArr)
+		return jerr, err
+	}
+	// Attempt JSON object
+	err := json.Unmarshal(body, jerr)
+	return jerr, err
 }
 
 // IsNotModified reports whether err is the result of the
@@ -158,10 +215,11 @@ func CheckMediaResponse(res *http.Response) error {
 	if res.StatusCode >= 200 && res.StatusCode <= 299 {
 		return nil
 	}
-	slurp, _ := ioutil.ReadAll(io.LimitReader(res.Body, 1<<20))
+	slurp, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
 	return &Error{
-		Code: res.StatusCode,
-		Body: string(slurp),
+		Code:   res.StatusCode,
+		Body:   string(slurp),
+		Header: res.Header,
 	}
 }
 
@@ -174,7 +232,17 @@ var WithDataWrapper = MarshalStyle(true)
 // WithoutDataWrapper marshals JSON without a {"data": ...} wrapper.
 var WithoutDataWrapper = MarshalStyle(false)
 
+// JSONReader is like JSONBuffer, but returns an io.Reader instead.
 func (wrap MarshalStyle) JSONReader(v interface{}) (io.Reader, error) {
+	buf, err := wrap.JSONBuffer(v)
+	if err != nil {
+		return nil, err
+	}
+	return buf, nil
+}
+
+// JSONBuffer encodes the body and wraps it if needed.
+func (wrap MarshalStyle) JSONBuffer(v interface{}) (*bytes.Buffer, error) {
 	buf := new(bytes.Buffer)
 	if wrap {
 		buf.Write([]byte(`{"data": `))
@@ -233,12 +301,45 @@ func ChunkSize(size int) MediaOption {
 	return chunkSizeOption(size)
 }
 
+type chunkTransferTimeoutOption time.Duration
+
+func (cd chunkTransferTimeoutOption) setOptions(o *MediaOptions) {
+	o.ChunkTransferTimeout = time.Duration(cd)
+}
+
+// ChunkTransferTimeout returns a MediaOption which sets a per-chunk
+// transfer timeout for resumable uploads. If a single chunk has been
+// attempting to upload for longer than this time then the old req got canceled and retried.
+// The default is no timeout for the request.
+func ChunkTransferTimeout(timeout time.Duration) MediaOption {
+	return chunkTransferTimeoutOption(timeout)
+}
+
+type chunkRetryDeadlineOption time.Duration
+
+func (cd chunkRetryDeadlineOption) setOptions(o *MediaOptions) {
+	o.ChunkRetryDeadline = time.Duration(cd)
+}
+
+// ChunkRetryDeadline returns a MediaOption which sets a per-chunk retry
+// deadline. If a single chunk has been attempting to upload for longer than
+// this time and the request fails, it will no longer be retried, and the error
+// will be returned to the caller.
+// This is only applicable for files which are large enough to require
+// a multi-chunk resumable upload.
+// The default value is 32s.
+// To set a deadline on the entire upload, use context timeout or cancellation.
+func ChunkRetryDeadline(deadline time.Duration) MediaOption {
+	return chunkRetryDeadlineOption(deadline)
+}
+
 // MediaOptions stores options for customizing media upload.  It is not used by developers directly.
 type MediaOptions struct {
 	ContentType           string
 	ForceEmptyContentType bool
-
-	ChunkSize int
+	ChunkSize             int
+	ChunkRetryDeadline    time.Duration
+	ChunkTransferTimeout  time.Duration
 }
 
 // ProcessMediaOptions stores options from opts in a MediaOptions.
@@ -350,11 +451,11 @@ func ConvertVariant(v map[string]interface{}, dst interface{}) bool {
 // For example, if your response has a "NextPageToken" and a slice of "Items" with "Id" fields,
 // you could request just those fields like this:
 //
-//     svc.Events.List().Fields("nextPageToken", "items/id").Do()
+//	svc.Events.List().Fields("nextPageToken", "items/id").Do()
 //
 // or if you were also interested in each Item's "Updated" field, you can combine them like this:
 //
-//     svc.Events.List().Fields("nextPageToken", "items(id,updated)").Do()
+//	svc.Events.List().Fields("nextPageToken", "items(id,updated)").Do()
 //
 // Another way to find field names is through the Google API explorer:
 // https://developers.google.com/apis-explorer/#p/
@@ -377,6 +478,14 @@ func CombineFields(s []Field) string {
 // an API call is common across many APIs, and is thus a CallOption.
 type CallOption interface {
 	Get() (key, value string)
+}
+
+// A MultiCallOption is an option argument to an API call and can be passed
+// anywhere a CallOption is accepted. It additionally supports returning a slice
+// of values for a given key.
+type MultiCallOption interface {
+	CallOption
+	GetMulti() (key string, value []string)
 }
 
 // QuotaUser returns a CallOption that will set the quota user for a call.
@@ -404,5 +513,25 @@ func Trace(traceToken string) CallOption { return traceTok(traceToken) }
 type traceTok string
 
 func (t traceTok) Get() (string, string) { return "trace", "token:" + string(t) }
+
+type queryParameter struct {
+	key    string
+	values []string
+}
+
+// QueryParameter allows setting the value(s) of an arbitrary key.
+func QueryParameter(key string, values ...string) CallOption {
+	return queryParameter{key: key, values: append([]string{}, values...)}
+}
+
+// Get will never actually be called -- GetMulti will.
+func (q queryParameter) Get() (string, string) {
+	return "", ""
+}
+
+// GetMulti returns the key and values values associated to that key.
+func (q queryParameter) GetMulti() (string, []string) {
+	return q.key, q.values
+}
 
 // TODO: Fields too

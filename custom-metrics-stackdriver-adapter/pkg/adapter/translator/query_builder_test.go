@@ -17,12 +17,16 @@ limitations under the License.
 package translator
 
 import (
+	"fmt"
+	"io"
+	"net/http"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
 	"time"
 
+	sd "google.golang.org/api/monitoring/v3"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,9 +46,8 @@ func TestQueryBuilder_Both_Pods_PodNames_Provided(t *testing.T) {
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	_, err := NewQueryBuilder(translator, "my-metric-name").
@@ -61,9 +64,8 @@ func TestTranslator_QueryBuilder_pod_Single(t *testing.T) {
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -103,9 +105,8 @@ func TestTranslator_QueryBuilder_prometheus_Single(t *testing.T) {
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "prometheus.googleapis.com/foo"
@@ -145,9 +146,8 @@ func TestTranslator_QueryBuilder_pod_SingleWithMetricSelector(t *testing.T) {
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -189,9 +189,8 @@ func TestTranslator_QueryBuilder_prometheus_SingleWithMetricSelector(t *testing.
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "prometheus.googleapis.com/foo/gauge"
@@ -233,9 +232,8 @@ func TestTranslator_QueryBuilder_pod_SingleWithInvalidMetricSelector(t *testing.
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -257,9 +255,8 @@ func TestTranslator_QueryBuilder_prometheus_SingleWithInvalidMetricSelector(t *t
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "prometheus.googleapis.com/foo/gauge"
@@ -281,16 +278,14 @@ func TestTranslator_QueryBuilder_pod_Multiple(t *testing.T) {
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod1 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id-1",
-			Name:        "my-pod-name-1",
+			UID:  "my-pod-id-1",
+			Name: "my-pod-name-1",
 		},
 	}
 	pod2 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id-2",
-			Name:        "my-pod-name-2",
+			UID:  "my-pod-id-2",
+			Name: "my-pod-name-2",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -330,16 +325,14 @@ func TestTranslator_QueryBuilder_prometheus_Multiple(t *testing.T) {
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod1 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id-1",
-			Name:        "my-pod-name-1",
+			UID:  "my-pod-id-1",
+			Name: "my-pod-name-1",
 		},
 	}
 	pod2 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id-2",
-			Name:        "my-pod-name-2",
+			UID:  "my-pod-id-2",
+			Name: "my-pod-name-2",
 		},
 	}
 	metricName := "prometheus.googleapis.com/foo/gauge"
@@ -379,16 +372,14 @@ func TestTranslator_QueryBuilder_pod_MultipleWithMetricSelctor(t *testing.T) {
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod1 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id-1",
-			Name:        "my-pod-name-1",
+			UID:  "my-pod-id-1",
+			Name: "my-pod-name-1",
 		},
 	}
 	pod2 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id-2",
-			Name:        "my-pod-name-2",
+			UID:  "my-pod-id-2",
+			Name: "my-pod-name-2",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -430,9 +421,8 @@ func TestTranslator_QueryBuilder_Container_Single(t *testing.T) {
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -473,9 +463,8 @@ func TestTranslator_QueryBuilder_Container_SingleWithEmptyNamespace(t *testing.T
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -515,9 +504,8 @@ func TestTranslator_QueryBuilder_Container_OldResourceModel(t *testing.T) {
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), false)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -539,9 +527,8 @@ func TestTranslator_QueryBuilder_Container_SingleWithMetricSelector(t *testing.T
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -584,9 +571,8 @@ func TestTranslator_QueryBuilder_Container_SingleWithInvalidMetricSelector(t *te
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -602,16 +588,14 @@ func TestTranslator_QueryBuilder_Container_Multiple(t *testing.T) {
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod1 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id-1",
-			Name:        "my-pod-name-1",
+			UID:  "my-pod-id-1",
+			Name: "my-pod-name-1",
 		},
 	}
 	pod2 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id-2",
-			Name:        "my-pod-name-2",
+			UID:  "my-pod-id-2",
+			Name: "my-pod-name-2",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -652,16 +636,14 @@ func TestTranslator_QueryBuilder_Container_MultipleEmptyNamespace(t *testing.T) 
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod1 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id-1",
-			Name:        "my-pod-name-1",
+			UID:  "my-pod-id-1",
+			Name: "my-pod-name-1",
 		},
 	}
 	pod2 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id-2",
-			Name:        "my-pod-name-2",
+			UID:  "my-pod-id-2",
+			Name: "my-pod-name-2",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -701,16 +683,14 @@ func TestTranslator_QueryBuilder_Container_MultipleWithMetricSelctor(t *testing.
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod1 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id-1",
-			Name:        "my-pod-name-1",
+			UID:  "my-pod-id-1",
+			Name: "my-pod-name-1",
 		},
 	}
 	pod2 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id-2",
-			Name:        "my-pod-name-2",
+			UID:  "my-pod-id-2",
+			Name: "my-pod-name-2",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -753,9 +733,8 @@ func TestQueryBuilder_Node(t *testing.T) {
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	node := v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-node-id-1",
-			Name:        "my-node-name-1",
+			UID:  "my-node-id-1",
+			Name: "my-node-name-1",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -793,9 +772,8 @@ func TestQueryBuilder_Multiple_Nodes(t *testing.T) {
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	node := v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-node-id-1",
-			Name:        "my-node-name-1",
+			UID:  "my-node-id-1",
+			Name: "my-node-name-1",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -833,9 +811,8 @@ func TestQueryBuilder_Node_withMetricSelector(t *testing.T) {
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	node := v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-node-id-1",
-			Name:        "my-node-name-1",
+			UID:  "my-node-id-1",
+			Name: "my-node-name-1",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -870,14 +847,12 @@ func TestTranslator_QueryBuilder_pod_legacyResourceModel(t *testing.T) {
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), false)
 	pod1 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id-1",
+			UID: "my-pod-id-1",
 		},
 	}
 	pod2 := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id-2",
+			UID: "my-pod-id-2",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -1045,9 +1020,8 @@ func TestTranslator_QueryBuilder_pod_Single_Distribution(t *testing.T) {
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -1089,9 +1063,8 @@ func TestTranslator_QueryBuilder_promethus_Single_Distribution(t *testing.T) {
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "prometheus.googleapis.com/foo/gauge"
@@ -1133,9 +1106,8 @@ func TestTranslator_QueryBuilder_pod_NoSupportDistributions(t *testing.T) {
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -1158,9 +1130,8 @@ func TestTranslator_QueryBuilder_prometheus_NoSupportDistributions(t *testing.T)
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "prometheus.googleapis.com/foo/gauge"
@@ -1183,9 +1154,8 @@ func TestTranslator_QueryBuilder_pod_BadPercentile(t *testing.T) {
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -1208,9 +1178,8 @@ func TestTranslator_QueryBuilder_prometheus_BadPercentile(t *testing.T) {
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "prometheus.googleapis.com/foo/gauge"
@@ -1233,9 +1202,8 @@ func TestTranslator_QueryBuilder_pod_TooManyPercentiles(t *testing.T) {
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -1258,9 +1226,8 @@ func TestTranslator_QueryBuilder_prometheus_TooManyPercentiles(t *testing.T) {
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "prometheus.googleapis.com/foo/gauge"
@@ -1283,9 +1250,8 @@ func TestTranslator_QueryBuilder_pod_SingleWithMetricSelector_Distribution(t *te
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -1328,9 +1294,8 @@ func TestTranslator_QueryBuilder_Container_Single_Distribution(t *testing.T) {
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -1373,9 +1338,8 @@ func TestTranslator_GetSDReqForContainer_SingleWithMetricSelector_Distribution(t
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-pod-id",
-			Name:        "my-pod-name",
+			UID:  "my-pod-id",
+			Name: "my-pod-name",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -1414,14 +1378,105 @@ func TestTranslator_GetSDReqForContainer_SingleWithMetricSelector_Distribution(t
 	}
 }
 
+func TestTranslator_GetMetricKind_KindFoundInCache(t *testing.T) {
+	// should not make a call to the mockMetricKindRoundTripper
+	sdService := NewMockStackdriverService(t, &mockMetricKindRoundTripper{err: fmt.Errorf("unexpected call to Stackdriver")})
+	cache := newMetricKindCache(2, 10*time.Minute)
+	cache.add(metricKindCacheKey{
+		project: testProjectID,
+		name:    "pubsub.googleapis.com/subscription/num_undelivered_messages",
+	}, cachedMetricInfo{
+		MetricKind: "GAUGE",
+		ValueType:  "INT64",
+	})
+
+	translator := newFakeTranslatorForGetMetricKind(2*time.Minute, time.Minute, testProjectID, time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), sdService, cache)
+
+	kind, value, err := translator.GetMetricKind("pubsub.googleapis.com/subscription/num_undelivered_messages", labels.Everything())
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	if kind != "GAUGE" {
+		t.Errorf("Unexpected MetricKind. Expected: GUAGE, received: %s", kind)
+	}
+	if value != "INT64" {
+		t.Errorf("Unexpected ValueType. Expected: INT64, received: %s", value)
+	}
+}
+
+func TestTranslator_GetMetricKind_KindNotFoundInCache(t *testing.T) {
+	metricKind := "pubsub.googleapis.com/subscription/num_undelivered_messages"
+	sdService := NewMockStackdriverService(t, &mockMetricKindRoundTripper{
+		wantMetricName:  metricKind,
+		wantProjectName: testProjectID,
+		response: &sd.MetricDescriptor{
+			Type:       metricKind,
+			MetricKind: "GAUGE",
+			ValueType:  "INT64",
+		},
+	})
+	// cache is empty
+	cache := newMetricKindCache(2, 10*time.Minute)
+	translator := newFakeTranslatorForGetMetricKind(2*time.Minute, time.Minute, testProjectID, time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), sdService, cache)
+
+	kind, value, err := translator.GetMetricKind(metricKind, labels.Everything())
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	if kind != "GAUGE" {
+		t.Errorf("Unexpected MetricKind. Expected: GUAGE, received: %s", kind)
+	}
+	if value != "INT64" {
+		t.Errorf("Unexpected ValueType. Expected: INT64, received: %s", value)
+	}
+	if _, found := translator.metricKindCache.get(metricKindCacheKey{
+		project: testProjectID,
+		name:    metricKind,
+	}); !found {
+		t.Errorf("Expected metric kind to be cached, but was not found")
+	}
+}
+
+type mockMetricKindRoundTripper struct {
+	wantMetricName  string
+	wantProjectName string
+	response        *sd.MetricDescriptor
+	err             error
+}
+
+func (m *mockMetricKindRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if m.err != nil {
+		return &http.Response{StatusCode: http.StatusInternalServerError}, m.err
+	}
+	if req.Method == http.MethodGet && strings.Contains(req.URL.Path, "/metricDescriptors/") {
+		parts := strings.Split(req.URL.Path, "/")
+		if len(parts) > 5 && parts[4] == "metricDescriptors" {
+			requestedMetricName := strings.Join(parts[5:], "/")
+			if requestedMetricName != m.wantMetricName {
+				return nil, fmt.Errorf("unexpected metric name: got %s, want %s", requestedMetricName, m.wantMetricName)
+			}
+			resp := &http.Response{StatusCode: http.StatusOK, Header: make(http.Header)}
+			resp.Header.Set("Content-Type", "application/json")
+			respBody, err := m.response.MarshalJSON()
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(strings.NewReader(string(respBody)))
+			return resp, nil
+		} else {
+			return &http.Response{StatusCode: http.StatusBadRequest}, nil
+		}
+	}
+	return &http.Response{StatusCode: http.StatusNotImplemented}, nil
+}
+
 func TestQueryBuilder_Node_Single_Distribution(t *testing.T) {
 	translator, sdService :=
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	node := v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-node-id",
-			Name:        "my-node-name",
+			UID:  "my-node-id",
+			Name: "my-node-name",
 		},
 	}
 	metricName := "my/custom/metric"
@@ -1456,9 +1511,8 @@ func TestQueryBuilder_Node_SingleWithMetricSelector_Distribution(t *testing.T) {
 		newFakeTranslatorForDistributions(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
 	node := v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
-			ClusterName: "my-cluster",
-			UID:         "my-node-id",
-			Name:        "my-node-name",
+			UID:  "my-node-id",
+			Name: "my-node-name",
 		},
 	}
 	metricName := "my/custom/metric"

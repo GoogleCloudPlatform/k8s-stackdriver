@@ -32,6 +32,8 @@ type DLLError struct {
 
 func (e *DLLError) Error() string { return e.Msg }
 
+func (e *DLLError) Unwrap() error { return e.Err }
+
 // A DLL implements access to a single DLL.
 type DLL struct {
 	Name   string
@@ -41,8 +43,8 @@ type DLL struct {
 // LoadDLL loads DLL file into memory.
 //
 // Warning: using LoadDLL without an absolute path name is subject to
-// DLL preloading attacks. To safely load a system DLL, use LazyDLL
-// with System set to true, or use LoadLibraryEx directly.
+// DLL preloading attacks. To safely load a system DLL, use [NewLazySystemDLL],
+// or use [LoadLibraryEx] directly.
 func LoadDLL(name string) (dll *DLL, err error) {
 	namep, err := UTF16PtrFromString(name)
 	if err != nil {
@@ -63,7 +65,7 @@ func LoadDLL(name string) (dll *DLL, err error) {
 	return d, nil
 }
 
-// MustLoadDLL is like LoadDLL but panics if load operation failes.
+// MustLoadDLL is like LoadDLL but panics if load operation fails.
 func MustLoadDLL(name string) *DLL {
 	d, e := LoadDLL(name)
 	if e != nil {
@@ -269,6 +271,9 @@ func (d *LazyDLL) NewProc(name string) *LazyProc {
 }
 
 // NewLazyDLL creates new LazyDLL associated with DLL file.
+//
+// Warning: using NewLazyDLL without an absolute path name is subject to
+// DLL preloading attacks. To safely load a system DLL, use [NewLazySystemDLL].
 func NewLazyDLL(name string) *LazyDLL {
 	return &LazyDLL{Name: name}
 }
@@ -389,7 +394,6 @@ func loadLibraryEx(name string, system bool) (*DLL, error) {
 	var flags uintptr
 	if system {
 		if canDoSearchSystem32() {
-			const LOAD_LIBRARY_SEARCH_SYSTEM32 = 0x00000800
 			flags = LOAD_LIBRARY_SEARCH_SYSTEM32
 		} else if isBaseName(name) {
 			// WindowsXP or unpatched Windows machine
@@ -409,7 +413,3 @@ func loadLibraryEx(name string, system bool) (*DLL, error) {
 	}
 	return &DLL{Name: name, Handle: h}, nil
 }
-
-type errString string
-
-func (s errString) Error() string { return string(s) }

@@ -5,6 +5,8 @@
 package proto
 
 import (
+	"fmt"
+
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/runtime/protoiface"
 )
@@ -19,10 +21,16 @@ import (
 // The unknown fields of src are appended to the unknown fields of dst.
 //
 // It is semantically equivalent to unmarshaling the encoded form of src
-// into dst with the UnmarshalOptions.Merge option specified.
+// into dst with the [UnmarshalOptions.Merge] option specified.
 func Merge(dst, src Message) {
+	// TODO: Should nil src be treated as semantically equivalent to a
+	// untyped, read-only, empty message? What about a nil dst?
+
 	dstMsg, srcMsg := dst.ProtoReflect(), src.ProtoReflect()
 	if dstMsg.Descriptor() != srcMsg.Descriptor() {
+		if got, want := dstMsg.Descriptor().FullName(), srcMsg.Descriptor().FullName(); got != want {
+			panic(fmt.Sprintf("descriptor mismatch: %v != %v", got, want))
+		}
 		panic("descriptor mismatch")
 	}
 	mergeOptions{}.mergeMessage(dstMsg, srcMsg)
@@ -51,6 +59,12 @@ func Clone(m Message) Message {
 	return dst.Interface()
 }
 
+// CloneOf returns a deep copy of m. If the top-level message is invalid,
+// it returns an invalid message as well.
+func CloneOf[M Message](m M) M {
+	return Clone(m).(M)
+}
+
 // mergeOptions provides a namespace for merge functions, and can be
 // exported in the future if we add user-visible merge options.
 type mergeOptions struct{}
@@ -69,7 +83,7 @@ func (o mergeOptions) mergeMessage(dst, src protoreflect.Message) {
 	}
 
 	if !dst.IsValid() {
-		panic("cannot merge into invalid destination message")
+		panic(fmt.Sprintf("cannot merge into invalid %v message", dst.Descriptor().FullName()))
 	}
 
 	src.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {

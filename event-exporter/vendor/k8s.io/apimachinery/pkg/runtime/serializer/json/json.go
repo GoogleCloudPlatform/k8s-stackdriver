@@ -36,7 +36,7 @@ import (
 // is not nil, the object has the group, version, and kind fields set.
 // Deprecated: use NewSerializerWithOptions instead.
 func NewSerializer(meta MetaFactory, creater runtime.ObjectCreater, typer runtime.ObjectTyper, pretty bool) *Serializer {
-	return NewSerializerWithOptions(meta, creater, typer, SerializerOptions{false, pretty, false})
+	return NewSerializerWithOptions(meta, creater, typer, SerializerOptions{false, pretty, false, false})
 }
 
 // NewYAMLSerializer creates a YAML serializer that handles encoding versioned objects into the proper YAML form. If typer
@@ -44,7 +44,7 @@ func NewSerializer(meta MetaFactory, creater runtime.ObjectCreater, typer runtim
 // matches JSON, and will error if constructs are used that do not serialize to JSON.
 // Deprecated: use NewSerializerWithOptions instead.
 func NewYAMLSerializer(meta MetaFactory, creater runtime.ObjectCreater, typer runtime.ObjectTyper) *Serializer {
-	return NewSerializerWithOptions(meta, creater, typer, SerializerOptions{true, false, false})
+	return NewSerializerWithOptions(meta, creater, typer, SerializerOptions{true, false, false, false})
 }
 
 // NewSerializerWithOptions creates a JSON/YAML serializer that handles encoding versioned objects into the proper JSON/YAML
@@ -93,6 +93,9 @@ type SerializerOptions struct {
 	// Strict: configures the Serializer to return strictDecodingError's when duplicate fields are present decoding JSON or YAML.
 	// Note that enabling this option is not as performant as the non-strict variant, and should not be used in fast paths.
 	Strict bool
+
+	// StreamingCollectionsEncoding enables encoding collection, one item at the time, drastically reducing memory needed.
+	StreamingCollectionsEncoding bool
 }
 
 // Serializer handles encoding versioned objects into the proper JSON form
@@ -166,7 +169,20 @@ func (s *Serializer) Decode(originalData []byte, gvk *schema.GroupVersionKind, i
 			strictErrs, err := s.unmarshal(into, data, originalData)
 			if err != nil {
 				return nil, actual, err
-			} else if len(strictErrs) > 0 {
+			}
+
+			// when decoding directly into a provided unstructured object,
+			// extract the actual gvk decoded from the provided data,
+			// and ensure it is non-empty.
+			if isUnstructured {
+				*actual = into.GetObjectKind().GroupVersionKind()
+				if len(actual.Kind) == 0 {
+					return nil, actual, runtime.NewMissingKindErr(string(originalData))
+				}
+				// TODO(109023): require apiVersion here as well once unstructuredJSONScheme#Decode does
+			}
+
+			if len(strictErrs) > 0 {
 				return into, actual, runtime.NewStrictDecodingError(strictErrs)
 			}
 			return into, actual, nil
@@ -229,6 +245,15 @@ func (s *Serializer) doEncode(obj runtime.Object, w io.Writer) error {
 		_, err = w.Write(data)
 		return err
 	}
+	if s.options.StreamingCollectionsEncoding {
+		ok, err := streamEncodeCollections(obj, w)
+		if err != nil {
+			return err
+		}
+		if ok {
+			return nil
+		}
+	}
 	encoder := json.NewEncoder(w)
 	return encoder.Encode(obj)
 }
@@ -261,9 +286,9 @@ func (s *Serializer) unmarshal(into runtime.Object, data, originalData []byte) (
 	var strictJSONErrs []error
 	if u, isUnstructured := into.(runtime.Unstructured); isUnstructured {
 		// Unstructured is a custom unmarshaler that gets delegated
-		// to, so inorder to detect strict JSON errors we need
+		// to, so in order to detect strict JSON errors we need
 		// to unmarshal directly into the object.
-		m := u.UnstructuredContent()
+		m := map[string]interface{}{}
 		strictJSONErrs, err = kjson.UnmarshalStrict(data, &m)
 		u.SetUnstructuredContent(m)
 	} else {

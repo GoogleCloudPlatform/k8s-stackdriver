@@ -29,9 +29,12 @@ import (
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/podlabels"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/watchers"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/sinks/stackdriver"
 )
 
@@ -40,6 +43,14 @@ var (
 	sinkOpts           = flag.String("sink-opts", "", "Parameters for configuring sink")
 	prometheusEndpoint = flag.String("prometheus-endpoint", ":80", "Endpoint on which to "+
 		"expose Prometheus http handler")
+	systemNamespaces = flag.String("system-namespaces", "kube-system,gke-connect", "Comma "+
+		"separated list of system namespaces to skip the owner label collection")
+
+	enablePodOwnerLabel          = flag.Bool("enable-pod-owner-label", true, "Whether to enable the pod label collector to add pod owner labels to log entries")
+	eventLabelSelector           = flag.String("event-label-selector", "", "Export events only if they match the given label selector. Same syntax as kubectl label")
+	listerWatcherOptionsLimit    = flag.Int64("lister-watcher-options-limit", 100, "Maximum number of responses to return for a list call on events watch. Larger the number, higher the memory event-exporter will consume. No limits when set to 0.")
+	listerWatcherEnableStreaming = flag.Bool("lister-watcher-enable-streaming", false, "Enable watch streaming for lister watcher to prevent all the unhandled events get loaded into memory at once. Instead, events will be processed one by one. If this flag is set to true, lister-watcher-options-limit will be ignored.")
+	storageType                  = flag.String("storage-type", "DeltaFIFOStorage", "What storage should be used as a cache for the watcher. Supported sotrage type: SimpleStorage, TTLStorage and DeltaFIFOStorage.")
 )
 
 func newSystemStopChannel() chan struct{} {
@@ -73,16 +84,42 @@ func main() {
 	defer glog.Flush()
 	flag.Parse()
 
-	sink, err := stackdriver.NewSdSinkFactory().CreateNew(strings.Split(*sinkOpts, " "))
-	if err != nil {
-		glog.Fatalf("Failed to initialize sink: %v", err)
-	}
 	client, err := newKubernetesClient()
 	if err != nil {
 		glog.Fatalf("Failed to initialize kubernetes client: %v", err)
 	}
 
-	eventExporter := newEventExporter(client, sink, *resyncPeriod)
+	var informer podlabels.PodLabelCollector = nil
+	stopCh := newSystemStopChannel()
+	if *enablePodOwnerLabel {
+		factory := podlabels.NewPodLabelsSharedInformerFactory(client, strings.Split(*systemNamespaces, ","))
+		informer = factory.NewPodLabelsSharedInformer()
+		factory.Run(stopCh)
+	}
+
+	sink, err := stackdriver.NewSdSinkFactory().CreateNew(strings.Split(*sinkOpts, " "), informer)
+	if err != nil {
+		glog.Fatalf("Failed to initialize sink: %v", err)
+	}
+
+	parsedLabelSelector, err := labels.Parse(*eventLabelSelector)
+	if err != nil {
+		glog.Fatalf("Invalid event label selector:%v", err)
+	}
+
+	var st watchers.StorageType
+	switch *storageType {
+	case "SimpleStorage":
+		st = watchers.SimpleStorage
+	case "TTLStorage":
+		st = watchers.TTLStorage
+	case "DeltaFIFOStorage":
+		st = watchers.DeltaFIFOStorage
+	default:
+		glog.Fatalf("Unsupported storage type:%v.", *storageType)
+	}
+
+	eventExporter := newEventExporter(client, sink, *resyncPeriod, parsedLabelSelector, *listerWatcherOptionsLimit, *listerWatcherEnableStreaming, st)
 
 	// Expose the Prometheus http endpoint
 	go func() {
@@ -90,6 +127,5 @@ func main() {
 		glog.Fatalf("Prometheus monitoring failed: %v", http.ListenAndServe(*prometheusEndpoint, nil))
 	}()
 
-	stopCh := newSystemStopChannel()
 	eventExporter.Run(stopCh)
 }

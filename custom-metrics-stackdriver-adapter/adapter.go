@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"net/http"
 	"net/url"
@@ -24,22 +25,33 @@ import (
 	"time"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/translator"
+	generatedopenapi "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/api/generated/openapi"
 	gceconfig "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	stackdriver "google.golang.org/api/monitoring/v3"
+	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
+	genericapiserver "k8s.io/apiserver/pkg/server"
 	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
+	customexternalmetrics "sigs.k8s.io/custom-metrics-apiserver/pkg/apiserver"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 
-	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/component-base/logs"
 	"k8s.io/klog"
 	"sigs.k8s.io/metrics-server/pkg/api"
 
 	coreadapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/coreprovider"
 	adapter "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/provider"
+	corev1 "k8s.io/api/core/v1"
 	basecmd "sigs.k8s.io/custom-metrics-apiserver/pkg/cmd"
+)
+
+const (
+	defaultExternalMetricsCacheSize = 300
+	// This is only metric info and likely to be much smaller than separate metrics of each kind above
+	defaultMetricKindCacheSize = 25
 )
 
 // StackdriverAdapter is an adapter for Stackdriver
@@ -65,6 +77,17 @@ type stackdriverAdapterServerOptions struct {
 	// EnableDistributionSupport is a flag that indicates whether or not to allow distributions can
 	// be used (with special reducer labels) in the adapter
 	EnableDistributionSupport bool
+	// ListFullCustomMetrics is a flag that whether list all pod custom metrics during api discovery.
+	// Default = false, which only list 1 metric. Enabling this back would increase memory usage.
+	ListFullCustomMetrics bool
+	// ExternalMetricsCacheTTL specifies the cache expiration time for external metrics.
+	ExternalMetricsCacheTTL time.Duration
+	// ExternalMetricsCacheSize specifies the maximum number of stored entries in the external metric cache.
+	ExternalMetricsCacheSize int
+	// MetricKindCacheTTL specifies the cache expiration time for metric kind information.
+	MetricKindCacheTTL time.Duration
+	// MetricKindCacheSize specifies the maximum number of stored entries in the metric kind cache.
+	MetricKindCacheSize int
 }
 
 func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptions, rateInterval time.Duration, alignmentPeriod time.Duration) (provider.MetricsProvider, *translator.Translator) {
@@ -109,8 +132,24 @@ func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptio
 	}
 	conf.GenericConfig.EnableMetrics = true
 
-	translator := translator.NewTranslator(stackdriverService, gceConf, rateInterval, alignmentPeriod, mapper, o.UseNewResourceModel, o.EnableDistributionSupport)
-	return adapter.NewStackdriverProvider(client, mapper, gceConf, stackdriverService, translator, rateInterval, o.UseNewResourceModel, o.FallbackForContainerMetrics), translator
+	translator := translator.NewTranslator(stackdriverService, gceConf, rateInterval, alignmentPeriod, mapper, o.UseNewResourceModel, o.EnableDistributionSupport, o.MetricKindCacheSize, o.MetricKindCacheTTL)
+
+	// If ListFullCustomMetrics is false, it returns one resource during api discovery `kubectl get --raw "/apis/custom.metrics.k8s.io/v1beta2"` to reduce memory usage.
+	customMetricsListCache := listStackdriverCustomMetrics(translator, o.ListFullCustomMetrics, o.FallbackForContainerMetrics)
+	return adapter.NewStackdriverProvider(client, mapper, gceConf, stackdriverService, translator, rateInterval, o.UseNewResourceModel, o.FallbackForContainerMetrics, customMetricsListCache, o.ExternalMetricsCacheTTL, o.ExternalMetricsCacheSize), translator
+}
+
+func listStackdriverCustomMetrics(translator *translator.Translator, listFullCustomMetrics bool, fallbackForContainerMetrics bool) []provider.CustomMetricInfo {
+	stackdriverRequest := translator.ListMetricDescriptors(fallbackForContainerMetrics)
+	response, err := stackdriverRequest.Do()
+	if err != nil {
+		klog.Fatalf("Failed request to stackdriver api: %s", err)
+	}
+	customMetricsListCache := translator.GetMetricsFromSDDescriptorsResp(response)
+	if !listFullCustomMetrics && len(customMetricsListCache) > 0 {
+		customMetricsListCache = customMetricsListCache[0:1]
+	}
+	return customMetricsListCache
 }
 
 func (sa *StackdriverAdapter) withCoreMetrics(translator *translator.Translator) error {
@@ -125,9 +164,13 @@ func (sa *StackdriverAdapter) withCoreMetrics(translator *translator.Translator)
 		return err
 	}
 
-	pods := informers.Core().V1().Pods()
+	podInformer, nil := informers.ForResource(corev1.SchemeGroupVersion.WithResource("pods"))
+	if err != nil {
+		return err
+	}
+
 	nodes := informers.Core().V1().Nodes()
-	if err := api.Install(provider, pods.Lister(), nodes.Lister(), server.GenericAPIServer); err != nil {
+	if err := api.Install(provider, podInformer.Lister(), nodes.Lister(), server.GenericAPIServer, []labels.Requirement{}); err != nil {
 		return err
 	}
 
@@ -143,9 +186,16 @@ func main() {
 			Name: "custom-metrics-stackdriver-adapter",
 		},
 	}
-	flags := cmd.Flags()
 
-	flags.AddGoFlagSet(flag.CommandLine) // make sure we get the klog flags
+	if cmd.OpenAPIConfig == nil {
+		cmd.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(generatedopenapi.GetOpenAPIDefinitions, openapinamer.NewDefinitionNamer(api.Scheme, customexternalmetrics.Scheme))
+		cmd.OpenAPIConfig.Info.Title = "custom-metrics-stackdriver-adapter"
+		cmd.OpenAPIConfig.Info.Version = "1.0.0"
+	}
+
+	flags := cmd.Flags()
+	klog.InitFlags(flag.CommandLine)
+	flags.AddGoFlagSet(flag.CommandLine)
 
 	serverOptions := stackdriverAdapterServerOptions{
 		UseNewResourceModel:         false,
@@ -154,6 +204,9 @@ func main() {
 		FallbackForContainerMetrics: false,
 		EnableCoreMetricsAPI:        false,
 		EnableDistributionSupport:   false,
+		ListFullCustomMetrics:       false,
+		ExternalMetricsCacheSize:    defaultExternalMetricsCacheSize,
+		MetricKindCacheSize:         defaultMetricKindCacheSize,
 	}
 
 	flags.BoolVar(&serverOptions.UseNewResourceModel, "use-new-resource-model", serverOptions.UseNewResourceModel,
@@ -166,20 +219,36 @@ func main() {
 		"If true, fallbacks to k8s_container resource when given metric is not present on k8s_pod. At most one container with given metric is allowed for each pod.")
 	flags.BoolVar(&serverOptions.EnableCoreMetricsAPI, "enable-core-metrics-api", serverOptions.EnableCoreMetricsAPI,
 		"Experimental, do not use. Whether to enable Core Metrics API.")
+	flags.BoolVar(&serverOptions.ListFullCustomMetrics, "list-full-custom-metrics", serverOptions.ListFullCustomMetrics,
+		"whether to supporting list full custom metrics. This is a featuragate to list full custom metrics back, which should keep as false to return only 1 metric. Otherwise, it would have high memory usage issue.")
 	flags.StringVar(&serverOptions.MetricsAddress, "metrics-address", "",
 		"Endpoint with port on which Prometheus metrics server should be enabled. Example: localhost:8080. If there is no flag, Prometheus metric server is disabled and monitoring metrics are not collected.")
 	flags.StringVar(&serverOptions.StackdriverEndpoint, "stackdriver-endpoint", "",
 		"Stackdriver Endpoint used by adapter. Default is https://monitoring.googleapis.com/")
 	flags.BoolVar(&serverOptions.EnableDistributionSupport, "enable-distribution-support", serverOptions.EnableDistributionSupport,
 		"enables support for scaling based on distribution values")
+	flags.DurationVar(&serverOptions.ExternalMetricsCacheTTL, "external-metric-cache-ttl", serverOptions.ExternalMetricsCacheTTL,
+		"The duration (e.g., 1m, 5s) for which external metric values are cached.")
+	flags.IntVar(&serverOptions.ExternalMetricsCacheSize, "external-metric-cache-size", serverOptions.ExternalMetricsCacheSize,
+		"The maximum number of entries in the external metric cache.")
+	flags.DurationVar(&serverOptions.MetricKindCacheTTL, "metric-kind-cache-ttl", serverOptions.MetricKindCacheTTL,
+		"The duration (e.g., 1m, 5s) for which metric kind info calls are cached. Defaults to 0 which disables the metric kind cache.")
+	flags.IntVar(&serverOptions.MetricKindCacheSize, "metric-kind-cache-size", serverOptions.MetricKindCacheSize,
+		"The maximum number of entries in the metric kind cache. Clusters using a lot of stackdriver based autoscaling should set this value greater than the number of separate stackdriver metrics used (not hpas using metrics) to avoid internal rate limits. Defaults to 25.")
 
 	flags.Parse(os.Args)
 
+	klog.Info("serverOptions: ", serverOptions)
 	if !serverOptions.UseNewResourceModel && serverOptions.FallbackForContainerMetrics {
 		klog.Fatalf("Container metrics work only with new resource model")
 	}
 	if !serverOptions.UseNewResourceModel && serverOptions.EnableCoreMetricsAPI {
 		klog.Fatalf("Core metrics work only with new resource model")
+	}
+	if serverOptions.ListFullCustomMetrics {
+		klog.Infof("ListFullCustomMetrics is enabled, which would increase memory usage a lot. Please keep it as false, unless have to.")
+	} else {
+		klog.Infof("ListFullCustomMetrics is disabled, which would only list 1 metric resource to reduce memory usage. Add --list-full-custom-metrics to list full metric resources for debugging.")
 	}
 
 	// TODO(holubwicz): move duration config to server options
@@ -198,7 +267,7 @@ func main() {
 	if serverOptions.MetricsAddress != "" {
 		go runPrometheusMetricsServer(serverOptions.MetricsAddress)
 	}
-	if err := cmd.Run(wait.NeverStop); err != nil {
+	if err := cmd.Run(context.Background()); err != nil {
 		klog.Fatalf("unable to run custom metrics adapter: %v", err)
 	}
 }

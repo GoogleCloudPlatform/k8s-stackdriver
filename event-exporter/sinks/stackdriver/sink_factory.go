@@ -25,8 +25,9 @@ import (
 	sd "google.golang.org/api/logging/v2"
 	"google.golang.org/api/option"
 
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/podlabels"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/sinks"
 )
 
@@ -37,6 +38,7 @@ type sdSinkFactory struct {
 	maxConcurrency       *int
 	resourceModelVersion *string
 	endpoint             *string
+	universeDomain       *string
 }
 
 // NewSdSinkFactory creates a new Stackdriver sink factory.
@@ -53,12 +55,13 @@ func NewSdSinkFactory() sinks.SinkFactory {
 			"concurrent requests to Stackdriver"),
 		resourceModelVersion: fs.String("stackdriver-resource-model", "", "Stackdriver resource model "+
 			"to be used for exports"),
-		endpoint: fs.String("endpoint", defaultEndpoint, "Base path for Stackdriver API"),
+		endpoint:       fs.String("endpoint", defaultEndpoint, "Base path for Stackdriver API"),
+		universeDomain: fs.String("universeDomain", defaultUniverseDomain, "The domain of the universe."),
 	}
 }
 
 // CreateNew creates a new Stackdriver sink.
-func (f *sdSinkFactory) CreateNew(opts []string) (sinks.Sink, error) {
+func (f *sdSinkFactory) CreateNew(opts []string, podLabelCollector podlabels.PodLabelCollector) (sinks.Sink, error) {
 	err := f.flagSet.Parse(opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse sink opts: %v", err)
@@ -75,7 +78,7 @@ func (f *sdSinkFactory) CreateNew(opts []string) (sinks.Sink, error) {
 	}
 
 	ctx := context.Background()
-	service, err := sd.NewService(ctx, option.WithEndpoint(config.Endpoint))
+	service, err := sd.NewService(ctx, option.WithEndpoint(config.Endpoint), option.WithUniverseDomain(config.UniverseDomain))
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize Stackdriver service: %v", err)
 	}
@@ -83,7 +86,7 @@ func (f *sdSinkFactory) CreateNew(opts []string) (sinks.Sink, error) {
 
 	clk := clock.RealClock{}
 
-	return newSdSink(writer, clk, config, resourceModelFactory), nil
+	return newSdSink(writer, clk, config, resourceModelFactory, podLabelCollector), nil
 }
 
 func (f *sdSinkFactory) createMonitoredResourceFactory() (*monitoredResourceFactory, error) {
@@ -104,5 +107,6 @@ func (f *sdSinkFactory) createSinkConfig() (*sdSinkConfig, error) {
 	config.MaxBufferSize = *f.maxBufferSize
 	config.MaxConcurrency = *f.maxConcurrency
 	config.Endpoint = *f.endpoint
+	config.UniverseDomain = *f.universeDomain
 	return config, nil
 }

@@ -49,6 +49,12 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&Ingress{},
 		&IngressList{},
+		&IngressClass{},
+		&IngressClassList{},
+		&IPAddress{},
+		&IPAddressList{},
+		&ServiceCIDR{},
+		&ServiceCIDRList{},
 	)
 	// Add the watch version that applies
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)

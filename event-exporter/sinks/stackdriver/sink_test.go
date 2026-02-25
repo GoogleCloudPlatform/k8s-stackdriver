@@ -23,8 +23,8 @@ import (
 	sd "google.golang.org/api/logging/v2"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/apimachinery/pkg/util/wait"
+	clock "k8s.io/utils/clock/testing"
 )
 
 type fakeSdWriter struct {
@@ -172,8 +172,10 @@ func createSinkWith(params map[string]interface{}) (c *sdSinkConfig, s *sdSink, 
 		},
 	}
 
-	monitoredResourceFactory := &monitoredResourceFactory{}
-	s = newSdSink(w, clock.NewFakeClock(time.Time{}), c, monitoredResourceFactory)
+	monitoredResourceFactory := &monitoredResourceFactory{
+		defaultResource: &sd.MonitoredResource{Type: k8sCluster},
+	}
+	s = newSdSink(w, clock.NewFakeClock(time.Time{}), c, monitoredResourceFactory, &mockPodLabelCollector{})
 	go s.Run(done)
 	return
 }

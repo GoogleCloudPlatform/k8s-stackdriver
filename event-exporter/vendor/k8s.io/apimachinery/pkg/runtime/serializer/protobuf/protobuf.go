@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer/recognizer"
 	"k8s.io/apimachinery/pkg/util/framer"
+	"k8s.io/klog/v2"
 )
 
 var (
@@ -71,10 +72,18 @@ func IsNotMarshalable(err error) bool {
 // is passed, the encoded object will have group, version, and kind fields set. If typer is nil, the objects will be written
 // as-is (any type info passed with the object will be used).
 func NewSerializer(creater runtime.ObjectCreater, typer runtime.ObjectTyper) *Serializer {
+	return NewSerializerWithOptions(creater, typer, SerializerOptions{})
+}
+
+// NewSerializerWithOptions creates a Protobuf serializer that handles encoding versioned objects into the proper wire form. If a typer
+// is passed, the encoded object will have group, version, and kind fields set. If typer is nil, the objects will be written
+// as-is (any type info passed with the object will be used).
+func NewSerializerWithOptions(creater runtime.ObjectCreater, typer runtime.ObjectTyper, opts SerializerOptions) *Serializer {
 	return &Serializer{
 		prefix:  protoEncodingPrefix,
 		creater: creater,
 		typer:   typer,
+		options: opts,
 	}
 }
 
@@ -83,9 +92,18 @@ type Serializer struct {
 	prefix  []byte
 	creater runtime.ObjectCreater
 	typer   runtime.ObjectTyper
+
+	options SerializerOptions
+}
+
+// SerializerOptions holds the options which are used to configure a Proto serializer.
+type SerializerOptions struct {
+	// StreamingCollectionsEncoding enables encoding collection, one item at the time, drastically reducing memory needed.
+	StreamingCollectionsEncoding bool
 }
 
 var _ runtime.Serializer = &Serializer{}
+var _ runtime.EncoderWithAllocator = &Serializer{}
 var _ recognizer.RecognizingDecoder = &Serializer{}
 
 const serializerIdentifier runtime.Identifier = "protobuf"
@@ -161,22 +179,36 @@ func (s *Serializer) Decode(originalData []byte, gvk *schema.GroupVersionKind, i
 	return unmarshalToObject(s.typer, s.creater, &actual, into, unk.Raw)
 }
 
-// Encode serializes the provided object to the given writer.
-func (s *Serializer) Encode(obj runtime.Object, w io.Writer) error {
-	if co, ok := obj.(runtime.CacheableObject); ok {
-		return co.CacheEncode(s.Identifier(), s.doEncode, w)
-	}
-	return s.doEncode(obj, w)
+// EncodeWithAllocator writes an object to the provided writer.
+// In addition, it allows for providing a memory allocator for efficient memory usage during object serialization.
+func (s *Serializer) EncodeWithAllocator(obj runtime.Object, w io.Writer, memAlloc runtime.MemoryAllocator) error {
+	return s.encode(obj, w, memAlloc)
 }
 
-func (s *Serializer) doEncode(obj runtime.Object, w io.Writer) error {
+// Encode serializes the provided object to the given writer.
+func (s *Serializer) Encode(obj runtime.Object, w io.Writer) error {
+	return s.encode(obj, w, &runtime.SimpleAllocator{})
+}
+
+func (s *Serializer) encode(obj runtime.Object, w io.Writer, memAlloc runtime.MemoryAllocator) error {
+	if co, ok := obj.(runtime.CacheableObject); ok {
+		return co.CacheEncode(s.Identifier(), func(obj runtime.Object, w io.Writer) error { return s.doEncode(obj, w, memAlloc) }, w)
+	}
+	return s.doEncode(obj, w, memAlloc)
+}
+
+func (s *Serializer) doEncode(obj runtime.Object, w io.Writer, memAlloc runtime.MemoryAllocator) error {
+	if memAlloc == nil {
+		klog.Error("a mandatory memory allocator wasn't provided, this might have a negative impact on performance, check invocations of EncodeWithAllocator method, falling back on runtime.SimpleAllocator")
+		memAlloc = &runtime.SimpleAllocator{}
+	}
 	prefixSize := uint64(len(s.prefix))
 
 	var unk runtime.Unknown
 	switch t := obj.(type) {
 	case *runtime.Unknown:
 		estimatedSize := prefixSize + uint64(t.Size())
-		data := make([]byte, estimatedSize)
+		data := memAlloc.Allocate(estimatedSize)
 		i, err := t.MarshalTo(data[prefixSize:])
 		if err != nil {
 			return err
@@ -193,14 +225,21 @@ func (s *Serializer) doEncode(obj runtime.Object, w io.Writer) error {
 			},
 		}
 	}
+	if s.options.StreamingCollectionsEncoding {
+		listData, err := getStreamingListData(obj)
+		if err == nil {
+			// Doesn't honor custom proto marshaling methods (like json streaming), because all proto objects implement proto methods.
+			return streamingEncodeUnknownList(w, unk, listData, memAlloc)
+		}
+	}
 
 	switch t := obj.(type) {
 	case bufferedMarshaller:
-		// this path performs a single allocation during write but requires the caller to implement
-		// the more efficient Size and MarshalToSizedBuffer methods
+		// this path performs a single allocation during write only when the Allocator wasn't provided
+		// it also requires the caller to implement the more efficient Size and MarshalToSizedBuffer methods
 		encodedSize := uint64(t.Size())
 		estimatedSize := prefixSize + estimateUnknownSize(&unk, encodedSize)
-		data := make([]byte, estimatedSize)
+		data := memAlloc.Allocate(estimatedSize)
 
 		i, err := unk.NestedMarshalTo(data[prefixSize:], t, encodedSize)
 		if err != nil {
@@ -221,7 +260,7 @@ func (s *Serializer) doEncode(obj runtime.Object, w io.Writer) error {
 		unk.Raw = data
 
 		estimatedSize := prefixSize + uint64(unk.Size())
-		data = make([]byte, estimatedSize)
+		data = memAlloc.Allocate(estimatedSize)
 
 		i, err := unk.MarshalTo(data[prefixSize:])
 		if err != nil {
@@ -395,51 +434,101 @@ func unmarshalToObject(typer runtime.ObjectTyper, creater runtime.ObjectCreater,
 
 // Encode serializes the provided object to the given writer. Overrides is ignored.
 func (s *RawSerializer) Encode(obj runtime.Object, w io.Writer) error {
-	if co, ok := obj.(runtime.CacheableObject); ok {
-		return co.CacheEncode(s.Identifier(), s.doEncode, w)
-	}
-	return s.doEncode(obj, w)
+	return s.encode(obj, w, &runtime.SimpleAllocator{})
 }
 
-func (s *RawSerializer) doEncode(obj runtime.Object, w io.Writer) error {
+// EncodeWithAllocator writes an object to the provided writer.
+// In addition, it allows for providing a memory allocator for efficient memory usage during object serialization.
+func (s *RawSerializer) EncodeWithAllocator(obj runtime.Object, w io.Writer, memAlloc runtime.MemoryAllocator) error {
+	return s.encode(obj, w, memAlloc)
+}
+
+func (s *RawSerializer) encode(obj runtime.Object, w io.Writer, memAlloc runtime.MemoryAllocator) error {
+	if co, ok := obj.(runtime.CacheableObject); ok {
+		return co.CacheEncode(s.Identifier(), func(obj runtime.Object, w io.Writer) error { return s.doEncode(obj, w, memAlloc) }, w)
+	}
+	return s.doEncode(obj, w, memAlloc)
+}
+
+func (s *RawSerializer) doEncode(obj runtime.Object, w io.Writer, memAlloc runtime.MemoryAllocator) error {
+	_, err := doEncode(obj, w, nil, memAlloc)
+	return err
+}
+
+func doEncodeWithHeader(obj any, w io.Writer, field byte, precomputedSize int, memAlloc runtime.MemoryAllocator) (size int, err error) {
+	// Field identifier
+	n, err := w.Write([]byte{field})
+	size += n
+	if err != nil {
+		return size, err
+	}
+	// Size
+	n, err = writeVarintGenerated(w, precomputedSize)
+	size += n
+	if err != nil {
+		return size, err
+	}
+	// Obj
+	n, err = doEncode(obj, w, &precomputedSize, memAlloc)
+	size += n
+	if err != nil {
+		return size, err
+	}
+	if n != precomputedSize {
+		return size, fmt.Errorf("the size value was %d, but doEncode wrote %d bytes to data", precomputedSize, n)
+	}
+	return size, nil
+}
+
+// doEncode encodes provided object into writer using a allocator if possible.
+// Avoids call by object Size if precomputedObjSize is provided.
+// precomputedObjSize should not include header bytes (field identifier, size).
+func doEncode(obj any, w io.Writer, precomputedObjSize *int, memAlloc runtime.MemoryAllocator) (int, error) {
+	if memAlloc == nil {
+		klog.Error("a mandatory memory allocator wasn't provided, this might have a negative impact on performance, check invocations of EncodeWithAllocator method, falling back on runtime.SimpleAllocator")
+		memAlloc = &runtime.SimpleAllocator{}
+	}
 	switch t := obj.(type) {
 	case bufferedReverseMarshaller:
-		// this path performs a single allocation during write but requires the caller to implement
-		// the more efficient Size and MarshalToSizedBuffer methods
-		encodedSize := uint64(t.Size())
-		data := make([]byte, encodedSize)
+		// this path performs a single allocation during write only when the Allocator wasn't provided
+		// it also requires the caller to implement the more efficient Size and MarshalToSizedBuffer methods
+		if precomputedObjSize == nil {
+			s := t.Size()
+			precomputedObjSize = &s
+		}
+		data := memAlloc.Allocate(uint64(*precomputedObjSize))
 
 		n, err := t.MarshalToSizedBuffer(data)
 		if err != nil {
-			return err
+			return 0, err
 		}
-		_, err = w.Write(data[:n])
-		return err
+		return w.Write(data[:n])
 
 	case bufferedMarshaller:
-		// this path performs a single allocation during write but requires the caller to implement
-		// the more efficient Size and MarshalTo methods
-		encodedSize := uint64(t.Size())
-		data := make([]byte, encodedSize)
+		// this path performs a single allocation during write only when the Allocator wasn't provided
+		// it also requires the caller to implement the more efficient Size and MarshalTo methods
+		if precomputedObjSize == nil {
+			s := t.Size()
+			precomputedObjSize = &s
+		}
+		data := memAlloc.Allocate(uint64(*precomputedObjSize))
 
 		n, err := t.MarshalTo(data)
 		if err != nil {
-			return err
+			return 0, err
 		}
-		_, err = w.Write(data[:n])
-		return err
+		return w.Write(data[:n])
 
 	case proto.Marshaler:
 		// this path performs extra allocations
 		data, err := t.Marshal()
 		if err != nil {
-			return err
+			return 0, err
 		}
-		_, err = w.Write(data)
-		return err
+		return w.Write(data)
 
 	default:
-		return errNotMarshalable{reflect.TypeOf(obj)}
+		return 0, errNotMarshalable{reflect.TypeOf(obj)}
 	}
 }
 

@@ -30,18 +30,21 @@ type PodConfig interface {
 	IsMetricLabel(labelName string) bool
 
 	// GetPodInfo returns the information required to identify the pod.
-	GetPodInfo(labels []*dto.LabelPair) (containerName, podId, namespaceId string)
+	GetPodInfo(labels []*dto.LabelPair) (containerName, podId, namespaceId, tenantUID, entityType, entityName string)
 }
 
 // NewPodConfig returns a PodConfig which uses for the provided pod, namespace and container label values,
 // if found, and falls back to the podId and namespaceId.
-func NewPodConfig(podId, namespaceId, podIdLabel, namespaceIdLabel, containerNameLabel string) PodConfig {
+func NewPodConfig(podId, namespaceId, podIdLabel, namespaceIdLabel, containerNameLabel, tenantUIDLabel, entityTypeLabel, entityNameLabel string) PodConfig {
 	return &podConfigImpl{
 		podId:              podId,
 		namespaceId:        namespaceId,
 		podIdLabel:         podIdLabel,
 		namespaceIdLabel:   namespaceIdLabel,
 		containerNameLabel: containerNameLabel,
+		tenantUIDLabel:     tenantUIDLabel,
+		entityTypeLabel:    entityTypeLabel,
+		entityNameLabel:    entityNameLabel,
 	}
 }
 
@@ -51,14 +54,22 @@ type podConfigImpl struct {
 	podIdLabel         string
 	namespaceIdLabel   string
 	containerNameLabel string
+	tenantUIDLabel     string
+	entityTypeLabel    string
+	entityNameLabel    string
 }
 
 func (p *podConfigImpl) IsMetricLabel(labelName string) bool {
-	return labelName != p.podIdLabel && labelName != p.containerNameLabel && labelName != p.namespaceIdLabel
+	return labelName != p.podIdLabel &&
+		labelName != p.containerNameLabel &&
+		labelName != p.namespaceIdLabel &&
+		labelName != p.tenantUIDLabel &&
+		labelName != p.entityTypeLabel &&
+		labelName != p.entityNameLabel
 }
 
-func (p *podConfigImpl) GetPodInfo(labels []*dto.LabelPair) (containerName, podId, namespaceId string) {
-	containerName, podId, namespaceId = "", p.podId, p.namespaceId
+func (p *podConfigImpl) GetPodInfo(labels []*dto.LabelPair) (containerName, podId, namespaceId, tenantUID, entityType, entityName string) {
+	containerName, podId, namespaceId, tenantUID, entityType, entityName = "", p.podId, p.namespaceId, "", "", ""
 	for _, label := range labels {
 		if label.GetName() == p.containerNameLabel && label.GetValue() != "" {
 			containerName = label.GetValue()
@@ -66,9 +77,15 @@ func (p *podConfigImpl) GetPodInfo(labels []*dto.LabelPair) (containerName, podI
 			podId = label.GetValue()
 		} else if label.GetName() == p.namespaceIdLabel && label.GetValue() != "" {
 			namespaceId = label.GetValue()
+		} else if label.GetName() == p.tenantUIDLabel && label.GetValue() != "" {
+			tenantUID = label.GetValue()
+		} else if label.GetName() == p.entityTypeLabel && label.GetValue() != "" {
+			entityType = label.GetValue()
+		} else if label.GetName() == p.entityNameLabel && label.GetValue() != "" {
+			entityName = label.GetValue()
 		}
 	}
-	return containerName, podId, namespaceId
+	return containerName, podId, namespaceId, tenantUID, entityType, entityName
 }
 
 // CommonConfig contains all required information about environment in which

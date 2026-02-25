@@ -19,11 +19,12 @@ package stackdriver
 import (
 	"time"
 
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/podlabels"
 	"github.com/golang/glog"
 	sd "google.golang.org/api/logging/v2"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 )
 
 // sdSink satisfies sinks.Sink interface.
@@ -48,11 +49,11 @@ type sdSink struct {
 	beforeFirstList bool
 }
 
-func newSdSink(writer sdWriter, clock clock.Clock, config *sdSinkConfig, factory *monitoredResourceFactory) *sdSink {
+func newSdSink(writer sdWriter, clock clock.Clock, config *sdSinkConfig, factory *monitoredResourceFactory, podLabelCollector podlabels.PodLabelCollector) *sdSink {
 	return &sdSink{
 		logEntryChannel:   make(chan *sd.LogEntry, config.MaxBufferSize),
 		config:            config,
-		logEntryFactory:   newSdLogEntryFactory(clock, factory),
+		logEntryFactory:   newSdLogEntryFactory(clock, factory, podLabelCollector),
 		sdResourceFactory: factory,
 		writer:            writer,
 		logName:           config.LogName,

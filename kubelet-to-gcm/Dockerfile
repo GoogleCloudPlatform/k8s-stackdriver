@@ -11,10 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+FROM --platform=$BUILDPLATFORM golang:1.25 AS builder
+ARG TARGETOS
+ARG TARGETARCH
+WORKDIR /workspace/
+COPY . /workspace/
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -mod=vendor -a -o /output/monitor monitor/main/daemon.go
 
 FROM gcr.io/distroless/static:latest
 
-COPY build/monitor /
+COPY --from=builder /output/monitor /
 
 # nobody:nobody
 USER 65534:65534

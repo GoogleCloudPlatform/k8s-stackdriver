@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/translator"
@@ -55,15 +54,14 @@ type StackdriverProvider struct {
 	rateInterval                time.Duration
 	translator                  *translator.Translator
 	useNewResourceModel         bool
-	mu                          sync.Mutex
-	metricsCacheSet             bool
 	metricsCache                []provider.CustomMetricInfo
 	fallbackForContainerMetrics bool
+	externalMetricsCache        *externalMetricsCache
 }
 
 // NewStackdriverProvider creates a StackdriverProvider
-func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.RESTMapper, gceConf *config.GceConfig, stackdriverService *stackdriver.Service, translator *translator.Translator, rateInterval time.Duration, useNewResourceModel bool, fallbackForContainerMetrics bool) provider.MetricsProvider {
-	return &StackdriverProvider{
+func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.RESTMapper, gceConf *config.GceConfig, stackdriverService *stackdriver.Service, translator *translator.Translator, rateInterval time.Duration, useNewResourceModel bool, fallbackForContainerMetrics bool, customMetricsListCache []provider.CustomMetricInfo, externalMetricCacheTTL time.Duration, externalMetricCacheSize int) provider.MetricsProvider {
+	p := &StackdriverProvider{
 		kubeClient:                  kubeClient,
 		stackdriverService:          stackdriverService,
 		config:                      gceConf,
@@ -71,7 +69,17 @@ func NewStackdriverProvider(kubeClient *corev1.CoreV1Client, mapper apimeta.REST
 		translator:                  translator,
 		useNewResourceModel:         useNewResourceModel,
 		fallbackForContainerMetrics: fallbackForContainerMetrics,
+		metricsCache:                customMetricsListCache,
 	}
+
+	if externalMetricCacheTTL > 0 {
+		p.externalMetricsCache = newExternalMetricsCache(externalMetricCacheSize, externalMetricCacheTTL)
+		klog.Infof("Started stackdriver provider with cache size: %d, cache TTL: %v", externalMetricCacheSize, externalMetricCacheTTL)
+	} else {
+		klog.Info("Stackdriver provider external metric cache is disabled. To enable the cache, ensure that --external-metric-cache-ttl is provided with non-zero value")
+	}
+
+	return p
 }
 
 // GetMetricByName fetches a particular metric for a particular object.
@@ -308,26 +316,29 @@ func (p *StackdriverProvider) getNamespacedMetricBySelector(groupResource schema
 	return &custom_metrics.MetricValueList{Items: result}, nil
 }
 
-// ListAllMetrics returns all custom metrics available from Stackdriver.
-// List only pod metrics
+// ListAllMetrics returns one custom metric to reduce memory usage, when  ListFullCustomMetrics is false (by default),
+// Else, it returns all custom metrics available from Stackdriver.
 func (p *StackdriverProvider) ListAllMetrics() []provider.CustomMetricInfo {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if !p.metricsCacheSet {
-		stackdriverRequest := p.translator.ListMetricDescriptors(p.fallbackForContainerMetrics)
-		response, err := stackdriverRequest.Do()
-		if err != nil {
-			klog.Errorf("Failed request to stackdriver api: %s", err)
-			return []provider.CustomMetricInfo{}
-		}
-		p.metricsCacheSet = true
-		p.metricsCache = p.translator.GetMetricsFromSDDescriptorsResp(response)
-	}
 	return p.metricsCache
 }
 
 // GetExternalMetric queries Stackdriver for external metrics.
 func (p *StackdriverProvider) GetExternalMetric(ctx context.Context, namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
+	if p.externalMetricsCache != nil {
+		key := cacheKey{
+			namespace:      namespace,
+			metricSelector: metricSelector.String(),
+			info:           info,
+		}
+		if cachedValue, ok := p.externalMetricsCache.get(key); ok {
+			return cachedValue, nil
+		}
+	}
+
+	// Proceed to do a fresh fetch for metrics since one of the following is true at this point
+	// a) externalMetricCache is disabled
+	// b) the key was never added to the cache
+	// c) the key was in the cache, but its corrupt or its TTL has expired
 	metricNameEscaped := info.Metric
 	metricName := getExternalMetricName(metricNameEscaped)
 	metricKind, metricValueType, err := p.translator.GetMetricKind(metricName, metricSelector)
@@ -346,15 +357,31 @@ func (p *StackdriverProvider) GetExternalMetric(ctx context.Context, namespace s
 	if err != nil {
 		return nil, err
 	}
-	return &external_metrics.ExternalMetricValueList{
+
+	resp := &external_metrics.ExternalMetricValueList{
 		Items: externalMetricItems,
-	}, nil
+	}
+
+	if p.externalMetricsCache != nil {
+		key := cacheKey{
+			namespace:      namespace,
+			metricSelector: metricSelector.String(),
+			info:           info,
+		}
+		p.externalMetricsCache.add(key, resp)
+	}
+
+	return resp, nil
 }
 
 // ListAllExternalMetrics returns a list of available external metrics.
-// Not implemented (currently returns empty list).
+// Not implemented (currently returns a list of one fake metric).
 func (p *StackdriverProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo {
-	return []provider.ExternalMetricInfo{}
+	return []provider.ExternalMetricInfo{
+		{
+			Metric: "externalmetrics",
+		},
+	}
 }
 
 func min(a, b int) int {

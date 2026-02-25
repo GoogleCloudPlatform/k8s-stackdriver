@@ -20,9 +20,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	gruntime "runtime"
@@ -32,12 +32,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/runtime/serializer/cbor"
+	"k8s.io/client-go/features"
 	"k8s.io/client-go/pkg/version"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/client-go/transport"
 	certutil "k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/flowcontrol"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -64,12 +67,12 @@ type Config struct {
 
 	// Server requires Basic authentication
 	Username string
-	Password string
+	Password string `datapolicy:"password"`
 
 	// Server requires Bearer authentication. This client will not attempt to use
 	// refresh tokens for an OAuth2 flow.
 	// TODO: demonstrate an OAuth2 compatible client.
-	BearerToken string
+	BearerToken string `datapolicy:"token"`
 
 	// Path to a file containing a BearerToken.
 	// If set, the contents are periodically read.
@@ -113,6 +116,9 @@ type Config struct {
 
 	// QPS indicates the maximum QPS to the master from this client.
 	// If it's zero, the created RESTClient will use DefaultQPS: 5
+	//
+	// Setting this to a negative value will disable client-side ratelimiting
+	// unless `Ratelimiter` is also set.
 	QPS float32
 
 	// Maximum burst for throttle.
@@ -122,11 +128,36 @@ type Config struct {
 	// Rate limiter for limiting connections to the master from this client. If present overwrites QPS/Burst
 	RateLimiter flowcontrol.RateLimiter
 
+	// WarningHandler handles warnings in server responses.
+	// If this and WarningHandlerWithContext are not set, the
+	// default warning handler is used. If both are set,
+	// WarningHandlerWithContext is used.
+	//
+	// See documentation for [SetDefaultWarningHandler] for details.
+	//
+	//logcheck:context // WarningHandlerWithContext should be used instead of WarningHandler in code which supports contextual logging.
+	WarningHandler WarningHandler
+
+	// WarningHandlerWithContext handles warnings in server responses.
+	// If this and WarningHandler are not set, the
+	// default warning handler is used. If both are set,
+	// WarningHandlerWithContext is used.
+	//
+	// See documentation for [SetDefaultWarningHandler] for details.
+	WarningHandlerWithContext WarningHandlerWithContext
+
 	// The maximum length of time to wait before giving up on a server request. A value of zero means no timeout.
 	Timeout time.Duration
 
 	// Dial specifies the dial function for creating unencrypted TCP connections.
 	Dial func(ctx context.Context, network, address string) (net.Conn, error)
+
+	// Proxy is the proxy func to be used for all requests made by this
+	// transport. If Proxy is nil, http.ProxyFromEnvironment is used. If Proxy
+	// returns a nil *URL, no proxy is used.
+	//
+	// socks5 proxying does not currently support spdy streaming endpoints.
+	Proxy func(*http.Request) (*url.URL, error)
 
 	// Version forces a specific version to be used (if registered)
 	// Do we need this?
@@ -145,6 +176,15 @@ func (sanitizedAuthConfigPersister) GoString() string {
 }
 func (sanitizedAuthConfigPersister) String() string {
 	return "rest.AuthProviderConfigPersister(--- REDACTED ---)"
+}
+
+type sanitizedObject struct{ runtime.Object }
+
+func (sanitizedObject) GoString() string {
+	return "runtime.Object(--- REDACTED ---)"
+}
+func (sanitizedObject) String() string {
+	return "runtime.Object(--- REDACTED ---)"
 }
 
 // GoString implements fmt.GoStringer and sanitizes sensitive fields of Config
@@ -170,7 +210,9 @@ func (c *Config) String() string {
 	if cc.AuthConfigPersister != nil {
 		cc.AuthConfigPersister = sanitizedAuthConfigPersister{cc.AuthConfigPersister}
 	}
-
+	if cc.ExecProvider != nil && cc.ExecProvider.Config != nil {
+		cc.ExecProvider.Config = sanitizedObject{Object: cc.ExecProvider.Config}
+	}
 	return fmt.Sprintf("%#v", cc)
 }
 
@@ -178,6 +220,8 @@ func (c *Config) String() string {
 type ImpersonationConfig struct {
 	// UserName is the username to impersonate on each request.
 	UserName string
+	// UID is a unique value that identifies the user.
+	UID string
 	// Groups are the groups to impersonate on each request.
 	Groups []string
 	// Extra is a free-form field which can be used to link some authentication information
@@ -191,7 +235,7 @@ type TLSClientConfig struct {
 	// Server should be accessed without verifying the TLS certificate. For testing only.
 	Insecure bool
 	// ServerName is passed to the server for SNI and is used in the client to check server
-	// ceritificates against. If ServerName is empty, the hostname used to contact the
+	// certificates against. If ServerName is empty, the hostname used to contact the
 	// server is used.
 	ServerName string
 
@@ -207,7 +251,7 @@ type TLSClientConfig struct {
 	CertData []byte
 	// KeyData holds PEM-encoded bytes (typically read from a client certificate key file).
 	// KeyData takes precedence over KeyFile
-	KeyData []byte
+	KeyData []byte `datapolicy:"security-key"`
 	// CAData holds PEM-encoded bytes (typically read from a root certificates bundle).
 	// CAData takes precedence over CAFile
 	CAData []byte
@@ -279,6 +323,8 @@ type ContentConfig struct {
 // object. Note that a RESTClient may require fields that are optional when initializing a Client.
 // A RESTClient created by this method is generic - it expects to operate on an API that follows
 // the Kubernetes conventions, but may not be the Kubernetes API.
+// RESTClientFor is equivalent to calling RESTClientForConfigAndClient(config, httpClient),
+// where httpClient was generated with HTTPClientFor(config).
 func RESTClientFor(config *Config) (*RESTClient, error) {
 	if config.GroupVersion == nil {
 		return nil, fmt.Errorf("GroupVersion is required when initializing a RESTClient")
@@ -287,22 +333,38 @@ func RESTClientFor(config *Config) (*RESTClient, error) {
 		return nil, fmt.Errorf("NegotiatedSerializer is required when initializing a RESTClient")
 	}
 
-	baseURL, versionedAPIPath, err := defaultServerUrlFor(config)
+	// Validate config.Host before constructing the transport/client so we can fail fast.
+	// ServerURL will be obtained later in RESTClientForConfigAndClient()
+	_, _, err := DefaultServerUrlFor(config)
 	if err != nil {
 		return nil, err
 	}
 
-	transport, err := TransportFor(config)
+	httpClient, err := HTTPClientFor(config)
 	if err != nil {
 		return nil, err
 	}
 
-	var httpClient *http.Client
-	if transport != http.DefaultTransport {
-		httpClient = &http.Client{Transport: transport}
-		if config.Timeout > 0 {
-			httpClient.Timeout = config.Timeout
-		}
+	return RESTClientForConfigAndClient(config, httpClient)
+}
+
+// RESTClientForConfigAndClient returns a RESTClient that satisfies the requested attributes on a
+// client Config object.
+// Unlike RESTClientFor, RESTClientForConfigAndClient allows to pass an http.Client that is shared
+// between all the API Groups and Versions.
+// Note that the http client takes precedence over the transport values configured.
+// The http client defaults to the `http.DefaultClient` if nil.
+func RESTClientForConfigAndClient(config *Config, httpClient *http.Client) (*RESTClient, error) {
+	if config.GroupVersion == nil {
+		return nil, fmt.Errorf("GroupVersion is required when initializing a RESTClient")
+	}
+	if config.NegotiatedSerializer == nil {
+		return nil, fmt.Errorf("NegotiatedSerializer is required when initializing a RESTClient")
+	}
+
+	baseURL, versionedAPIPath, err := DefaultServerUrlFor(config)
+	if err != nil {
+		return nil, err
 	}
 
 	rateLimiter := config.RateLimiter
@@ -331,7 +393,26 @@ func RESTClientFor(config *Config) (*RESTClient, error) {
 		Negotiator:         runtime.NewClientNegotiator(config.NegotiatedSerializer, gv),
 	}
 
-	return NewRESTClient(baseURL, versionedAPIPath, clientContent, rateLimiter, httpClient)
+	restClient, err := NewRESTClient(baseURL, versionedAPIPath, clientContent, rateLimiter, httpClient)
+	maybeSetWarningHandler(restClient, config.WarningHandler, config.WarningHandlerWithContext)
+	return restClient, err
+}
+
+// maybeSetWarningHandler sets the handlerWithContext if non-nil,
+// otherwise the handler with a wrapper if non-nil,
+// and does nothing if both are nil.
+//
+// May be called for a nil client.
+func maybeSetWarningHandler(c *RESTClient, handler WarningHandler, handlerWithContext WarningHandlerWithContext) {
+	if c == nil {
+		return
+	}
+	switch {
+	case handlerWithContext != nil:
+		c.warningHandler = handlerWithContext
+	case handler != nil:
+		c.warningHandler = warningLoggerNopContext{l: handler}
+	}
 }
 
 // UnversionedRESTClientFor is the same as RESTClientFor, except that it allows
@@ -341,22 +422,31 @@ func UnversionedRESTClientFor(config *Config) (*RESTClient, error) {
 		return nil, fmt.Errorf("NegotiatedSerializer is required when initializing a RESTClient")
 	}
 
-	baseURL, versionedAPIPath, err := defaultServerUrlFor(config)
+	// Validate config.Host before constructing the transport/client so we can fail fast.
+	// ServerURL will be obtained later in UnversionedRESTClientForConfigAndClient()
+	_, _, err := DefaultServerUrlFor(config)
 	if err != nil {
 		return nil, err
 	}
 
-	transport, err := TransportFor(config)
+	httpClient, err := HTTPClientFor(config)
 	if err != nil {
 		return nil, err
 	}
 
-	var httpClient *http.Client
-	if transport != http.DefaultTransport {
-		httpClient = &http.Client{Transport: transport}
-		if config.Timeout > 0 {
-			httpClient.Timeout = config.Timeout
-		}
+	return UnversionedRESTClientForConfigAndClient(config, httpClient)
+}
+
+// UnversionedRESTClientForConfigAndClient is the same as RESTClientForConfigAndClient,
+// except that it allows the config.Version to be empty.
+func UnversionedRESTClientForConfigAndClient(config *Config, httpClient *http.Client) (*RESTClient, error) {
+	if config.NegotiatedSerializer == nil {
+		return nil, fmt.Errorf("NegotiatedSerializer is required when initializing a RESTClient")
+	}
+
+	baseURL, versionedAPIPath, err := DefaultServerUrlFor(config)
+	if err != nil {
+		return nil, err
 	}
 
 	rateLimiter := config.RateLimiter
@@ -385,7 +475,9 @@ func UnversionedRESTClientFor(config *Config) (*RESTClient, error) {
 		Negotiator:         runtime.NewClientNegotiator(config.NegotiatedSerializer, gv),
 	}
 
-	return NewRESTClient(baseURL, versionedAPIPath, clientContent, rateLimiter, httpClient)
+	restClient, err := NewRESTClient(baseURL, versionedAPIPath, clientContent, rateLimiter, httpClient)
+	maybeSetWarningHandler(restClient, config.WarningHandler, config.WarningHandlerWithContext)
+	return restClient, err
 }
 
 // SetKubernetesDefaults sets default values on the provided client config for accessing the
@@ -458,7 +550,7 @@ func InClusterConfig() (*Config, error) {
 		return nil, ErrNotInCluster
 	}
 
-	token, err := ioutil.ReadFile(tokenFile)
+	token, err := os.ReadFile(tokenFile)
 	if err != nil {
 		return nil, err
 	}
@@ -466,6 +558,7 @@ func InClusterConfig() (*Config, error) {
 	tlsClientConfig := TLSClientConfig{}
 
 	if _, err := certutil.NewPool(rootCAFile); err != nil {
+		//nolint:logcheck // The decision to log this instead of returning an error goes back to ~2016. It's part of the client-go API now, so not changing it just to support contextual logging.
 		klog.Errorf("Expected to load root CA config from %s, but got err: %v", rootCAFile, err)
 	} else {
 		tlsClientConfig.CAFile = rootCAFile
@@ -488,7 +581,7 @@ func InClusterConfig() (*Config, error) {
 // Note: the Insecure flag is ignored when testing for this value, so MITM attacks are
 // still possible.
 func IsConfigTransportTLS(config Config) bool {
-	baseURL, _, err := defaultServerUrlFor(&config)
+	baseURL, _, err := DefaultServerUrlFor(&config)
 	if err != nil {
 		return false
 	}
@@ -511,10 +604,7 @@ func LoadTLSFiles(c *Config) error {
 	}
 
 	c.KeyData, err = dataFromSliceOrFile(c.KeyData, c.KeyFile)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 // dataFromSliceOrFile returns data from the slice (if non-empty), or from the file,
@@ -524,7 +614,7 @@ func dataFromSliceOrFile(data []byte, file string) ([]byte, error) {
 		return data, nil
 	}
 	if len(file) > 0 {
-		fileData, err := ioutil.ReadFile(file)
+		fileData, err := os.ReadFile(file)
 		if err != nil {
 			return []byte{}, err
 		}
@@ -553,19 +643,22 @@ func AnonymousClientConfig(config *Config) *Config {
 			CAData:     config.TLSClientConfig.CAData,
 			NextProtos: config.TLSClientConfig.NextProtos,
 		},
-		RateLimiter:        config.RateLimiter,
-		UserAgent:          config.UserAgent,
-		DisableCompression: config.DisableCompression,
-		QPS:                config.QPS,
-		Burst:              config.Burst,
-		Timeout:            config.Timeout,
-		Dial:               config.Dial,
+		RateLimiter:               config.RateLimiter,
+		WarningHandler:            config.WarningHandler,
+		WarningHandlerWithContext: config.WarningHandlerWithContext,
+		UserAgent:                 config.UserAgent,
+		DisableCompression:        config.DisableCompression,
+		QPS:                       config.QPS,
+		Burst:                     config.Burst,
+		Timeout:                   config.Timeout,
+		Dial:                      config.Dial,
+		Proxy:                     config.Proxy,
 	}
 }
 
 // CopyConfig returns a copy of the given config
 func CopyConfig(config *Config) *Config {
-	return &Config{
+	c := &Config{
 		Host:            config.Host,
 		APIPath:         config.APIPath,
 		ContentConfig:   config.ContentConfig,
@@ -574,9 +667,10 @@ func CopyConfig(config *Config) *Config {
 		BearerToken:     config.BearerToken,
 		BearerTokenFile: config.BearerTokenFile,
 		Impersonate: ImpersonationConfig{
+			UserName: config.Impersonate.UserName,
+			UID:      config.Impersonate.UID,
 			Groups:   config.Impersonate.Groups,
 			Extra:    config.Impersonate.Extra,
-			UserName: config.Impersonate.UserName,
 		},
 		AuthProvider:        config.AuthProvider,
 		AuthConfigPersister: config.AuthConfigPersister,
@@ -592,14 +686,37 @@ func CopyConfig(config *Config) *Config {
 			CAData:     config.TLSClientConfig.CAData,
 			NextProtos: config.TLSClientConfig.NextProtos,
 		},
-		UserAgent:          config.UserAgent,
-		DisableCompression: config.DisableCompression,
-		Transport:          config.Transport,
-		WrapTransport:      config.WrapTransport,
-		QPS:                config.QPS,
-		Burst:              config.Burst,
-		RateLimiter:        config.RateLimiter,
-		Timeout:            config.Timeout,
-		Dial:               config.Dial,
+		UserAgent:                 config.UserAgent,
+		DisableCompression:        config.DisableCompression,
+		Transport:                 config.Transport,
+		WrapTransport:             config.WrapTransport,
+		QPS:                       config.QPS,
+		Burst:                     config.Burst,
+		RateLimiter:               config.RateLimiter,
+		WarningHandler:            config.WarningHandler,
+		WarningHandlerWithContext: config.WarningHandlerWithContext,
+		Timeout:                   config.Timeout,
+		Dial:                      config.Dial,
+		Proxy:                     config.Proxy,
 	}
+	if config.ExecProvider != nil && config.ExecProvider.Config != nil {
+		c.ExecProvider.Config = config.ExecProvider.Config.DeepCopyObject()
+	}
+	return c
+}
+
+// CodecFactoryForGeneratedClient returns the provided CodecFactory if there are no enabled client
+// feature gates affecting serialization. Otherwise, it constructs and returns a new CodecFactory
+// from the provided Scheme.
+//
+// This is supported ONLY for use by clients generated with client-gen. The caller is responsible
+// for ensuring that the CodecFactory argument was constructed using the Scheme argument.
+func CodecFactoryForGeneratedClient(scheme *runtime.Scheme, codecs serializer.CodecFactory) serializer.CodecFactory {
+	if !features.FeatureGates().Enabled(features.ClientsAllowCBOR) {
+		// NOTE: This assumes client-gen will not generate CBOR-enabled Codecs as long as
+		// the feature gate exists.
+		return codecs
+	}
+
+	return serializer.NewCodecFactory(scheme, serializer.WithSerializer(cbor.NewSerializerInfo))
 }

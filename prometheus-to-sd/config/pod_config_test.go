@@ -66,11 +66,48 @@ func TestIsMetricLabel(t *testing.T) {
 			want:  false,
 		},
 		{
+			desc: "tenantUIDLabel matches",
+			config: &podConfigImpl{
+				containerNameLabel: "foo",
+				podIdLabel:         "bar",
+				namespaceIdLabel:   "abc",
+				tenantUIDLabel:     "def",
+			},
+			label: "def",
+			want:  false,
+		},
+		{
+			desc: "entityTypeLabel matches",
+			config: &podConfigImpl{
+				containerNameLabel: "foo",
+				podIdLabel:         "bar",
+				namespaceIdLabel:   "abc",
+				tenantUIDLabel:     "def",
+				entityTypeLabel:    "ghi",
+			},
+			label: "ghi",
+			want:  false,
+		},
+		{
+			desc: "entityNameLabel matches",
+			config: &podConfigImpl{
+				containerNameLabel: "foo",
+				podIdLabel:         "bar",
+				namespaceIdLabel:   "abc",
+				tenantUIDLabel:     "def",
+				entityTypeLabel:    "ghi",
+				entityNameLabel:    "jkl",
+			},
+			label: "jkl",
+			want:  false,
+		},
+		{
 			desc: "none match",
 			config: &podConfigImpl{
 				containerNameLabel: "foo",
 				podIdLabel:         "bar",
 				namespaceIdLabel:   "abc",
+				tenantUIDLabel:     "def",
 			},
 			label: "xyz",
 			want:  true,
@@ -89,6 +126,9 @@ func TestGetPodInfo(t *testing.T) {
 	container, containerLabel := "container", "cLabel"
 	pod, podLabel := "pod", "pLabel"
 	namespace, namespaceLabel := "namespace", "nLabel"
+	tenantUID, tenantUIDLabel := "tenantUID", "tLabel"
+	entityType, entityTypeLabel := "entityType", "eTLabel"
+	entityName, entityNameLabel := "entityName", "eNLabel"
 	other, otherLabel := "other", "olabel"
 	labels := []*dto.LabelPair{
 		{
@@ -107,6 +147,18 @@ func TestGetPodInfo(t *testing.T) {
 			Name:  &namespaceLabel,
 			Value: &namespace,
 		},
+		{
+			Name:  &tenantUIDLabel,
+			Value: &tenantUID,
+		},
+		{
+			Name:  &entityTypeLabel,
+			Value: &entityType,
+		},
+		{
+			Name:  &entityNameLabel,
+			Value: &entityName,
+		},
 	}
 	for _, tc := range []struct {
 		desc              string
@@ -114,6 +166,9 @@ func TestGetPodInfo(t *testing.T) {
 		wantContainerName string
 		wantPodId         string
 		wantNamespaceId   string
+		wantTenantUID     string
+		wantEntityType    string
+		wantEntityName    string
 	}{
 		{
 			desc:              "empty",
@@ -121,6 +176,9 @@ func TestGetPodInfo(t *testing.T) {
 			wantContainerName: "",
 			wantPodId:         "",
 			wantNamespaceId:   "",
+			wantTenantUID:     "",
+			wantEntityType:    "",
+			wantEntityName:    "",
 		},
 		{
 			desc: "not matching labels",
@@ -132,6 +190,9 @@ func TestGetPodInfo(t *testing.T) {
 			wantContainerName: "",
 			wantPodId:         "",
 			wantNamespaceId:   "",
+			wantTenantUID:     "",
+			wantEntityType:    "",
+			wantEntityName:    "",
 		},
 		{
 			desc: "matching labels",
@@ -143,6 +204,9 @@ func TestGetPodInfo(t *testing.T) {
 			wantContainerName: container,
 			wantPodId:         pod,
 			wantNamespaceId:   namespace,
+			wantTenantUID:     "",
+			wantEntityType:    "",
+			wantEntityName:    "",
 		},
 		{
 			desc: "matching labels w/ podId and namespaceId specified",
@@ -156,6 +220,9 @@ func TestGetPodInfo(t *testing.T) {
 			wantContainerName: container,
 			wantPodId:         pod,
 			wantNamespaceId:   namespace,
+			wantTenantUID:     "",
+			wantEntityType:    "",
+			wantEntityName:    "",
 		},
 		{
 			desc: "not matching labels w/ podId and namespaceId specified",
@@ -169,6 +236,9 @@ func TestGetPodInfo(t *testing.T) {
 			wantContainerName: "",
 			wantPodId:         "podid",
 			wantNamespaceId:   "namespaceid",
+			wantTenantUID:     "",
+			wantEntityType:    "",
+			wantEntityName:    "",
 		},
 		{
 			desc: "some matching labels w/ podId and namespaceId specified",
@@ -182,6 +252,9 @@ func TestGetPodInfo(t *testing.T) {
 			wantContainerName: container,
 			wantPodId:         "podid",
 			wantNamespaceId:   "namespaceid",
+			wantTenantUID:     "",
+			wantEntityType:    "",
+			wantEntityName:    "",
 		},
 		{
 			desc: "podId and namespaceId specified",
@@ -192,10 +265,63 @@ func TestGetPodInfo(t *testing.T) {
 			wantContainerName: "",
 			wantPodId:         "podid",
 			wantNamespaceId:   "namespaceid",
+			wantTenantUID:     "",
+			wantEntityType:    "",
+			wantEntityName:    "",
+		},
+		{
+			desc: "tenant UID specified",
+			config: &podConfigImpl{
+				tenantUIDLabel: tenantUIDLabel,
+			},
+			wantContainerName: "",
+			wantPodId:         "",
+			wantNamespaceId:   "",
+			wantTenantUID:     tenantUID,
+			wantEntityType:    "",
+			wantEntityName:    "",
+		},
+		{
+			desc: "entity type specified",
+			config: &podConfigImpl{
+				entityTypeLabel: entityTypeLabel,
+			},
+			wantContainerName: "",
+			wantPodId:         "",
+			wantNamespaceId:   "",
+			wantTenantUID:     "",
+			wantEntityType:    entityType,
+			wantEntityName:    "",
+		},
+		{
+			desc: "entity name specified",
+			config: &podConfigImpl{
+				entityNameLabel: entityNameLabel,
+			},
+			wantContainerName: "",
+			wantPodId:         "",
+			wantNamespaceId:   "",
+			wantTenantUID:     "",
+			wantEntityType:    "",
+			wantEntityName:    entityName,
+		},
+		{
+			desc: "all custom labels specified",
+			config: &podConfigImpl{
+				tenantUIDLabel:  tenantUIDLabel,
+				entityTypeLabel: entityTypeLabel,
+				entityNameLabel: entityNameLabel,
+			},
+			wantContainerName: "",
+			wantPodId:         "",
+			wantNamespaceId:   "",
+			wantTenantUID:     tenantUID,
+			wantEntityType:    entityType,
+			wantEntityName:    entityName,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			container, pod, namespace := tc.config.GetPodInfo(labels)
+			container, pod, namespace, tenantUID, entityType, entityName := tc.config.GetPodInfo(labels)
 			if container != tc.wantContainerName {
 				t.Errorf("Unexpected containerName; got %q, want %q", container, tc.wantContainerName)
 			}
@@ -204,6 +330,15 @@ func TestGetPodInfo(t *testing.T) {
 			}
 			if namespace != tc.wantNamespaceId {
 				t.Errorf("Unexpected namespaceId; got %q, want %q", namespace, tc.wantNamespaceId)
+			}
+			if tenantUID != tc.wantTenantUID {
+				t.Errorf("Unexpected tenantUID; got %q, want %q", tenantUID, tc.wantTenantUID)
+			}
+			if entityType != tc.wantEntityType {
+				t.Errorf("Unexpected entityType; got %q, want %q", entityType, tc.wantEntityType)
+			}
+			if entityName != tc.wantEntityName {
+				t.Errorf("Unexpected entityName; got %q, want %q", entityName, tc.wantEntityName)
 			}
 		})
 	}

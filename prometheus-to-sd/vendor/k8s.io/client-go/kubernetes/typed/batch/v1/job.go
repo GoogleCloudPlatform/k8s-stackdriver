@@ -19,14 +19,15 @@ limitations under the License.
 package v1
 
 import (
-	"time"
+	context "context"
 
-	v1 "k8s.io/api/batch/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
+	applyconfigurationsbatchv1 "k8s.io/client-go/applyconfigurations/batch/v1"
+	gentype "k8s.io/client-go/gentype"
 	scheme "k8s.io/client-go/kubernetes/scheme"
-	rest "k8s.io/client-go/rest"
 )
 
 // JobsGetter has a method to return a JobInterface.
@@ -37,155 +38,38 @@ type JobsGetter interface {
 
 // JobInterface has methods to work with Job resources.
 type JobInterface interface {
-	Create(*v1.Job) (*v1.Job, error)
-	Update(*v1.Job) (*v1.Job, error)
-	UpdateStatus(*v1.Job) (*v1.Job, error)
-	Delete(name string, options *metav1.DeleteOptions) error
-	DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error
-	Get(name string, options metav1.GetOptions) (*v1.Job, error)
-	List(opts metav1.ListOptions) (*v1.JobList, error)
-	Watch(opts metav1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.Job, err error)
+	Create(ctx context.Context, job *batchv1.Job, opts metav1.CreateOptions) (*batchv1.Job, error)
+	Update(ctx context.Context, job *batchv1.Job, opts metav1.UpdateOptions) (*batchv1.Job, error)
+	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+	UpdateStatus(ctx context.Context, job *batchv1.Job, opts metav1.UpdateOptions) (*batchv1.Job, error)
+	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
+	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*batchv1.Job, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*batchv1.JobList, error)
+	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *batchv1.Job, err error)
+	Apply(ctx context.Context, job *applyconfigurationsbatchv1.JobApplyConfiguration, opts metav1.ApplyOptions) (result *batchv1.Job, err error)
+	// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+	ApplyStatus(ctx context.Context, job *applyconfigurationsbatchv1.JobApplyConfiguration, opts metav1.ApplyOptions) (result *batchv1.Job, err error)
 	JobExpansion
 }
 
 // jobs implements JobInterface
 type jobs struct {
-	client rest.Interface
-	ns     string
+	*gentype.ClientWithListAndApply[*batchv1.Job, *batchv1.JobList, *applyconfigurationsbatchv1.JobApplyConfiguration]
 }
 
 // newJobs returns a Jobs
 func newJobs(c *BatchV1Client, namespace string) *jobs {
 	return &jobs{
-		client: c.RESTClient(),
-		ns:     namespace,
+		gentype.NewClientWithListAndApply[*batchv1.Job, *batchv1.JobList, *applyconfigurationsbatchv1.JobApplyConfiguration](
+			"jobs",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			namespace,
+			func() *batchv1.Job { return &batchv1.Job{} },
+			func() *batchv1.JobList { return &batchv1.JobList{} },
+			gentype.PrefersProtobuf[*batchv1.Job](),
+		),
 	}
-}
-
-// Get takes name of the job, and returns the corresponding job object, and an error if there is any.
-func (c *jobs) Get(name string, options metav1.GetOptions) (result *v1.Job, err error) {
-	result = &v1.Job{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("jobs").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do().
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of Jobs that match those selectors.
-func (c *jobs) List(opts metav1.ListOptions) (result *v1.JobList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v1.JobList{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("jobs").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do().
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested jobs.
-func (c *jobs) Watch(opts metav1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Namespace(c.ns).
-		Resource("jobs").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch()
-}
-
-// Create takes the representation of a job and creates it.  Returns the server's representation of the job, and an error, if there is any.
-func (c *jobs) Create(job *v1.Job) (result *v1.Job, err error) {
-	result = &v1.Job{}
-	err = c.client.Post().
-		Namespace(c.ns).
-		Resource("jobs").
-		Body(job).
-		Do().
-		Into(result)
-	return
-}
-
-// Update takes the representation of a job and updates it. Returns the server's representation of the job, and an error, if there is any.
-func (c *jobs) Update(job *v1.Job) (result *v1.Job, err error) {
-	result = &v1.Job{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("jobs").
-		Name(job.Name).
-		Body(job).
-		Do().
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-
-func (c *jobs) UpdateStatus(job *v1.Job) (result *v1.Job, err error) {
-	result = &v1.Job{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("jobs").
-		Name(job.Name).
-		SubResource("status").
-		Body(job).
-		Do().
-		Into(result)
-	return
-}
-
-// Delete takes name of the job and deletes it. Returns an error if one occurs.
-func (c *jobs) Delete(name string, options *metav1.DeleteOptions) error {
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("jobs").
-		Name(name).
-		Body(options).
-		Do().
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *jobs) DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error {
-	var timeout time.Duration
-	if listOptions.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("jobs").
-		VersionedParams(&listOptions, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(options).
-		Do().
-		Error()
-}
-
-// Patch applies the patch and returns the patched job.
-func (c *jobs) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.Job, err error) {
-	result = &v1.Job{}
-	err = c.client.Patch(pt).
-		Namespace(c.ns).
-		Resource("jobs").
-		SubResource(subresources...).
-		Name(name).
-		Body(data).
-		Do().
-		Into(result)
-	return
 }

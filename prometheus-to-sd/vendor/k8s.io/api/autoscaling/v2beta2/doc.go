@@ -17,5 +17,7 @@ limitations under the License.
 // +k8s:deepcopy-gen=package
 // +k8s:protobuf-gen=package
 // +k8s:openapi-gen=true
+// +k8s:prerelease-lifecycle-gen=true
+// +k8s:openapi-model-package=io.k8s.api.autoscaling.v2beta2
 
-package v2beta2 // import "k8s.io/api/autoscaling/v2beta2"
+package v2beta2

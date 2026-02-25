@@ -106,6 +106,9 @@ func parseSourceConfig(uri flags.Uri, podId, namespaceId string) (*SourceConfig,
 	podIdLabel := values.Get("podIdLabel")
 	namespaceIdLabel := values.Get("namespaceIdLabel")
 	containerNameLabel := values.Get("containerNameLabel")
+	tenantUIDLabel := values.Get("tenantUIDLabel")
+	entityTypeLabel := values.Get("entityTypeLabel")
+	entityNameLabel := values.Get("entityNameLabel")
 	metricsPrefix := values.Get("metricsPrefix")
 	customResource := values.Get("customResourceType")
 	customLabels := getMap(values, "customLabels")
@@ -113,7 +116,7 @@ func parseSourceConfig(uri flags.Uri, podId, namespaceId string) (*SourceConfig,
 	if err != nil {
 		return nil, err
 	}
-	podConfig := NewPodConfig(podId, namespaceId, podIdLabel, namespaceIdLabel, containerNameLabel)
+	podConfig := NewPodConfig(podId, namespaceId, podIdLabel, namespaceIdLabel, containerNameLabel, tenantUIDLabel, entityTypeLabel, entityNameLabel)
 
 	whitelistedLabelsMap, err := parseWhitelistedLabels(values.Get("whitelistedLabels"))
 	if err != nil {

@@ -17,7 +17,9 @@ limitations under the License.
 package translator
 
 import (
+	"context"
 	"math"
+	"net/http"
 	"reflect"
 	"sort"
 	"strings"
@@ -26,7 +28,10 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
-	v3 "google.golang.org/api/monitoring/v3"
+	"google.golang.org/genproto/googleapis/api/label"
+	"google.golang.org/genproto/googleapis/api/metric"
+	v3 "google.golang.org/genproto/googleapis/monitoring/v3"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/prometheus-to-sd/config"
 )
@@ -55,7 +60,7 @@ var commonConfig = &config.CommonConfig{
 		Instance: "kubernetes-master.c.test-proj.internal",
 	},
 	SourceConfig: &config.SourceConfig{
-		PodConfig:     config.NewPodConfig("machine", "", "", "", ""),
+		PodConfig:     config.NewPodConfig("machine", "", "", "", "", "", "", ""),
 		Component:     "testcomponent",
 		MetricsPrefix: "container.googleapis.com/master",
 	},
@@ -81,8 +86,10 @@ var testLabelValue1 = "labelValue1"
 var testLabelValue2 = "labelValue2"
 
 var now = time.Now()
+var startTime = time.Unix(1234567890, 0)
+var startTimePB = timestamppb.New(startTime)
 
-var metricsResponse = &PrometheusResponse{rawResponse: `
+var metricsResponse = &PrometheusResponse{rawResponse: []byte(`
 # TYPE test_name counter
 test_name{labelName="labelValue1"} 42.0
 test_name{labelName="labelValue2"} 106.0
@@ -105,8 +112,7 @@ test_histogram_sum 13.0
 test_histogram_count 5
 # TYPE untyped_metric untyped
 untyped_metric 98.6
-`,
-}
+`), header: http.Header{"Content-Type": []string{"text/plain; version=0.0.4; charset=UTF-8"}}}
 
 var metrics = map[string]*dto.MetricFamily{
 	testMetricName: {
@@ -238,13 +244,13 @@ var metrics = map[string]*dto.MetricFamily{
 	},
 }
 
-var metricDescriptors = map[string]*v3.MetricDescriptor{
+var metricDescriptors = map[string]*metric.MetricDescriptor{
 	testMetricName: {
 		Type:        "container.googleapis.com/master/testcomponent/test_name",
 		Description: testMetricDescription,
-		MetricKind:  "CUMULATIVE",
-		ValueType:   "INT64",
-		Labels: []*v3.LabelDescriptor{
+		MetricKind:  metric.MetricDescriptor_CUMULATIVE,
+		ValueType:   metric.MetricDescriptor_INT64,
+		Labels: []*label.LabelDescriptor{
 			{
 				Key: "labelName",
 			},
@@ -252,9 +258,9 @@ var metricDescriptors = map[string]*v3.MetricDescriptor{
 	},
 	booleanMetricName: {
 		Type:       "container.googleapis.com/master/testcomponent/boolean_metric",
-		MetricKind: "GAUGE",
-		ValueType:  "BOOL",
-		Labels: []*v3.LabelDescriptor{
+		MetricKind: metric.MetricDescriptor_GAUGE,
+		ValueType:  metric.MetricDescriptor_BOOL,
+		Labels: []*label.LabelDescriptor{
 			{
 				Key: "labelName",
 			},
@@ -262,39 +268,39 @@ var metricDescriptors = map[string]*v3.MetricDescriptor{
 	},
 	floatMetricName: {
 		Type:       "container.googleapis.com/master/testcomponent/float_metric",
-		MetricKind: "CUMULATIVE",
-		ValueType:  "DOUBLE",
+		MetricKind: metric.MetricDescriptor_CUMULATIVE,
+		ValueType:  metric.MetricDescriptor_DOUBLE,
 	},
 	processStartTimeMetric: {
 		Type:       "container.googleapis.com/master/testcomponent/process_start_time_seconds",
-		MetricKind: "GAUGE",
-		ValueType:  "INT64",
+		MetricKind: metric.MetricDescriptor_GAUGE,
+		ValueType:  metric.MetricDescriptor_INT64,
 	},
 	unrelatedMetric: {
 		Type:       "container.googleapis.com/master/testcomponent/unrelated_metric",
-		MetricKind: "GAUGE",
-		ValueType:  "INT64",
+		MetricKind: metric.MetricDescriptor_GAUGE,
+		ValueType:  metric.MetricDescriptor_INT64,
 	},
 	testMetricHistogram: {
 		Type:        "container.googleapis.com/master/testcomponent/test_histogram",
 		Description: testMetricHistogramDescription,
-		MetricKind:  "CUMULATIVE",
-		ValueType:   "DISTRIBUTION",
+		MetricKind:  metric.MetricDescriptor_CUMULATIVE,
+		ValueType:   metric.MetricDescriptor_DISTRIBUTION,
 	},
 	floatSummaryMetricName + "_sum": {
 		Type:       "container.googleapis.com/master/testcomponent/float_summary_metric_sum",
-		MetricKind: "CUMULATIVE",
-		ValueType:  "DOUBLE",
+		MetricKind: metric.MetricDescriptor_CUMULATIVE,
+		ValueType:  metric.MetricDescriptor_DOUBLE,
 	},
 	intSummaryMetricName + "_sum": {
 		Type:       "container.googleapis.com/master/testcomponent/int_summary_metric_sum",
-		MetricKind: "CUMULATIVE",
-		ValueType:  "INT64",
+		MetricKind: metric.MetricDescriptor_CUMULATIVE,
+		ValueType:  metric.MetricDescriptor_INT64,
 	},
 	untypedMetricName: {
 		Type:       "container.googleapis.com/master/testcomponent/untyped_metric",
-		MetricKind: "GAUGE",
-		ValueType:  "DOUBLE",
+		MetricKind: metric.MetricDescriptor_GAUGE,
+		ValueType:  metric.MetricDescriptor_DOUBLE,
 	},
 }
 
@@ -317,7 +323,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 					InstanceId: "123",
 				},
 				SourceConfig: &config.SourceConfig{
-					PodConfig: config.NewPodConfig("", "", "", "", ""),
+					PodConfig: config.NewPodConfig("", "", "", "", "", "", "", ""),
 				},
 				MonitoredResourceLabels: map[string]string{},
 			},
@@ -339,7 +345,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 			&config.CommonConfig{
 				GceConfig: &config.GceConfig{},
 				SourceConfig: &config.SourceConfig{
-					PodConfig: config.NewPodConfig("machine", "", "", "", ""),
+					PodConfig: config.NewPodConfig("machine", "", "", "", "", "", "", ""),
 				},
 				MonitoredResourceTypePrefix: "k8s_",
 				MonitoredResourceLabels: map[string]string{
@@ -370,7 +376,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 					InstanceId:      "123",
 				},
 				SourceConfig: &config.SourceConfig{
-					PodConfig: config.NewPodConfig("machine", "", "", "", ""),
+					PodConfig: config.NewPodConfig("machine", "", "", "", "", "", "", ""),
 				},
 				MonitoredResourceTypePrefix: "k8s_",
 				MonitoredResourceLabels:     map[string]string{},
@@ -395,7 +401,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 					InstanceId: "123",
 				},
 				SourceConfig: &config.SourceConfig{
-					PodConfig: config.NewPodConfig("test-pod", "test-namespace", "", "", ""),
+					PodConfig: config.NewPodConfig("test-pod", "test-namespace", "", "", "", "", "", ""),
 				},
 				MonitoredResourceTypePrefix: "k8s_",
 				MonitoredResourceLabels: map[string]string{
@@ -419,7 +425,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 			&config.CommonConfig{
 				GceConfig: &config.GceConfig{},
 				SourceConfig: &config.SourceConfig{
-					PodConfig: config.NewPodConfig("test-pod", "test-namespace", "", "", "containerNameLabel"),
+					PodConfig: config.NewPodConfig("test-pod", "test-namespace", "", "", "containerNameLabel", "", "", ""),
 				},
 				MonitoredResourceTypePrefix: "k8s_",
 				MonitoredResourceLabels: map[string]string{
@@ -455,7 +461,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 					InstanceId: "123",
 				},
 				SourceConfig: &config.SourceConfig{
-					PodConfig: config.NewPodConfig("machine", "", "", "", ""),
+					PodConfig: config.NewPodConfig("machine", "", "", "", "", "", "", ""),
 				},
 				MonitoredResourceTypePrefix: "other_prefix_",
 				MonitoredResourceLabels: map[string]string{
@@ -490,6 +496,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 					CustomLabels: map[string]string{
 						"foo": "bar",
 					},
+					PodConfig: config.NewPodConfig("", "", "", "", "", "", "", ""),
 				},
 			},
 			nil,
@@ -521,6 +528,7 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 						"instance_id":  "",
 						"node_name":    "",
 					},
+					PodConfig: config.NewPodConfig("", "", "", "", "", "", "", ""),
 				},
 			},
 			nil,
@@ -535,6 +543,120 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 				"node_name":    "default-instance",
 			},
 		},
+		{
+			"Add tenant UID label to custom monitored resource",
+			&config.CommonConfig{
+				MonitoredResourceLabels: map[string]string{},
+				GceConfig: &config.GceConfig{
+					Project:         "default-project",
+					Zone:            "us-east1-a",
+					Cluster:         "test-cluster",
+					ClusterLocation: "test-location",
+					Instance:        "default-instance",
+					InstanceId:      "123",
+				},
+				SourceConfig: &config.SourceConfig{
+					CustomResourceType: "resource_foo",
+					CustomLabels: map[string]string{
+						"project_id":   "",
+						"cluster_name": "",
+						"location":     "",
+						"instance_id":  "",
+						"node_name":    "",
+						"tenant_uid":   "old-tenant-uid",
+					},
+					PodConfig: config.NewPodConfig("", "", "", "", "", "tenantUIDLabel", "", ""),
+				},
+			},
+			[]*dto.LabelPair{
+				{
+					Name:  stringPtr("tenantUIDLabel"),
+					Value: stringPtr("tenant_uid"),
+				},
+			},
+			"resource_foo",
+			map[string]string{
+				"project_id":   "default-project",
+				"cluster_name": "test-cluster",
+				"location":     "test-location",
+				"instance_id":  "123",
+				"node_name":    "default-instance",
+				"tenant_uid":   "tenant_uid",
+			},
+		},
+		{
+			"Add entity type label to custom monitored resource via dynamic mapping",
+			&config.CommonConfig{
+				MonitoredResourceLabels: map[string]string{},
+				GceConfig:               &config.GceConfig{},
+				SourceConfig: &config.SourceConfig{
+					CustomResourceType: "resource_foo",
+					CustomLabels: map[string]string{
+						"entity_type": "placeholder",
+					},
+					PodConfig: config.NewPodConfig("", "", "", "", "", "", "entityTypeLabel", ""),
+				},
+			},
+			[]*dto.LabelPair{
+				{
+					Name:  stringPtr("entityTypeLabel"),
+					Value: stringPtr("actual-type"),
+				},
+			},
+			"resource_foo",
+			map[string]string{
+				"entity_type": "actual-type",
+			},
+		},
+		{
+			"Add entity name label to custom monitored resource via dynamic mapping",
+			&config.CommonConfig{
+				MonitoredResourceLabels: map[string]string{},
+				GceConfig:               &config.GceConfig{},
+				SourceConfig: &config.SourceConfig{
+					CustomResourceType: "resource_foo",
+					CustomLabels: map[string]string{
+						"entity_name": "placeholder",
+					},
+					PodConfig: config.NewPodConfig("", "", "", "", "", "", "", "entityNameLabel"),
+				},
+			},
+			[]*dto.LabelPair{
+				{
+					Name:  stringPtr("entityNameLabel"),
+					Value: stringPtr("actual-name"),
+				},
+			},
+			"resource_foo",
+			map[string]string{
+				"entity_name": "actual-name",
+			},
+		},
+		{
+			"Ensure entity labels remain empty if metric label is missing (No default logic)",
+			&config.CommonConfig{
+				MonitoredResourceLabels: map[string]string{},
+				GceConfig: &config.GceConfig{
+					Project: "default-project",
+				},
+				SourceConfig: &config.SourceConfig{
+					CustomResourceType: "internal_multitenant_gke_container",
+					CustomLabels: map[string]string{
+						"project_id":  "",
+						"entity_name": "",
+					},
+					PodConfig: config.NewPodConfig("", "", "", "", "", "", "", "entityNameLabel"),
+				},
+			},
+			[]*dto.LabelPair{
+				{Name: stringPtr("wrong_label"), Value: stringPtr("my-app")},
+			},
+			"internal_multitenant_gke_container",
+			map[string]string{
+				"project_id":  "default-project",
+				"entity_name": "",
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -546,16 +668,20 @@ func TestGetMonitoredResourceFromLabels(t *testing.T) {
 			assert.Equal(t, tc.expectedType, monitoredResource.Type)
 			assert.Equal(t, tc.expectedLabels, monitoredResource.Labels)
 			assert.Equal(t, originalResourceLabelsInConfig, tc.config.MonitoredResourceLabels)
+			if val, ok := tc.config.SourceConfig.CustomLabels["tenant_uid"]; ok {
+				assert.NotEqual(t, tc.expectedLabels["tenant_uid"], val)
+			}
 		})
 	}
 }
 
 func TestTranslatePrometheusToStackdriver(t *testing.T) {
+	ctx := context.Background()
 	cache := buildCacheForTesting()
 
 	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName}), cache)
 	tsb.Update(metricsResponse, now)
-	ts, timestamp, err := tsb.Build()
+	ts, timestamp, err := tsb.Build(ctx)
 	assert.Equal(t, timestamp, now)
 
 	assert.Equal(t, err, nil)
@@ -566,46 +692,46 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 
 	// First three int values.
 	for i := 0; i <= 2; i++ {
-		metric := ts[i]
-		assert.Equal(t, "gke_container", metric.Resource.Type)
-		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", metric.Metric.Type)
-		assert.Equal(t, "INT64", metric.ValueType)
-		assert.Equal(t, "CUMULATIVE", metric.MetricKind)
+		m := ts[i]
+		assert.Equal(t, "gke_container", m.Resource.Type)
+		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", m.Metric.Type)
+		assert.Equal(t, metric.MetricDescriptor_INT64, m.ValueType)
+		assert.Equal(t, metric.MetricDescriptor_CUMULATIVE, m.MetricKind)
 
-		assert.Equal(t, 1, len(metric.Points))
-		assert.Equal(t, "2009-02-13T23:31:30Z", metric.Points[0].Interval.StartTime)
+		assert.Equal(t, 1, len(m.Points))
+		assert.Equal(t, startTimePB, m.Points[0].Interval.StartTime)
 
-		labels := metric.Metric.Labels
+		labels := m.Metric.Labels
 		assert.Equal(t, 1, len(labels))
 
 		if labels["labelName"] == "labelValue1" {
-			assert.Equal(t, int64(42), *(metric.Points[0].Value.Int64Value))
+			assert.Equal(t, int64(42), m.Points[0].Value.GetInt64Value())
 		} else if labels["labelName"] == "labelValue2" {
-			assert.Equal(t, int64(106), *(metric.Points[0].Value.Int64Value))
+			assert.Equal(t, int64(106), m.Points[0].Value.GetInt64Value())
 		} else if labels["labelName"] == "labelValue3" {
-			assert.Equal(t, int64(136), *(metric.Points[0].Value.Int64Value))
+			assert.Equal(t, int64(136), m.Points[0].Value.GetInt64Value())
 		} else {
 			t.Errorf("Wrong label labelName value %s", labels["labelName"])
 		}
 	}
 
 	// Histogram
-	metric := ts[3]
-	assert.Equal(t, "gke_container", metric.Resource.Type)
-	assert.Equal(t, "container.googleapis.com/master/testcomponent/test_histogram", metric.Metric.Type)
-	assert.Equal(t, "DISTRIBUTION", metric.ValueType)
-	assert.Equal(t, "CUMULATIVE", metric.MetricKind)
-	assert.Equal(t, 1, len(metric.Points))
+	m := ts[3]
+	assert.Equal(t, "gke_container", m.Resource.Type)
+	assert.Equal(t, "container.googleapis.com/master/testcomponent/test_histogram", m.Metric.Type)
+	assert.Equal(t, metric.MetricDescriptor_DISTRIBUTION, m.ValueType)
+	assert.Equal(t, metric.MetricDescriptor_CUMULATIVE, m.MetricKind)
+	assert.Equal(t, 1, len(m.Points))
 
-	p := metric.Points[0]
+	p := m.Points[0]
 
-	dist := p.Value.DistributionValue
+	dist := p.Value.GetDistributionValue()
 	assert.NotNil(t, dist)
 	assert.Equal(t, int64(5), dist.Count)
 	assert.InEpsilon(t, 2.6, dist.Mean, epsilon)
 	assert.InEpsilon(t, 11.25, dist.SumOfSquaredDeviation, epsilon)
 
-	bounds := dist.BucketOptions.ExplicitBuckets.Bounds
+	bounds := dist.BucketOptions.GetExplicitBuckets().GetBounds()
 	assert.Equal(t, 3, len(bounds))
 	assert.InEpsilon(t, 1, bounds[0], epsilon)
 	assert.InEpsilon(t, 3, bounds[1], epsilon)
@@ -619,29 +745,29 @@ func TestTranslatePrometheusToStackdriver(t *testing.T) {
 	assert.Equal(t, int64(1), counts[3])
 
 	// Then float value.
-	metric = ts[4]
-	assert.Equal(t, "gke_container", metric.Resource.Type)
-	assert.Equal(t, "container.googleapis.com/master/testcomponent/float_metric", metric.Metric.Type)
-	assert.Equal(t, "DOUBLE", metric.ValueType)
-	assert.Equal(t, "CUMULATIVE", metric.MetricKind)
-	assert.InEpsilon(t, 123.17, *(metric.Points[0].Value.DoubleValue), epsilon)
-	assert.Equal(t, 1, len(metric.Points))
-	assert.Equal(t, "2009-02-13T23:31:30Z", metric.Points[0].Interval.StartTime)
+	m = ts[4]
+	assert.Equal(t, "gke_container", m.Resource.Type)
+	assert.Equal(t, "container.googleapis.com/master/testcomponent/float_metric", m.Metric.Type)
+	assert.Equal(t, metric.MetricDescriptor_DOUBLE, m.ValueType)
+	assert.Equal(t, metric.MetricDescriptor_CUMULATIVE, m.MetricKind)
+	assert.InEpsilon(t, 123.17, m.Points[0].Value.GetDoubleValue(), epsilon)
+	assert.Equal(t, 1, len(m.Points))
+	assert.Equal(t, startTimePB, m.Points[0].Interval.StartTime)
 
 	// Then two boolean values.
 	for i := 5; i <= 6; i++ {
-		metric := ts[i]
-		assert.Equal(t, "gke_container", metric.Resource.Type)
-		assert.Equal(t, "container.googleapis.com/master/testcomponent/boolean_metric", metric.Metric.Type)
-		assert.Equal(t, "BOOL", metric.ValueType)
-		assert.Equal(t, "GAUGE", metric.MetricKind)
+		m := ts[i]
+		assert.Equal(t, "gke_container", m.Resource.Type)
+		assert.Equal(t, "container.googleapis.com/master/testcomponent/boolean_metric", m.Metric.Type)
+		assert.Equal(t, metric.MetricDescriptor_BOOL, m.ValueType)
+		assert.Equal(t, metric.MetricDescriptor_GAUGE, m.MetricKind)
 
-		labels := metric.Metric.Labels
+		labels := m.Metric.Labels
 		assert.Equal(t, 1, len(labels))
 		if labels["labelName"] == "falseValue" {
-			assert.Equal(t, false, *(metric.Points[0].Value.BoolValue))
+			assert.Equal(t, false, m.Points[0].Value.GetBoolValue())
 		} else if labels["labelName"] == "trueValue" {
-			assert.Equal(t, true, *(metric.Points[0].Value.BoolValue))
+			assert.Equal(t, true, m.Points[0].Value.GetBoolValue())
 		} else {
 			t.Errorf("Wrong label labelName value %s", labels["labelName"])
 		}
@@ -660,7 +786,7 @@ func TestTranslatePrometheusToStackdriverWithLabelFiltering(t *testing.T) {
 			Instance: "kubernetes-master.c.test-proj.internal",
 		},
 		SourceConfig: &config.SourceConfig{
-			PodConfig:            config.NewPodConfig("machine", "", "", "", ""),
+			PodConfig:            config.NewPodConfig("machine", "", "", "", "", "", "", ""),
 			Component:            "testcomponent",
 			MetricsPrefix:        "container.googleapis.com/master",
 			Whitelisted:          []string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName},
@@ -670,7 +796,7 @@ func TestTranslatePrometheusToStackdriverWithLabelFiltering(t *testing.T) {
 
 	tsb := NewTimeSeriesBuilder(commonConfigWithFiltering, cache)
 	tsb.Update(metricsResponse, now)
-	ts, timestamp, err := tsb.Build()
+	ts, timestamp, err := tsb.Build(context.Background())
 
 	assert.Equal(t, timestamp, now)
 	assert.Equal(t, err, nil)
@@ -681,22 +807,22 @@ func TestTranslatePrometheusToStackdriverWithLabelFiltering(t *testing.T) {
 
 	// First two int values.
 	for i := 0; i <= 1; i++ {
-		metric := ts[i]
-		assert.Equal(t, "gke_container", metric.Resource.Type)
-		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", metric.Metric.Type)
-		assert.Equal(t, "INT64", metric.ValueType)
-		assert.Equal(t, "CUMULATIVE", metric.MetricKind)
+		m := ts[i]
+		assert.Equal(t, "gke_container", m.Resource.Type)
+		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", m.Metric.Type)
+		assert.Equal(t, metric.MetricDescriptor_INT64, m.ValueType)
+		assert.Equal(t, metric.MetricDescriptor_CUMULATIVE, m.MetricKind)
 
-		assert.Equal(t, 1, len(metric.Points))
-		assert.Equal(t, "2009-02-13T23:31:30Z", metric.Points[0].Interval.StartTime)
+		assert.Equal(t, 1, len(m.Points))
+		assert.Equal(t, startTimePB, m.Points[0].Interval.StartTime)
 
-		labels := metric.Metric.Labels
+		labels := m.Metric.Labels
 		assert.Equal(t, 1, len(labels))
 
 		if labels["labelName"] == "labelValue1" {
-			assert.Equal(t, int64(42), *(metric.Points[0].Value.Int64Value))
+			assert.Equal(t, int64(42), m.Points[0].Value.GetInt64Value())
 		} else if labels["labelName"] == "labelValue2" {
-			assert.Equal(t, int64(106), *(metric.Points[0].Value.Int64Value))
+			assert.Equal(t, int64(106), m.Points[0].Value.GetInt64Value())
 		} else {
 			t.Errorf("Wrong label labelName value %s", labels["labelName"])
 		}
@@ -704,7 +830,7 @@ func TestTranslatePrometheusToStackdriverWithLabelFiltering(t *testing.T) {
 }
 
 func TestTranslateSummary(t *testing.T) {
-	var intSummaryMetricsResponse = &PrometheusResponse{rawResponse: `
+	var intSummaryMetricsResponse = &PrometheusResponse{rawResponse: []byte(`
 # TYPE process_start_time_seconds gauge
 process_start_time_seconds 1234567890
 # TYPE int_summary_metric summary
@@ -713,8 +839,8 @@ int_summary_metric{quantile="0.9"} 8
 int_summary_metric{quantile="0.99"} 8
 int_summary_metric_sum 42
 int_summary_metric_count 101010
-`}
-	var floatSummaryMetricsResponse = &PrometheusResponse{rawResponse: `
+`), header: http.Header{"Content-Type": []string{"text/plain; version=0.0.4; charset=UTF-8"}}}
+	var floatSummaryMetricsResponse = &PrometheusResponse{rawResponse: []byte(`
 # TYPE process_start_time_seconds gauge
 process_start_time_seconds 1234567890
 # TYPE float_summary_metric summary
@@ -723,8 +849,8 @@ float_summary_metric{quantile="0.9"} 8.123
 float_summary_metric{quantile="0.99"} 8.123
 float_summary_metric_sum 0.42
 float_summary_metric_count 50
-`}
-	var labelIntSummaryMetricsResponse = &PrometheusResponse{rawResponse: `
+`), header: http.Header{"Content-Type": []string{"text/plain; version=0.0.4; charset=UTF-8"}}}
+	var labelIntSummaryMetricsResponse = &PrometheusResponse{rawResponse: []byte(`
 # TYPE process_start_time_seconds gauge
 process_start_time_seconds 1234567890
 # TYPE int_summary_metric summary
@@ -738,7 +864,7 @@ int_summary_metric_sum{label="l1"} 7
 int_summary_metric_sum{label="l2"} 8
 int_summary_metric_count{label="l1"} 9
 int_summary_metric_count{label="l2"} 10
-`}
+`), header: http.Header{"Content-Type": []string{"text/plain; version=0.0.4; charset=UTF-8"}}}
 
 	type summaryTest struct {
 		description        string
@@ -757,21 +883,21 @@ int_summary_metric_count{label="l2"} 10
 			summaryMetricName:  intSummaryMetricName,
 			expectedTimeSeries: []*v3.TimeSeries{
 				{
-					Metric: &v3.Metric{
+					Metric: &metric.Metric{
 						Labels: map[string]string{},
 						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric_sum",
 					},
-					MetricKind: "CUMULATIVE",
+					MetricKind: metric.MetricDescriptor_CUMULATIVE,
 					Points: []*v3.Point{
 						createIntPoint(42, start, end),
 					},
 				},
 				{
-					Metric: &v3.Metric{
+					Metric: &metric.Metric{
 						Labels: map[string]string{},
 						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric_count",
 					},
-					MetricKind: "CUMULATIVE",
+					MetricKind: metric.MetricDescriptor_CUMULATIVE,
 					Points: []*v3.Point{
 						createIntPoint(101010, start, end),
 					},
@@ -784,21 +910,21 @@ int_summary_metric_count{label="l2"} 10
 			summaryMetricName:  floatSummaryMetricName,
 			expectedTimeSeries: []*v3.TimeSeries{
 				{
-					Metric: &v3.Metric{
+					Metric: &metric.Metric{
 						Labels: map[string]string{},
 						Type:   "container.googleapis.com/master/testcomponent/float_summary_metric_sum",
 					},
-					MetricKind: "CUMULATIVE",
+					MetricKind: metric.MetricDescriptor_CUMULATIVE,
 					Points: []*v3.Point{
 						createDoublePoint(0.42, start, end),
 					},
 				},
 				{
-					Metric: &v3.Metric{
+					Metric: &metric.Metric{
 						Labels: map[string]string{},
 						Type:   "container.googleapis.com/master/testcomponent/float_summary_metric_count",
 					},
-					MetricKind: "CUMULATIVE",
+					MetricKind: metric.MetricDescriptor_CUMULATIVE,
 					Points: []*v3.Point{
 						createIntPoint(50, start, end),
 					},
@@ -811,41 +937,41 @@ int_summary_metric_count{label="l2"} 10
 			summaryMetricName:  intSummaryMetricName,
 			expectedTimeSeries: []*v3.TimeSeries{
 				{
-					Metric: &v3.Metric{
+					Metric: &metric.Metric{
 						Labels: map[string]string{"label": "l1"},
 						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric_sum",
 					},
-					MetricKind: "CUMULATIVE",
+					MetricKind: metric.MetricDescriptor_CUMULATIVE,
 					Points: []*v3.Point{
 						createIntPoint(7, start, end),
 					},
 				},
 				{
-					Metric: &v3.Metric{
+					Metric: &metric.Metric{
 						Labels: map[string]string{"label": "l2"},
 						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric_sum",
 					},
-					MetricKind: "CUMULATIVE",
+					MetricKind: metric.MetricDescriptor_CUMULATIVE,
 					Points: []*v3.Point{
 						createIntPoint(8, start, end),
 					},
 				},
 				{
-					Metric: &v3.Metric{
+					Metric: &metric.Metric{
 						Labels: map[string]string{"label": "l1"},
 						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric_count",
 					},
-					MetricKind: "CUMULATIVE",
+					MetricKind: metric.MetricDescriptor_CUMULATIVE,
 					Points: []*v3.Point{
 						createIntPoint(9, start, end),
 					},
 				},
 				{
-					Metric: &v3.Metric{
+					Metric: &metric.Metric{
 						Labels: map[string]string{"label": "l2"},
 						Type:   "container.googleapis.com/master/testcomponent/int_summary_metric_count",
 					},
-					MetricKind: "CUMULATIVE",
+					MetricKind: metric.MetricDescriptor_CUMULATIVE,
 					Points: []*v3.Point{
 						createIntPoint(10, start, end),
 					},
@@ -860,7 +986,7 @@ int_summary_metric_count{label="l2"} 10
 
 			tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{tt.summaryMetricName + "_sum", tt.summaryMetricName + "_count"}), cache)
 			tsb.Update(tt.prometheusResponse, end)
-			tss, timestamp, err := tsb.Build()
+			tss, timestamp, err := tsb.Build(context.Background())
 			assert.Equal(t, timestamp, end)
 
 			sort.Sort(ByMetricTypeReversed(tss))
@@ -889,32 +1015,29 @@ int_summary_metric_count{label="l2"} 10
 
 func createInterval(start time.Time, end time.Time) *v3.TimeInterval {
 	return &v3.TimeInterval{
-		StartTime: start.UTC().Format(time.RFC3339),
-		EndTime:   end.UTC().Format(time.RFC3339),
+		StartTime: timestamppb.New(start.UTC()),
+		EndTime:   timestamppb.New(end.UTC()),
 	}
 }
 
 func createIntValue(num int) *v3.TypedValue {
 	n := int64(num)
 	return &v3.TypedValue{
-		Int64Value:      &n,
-		ForceSendFields: []string{},
+		Value: &v3.TypedValue_Int64Value{Int64Value: n},
 	}
 }
 
 func createDoubleValue(double float64) *v3.TypedValue {
 	d := float64(double)
 	return &v3.TypedValue{
-		DoubleValue:     &d,
-		ForceSendFields: []string{},
+		Value: &v3.TypedValue_DoubleValue{DoubleValue: d},
 	}
 }
 
 func createPoint(value *v3.TypedValue, valueTypeString string, start time.Time, end time.Time) *v3.Point {
 	return &v3.Point{
-		Interval:        createInterval(start, end),
-		Value:           value,
-		ForceSendFields: []string{valueTypeString},
+		Interval: createInterval(start, end),
+		Value:    value,
 	}
 }
 
@@ -928,7 +1051,7 @@ func createDoublePoint(d float64, start time.Time, end time.Time) *v3.Point {
 
 func TestUpdateScrapes(t *testing.T) {
 	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{testMetricName, floatMetricName}), buildCacheForTesting())
-	scrape := &PrometheusResponse{rawResponse: `
+	scrape := &PrometheusResponse{rawResponse: []byte(`
 # TYPE test_name counter
 test_name{labelName="labelValue1"} 42.0
 test_name{labelName="labelValue2"} 106.0
@@ -936,19 +1059,17 @@ test_name{labelName="labelValue2"} 106.0
 float_metric 123.17
 # TYPE test_name counter
 process_start_time_seconds 1234567890.0
-`,
-	}
+`), header: http.Header{"Content-Type": []string{"text/plain; version=0.0.4; charset=UTF-8"}}}
 	tsb.Update(scrape, now)
-	scrape = &PrometheusResponse{rawResponse: `
+	scrape = &PrometheusResponse{rawResponse: []byte(`
 # TYPE test_name counter
 test_name{labelName="labelValue1"} 42.0
 test_name{labelName="labelValue2"} 601.0
 # TYPE process_start_time_seconds gauge
 process_start_time_seconds 1234567890.0
-`,
-	}
+`), header: http.Header{"Content-Type": []string{"text/plain; version=0.0.4; charset=UTF-8"}}}
 	tsb.Update(scrape, now)
-	ts, timestamp, err := tsb.Build()
+	ts, timestamp, err := tsb.Build(context.Background())
 	assert.Equal(t, timestamp, now)
 	assert.Equal(t, err, nil)
 	assert.Equal(t, 2, len(ts))
@@ -956,24 +1077,24 @@ process_start_time_seconds 1234567890.0
 	sort.Sort(ByMetricTypeReversed(ts))
 
 	for i := 0; i <= 1; i++ {
-		metric := ts[i]
-		assert.Equal(t, "gke_container", metric.Resource.Type)
-		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", metric.Metric.Type)
-		assert.Equal(t, "INT64", metric.ValueType)
-		assert.Equal(t, "CUMULATIVE", metric.MetricKind)
+		m := ts[i]
+		assert.Equal(t, "gke_container", m.Resource.Type)
+		assert.Equal(t, "container.googleapis.com/master/testcomponent/test_name", m.Metric.Type)
+		assert.Equal(t, metric.MetricDescriptor_INT64, m.ValueType)
+		assert.Equal(t, metric.MetricDescriptor_CUMULATIVE, m.MetricKind)
 
-		assert.Equal(t, 1, len(metric.Points))
-		assert.Equal(t, "2009-02-13T23:31:30Z", metric.Points[0].Interval.StartTime)
+		assert.Equal(t, 1, len(m.Points))
+		assert.Equal(t, startTimePB, m.Points[0].Interval.StartTime)
 
-		labels := metric.Metric.Labels
+		labels := m.Metric.Labels
 		assert.Equal(t, 1, len(labels))
 
 		if labels["labelName"] == "labelValue1" {
 			// This one stays stale
-			assert.Equal(t, int64(42), *(metric.Points[0].Value.Int64Value))
+			assert.Equal(t, int64(42), m.Points[0].Value.GetInt64Value())
 		} else if labels["labelName"] == "labelValue2" {
 			// This one gets updated
-			assert.Equal(t, int64(601), *(metric.Points[0].Value.Int64Value))
+			assert.Equal(t, int64(601), m.Points[0].Value.GetInt64Value())
 		} else {
 			t.Errorf("Wrong label labelName value %s", labels["labelName"])
 		}
@@ -986,6 +1107,44 @@ func TestMetricFamilyToMetricDescriptor(t *testing.T) {
 		expectedMetricDescriptor := metricDescriptors[metricName]
 		assert.Equal(t, metricDescriptor, expectedMetricDescriptor)
 	}
+}
+
+func TestMetricFamilyToMetricDescriptorFiltersResourceLabels(t *testing.T) {
+	// Define a config where "tenant_uid" is a resource label.
+	// We use the 6th argument (tenantUIDLabel) which is known to be a label name.
+	testConfig := &config.CommonConfig{
+		SourceConfig: &config.SourceConfig{
+			PodConfig:     config.NewPodConfig("", "", "", "", "", "tenant_uid", "", ""),
+			MetricsPrefix: "container.googleapis.com/master",
+		},
+	}
+
+	metricName := "test_filtering"
+	metricFamily := &dto.MetricFamily{
+		Name: &metricName,
+		Type: &metricTypeCounter,
+		Metric: []*dto.Metric{
+			{
+				Label: []*dto.LabelPair{
+					{
+						Name:  stringPtr("tenant_uid"),
+						Value: stringPtr("tenant-123"),
+					},
+					{
+						Name:  stringPtr("labelName"),
+						Value: stringPtr("labelValue1"),
+					},
+				},
+				Counter: &dto.Counter{Value: floatPtr(1.0)},
+			},
+		},
+	}
+
+	descriptor := MetricFamilyToMetricDescriptor(testConfig, metricFamily, nil)
+
+	// Expecting only "labelName" because "tenant_uid" is a resource label.
+	assert.Equal(t, 1, len(descriptor.Labels))
+	assert.Equal(t, "labelName", descriptor.Labels[0].Key)
 }
 
 func TestOmitComponentName(t *testing.T) {
@@ -1019,7 +1178,7 @@ func TestBuildWithoutUpdate(t *testing.T) {
 	cache := buildCacheForTesting()
 
 	tsb := NewTimeSeriesBuilder(CommonConfigWithMetrics([]string{testMetricName, testMetricHistogram, booleanMetricName, floatMetricName}), cache)
-	ts, _, err := tsb.Build()
+	ts, _, err := tsb.Build(context.Background())
 
 	assert.Equal(t, err, nil)
 	assert.Equal(t, 0, len(ts))
@@ -1043,7 +1202,7 @@ func buildCacheForTesting() *MetricDescriptorCache {
 	return cache
 }
 
-func getOriginalDescriptor(metric string) *v3.MetricDescriptor {
+func getOriginalDescriptor(metric string) *metric.MetricDescriptor {
 	// For testing reason we provide metric descriptor only for boolean_metric and float_metric.
 	if metric == booleanMetricName || metric == floatMetricName {
 		return metricDescriptors[metric]

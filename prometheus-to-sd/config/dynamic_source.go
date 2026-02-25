@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -32,7 +33,7 @@ func SourceConfigsFromDynamicSources(gceConfig *GceConfig, sources []flags.Uri) 
 	if err != nil {
 		return nil, err
 	}
-	podResponse, err := kubeApi.CoreV1().Pods(podNamespace).List(createOptionsForPodSelection(gceConfig.Instance, sourceMap))
+	podResponse, err := kubeApi.CoreV1().Pods(podNamespace).List(context.TODO(), createOptionsForPodSelection(gceConfig.Instance, sourceMap))
 	if err != nil {
 		return nil, err
 	}
@@ -106,6 +107,9 @@ func mapToSourceConfig(componentName string, url url.URL, ip string, podId, name
 	podIdLabel := values.Get("podIdLabel")
 	namespaceIdLabel := values.Get("namespaceIdLabel")
 	containerNamelabel := values.Get("containerNamelabel")
+	tenantUIDLabel := values.Get("tenantUIDLabel")
+	entityTypeLabel := values.Get("entityTypeLabel")
+	entityNameLabel := values.Get("entityNameLabel")
 	metricsPrefix := values.Get("metricsPrefix")
 	customResource := values.Get("customResourceType")
 	customLabels := getMap(values, "customLabels")
@@ -113,7 +117,7 @@ func mapToSourceConfig(componentName string, url url.URL, ip string, podId, name
 	if err != nil {
 		return nil, err
 	}
-	podConfig := NewPodConfig(podId, namespaceId, podIdLabel, namespaceIdLabel, containerNamelabel)
+	podConfig := NewPodConfig(podId, namespaceId, podIdLabel, namespaceIdLabel, containerNamelabel, tenantUIDLabel, entityTypeLabel, entityNameLabel)
 	whitelistedLabelsMap, err := parseWhitelistedLabels(url.Query().Get("whitelistedLabels"))
 	if err != nil {
 		return nil, err
