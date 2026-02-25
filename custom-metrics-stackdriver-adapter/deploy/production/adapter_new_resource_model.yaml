@@ -88,6 +88,13 @@ spec:
         kubernetes.io/cluster-service: "true"
     spec:
       serviceAccountName: custom-metrics-stackdriver-adapter
+      tolerations:
+      - key: "nvidia.com/gpu"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "cloud.google.com/gke-tpu"
+        operator: "Exists"
+        effect: "NoSchedule"
       containers:
       - image: gcr.io/gke-release/custom-metrics-stackdriver-adapter:v0.12.2-gke.0
         imagePullPolicy: Always
