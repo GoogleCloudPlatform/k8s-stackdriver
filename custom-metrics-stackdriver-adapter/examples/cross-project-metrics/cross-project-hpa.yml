@@ -1,0 +1,21 @@
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: dummy
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1beta1
+    kind: Deployment
+    name: dummy
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+  - external:
+      metricName: pubsub.googleapis.com|subscription|num_undelivered_messages
+      metricSelector:
+        matchLabels:
+          resource.labels.subscription_id: my-subscription
+          resource.labels.project_id: my-other-project
+      targetAverageValue: "2"
+    type: External
