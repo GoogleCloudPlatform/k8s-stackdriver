@@ -37,20 +37,21 @@ func (e *eventExporter) Run(stopCh <-chan struct{}) {
 	utils.RunConcurrentlyUntil(stopCh, e.sink.Run, e.watcher.Run)
 }
 
-func newEventExporter(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration, eventLabelSelector labels.Selector, listerWatcherOptionsLimit int64, storageType watchers.StorageType) *eventExporter {
+func newEventExporter(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration, eventLabelSelector labels.Selector, listerWatcherOptionsLimit int64, listerWatcherEnableStreaming bool, storageType watchers.StorageType) *eventExporter {
 	return &eventExporter{
 		sink:    sink,
-		watcher: createWatcher(client, sink, resyncPeriod, eventLabelSelector, listerWatcherOptionsLimit, storageType),
+		watcher: createWatcher(client, sink, resyncPeriod, eventLabelSelector, listerWatcherOptionsLimit, listerWatcherEnableStreaming, storageType),
 	}
 }
 
-func createWatcher(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration, eventLabelSelector labels.Selector, listerWatcherOptionsLimit int64, storageType watchers.StorageType) watchers.Watcher {
+func createWatcher(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration, eventLabelSelector labels.Selector, listerWatcherOptionsLimit int64, listerWatcherEnableStreaming bool, storageType watchers.StorageType) watchers.Watcher {
 	return events.NewEventWatcher(client, &events.EventWatcherConfig{
-		OnList:                    sink.OnList,
-		ResyncPeriod:              resyncPeriod,
-		Handler:                   sink,
-		EventLabelSelector:        eventLabelSelector,
-		ListerWatcherOptionsLimit: listerWatcherOptionsLimit,
-		StorageType:               storageType,
+		OnList:                       sink.OnList,
+		ResyncPeriod:                 resyncPeriod,
+		Handler:                      sink,
+		EventLabelSelector:           eventLabelSelector,
+		ListerWatcherOptionsLimit:    listerWatcherOptionsLimit,
+		ListerWatcherEnableStreaming: listerWatcherEnableStreaming,
+		StorageType:                  storageType,
 	})
 }

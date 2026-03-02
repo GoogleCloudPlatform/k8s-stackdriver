@@ -60,6 +60,12 @@ func NewPodLabelsSharedInformerFactory(client kubernetes.Interface, ignoredNames
 				if v, ok := pod.Labels[jobSetNameLabelKey]; ok {
 					labels[jobSetNameLabelKey] = v
 				}
+				if v, ok := pod.Labels[jobSetRestartAttemptLabelKey]; ok {
+					labels[jobSetRestartAttemptLabelKey] = v
+				}
+				if v, ok := pod.Labels[jobsetUIDLabelKey]; ok {
+					labels[jobsetUIDLabelKey] = v
+				}
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:            pod.Name,
@@ -121,6 +127,14 @@ func getLabelsFromPod(pod *corev1.Pod) map[string]string {
 				// Pod that is eventually owned by a JobSet has the jobset name label set.
 				transformedLabels[ownerTypeKeyName] = "JobSet"
 				transformedLabels[ownerNameKeyName] = jobsetName
+
+				// Add restart_attempt and uid labels for JobSet events.
+				if restartAttempt, ok := pod.GetObjectMeta().GetLabels()[jobSetRestartAttemptLabelKey]; ok {
+					transformedLabels[jobSetRestartAttemptLabelKey] = restartAttempt
+				}
+				if uid, ok := pod.GetObjectMeta().GetLabels()[jobsetUIDLabelKey]; ok {
+					transformedLabels[jobsetUIDLabelKey] = uid
+				}
 			} else {
 				transformedLabels[ownerTypeKeyName] = "Job"
 				transformedLabels[ownerNameKeyName] = owner.Name

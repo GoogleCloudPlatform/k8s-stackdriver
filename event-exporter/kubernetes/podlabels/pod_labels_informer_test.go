@@ -153,6 +153,26 @@ func TestGetLabelsFromPod(t *testing.T) {
 				"logging.gke.io/top_level_controller_name": "training-sample",
 			},
 		},
+		{
+			description: "correct jobset owner, restart attempt and uid labels returned for pod",
+			pod: makePod(mockPodOptions{
+				Labels: map[string]string{
+					"jobset.sigs.k8s.io/jobset-name":     "training-sample",
+					"jobset.sigs.k8s.io/restart-attempt": "5",
+					"jobset.sigs.k8s.io/jobset-uid":      "fake-uid",
+				},
+				OwnerReference: metav1.OwnerReference{
+					Kind: "Job",
+					Name: "training-sample-0",
+				},
+			}),
+			wantLabels: map[string]string{
+				"logging.gke.io/top_level_controller_type": "JobSet",
+				"logging.gke.io/top_level_controller_name": "training-sample",
+				"jobset.sigs.k8s.io/restart-attempt":       "5",
+				"jobset.sigs.k8s.io/jobset-uid":            "fake-uid",
+			},
+		},
 	}
 
 	for _, tc := range testCases {

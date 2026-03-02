@@ -5,9 +5,11 @@ import (
 )
 
 const (
-	ownerTypeKeyName   = "logging.gke.io/top_level_controller_type"
-	ownerNameKeyName   = "logging.gke.io/top_level_controller_name"
-	jobSetNameLabelKey = "jobset.sigs.k8s.io/jobset-name"
+	ownerTypeKeyName             = "logging.gke.io/top_level_controller_type"
+	ownerNameKeyName             = "logging.gke.io/top_level_controller_name"
+	jobSetNameLabelKey           = "jobset.sigs.k8s.io/jobset-name"
+	jobSetRestartAttemptLabelKey = "jobset.sigs.k8s.io/restart-attempt"
+	jobsetUIDLabelKey            = "jobset.sigs.k8s.io/jobset-uid"
 )
 
 // matches suffixes containing number between 20000000 to 59999999

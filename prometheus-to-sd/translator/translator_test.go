@@ -1109,6 +1109,44 @@ func TestMetricFamilyToMetricDescriptor(t *testing.T) {
 	}
 }
 
+func TestMetricFamilyToMetricDescriptorFiltersResourceLabels(t *testing.T) {
+	// Define a config where "tenant_uid" is a resource label.
+	// We use the 6th argument (tenantUIDLabel) which is known to be a label name.
+	testConfig := &config.CommonConfig{
+		SourceConfig: &config.SourceConfig{
+			PodConfig:     config.NewPodConfig("", "", "", "", "", "tenant_uid", "", ""),
+			MetricsPrefix: "container.googleapis.com/master",
+		},
+	}
+
+	metricName := "test_filtering"
+	metricFamily := &dto.MetricFamily{
+		Name: &metricName,
+		Type: &metricTypeCounter,
+		Metric: []*dto.Metric{
+			{
+				Label: []*dto.LabelPair{
+					{
+						Name:  stringPtr("tenant_uid"),
+						Value: stringPtr("tenant-123"),
+					},
+					{
+						Name:  stringPtr("labelName"),
+						Value: stringPtr("labelValue1"),
+					},
+				},
+				Counter: &dto.Counter{Value: floatPtr(1.0)},
+			},
+		},
+	}
+
+	descriptor := MetricFamilyToMetricDescriptor(testConfig, metricFamily, nil)
+
+	// Expecting only "labelName" because "tenant_uid" is a resource label.
+	assert.Equal(t, 1, len(descriptor.Labels))
+	assert.Equal(t, "labelName", descriptor.Labels[0].Key)
+}
+
 func TestOmitComponentName(t *testing.T) {
 	var normalMetric1 = "metric1"
 	var metricWithSomePrefix = "some_prefix_metric2"
