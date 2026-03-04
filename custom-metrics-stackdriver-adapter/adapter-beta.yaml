@@ -73,10 +73,12 @@ spec:
       serviceAccountName: custom-metrics-stackdriver-adapter
       tolerations:
       - key: "nvidia.com/gpu"
-        operator: "Exists"
+        operator: "Equal"
+        value: "present"
         effect: "NoSchedule"
       - key: "cloud.google.com/gke-tpu"
-        operator: "Exists"
+        operator: "Equal"
+        value: "present"
         effect: "NoSchedule"
       containers:
       - image: gcr.io/google-containers/custom-metrics-stackdriver-adapter:v0.4.0
