@@ -64,10 +64,10 @@ func checkTolerations(t *testing.T, deployment *appsv1.Deployment, file string) 
 	tpuFound := false
 
 	for _, tol := range tolerations {
-		if tol.Key == "nvidia.com/gpu" && tol.Operator == "Exists" && tol.Effect == "NoSchedule" {
+		if tol.Key == "nvidia.com/gpu" && tol.Operator == "Equal" && tol.Value == "present" && tol.Effect == "NoSchedule" {
 			gpuFound = true
 		}
-		if tol.Key == "cloud.google.com/gke-tpu" && tol.Operator == "Exists" && tol.Effect == "NoSchedule" {
+		if tol.Key == "cloud.google.com/gke-tpu" && tol.Operator == "Equal" && tol.Value == "present" && tol.Effect == "NoSchedule" {
 			tpuFound = true
 		}
 	}
