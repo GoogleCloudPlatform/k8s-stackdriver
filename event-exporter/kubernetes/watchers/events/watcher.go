@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	stdruntime "runtime"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -74,7 +75,7 @@ type EventWatcherConfig struct {
 // NewEventWatcher create a new watcher that only watches the events resource.
 func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) watchers.Watcher {
 	watchListFeatureGateEnabled := IsFeatureGateEnabled(client, "WatchList")
-	glog.Infof("Feature gate WatchList is enabled: %v", watchListFeatureGateEnabled)
+	glog.Infof("Feature gate WatchList is enabled: %v, config.ListerWatcherEnableStreaming: %v", watchListFeatureGateEnabled, config.ListerWatcherEnableStreaming)
 	return watchers.NewWatcher(&watchers.WatcherConfig{
 		// List and watch events in all namespaces.
 		ListerWatcher: &cache.ListWatch{
@@ -93,7 +94,6 @@ func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) wa
 					return list, err
 				}
 			},
-
 			WatchFunc: func(options meta_v1.ListOptions) (watch.Interface, error) {
 				options.LabelSelector = config.EventLabelSelector.String()
 				return client.CoreV1().Events(meta_v1.NamespaceAll).Watch(context.TODO(), options)
@@ -120,19 +120,24 @@ func streamingListEvents(client kubernetes.Interface, config *EventWatcherConfig
 	options.Watch = true
 	options.LabelSelector = config.EventLabelSelector.String()
 	options.AllowWatchBookmarks = true
+	glog.Infof("streamingListEvents started watching events with options: %v", options)
 
 	// Perform the streaming list (actually a Watch)
 	watcher, err := client.CoreV1().Events(meta_v1.NamespaceAll).Watch(context.TODO(), options)
 	if err != nil {
+		glog.Errorf("streamingListEvents failed to watch events: %v", err)
 		return nil, err
 	}
 	defer watcher.Stop()
+	glog.Infof("streamingListEvents started watching events")
 
 	// Call OnList once to start the sink (it just logs "Started watching")
 	config.OnList(&corev1.EventList{})
 
 	lastRV := ""
 	bookmarkReceived := false
+
+	eventCount := 0
 
 eventLoop:
 	for event := range watcher.ResultChan() {
@@ -142,6 +147,12 @@ eventLoop:
 
 		switch event.Type {
 		case watch.Added:
+			eventCount++
+			if eventCount%10000 == 0 {
+				var m stdruntime.MemStats
+				stdruntime.ReadMemStats(&m)
+				glog.Infof("streamingListEvents at %d events - Alloc=%vMiB Sys=%vMiB", eventCount, m.Alloc/1024/1024, m.Sys/1024/1024)
+			}
 			if e, ok := event.Object.(*corev1.Event); ok {
 				// Manually pass to handler since we bypass Reflector's store
 				config.Handler.OnAdd(e)

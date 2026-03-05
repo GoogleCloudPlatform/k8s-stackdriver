@@ -20,22 +20,23 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	_ "net/http/pprof" // 1. Blank import registers the pprof endpoints with the default HTTP mux
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/podlabels"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/watchers"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/sinks/stackdriver"
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/rest"
-
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/podlabels"
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/watchers"
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/sinks/stackdriver"
 )
 
 var (
@@ -79,7 +80,29 @@ func newKubernetesClient() (kubernetes.Interface, error) {
 	return kubernetes.NewForConfig(config)
 }
 
+func newMetadataClient() (metadata.Interface, error) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create in-cluster config: %v", err)
+	}
+	// Use protobufs for communication with apiserver.
+	config.ContentType = "application/vnd.kubernetes.protobuf"
+
+	return metadata.NewForConfig(config)
+}
+
 func main() {
+
+	// 2. Start the pprof server on a background goroutine
+	go func() {
+		glog.Info("Starting pprof server on localhost:6060")
+		// ADD THIS LINE: Expose the /tmp directory over HTTP
+		http.Handle("/tmp/", http.StripPrefix("/tmp/", http.FileServer(http.Dir("/tmp"))))
+		if err := http.ListenAndServe("localhost:6060", nil); err != nil {
+			glog.Fatalf("pprof server failed: %v", err)
+		}
+	}()
+
 	flag.Set("logtostderr", "true")
 	defer glog.Flush()
 	flag.Parse()
@@ -89,10 +112,15 @@ func main() {
 		glog.Fatalf("Failed to initialize kubernetes client: %v", err)
 	}
 
+	metadataClient, err := newMetadataClient()
+	if err != nil {
+		glog.Fatalf("Failed to initialize metadata client: %v", err)
+	}
+
 	var informer podlabels.PodLabelCollector = nil
 	stopCh := newSystemStopChannel()
 	if *enablePodOwnerLabel {
-		factory := podlabels.NewPodLabelsSharedInformerFactory(client, strings.Split(*systemNamespaces, ","))
+		factory := podlabels.NewPodLabelsSharedInformerFactory(metadataClient, strings.Split(*systemNamespaces, ","))
 		informer = factory.NewPodLabelsSharedInformer()
 		factory.Run(stopCh)
 	}
