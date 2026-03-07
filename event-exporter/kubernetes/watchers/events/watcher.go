@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"regexp"
-	stdruntime "runtime"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -137,8 +136,6 @@ func streamingListEvents(client kubernetes.Interface, config *EventWatcherConfig
 	lastRV := ""
 	bookmarkReceived := false
 
-	eventCount := 0
-
 eventLoop:
 	for event := range watcher.ResultChan() {
 		if meta, ok := event.Object.(meta_v1.Object); ok {
@@ -147,12 +144,6 @@ eventLoop:
 
 		switch event.Type {
 		case watch.Added:
-			eventCount++
-			if eventCount%10000 == 0 {
-				var m stdruntime.MemStats
-				stdruntime.ReadMemStats(&m)
-				glog.Infof("streamingListEvents at %d events - Alloc=%vMiB Sys=%vMiB", eventCount, m.Alloc/1024/1024, m.Sys/1024/1024)
-			}
 			if e, ok := event.Object.(*corev1.Event); ok {
 				// Manually pass to handler since we bypass Reflector's store
 				config.Handler.OnAdd(e)
