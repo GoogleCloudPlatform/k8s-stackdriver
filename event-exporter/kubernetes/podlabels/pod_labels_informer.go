@@ -1,7 +1,6 @@
 package podlabels
 
 import (
-	"runtime"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -9,9 +8,6 @@ import (
 	clientfeatures "k8s.io/client-go/features"
 	"k8s.io/client-go/metadata"
 
-	// "k8s.io/client-go/informers"
-
-	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/utils"
 	"k8s.io/client-go/metadata/metadatainformer"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
@@ -27,17 +23,9 @@ type PodLabelsSharedInformerFactory struct {
 }
 
 func (f *PodLabelsSharedInformerFactory) Run(stopCh <-chan struct{}) {
-	var m runtime.MemStats
 	f.factory.Start(stopCh)
-	runtime.ReadMemStats(&m)
-	klog.Infof("Start at %d events - Alloc=%vMiB Sys=%vMiB", m.Alloc/1024/1024, m.Sys/1024/1024)
-
 	f.factory.WaitForCacheSync(stopCh)
-	runtime.ReadMemStats(&m)
-	klog.Infof("WaitForCacheSync at %d events - Alloc=%vMiB Sys=%vMiB", m.Alloc/1024/1024, m.Sys/1024/1024)
 	klog.Info("Cache synced!")
-
-	utils.TakeMemorySnapshot()
 }
 
 func (f *PodLabelsSharedInformerFactory) NewPodLabelsSharedInformer() *PodLabelsSharedInformer {
@@ -57,21 +45,24 @@ func (f *PodLabelsSharedInformerFactory) NewPodLabelsSharedInformer() *PodLabels
 
 type customFeatureGates struct {
 	clientfeatures.Gates
+	enableWatchListClient bool
 }
 
 func (c *customFeatureGates) Enabled(key clientfeatures.Feature) bool {
 	if key == clientfeatures.WatchListClient {
-		klog.Info("Enabled feature gate: ", key)
-		return true
+		klog.Info("Enabled feature gate WatchListClient: ", c.enableWatchListClient)
+		return c.enableWatchListClient
 	}
 	return c.Gates.Enabled(key)
 }
 
-func init() {
-	clientfeatures.ReplaceFeatureGates(&customFeatureGates{clientfeatures.FeatureGates()})
-}
+func NewPodLabelsSharedInformerFactory(client metadata.Interface, ignoredNamespaces []string, enableWatchListClient bool) *PodLabelsSharedInformerFactory {
+	// Set the custom feature gates based on the flag
+	clientfeatures.ReplaceFeatureGates(&customFeatureGates{
+		Gates:                 clientfeatures.FeatureGates(),
+		enableWatchListClient: enableWatchListClient,
+	})
 
-func NewPodLabelsSharedInformerFactory(client metadata.Interface, ignoredNamespaces []string) *PodLabelsSharedInformerFactory {
 	ignoredNamespacesMap := make(map[string]struct{})
 	for _, ns := range ignoredNamespaces {
 		ignoredNamespacesMap[ns] = struct{}{}

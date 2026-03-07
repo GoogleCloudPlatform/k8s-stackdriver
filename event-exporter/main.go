@@ -20,7 +20,6 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof" // 1. Blank import registers the pprof endpoints with the default HTTP mux
 	"os"
 	"os/signal"
 	"strings"
@@ -93,16 +92,6 @@ func newMetadataClient() (metadata.Interface, error) {
 
 func main() {
 
-	// 2. Start the pprof server on a background goroutine
-	go func() {
-		glog.Info("Starting pprof server on localhost:6060")
-		// ADD THIS LINE: Expose the /tmp directory over HTTP
-		http.Handle("/tmp/", http.StripPrefix("/tmp/", http.FileServer(http.Dir("/tmp"))))
-		if err := http.ListenAndServe("localhost:6060", nil); err != nil {
-			glog.Fatalf("pprof server failed: %v", err)
-		}
-	}()
-
 	flag.Set("logtostderr", "true")
 	defer glog.Flush()
 	flag.Parse()
@@ -120,7 +109,7 @@ func main() {
 	var informer podlabels.PodLabelCollector = nil
 	stopCh := newSystemStopChannel()
 	if *enablePodOwnerLabel {
-		factory := podlabels.NewPodLabelsSharedInformerFactory(metadataClient, strings.Split(*systemNamespaces, ","))
+		factory := podlabels.NewPodLabelsSharedInformerFactory(metadataClient, strings.Split(*systemNamespaces, ","), *listerWatcherEnableStreaming)
 		informer = factory.NewPodLabelsSharedInformer()
 		factory.Run(stopCh)
 	}
