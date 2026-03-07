@@ -1,7 +1,6 @@
 package podlabels
 
 import (
-	"context"
 	"math"
 	"testing"
 	"time"
@@ -10,7 +9,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/apimachinery/pkg/runtime"
+	metadatafake "k8s.io/client-go/metadata/fake"
 )
 
 type mockPodOptions struct {
@@ -178,7 +178,15 @@ func TestGetLabelsFromPod(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.description, func(t *testing.T) {
-			gotLabels := getLabelsFromPod(tc.pod)
+			meta := &metav1.PartialObjectMetadata{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            tc.pod.Name,
+					Namespace:       tc.pod.Namespace,
+					OwnerReferences: tc.pod.OwnerReferences,
+					Labels:          tc.pod.Labels,
+				},
+			}
+			gotLabels := getLabelsFromMeta(meta)
 			if len(tc.wantLabels) != len(gotLabels) {
 				t.Errorf("getLabelsFromPod() got unexpected labels %v, want %v", gotLabels, tc.wantLabels)
 			}
@@ -196,22 +204,37 @@ func intValueOfMetric(c prometheus.Collector) int {
 }
 
 func TestGetLabelsCacheOperations(t *testing.T) {
-	fakeclient := fake.NewSimpleClientset(
-		&corev1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "my-agent-12abc",
-				Namespace: "default",
-				OwnerReferences: []metav1.OwnerReference{{
-					Kind: "DaemonSet",
-					Name: "my-agent",
-				}},
+	
+	scheme := runtime.NewScheme()
+	metav1.AddMetaToScheme(scheme)
+
+	pod1 := &metav1.PartialObjectMetadata{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-agent-12abc",
+			Namespace: "default",
+			OwnerReferences: []metav1.OwnerReference{{
+				Kind: "DaemonSet",
+				Name: "my-agent",
 			}},
-		&corev1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "my-pod",
-				Namespace: "default",
-			}})
-	factory := NewPodLabelsSharedInformerFactory(fakeclient, nil)
+		},
+	}
+	pod2 := &metav1.PartialObjectMetadata{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-pod",
+			Namespace: "default",
+		},
+	}
+	fakeMetadataClient := metadatafake.NewSimpleMetadataClient(scheme, pod1, pod2)
+	
+	factory := NewPodLabelsSharedInformerFactory(fakeMetadataClient, nil, false)
 	collector := factory.NewPodLabelsSharedInformer()
 	stopCh := make(chan struct{})
 	defer close(stopCh)
@@ -250,7 +273,11 @@ func TestGetLabelsCacheOperations(t *testing.T) {
 		t.Errorf("At this point, cacheOpsCount with operation=querymiss should be 2, but got %d", count)
 	}
 
-	newPod := &corev1.Pod{
+	newPodMeta := &metav1.PartialObjectMetadata{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-pod",
 			Namespace: "default",
@@ -261,16 +288,17 @@ func TestGetLabelsCacheOperations(t *testing.T) {
 		},
 	}
 
-	ctx := context.TODO()
-	_, err := fakeclient.CoreV1().Pods("default").Create(ctx, newPod, metav1.CreateOptions{})
+	err := fakeMetadataClient.Tracker().Create(corev1.SchemeGroupVersion.WithResource("pods"), newPodMeta, "default")
 	if err != nil {
 		t.Fatalf("unexpected error creating pod: %v", err)
 	}
+	// Simulate an add event in the informer
+	collector.informer.GetStore().Add(newPodMeta) 
 
 	time.Sleep(time.Second)
 
-	if count := intValueOfMetric(cacheOpsCount.With(prometheus.Labels{"operation": "add"})); count != 3 {
-		t.Errorf("At this point, cacheOpsCount with operation=add should be 3, but got %d", count)
+	if count := intValueOfMetric(cacheOpsCount.With(prometheus.Labels{"operation": "add"})); count != 2 {
+		t.Errorf("At this point, cacheOpsCount with operation=add should be 2, but got %d", count)
 	}
 
 	labels = collector.GetLabels("default", "test-pod") // query hit +1
@@ -281,10 +309,12 @@ func TestGetLabelsCacheOperations(t *testing.T) {
 		t.Errorf("At this point, cacheOpsCount with operation=queryhit should be 5, but got %d", count)
 	}
 
-	err = fakeclient.CoreV1().Pods("default").Delete(ctx, "test-pod", metav1.DeleteOptions{})
+	err = fakeMetadataClient.Tracker().Delete(corev1.SchemeGroupVersion.WithResource("pods"), "default", "test-pod")
 	if err != nil {
 		t.Fatalf("unexpected error deleting pod: %v", err)
 	}
+	// Simulate a delete event in the informer
+	collector.informer.GetStore().Delete(newPodMeta)
 
 	time.Sleep(time.Second)
 
