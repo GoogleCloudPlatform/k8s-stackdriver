@@ -3,7 +3,7 @@ module github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver
 go 1.24.0
 
 require (
-	cloud.google.com/go/compute/metadata v0.5.0
+	cloud.google.com/go/compute/metadata v0.9.0
 	github.com/google/go-cmp v0.7.0
 	github.com/prometheus/client_golang v1.22.0
 	golang.org/x/oauth2 v0.27.0
