@@ -7,7 +7,7 @@ require (
 	github.com/google/gofuzz v1.2.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/common v0.66.1
-	golang.org/x/net v0.50.0
+	golang.org/x/net v0.51.0
 	golang.org/x/oauth2 v0.36.0
 	google.golang.org/api v0.265.0
 	k8s.io/apimachinery v0.35.2
