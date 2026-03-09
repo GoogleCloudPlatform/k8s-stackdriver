@@ -1,12 +1,12 @@
 module github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter
 
-go 1.24.0
+go 1.25.0
 
 require (
 	cloud.google.com/go/compute/metadata v0.9.0
 	github.com/google/go-cmp v0.7.0
 	github.com/prometheus/client_golang v1.22.0
-	golang.org/x/oauth2 v0.27.0
+	golang.org/x/oauth2 v0.36.0
 	google.golang.org/api v0.126.0
 	k8s.io/api v0.33.1
 	k8s.io/apimachinery v0.33.1
