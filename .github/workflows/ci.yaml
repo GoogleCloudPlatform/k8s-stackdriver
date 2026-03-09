@@ -37,7 +37,6 @@ jobs:
           - name: kubelet-to-gcm
             dir: kubelet-to-gcm
             build-target: compile
-    if: ${{ hashFiles(format('{0}/go.mod', matrix.component.dir)) != '' }}
     steps:
     - name: Check out code into the Go module directory
       uses: actions/checkout@v4
@@ -73,7 +72,6 @@ jobs:
           - name: kubelet-to-gcm
             dir: kubelet-to-gcm
             build-target: compile
-    if: ${{ hashFiles(format('{0}/go.mod', matrix.component.dir)) != '' }}
     steps:
     - name: Check out code into the Go module directory
       uses: actions/checkout@v4
@@ -101,8 +99,6 @@ jobs:
           - prometheus-to-sd
           - event-exporter
           - kubelet-to-gcm
-          - fluentd-gcp-scaler
-    if: ${{ hashFiles(format('{0}/Dockerfile', matrix.component)) != '' }}
     steps:
     - name: Check out code
       uses: actions/checkout@v4
