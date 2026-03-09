@@ -1,4 +1,4 @@
-# cloud.google.com/go/auth v0.18.1
+# cloud.google.com/go/auth v0.18.2
 ## explicit; go 1.24.0
 cloud.google.com/go/auth
 cloud.google.com/go/auth/credentials
@@ -99,11 +99,11 @@ github.com/google/s2a-go/stream
 # github.com/google/uuid v1.6.0
 ## explicit
 github.com/google/uuid
-# github.com/googleapis/enterprise-certificate-proxy v0.3.11
-## explicit; go 1.24.0
+# github.com/googleapis/enterprise-certificate-proxy v0.3.14
+## explicit; go 1.24.11
 github.com/googleapis/enterprise-certificate-proxy/client
 github.com/googleapis/enterprise-certificate-proxy/client/util
-# github.com/googleapis/gax-go/v2 v2.16.0
+# github.com/googleapis/gax-go/v2 v2.17.0
 ## explicit; go 1.24.0
 github.com/googleapis/gax-go/v2
 github.com/googleapis/gax-go/v2/apierror
@@ -202,7 +202,7 @@ go.yaml.in/yaml/v2
 # go.yaml.in/yaml/v3 v3.0.4
 ## explicit; go 1.16
 go.yaml.in/yaml/v3
-# golang.org/x/crypto v0.47.0
+# golang.org/x/crypto v0.48.0
 ## explicit; go 1.24.0
 golang.org/x/crypto/chacha20
 golang.org/x/crypto/chacha20poly1305
@@ -211,16 +211,17 @@ golang.org/x/crypto/cryptobyte/asn1
 golang.org/x/crypto/hkdf
 golang.org/x/crypto/internal/alias
 golang.org/x/crypto/internal/poly1305
-# golang.org/x/net v0.49.0
-## explicit; go 1.24.0
+# golang.org/x/net v0.51.0
+## explicit; go 1.25.0
 golang.org/x/net/http/httpguts
 golang.org/x/net/http2
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 golang.org/x/net/internal/httpcommon
+golang.org/x/net/internal/httpsfv
 golang.org/x/net/internal/timeseries
 golang.org/x/net/trace
-# golang.org/x/oauth2 v0.34.0
+# golang.org/x/oauth2 v0.35.0
 ## explicit; go 1.24.0
 golang.org/x/oauth2
 golang.org/x/oauth2/authhandler
@@ -235,17 +236,17 @@ golang.org/x/oauth2/jwt
 # golang.org/x/sync v0.19.0
 ## explicit; go 1.24.0
 golang.org/x/sync/semaphore
-# golang.org/x/sys v0.40.0
+# golang.org/x/sys v0.41.0
 ## explicit; go 1.24.0
 golang.org/x/sys/cpu
 golang.org/x/sys/plan9
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
-# golang.org/x/term v0.39.0
+# golang.org/x/term v0.40.0
 ## explicit; go 1.24.0
 golang.org/x/term
-# golang.org/x/text v0.33.0
+# golang.org/x/text v0.34.0
 ## explicit; go 1.24.0
 golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
@@ -254,8 +255,8 @@ golang.org/x/text/unicode/norm
 # golang.org/x/time v0.14.0
 ## explicit; go 1.24.0
 golang.org/x/time/rate
-# google.golang.org/api v0.265.0
-## explicit; go 1.24.0
+# google.golang.org/api v0.270.0
+## explicit; go 1.25.0
 google.golang.org/api/googleapi
 google.golang.org/api/internal
 google.golang.org/api/internal/cert
@@ -266,12 +267,12 @@ google.golang.org/api/iterator
 google.golang.org/api/option
 google.golang.org/api/option/internaloption
 google.golang.org/api/transport/grpc
-# google.golang.org/genproto v0.0.0-20251202230838-ff82c1b0f217
+# google.golang.org/genproto v0.0.0-20260128011058-8636f8732409
 ## explicit; go 1.24.0
 google.golang.org/genproto/googleapis/monitoring/v3
 google.golang.org/genproto/googleapis/type/calendarperiod
 google.golang.org/genproto/googleapis/type/timeofday
-# google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217
+# google.golang.org/genproto/googleapis/api v0.0.0-20260128011058-8636f8732409
 ## explicit; go 1.24.0
 google.golang.org/genproto/googleapis/api
 google.golang.org/genproto/googleapis/api/annotations
@@ -279,12 +280,12 @@ google.golang.org/genproto/googleapis/api/distribution
 google.golang.org/genproto/googleapis/api/label
 google.golang.org/genproto/googleapis/api/metric
 google.golang.org/genproto/googleapis/api/monitoredres
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20260128011058-8636f8732409
-## explicit; go 1.24.0
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20260226221140-a57be14db171
+## explicit; go 1.25.0
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails
 google.golang.org/genproto/googleapis/rpc/status
-# google.golang.org/grpc v1.78.0
+# google.golang.org/grpc v1.79.2
 ## explicit; go 1.24.0
 google.golang.org/grpc
 google.golang.org/grpc/attributes
@@ -322,6 +323,7 @@ google.golang.org/grpc/grpclog/internal
 google.golang.org/grpc/internal
 google.golang.org/grpc/internal/backoff
 google.golang.org/grpc/internal/balancer/gracefulswitch
+google.golang.org/grpc/internal/balancer/weight
 google.golang.org/grpc/internal/balancerload
 google.golang.org/grpc/internal/binarylog
 google.golang.org/grpc/internal/buffer
