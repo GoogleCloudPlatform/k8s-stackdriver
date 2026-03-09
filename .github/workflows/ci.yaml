@@ -99,7 +99,6 @@ jobs:
           - prometheus-to-sd
           - event-exporter
           - kubelet-to-gcm
-          - fluentd-gcp-scaler
     steps:
     - name: Check out code
       uses: actions/checkout@v4
