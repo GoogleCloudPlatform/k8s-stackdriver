@@ -5,9 +5,12 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
+	clientfeatures "k8s.io/client-go/features"
+	"k8s.io/client-go/metadata"
+
+	"k8s.io/client-go/metadata/metadatainformer"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog/v2"
 )
 
 // PodLabelCollector defines the interface for GetLabels for a namespace and pod name pair.
@@ -16,16 +19,17 @@ type PodLabelCollector interface {
 }
 
 type PodLabelsSharedInformerFactory struct {
-	factory informers.SharedInformerFactory
+	factory metadatainformer.SharedInformerFactory
 }
 
 func (f *PodLabelsSharedInformerFactory) Run(stopCh <-chan struct{}) {
 	f.factory.Start(stopCh)
 	f.factory.WaitForCacheSync(stopCh)
+	klog.Info("Cache synced!")
 }
 
 func (f *PodLabelsSharedInformerFactory) NewPodLabelsSharedInformer() *PodLabelsSharedInformer {
-	podInformer := f.factory.Core().V1().Pods().Informer()
+	podInformer := f.factory.ForResource(corev1.SchemeGroupVersion.WithResource("pods")).Informer()
 	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(_ any) {
 			recordAddition()
@@ -39,38 +43,57 @@ func (f *PodLabelsSharedInformerFactory) NewPodLabelsSharedInformer() *PodLabels
 	}
 }
 
-func NewPodLabelsSharedInformerFactory(client kubernetes.Interface, ignoredNamespaces []string) *PodLabelsSharedInformerFactory {
+type customFeatureGates struct {
+	clientfeatures.Gates
+	enableWatchListClient bool
+}
+
+func (c *customFeatureGates) Enabled(key clientfeatures.Feature) bool {
+	if key == clientfeatures.WatchListClient {
+		klog.Info("Enabled feature gate WatchListClient: ", c.enableWatchListClient)
+		return c.enableWatchListClient
+	}
+	return c.Gates.Enabled(key)
+}
+
+func NewPodLabelsSharedInformerFactory(client metadata.Interface, ignoredNamespaces []string, enableWatchListClient bool) *PodLabelsSharedInformerFactory {
+	// Set the custom feature gates based on the flag
+	clientfeatures.ReplaceFeatureGates(&customFeatureGates{
+		Gates:                 clientfeatures.FeatureGates(),
+		enableWatchListClient: enableWatchListClient,
+	})
+
 	ignoredNamespacesMap := make(map[string]struct{})
 	for _, ns := range ignoredNamespaces {
 		ignoredNamespacesMap[ns] = struct{}{}
 	}
 	return &PodLabelsSharedInformerFactory{
-		factory: informers.NewSharedInformerFactoryWithOptions(
+		factory: metadatainformer.NewSharedInformerFactoryWithOptions(
 			client,
 			0,
-			informers.WithTransform(func(obj interface{}) (interface{}, error) {
-				pod := obj.(*corev1.Pod)
-				if _, ok := ignoredNamespacesMap[pod.Namespace]; ok {
+			metadatainformer.WithTransform(func(obj interface{}) (interface{}, error) {
+				meta := obj.(*metav1.PartialObjectMetadata)
+				if _, ok := ignoredNamespacesMap[meta.Namespace]; ok {
 					return nil, nil
 				}
 				labels := make(map[string]string)
-				if v, ok := pod.Labels["pod-template-hash"]; ok {
+				if v, ok := meta.Labels["pod-template-hash"]; ok {
 					labels["pod-template-hash"] = v
 				}
-				if v, ok := pod.Labels[jobSetNameLabelKey]; ok {
+				if v, ok := meta.Labels[jobSetNameLabelKey]; ok {
 					labels[jobSetNameLabelKey] = v
 				}
-				if v, ok := pod.Labels[jobSetRestartAttemptLabelKey]; ok {
+				if v, ok := meta.Labels[jobSetRestartAttemptLabelKey]; ok {
 					labels[jobSetRestartAttemptLabelKey] = v
 				}
-				if v, ok := pod.Labels[jobsetUIDLabelKey]; ok {
+				if v, ok := meta.Labels[jobsetUIDLabelKey]; ok {
 					labels[jobsetUIDLabelKey] = v
 				}
-				return &corev1.Pod{
+				return &metav1.PartialObjectMetadata{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:            pod.Name,
-						Namespace:       pod.Namespace,
-						OwnerReferences: pod.OwnerReferences,
+						Name:            meta.Name,
+						Namespace:       meta.Namespace,
+						OwnerReferences: meta.OwnerReferences,
 						Labels:          labels,
 					},
 				}, nil
@@ -89,16 +112,16 @@ func (informer *PodLabelsSharedInformer) GetLabels(namespace, podName string) ma
 		recordQueryMiss()
 		return nil
 	}
-	pod := podItem.(*corev1.Pod)
+	meta := podItem.(*metav1.PartialObjectMetadata)
 	recordQueryHit()
-	return getLabelsFromPod(pod)
+	return getLabelsFromMeta(meta)
 }
 
 // get owner labels for go/gke-log-owner-label for non-system logs.
 // If there are multiple owners, the loop below picks the last valid one.
-func getLabelsFromPod(pod *corev1.Pod) map[string]string {
+func getLabelsFromMeta(meta *metav1.PartialObjectMetadata) map[string]string {
 	transformedLabels := map[string]string{}
-	for _, owner := range pod.GetObjectMeta().GetOwnerReferences() {
+	for _, owner := range meta.GetOwnerReferences() {
 		switch owner.Kind {
 		case "DaemonSet":
 			transformedLabels[ownerTypeKeyName] = "DaemonSet"
@@ -110,7 +133,7 @@ func getLabelsFromPod(pod *corev1.Pod) map[string]string {
 			// Pod that is eventually owned by Deployment has pod name:
 			// <DeploymentName>-<PodTemplateHash>-<RandomString>
 			// and owner replicaset name: <DeploymentName>-<PodTemplateHash>
-			if templateHashSuffix := "-" + pod.GetObjectMeta().GetLabels()["pod-template-hash"]; len(templateHashSuffix) > 1 {
+			if templateHashSuffix := "-" + meta.GetLabels()["pod-template-hash"]; len(templateHashSuffix) > 1 {
 				if ownerName, ok := strings.CutSuffix(owner.Name, templateHashSuffix); ok {
 					transformedLabels[ownerTypeKeyName] = "Deployment"
 					transformedLabels[ownerNameKeyName] = ownerName
@@ -123,16 +146,16 @@ func getLabelsFromPod(pod *corev1.Pod) map[string]string {
 				// and owner job name: <CronJobName>-<UnixTimeInMin>
 				transformedLabels[ownerTypeKeyName] = "CronJob"
 				transformedLabels[ownerNameKeyName] = ownerName
-			} else if jobsetName := pod.GetObjectMeta().GetLabels()[jobSetNameLabelKey]; jobsetName != "" {
+			} else if jobsetName := meta.GetLabels()[jobSetNameLabelKey]; jobsetName != "" {
 				// Pod that is eventually owned by a JobSet has the jobset name label set.
 				transformedLabels[ownerTypeKeyName] = "JobSet"
 				transformedLabels[ownerNameKeyName] = jobsetName
 
 				// Add restart_attempt and uid labels for JobSet events.
-				if restartAttempt, ok := pod.GetObjectMeta().GetLabels()[jobSetRestartAttemptLabelKey]; ok {
+				if restartAttempt, ok := meta.GetLabels()[jobSetRestartAttemptLabelKey]; ok {
 					transformedLabels[jobSetRestartAttemptLabelKey] = restartAttempt
 				}
-				if uid, ok := pod.GetObjectMeta().GetLabels()[jobsetUIDLabelKey]; ok {
+				if uid, ok := meta.GetLabels()[jobsetUIDLabelKey]; ok {
 					transformedLabels[jobsetUIDLabelKey] = uid
 				}
 			} else {
