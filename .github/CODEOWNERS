@@ -1,0 +1,16 @@
+# Default owner for the repository.
+* @erain
+
+# Repository-level configuration and shared docs.
+/.github/ @erain
+/README.md @erain
+/CONTRIBUTING.md @erain
+/hack/ @erain
+/archived/ @erain
+
+# Component ownership.
+/custom-metrics-stackdriver-adapter/ @juli4n
+/event-exporter/ @courageJ @erain
+/fluentd-gcp-scaler/ @erain
+/kubelet-to-gcm/ @erain
+/prometheus-to-sd/ @erain
