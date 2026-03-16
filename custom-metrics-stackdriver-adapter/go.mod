@@ -1,6 +1,6 @@
 module github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter
 
-go 1.25.0
+go 1.26.1
 
 require (
 	cloud.google.com/go/compute/metadata v0.9.0
