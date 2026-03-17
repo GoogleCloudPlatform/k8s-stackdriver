@@ -74,7 +74,7 @@ type EventWatcherConfig struct {
 // NewEventWatcher create a new watcher that only watches the events resource.
 func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) watchers.Watcher {
 	watchListFeatureGateEnabled := IsFeatureGateEnabled(client, "WatchList")
-	glog.Infof("Feature gate WatchList is enabled: %v", watchListFeatureGateEnabled)
+	glog.Infof("Feature gate WatchList is enabled: %v, config.ListerWatcherEnableStreaming: %v", watchListFeatureGateEnabled, config.ListerWatcherEnableStreaming)
 	return watchers.NewWatcher(&watchers.WatcherConfig{
 		// List and watch events in all namespaces.
 		ListerWatcher: &cache.ListWatch{
@@ -93,7 +93,6 @@ func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) wa
 					return list, err
 				}
 			},
-
 			WatchFunc: func(options meta_v1.ListOptions) (watch.Interface, error) {
 				options.LabelSelector = config.EventLabelSelector.String()
 				return client.CoreV1().Events(meta_v1.NamespaceAll).Watch(context.TODO(), options)
@@ -120,13 +119,16 @@ func streamingListEvents(client kubernetes.Interface, config *EventWatcherConfig
 	options.Watch = true
 	options.LabelSelector = config.EventLabelSelector.String()
 	options.AllowWatchBookmarks = true
+	glog.Infof("streamingListEvents started watching events with options: %v", options)
 
 	// Perform the streaming list (actually a Watch)
 	watcher, err := client.CoreV1().Events(meta_v1.NamespaceAll).Watch(context.TODO(), options)
 	if err != nil {
+		glog.Errorf("streamingListEvents failed to watch events: %v", err)
 		return nil, err
 	}
 	defer watcher.Stop()
+	glog.Infof("streamingListEvents started watching events")
 
 	// Call OnList once to start the sink (it just logs "Started watching")
 	config.OnList(&corev1.EventList{})
