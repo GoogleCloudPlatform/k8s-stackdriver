@@ -82,6 +82,8 @@ type stackdriverAdapterServerOptions struct {
 	ListFullCustomMetrics bool
 	// ExternalMetricsCacheTTL specifies the cache expiration time for external metrics.
 	ExternalMetricsCacheTTL time.Duration
+	// ExternalMetricsRequestWindow is the time window for Cloud Monitoring API queries (reqWindow).
+	ExternalMetricsRequestWindow time.Duration
 	// ExternalMetricsCacheSize specifies the maximum number of stored entries in the external metric cache.
 	ExternalMetricsCacheSize int
 	// MetricKindCacheTTL specifies the cache expiration time for metric kind information.
@@ -206,6 +208,7 @@ func main() {
 		EnableDistributionSupport:   false,
 		ListFullCustomMetrics:       false,
 		ExternalMetricsCacheSize:    defaultExternalMetricsCacheSize,
+		ExternalMetricsRequestWindow: 5 * time.Minute,
 		MetricKindCacheSize:         defaultMetricKindCacheSize,
 	}
 
@@ -231,6 +234,8 @@ func main() {
 		"The duration (e.g., 1m, 5s) for which external metric values are cached.")
 	flags.IntVar(&serverOptions.ExternalMetricsCacheSize, "external-metric-cache-size", serverOptions.ExternalMetricsCacheSize,
 		"The maximum number of entries in the external metric cache.")
+	flags.DurationVar(&serverOptions.ExternalMetricsRequestWindow, "external-metrics-request-window", serverOptions.ExternalMetricsRequestWindow,
+		"Time window for Cloud Monitoring API queries (e.g. 5m, 1h). Default: 5m.")
 	flags.DurationVar(&serverOptions.MetricKindCacheTTL, "metric-kind-cache-ttl", serverOptions.MetricKindCacheTTL,
 		"The duration (e.g., 1m, 5s) for which metric kind info calls are cached. Defaults to 0 which disables the metric kind cache.")
 	flags.IntVar(&serverOptions.MetricKindCacheSize, "metric-kind-cache-size", serverOptions.MetricKindCacheSize,
@@ -252,7 +257,7 @@ func main() {
 	}
 
 	// TODO(holubwicz): move duration config to server options
-	metricsProvider, translator := cmd.makeProviderOrDie(&serverOptions, 5*time.Minute, 1*time.Minute)
+	metricsProvider, translator := cmd.makeProviderOrDie(&serverOptions, serverOptions.ExternalMetricsRequestWindow, 1*time.Minute)
 	if serverOptions.EnableCustomMetricsAPI {
 		cmd.WithCustomMetrics(metricsProvider)
 	}
