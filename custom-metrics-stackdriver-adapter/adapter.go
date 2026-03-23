@@ -33,11 +33,13 @@ import (
 	stackdriver "google.golang.org/api/monitoring/v3"
 	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
 	genericapiserver "k8s.io/apiserver/pkg/server"
+	openapispec "k8s.io/kube-openapi/pkg/validation/spec"
 	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
 	customexternalmetrics "sigs.k8s.io/custom-metrics-apiserver/pkg/apiserver"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/component-base/logs"
 	"k8s.io/klog"
 	"sigs.k8s.io/metrics-server/pkg/api"
@@ -189,6 +191,12 @@ func main() {
 
 	if cmd.OpenAPIConfig == nil {
 		cmd.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(generatedopenapi.GetOpenAPIDefinitions, openapinamer.NewDefinitionNamer(api.Scheme, customexternalmetrics.Scheme))
+		cmd.OpenAPIConfig.GetDefinitionName = func(name string) (string, openapispec.Extensions) {
+			if name == "k8s.io/apimachinery/pkg/version.Info" {
+				return version.Info{}.OpenAPIModelName(), nil
+			}
+			return openapinamer.NewDefinitionNamer(api.Scheme, customexternalmetrics.Scheme).GetDefinitionName(name)
+		}
 		cmd.OpenAPIConfig.Info.Title = "custom-metrics-stackdriver-adapter"
 		cmd.OpenAPIConfig.Info.Version = "1.0.0"
 	}
