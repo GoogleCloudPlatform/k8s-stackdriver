@@ -34,13 +34,6 @@ import (
 	"k8s.io/apimachinery/pkg/selection"
 )
 
-func TestQueryBuilder_nil_translator(t *testing.T) {
-	_, err := NewQueryBuilder(nil, "my-metric-name").Build()
-	if err == nil {
-		t.Error("Expected nil translation error, but found nil")
-	}
-}
-
 func TestQueryBuilder_Both_Pods_PodNames_Provided(t *testing.T) {
 	translator, _ :=
 		NewFakeTranslator(2*time.Minute, time.Minute, "my-project", "my-cluster", "my-zone", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), true)
@@ -70,6 +63,7 @@ func TestTranslator_QueryBuilder_pod_Single(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
 		WithMetricKind("GAUGE").
 		WithMetricValueType("INT64").
@@ -111,6 +105,7 @@ func TestTranslator_QueryBuilder_prometheus_Single(t *testing.T) {
 	}
 	metricName := "prometheus.googleapis.com/foo"
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
 		WithMetricKind("GAUGE").
 		WithMetricValueType("INT64").
@@ -153,6 +148,7 @@ func TestTranslator_QueryBuilder_pod_SingleWithMetricSelector(t *testing.T) {
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
 		WithMetricKind("GAUGE").
 		WithMetricValueType("INT64").
@@ -196,6 +192,7 @@ func TestTranslator_QueryBuilder_prometheus_SingleWithMetricSelector(t *testing.
 	metricName := "prometheus.googleapis.com/foo/gauge"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
 		WithMetricKind("GAUGE").
 		WithMetricValueType("INT64").
@@ -290,6 +287,7 @@ func TestTranslator_QueryBuilder_pod_Multiple(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		WithPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}).
 		WithMetricKind("GAUGE").
 		WithMetricValueType("INT64").
@@ -337,6 +335,7 @@ func TestTranslator_QueryBuilder_prometheus_Multiple(t *testing.T) {
 	}
 	metricName := "prometheus.googleapis.com/foo/gauge"
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		WithPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}).
 		WithMetricKind("GAUGE").
 		WithMetricValueType("INT64").
@@ -385,6 +384,7 @@ func TestTranslator_QueryBuilder_pod_MultipleWithMetricSelctor(t *testing.T) {
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		WithPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}).
 		WithMetricKind("GAUGE").
 		WithMetricValueType("INT64").
@@ -427,6 +427,7 @@ func TestTranslator_QueryBuilder_Container_Single(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		AsContainerType().
 		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
 		WithMetricKind("GAUGE").
@@ -469,6 +470,7 @@ func TestTranslator_QueryBuilder_Container_SingleWithEmptyNamespace(t *testing.T
 	}
 	metricName := "my/custom/metric"
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		AsContainerType().
 		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
 		WithMetricKind("GAUGE").
@@ -534,6 +536,7 @@ func TestTranslator_QueryBuilder_Container_SingleWithMetricSelector(t *testing.T
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		AsContainerType().
 		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
 		WithMetricKind("GAUGE").
@@ -600,6 +603,7 @@ func TestTranslator_QueryBuilder_Container_Multiple(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		AsContainerType().
 		WithPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}).
 		WithMetricKind("GAUGE").
@@ -648,6 +652,7 @@ func TestTranslator_QueryBuilder_Container_MultipleEmptyNamespace(t *testing.T) 
 	}
 	metricName := "my/custom/metric"
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		AsContainerType().
 		WithPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}).
 		WithMetricKind("GAUGE").
@@ -696,6 +701,7 @@ func TestTranslator_QueryBuilder_Container_MultipleWithMetricSelctor(t *testing.
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		AsContainerType().
 		WithPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}).
 		WithMetricKind("GAUGE").
@@ -739,6 +745,7 @@ func TestQueryBuilder_Node(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		WithNodes(&v1.NodeList{Items: []v1.Node{node}}).
 		WithMetricKind("GAUGE").
 		WithMetricValueType("INT64").
@@ -778,6 +785,7 @@ func TestQueryBuilder_Multiple_Nodes(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		WithNodes(&v1.NodeList{Items: []v1.Node{node, node}}).
 		WithMetricKind("GAUGE").
 		WithMetricValueType("INT64").
@@ -817,7 +825,8 @@ func TestQueryBuilder_Node_withMetricSelector(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
-	request, err := NewQueryBuilder(translator, metricName).WithNodes(&v1.NodeList{Items: []v1.Node{node}}).WithMetricKind("GAUGE").WithMetricValueType("INT64").WithMetricSelector(metricSelector).Build()
+	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").WithNodes(&v1.NodeList{Items: []v1.Node{node}}).WithMetricKind("GAUGE").WithMetricValueType("INT64").WithMetricSelector(metricSelector).Build()
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -857,6 +866,7 @@ func TestTranslator_QueryBuilder_pod_legacyResourceModel(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		WithPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}).
 		WithMetricKind("GAUGE").
 		WithMetricValueType("INT64").
@@ -928,7 +938,7 @@ func TestTranslator_ListMetricDescriptors_legacyResourceType(t *testing.T) {
 }
 func TestTranslator_GetExternalMetricRequest_NoSelector(t *testing.T) {
 	translator, sdService := newFakeTranslatorForExternalMetrics(2*time.Minute, time.Minute, "my-project", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC))
-	request, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "GAUGE", "INT64", labels.NewSelector())
+	request, err := translator.GetExternalMetricRequest("my-project", "custom.googleapis.com/my/metric/name", "GAUGE", "INT64", labels.NewSelector())
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
@@ -950,7 +960,7 @@ func TestTranslator_GetExternalMetricRequest_CorrectSelector_Cumulative(t *testi
 	req3, _ := labels.NewRequirement("resource.labels.pod_name", selection.Exists, []string{})
 	req4, _ := labels.NewRequirement("resource.labels.namespace_name", selection.NotIn, []string{"default", "kube-system"})
 	req5, _ := labels.NewRequirement("metric.labels.my_label", selection.GreaterThan, []string{"86"})
-	request, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "CUMULATIVE", "INT64", labels.NewSelector().Add(*req1, *req2, *req3, *req4, *req5))
+	request, err := translator.GetExternalMetricRequest("my-project", "custom.googleapis.com/my/metric/name", "CUMULATIVE", "INT64", labels.NewSelector().Add(*req1, *req2, *req3, *req4, *req5))
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
@@ -974,7 +984,7 @@ func TestTranslator_GetExternalMetricRequest_DifferentProject(t *testing.T) {
 	translator, sdService := newFakeTranslatorForExternalMetrics(2*time.Minute, time.Minute, "my-project", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC))
 	req1, _ := labels.NewRequirement("resource.type", selection.Equals, []string{"k8s_pod"})
 	req2, _ := labels.NewRequirement("resource.labels.project_id", selection.Equals, []string{"other-project"})
-	request, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "CUMULATIVE", "INT64", labels.NewSelector().Add(*req1, *req2))
+	request, err := translator.GetExternalMetricRequest("other-project", "custom.googleapis.com/my/metric/name", "CUMULATIVE", "INT64", labels.NewSelector().Add(*req1, *req2))
 	if err != nil {
 		t.Fatalf("Translation error: %s", err)
 	}
@@ -993,7 +1003,7 @@ func TestTranslator_GetExternalMetricRequest_DifferentProject(t *testing.T) {
 
 func TestTranslator_GetExternalMetricRequest_InvalidLabel(t *testing.T) {
 	translator, _ := newFakeTranslatorForExternalMetrics(2*time.Minute, time.Minute, "my-project", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC))
-	_, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "GAUGE", "INT64", labels.SelectorFromSet(labels.Set{
+	_, err := translator.GetExternalMetricRequest("my-project", "custom.googleapis.com/my/metric/name", "GAUGE", "INT64", labels.SelectorFromSet(labels.Set{
 		"arbitrary-label": "foo",
 	}))
 	expectedError := NewLabelNotAllowedError("arbitrary-label")
@@ -1008,7 +1018,7 @@ func TestTranslator_GetExternalMetricRequest_OneInvalidRequirement(t *testing.T)
 	req2, _ := labels.NewRequirement("resource.labels.pod_name", selection.Exists, []string{})
 	req3, _ := labels.NewRequirement("resource.labels.namespace_name", selection.NotIn, []string{"default", "kube-system"})
 	req4, _ := labels.NewRequirement("metric.labels.my_label", selection.DoesNotExist, []string{})
-	_, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "GAUGE", "INT64", labels.NewSelector().Add(*req1, *req2, *req3, *req4))
+	_, err := translator.GetExternalMetricRequest("my-project", "custom.googleapis.com/my/metric/name", "GAUGE", "INT64", labels.NewSelector().Add(*req1, *req2, *req3, *req4))
 	expectedError := errors.NewBadRequest("Label selector with operator DoesNotExist is not allowed")
 	if *err.(*errors.StatusError) != *expectedError {
 		t.Errorf("Expected status error: %s, but received: %s", expectedError, err)
@@ -1027,6 +1037,7 @@ func TestTranslator_QueryBuilder_pod_Single_Distribution(t *testing.T) {
 	metricName := "my/custom/metric"
 	selector, _ := labels.Parse("reducer=REDUCE_PERCENTILE_50")
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
 		WithMetricKind("DELTA").
 		WithMetricValueType("DISTRIBUTION").
@@ -1070,6 +1081,7 @@ func TestTranslator_QueryBuilder_promethus_Single_Distribution(t *testing.T) {
 	metricName := "prometheus.googleapis.com/foo/gauge"
 	selector, _ := labels.Parse("reducer=REDUCE_PERCENTILE_50")
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
 		WithMetricKind("DELTA").
 		WithMetricValueType("DISTRIBUTION").
@@ -1257,6 +1269,7 @@ func TestTranslator_QueryBuilder_pod_SingleWithMetricSelector_Distribution(t *te
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test,reducer=REDUCE_PERCENTILE_99")
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
 		WithMetricKind("DELTA").
 		WithMetricValueType("DISTRIBUTION").
@@ -1301,6 +1314,7 @@ func TestTranslator_QueryBuilder_Container_Single_Distribution(t *testing.T) {
 	metricName := "my/custom/metric"
 	selector, _ := labels.Parse("reducer=REDUCE_PERCENTILE_50")
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		AsContainerType().
 		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
 		WithMetricKind("DELTA").
@@ -1345,6 +1359,7 @@ func TestTranslator_GetSDReqForContainer_SingleWithMetricSelector_Distribution(t
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test,reducer=REDUCE_PERCENTILE_99")
 	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
 		AsContainerType().
 		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
 		WithMetricKind("DELTA").
@@ -1392,7 +1407,7 @@ func TestTranslator_GetMetricKind_KindFoundInCache(t *testing.T) {
 
 	translator := newFakeTranslatorForGetMetricKind(2*time.Minute, time.Minute, testProjectID, time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), sdService, cache)
 
-	kind, value, err := translator.GetMetricKind("pubsub.googleapis.com/subscription/num_undelivered_messages", labels.Everything())
+	kind, value, err := translator.GetMetricKind(testProjectID, "pubsub.googleapis.com/subscription/num_undelivered_messages")
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
@@ -1419,7 +1434,7 @@ func TestTranslator_GetMetricKind_KindNotFoundInCache(t *testing.T) {
 	cache := newMetricKindCache(2, 10*time.Minute)
 	translator := newFakeTranslatorForGetMetricKind(2*time.Minute, time.Minute, testProjectID, time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), sdService, cache)
 
-	kind, value, err := translator.GetMetricKind(metricKind, labels.Everything())
+	kind, value, err := translator.GetMetricKind(testProjectID, metricKind)
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
@@ -1481,7 +1496,13 @@ func TestQueryBuilder_Node_Single_Distribution(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("reducer=REDUCE_PERCENTILE_95")
-	request, err := NewQueryBuilder(translator, metricName).WithNodes(&v1.NodeList{Items: []v1.Node{node}}).WithMetricKind("DELTA").WithMetricValueType("DISTRIBUTION").WithMetricSelector(metricSelector).Build()
+	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").
+		WithNodes(&v1.NodeList{Items: []v1.Node{node}}).
+		WithMetricsProject("my-project").
+		WithMetricKind("DELTA").
+		WithMetricValueType("DISTRIBUTION").
+		WithMetricSelector(metricSelector).Build()
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -1517,7 +1538,8 @@ func TestQueryBuilder_Node_SingleWithMetricSelector_Distribution(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test,reducer=REDUCE_PERCENTILE_95")
-	request, err := NewQueryBuilder(translator, metricName).WithNodes(&v1.NodeList{Items: []v1.Node{node}}).WithMetricKind("DELTA").WithMetricValueType("DISTRIBUTION").WithMetricSelector(metricSelector).Build()
+	request, err := NewQueryBuilder(translator, metricName).
+		WithMetricsProject("my-project").WithNodes(&v1.NodeList{Items: []v1.Node{node}}).WithMetricKind("DELTA").WithMetricValueType("DISTRIBUTION").WithMetricSelector(metricSelector).Build()
 	if err != nil {
 		t.Errorf("Translation error: %s", err)
 	}
@@ -1540,5 +1562,154 @@ func TestQueryBuilder_Node_SingleWithMetricSelector_Distribution(t *testing.T) {
 		AggregationAlignmentPeriod("60s")
 	if !reflect.DeepEqual(*request, *expectedRequest) {
 		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+	}
+}
+
+func TestRemoveKeyFromSelector(t *testing.T) {
+	testCases := []struct {
+		name           string
+		selector       string
+		keyToRemove    string
+		expectedResult string
+	}{
+		{
+			name:           "remove from middle",
+			selector:       "key1=val1,key2=val2,key3=val3",
+			keyToRemove:    "key2",
+			expectedResult: "key1=val1,key3=val3",
+		},
+		{
+			name:           "remove non-existent key",
+			selector:       "key1=val1,key2=val2",
+			keyToRemove:    "key3",
+			expectedResult: "key1=val1,key2=val2",
+		},
+		{
+			name:           "remove from empty selector",
+			selector:       "",
+			keyToRemove:    "key1",
+			expectedResult: "",
+		},
+		{
+			name:           "remove last key",
+			selector:       "key1=val1",
+			keyToRemove:    "key1",
+			expectedResult: "",
+		},
+		{
+			name:           "remove from selector with different operators",
+			selector:       "key1=val1,key2 in (v1,v2),!key3",
+			keyToRemove:    "key2",
+			expectedResult: "key1=val1,!key3",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			selector, err := labels.Parse(tc.selector)
+			if err != nil {
+				t.Fatalf("failed to parse selector %q: %v", tc.selector, err)
+			}
+
+			newSelector := removeKeyFromSelector(selector, tc.keyToRemove)
+
+			if newSelector.String() != tc.expectedResult {
+				t.Errorf("RemoveKeyFromSelector(%q, %q) = %q, want %q", tc.selector, tc.keyToRemove, newSelector.String(), tc.expectedResult)
+			}
+		})
+	}
+}
+
+func TestTranslator_MetricsHostProjectFromSelector(t *testing.T) {
+	translator, _ := newFakeTranslatorForExternalMetrics(2*time.Minute, time.Minute, "my-project", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC))
+	testCases := []struct {
+		name             string
+		selector         string
+		lookupLegacy     bool
+		expectedProject  string
+		expectedSelector string
+		expectError      bool
+	}{
+		{
+			name:             "Default project",
+			selector:         "metric.labels.foo=bar",
+			lookupLegacy:     true,
+			expectedProject:  "my-project",
+			expectedSelector: "metric.labels.foo=bar",
+		},
+		{
+			name:             "New project label",
+			selector:         "resource.labels.metrics_host_project_id=other-project,metric.labels.foo=bar",
+			lookupLegacy:     true,
+			expectedProject:  "other-project",
+			expectedSelector: "metric.labels.foo=bar",
+		},
+		{
+			name:             "Legacy project label - lookup enabled",
+			selector:         "resource.labels.project_id=other-project,metric.labels.foo=bar",
+			lookupLegacy:     true,
+			expectedProject:  "other-project",
+			expectedSelector: "resource.labels.project_id=other-project,metric.labels.foo=bar",
+		},
+		{
+			name:             "Legacy project label - lookup disabled",
+			selector:         "resource.labels.project_id=other-project,metric.labels.foo=bar",
+			lookupLegacy:     false,
+			expectedProject:  "my-project",
+			expectedSelector: "resource.labels.project_id=other-project,metric.labels.foo=bar",
+		},
+		{
+			name:             "New label takes precedence",
+			selector:         "resource.labels.metrics_host_project_id=new-project,resource.labels.project_id=legacy-project",
+			lookupLegacy:     true,
+			expectedProject:  "new-project",
+			expectedSelector: "resource.labels.project_id=legacy-project",
+		},
+		{
+			name:         "Invalid operator for new label",
+			selector:     "resource.labels.metrics_host_project_id!=other-project",
+			lookupLegacy: true,
+			expectError:  true,
+		},
+		{
+			name:         "Invalid operator for legacy label",
+			selector:     "resource.labels.project_id!=other-project",
+			lookupLegacy: true,
+			expectError:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			selector, err := labels.Parse(tc.selector)
+			if err != nil {
+				t.Fatalf("failed to parse selector %q: %v", tc.selector, err)
+			}
+
+			project, newSelector, err := translator.MetricsHostProjectFromSelector(selector, tc.lookupLegacy)
+
+			if tc.expectError {
+				if err == nil {
+					t.Errorf("Expected an error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if project != tc.expectedProject {
+				t.Errorf("Expected project %q, but got %q", tc.expectedProject, project)
+			}
+
+			expectedSelector, err := labels.Parse(tc.expectedSelector)
+			if err != nil {
+				t.Fatalf("failed to parse expected selector %q: %v", tc.expectedSelector, err)
+			}
+			if !reflect.DeepEqual(newSelector, expectedSelector) {
+				t.Errorf("Expected selector %q, but got %q", expectedSelector, newSelector)
+			}
+		})
 	}
 }
