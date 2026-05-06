@@ -17,7 +17,14 @@ limitations under the License.
 package main
 
 import (
+	"strings"
 	"testing"
+
+	generatedopenapi "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/api/generated/openapi"
+	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
+	"k8s.io/kube-openapi/pkg/validation/spec"
+	customexternalmetrics "sigs.k8s.io/custom-metrics-apiserver/pkg/apiserver"
+	"sigs.k8s.io/metrics-server/pkg/api"
 )
 
 var urltests = []struct {
@@ -71,5 +78,22 @@ func TestURLValidator(t *testing.T) {
 				t.Errorf("for url %v got %v, expect %v", tc.url, result, tc.expect)
 			}
 		})
+	}
+}
+
+func TestOpenAPIDefinitionsResolution(t *testing.T) {
+	namer := openapinamer.NewDefinitionNamer(api.Scheme, customexternalmetrics.Scheme)
+	definitions := generatedopenapi.GetOpenAPIDefinitions(func(name string) spec.Ref {
+		return spec.Ref{}
+	})
+	for gvk, typ := range customexternalmetrics.Scheme.AllKnownTypes() {
+		if !strings.Contains(gvk.Group, "metrics.k8s.io") || gvk.Version == "__internal" {
+			continue
+		}
+		typeName := typ.PkgPath() + "." + typ.Name()
+		resolvedName, _ := getDefinitionName(namer, typeName)
+		if _, ok := definitions[resolvedName]; !ok {
+			t.Errorf("OpenAPI definition for GVK %v (type name %q resolved to %q) not found in generated definitions", gvk, typeName, resolvedName)
+		}
 	}
 }
