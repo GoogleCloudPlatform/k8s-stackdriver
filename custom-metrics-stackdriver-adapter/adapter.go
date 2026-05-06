@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/adapter/translator"
@@ -190,12 +191,10 @@ func main() {
 	}
 
 	if cmd.OpenAPIConfig == nil {
-		cmd.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(generatedopenapi.GetOpenAPIDefinitions, openapinamer.NewDefinitionNamer(api.Scheme, customexternalmetrics.Scheme))
+		namer := openapinamer.NewDefinitionNamer(api.Scheme, customexternalmetrics.Scheme)
+		cmd.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(generatedopenapi.GetOpenAPIDefinitions, namer)
 		cmd.OpenAPIConfig.GetDefinitionName = func(name string) (string, openapispec.Extensions) {
-			if name == "k8s.io/apimachinery/pkg/version.Info" {
-				return version.Info{}.OpenAPIModelName(), nil
-			}
-			return openapinamer.NewDefinitionNamer(api.Scheme, customexternalmetrics.Scheme).GetDefinitionName(name)
+			return getDefinitionName(namer, name)
 		}
 		cmd.OpenAPIConfig.Info.Title = "custom-metrics-stackdriver-adapter"
 		cmd.OpenAPIConfig.Info.Version = "1.0.0"
@@ -278,6 +277,17 @@ func main() {
 	if err := cmd.Run(context.Background()); err != nil {
 		klog.Fatalf("unable to run custom metrics adapter: %v", err)
 	}
+}
+
+func getDefinitionName(namer *openapinamer.DefinitionNamer, name string) (string, openapispec.Extensions) {
+	if name == "k8s.io/apimachinery/pkg/version.Info" {
+		return version.Info{}.OpenAPIModelName(), nil
+	}
+	canonicalName := name
+	if strings.HasPrefix(name, "k8s.io/") {
+		canonicalName = "io.k8s." + strings.ReplaceAll(name[7:], "/", ".")
+	}
+	return namer.GetDefinitionName(canonicalName)
 }
 
 func runPrometheusMetricsServer(addr string) {
