@@ -2391,14 +2391,14 @@ func (s ListLocationsResponse) MarshalJSON() ([]byte, error) {
 type ListLogEntriesRequest struct {
 	// Filter: Optional. A filter that chooses which log entries to return. For
 	// more information, see Logging query language
-	// (https://{$universe.dns_names.final_documentation_domain}/logging/docs/view/logging-query-language).Only
+	// (https://docs.cloud.google.com/logging/docs/view/logging-query-language).Only
 	// log entries that match the filter are returned. An empty filter matches all
 	// log entries in the resources listed in resource_names. Referencing a parent
 	// resource that is not listed in resource_names will cause the filter to
 	// return no results. The maximum length of a filter is 20,000 characters.To
 	// make queries faster, you can make the filter more selective by using
 	// restrictions on indexed fields
-	// (https://{$universe.dns_names.final_documentation_domain}/logging/docs/view/logging-query-language#indexed-fields)
+	// (https://docs.cloud.google.com/logging/docs/view/logging-query-language#indexed-fields)
 	// as well as limit the time range of the query by adding range restrictions on
 	// the timestamp field.
 	Filter string `json:"filter,omitempty"`
@@ -2945,10 +2945,12 @@ type LogEntry struct {
 	// ErrorGroups: Output only. The Error Reporting
 	// (https://cloud.google.com/error-reporting) error groups associated with this
 	// LogEntry. Error Reporting sets the values for this field during error group
-	// creation.For more information, see View error details(
-	// https://cloud.google.com/error-reporting/docs/viewing-errors#view_error_details)This
-	// field isn't available during log routing
-	// (https://cloud.google.com/logging/docs/routing/overview)
+	// creation.This field is populated only when log entries are stored in Cloud
+	// Logging storage (Logs Explorer and Observability Analytics). It is not
+	// available for use in log sink filters, log-based metrics, or log-based
+	// alerts, and it is excluded from log exports (Cloud Storage, BigQuery, and
+	// Pub/Sub).For more information, see View error details(
+	// https://cloud.google.com/error-reporting/docs/viewing-errors#view_error_details)
 	ErrorGroups []*LogErrorGroup `json:"errorGroups,omitempty"`
 	// HttpRequest: Optional. Information about the HTTP request associated with
 	// this log entry, if applicable.
@@ -2999,6 +3001,12 @@ type LogEntry struct {
 	// Operation: Optional. Information about an operation associated with the log
 	// entry, if applicable.
 	Operation *LogEntryOperation `json:"operation,omitempty"`
+	// Otel: Optional. The structured OpenTelemetry protocol payload. Contains the
+	// OpenTelemetry Resource, Instrumentation Scope, and Entities attributes for
+	// this log as they are defined in the OTLP specification, and any other fields
+	// that do not have a direct analog in the LogEntry. See
+	// https://opentelemetry.io/docs/specs/otel/logs/data-model/
+	Otel googleapi.RawMessage `json:"otel,omitempty"`
 	// ProtoPayload: The log entry payload, represented as a protocol buffer. Some
 	// Google Cloud Platform services use this field for their log entry
 	// payloads.The following protocol buffer types are supported; user-defined
@@ -3170,10 +3178,13 @@ func (s LogEntrySourceLocation) MarshalJSON() ([]byte, error) {
 type LogErrorGroup struct {
 	// Id: The id is a unique identifier for a particular error group; it is the
 	// last part of the error group resource name:
-	// /project/[PROJECT_ID]/errors/[ERROR_GROUP_ID]. Example: COShysOX0r_51QE. The
-	// id is derived from key parts of the error-log content and is treated as
-	// Service Data. For information about how Service Data is handled, see Google
-	// Cloud Privacy Notice (https://cloud.google.com/terms/cloud-privacy-notice).
+	// /project/[PROJECT_ID]/errors/[ERROR_GROUP_ID]. Example: COShysOX0r_51QE.This
+	// field can be used to search for log entries belonging to a specific error
+	// group in Logs Explorer (e.g., error_groups.id = "ID") or Observability
+	// Analytics.The id is derived from key parts of the error-log content and is
+	// treated as Service Data. For information about how Service Data is handled,
+	// see Google Cloud Privacy Notice
+	// (https://cloud.google.com/terms/cloud-privacy-notice).
 	Id string `json:"id,omitempty"`
 	// ForceSendFields is a list of field names (e.g. "Id") to unconditionally
 	// include in API requests. By default, fields with empty or default values are
@@ -4817,7 +4828,8 @@ type SuppressionInfo struct {
 	//   "REASON_UNSPECIFIED" - Unexpected default.
 	//   "RATE_LIMIT" - Indicates suppression occurred due to relevant entries
 	// being received in excess of rate limits. For quotas and limits, see Logging
-	// API quotas and limits (https://cloud.google.com/logging/quotas#api-limits).
+	// API quotas and limits
+	// (https://docs.cloud.google.com/logging/quotas#api-limits).
 	//   "NOT_CONSUMED" - Indicates suppression occurred due to the client not
 	// consuming responses quickly enough.
 	Reason string `json:"reason,omitempty"`
@@ -4851,7 +4863,7 @@ type TailLogEntriesRequest struct {
 	BufferWindow string `json:"bufferWindow,omitempty"`
 	// Filter: Optional. A filter that chooses which log entries to return. For
 	// more information, see Logging query language
-	// (https://{$universe.dns_names.final_documentation_domain}/logging/docs/view/logging-query-language).Only
+	// (https://docs.cloud.google.com/logging/docs/view/logging-query-language).Only
 	// log entries that match the filter are returned. An empty filter matches all
 	// log entries in the resources listed in resource_names. Referencing a parent
 	// resource that is not listed in resource_names will cause the filter to
@@ -5029,14 +5041,14 @@ type WriteLogEntriesRequest struct {
 	// among the log entries that did not supply their own values, the entries
 	// earlier in the list will sort before the entries later in the list. See the
 	// entries.list method.Log entries with timestamps that are more than the logs
-	// retention period (https://cloud.google.com/logging/quotas) in the past or
-	// more than 24 hours in the future will not be available when calling
+	// retention period (https://docs.cloud.google.com/logging/quotas) in the past
+	// or more than 24 hours in the future will not be available when calling
 	// entries.list. However, those log entries can still be exported with LogSinks
-	// (https://cloud.google.com/logging/docs/api/tasks/exporting-logs).To improve
+	// (https://docs.cloud.google.com/logging/docs/routing/overview).To improve
 	// throughput and to avoid exceeding the quota limit
-	// (https://cloud.google.com/logging/quotas) for calls to entries.write, you
-	// should try to include several log entries in this list, rather than calling
-	// this method for each individual log entry.
+	// (https://docs.cloud.google.com/logging/quotas) for calls to entries.write,
+	// you should try to include several log entries in this list, rather than
+	// calling this method for each individual log entry.
 	Entries []*LogEntry `json:"entries,omitempty"`
 	// Labels: Optional. Default labels that are added to the labels field of all
 	// log entries in entries. If a log entry already has a label with the same key
@@ -6048,11 +6060,17 @@ type BillingAccountsLocationsListCall struct {
 	header_      http.Header
 }
 
-// List: Lists information about the supported locations for this service. This
-// method can be called in two ways: List all public locations: Use the path
-// GET /v1/locations. List project-visible locations: Use the path GET
-// /v1/projects/{project_id}/locations. This may include public locations as
-// well as private or other locations specifically visible to the project.
+// List: Lists information about the supported locations for this service.This
+// method lists locations based on the resource scope provided in the
+// ListLocationsRequest.name field: Global locations: If name is empty, the
+// method lists the public locations available to all projects.
+// Project-specific locations: If name follows the format projects/{project},
+// the method lists locations visible to that specific project. This includes
+// public, private, or other project-specific locations enabled for the
+// project.For gRPC and client library implementations, the resource name is
+// passed as the name field. For direct service calls, the resource name is
+// incorporated into the request path based on the specific service
+// implementation and version.
 //
 // - name: The resource that owns the locations collection, if applicable.
 func (r *BillingAccountsLocationsService) List(name string) *BillingAccountsLocationsListCall {
@@ -10828,8 +10846,8 @@ type EntriesListCall struct {
 
 // List: Lists log entries. Use this method to retrieve log entries that
 // originated from a project/folder/organization/billing account. For ways to
-// export log entries, see Exporting Logs
-// (https://cloud.google.com/logging/docs/export).
+// export log entries, see Routing overview
+// (https://docs.cloud.google.com/logging/docs/routing/overview).
 func (r *EntriesService) List(listlogentriesrequest *ListLogEntriesRequest) *EntriesListCall {
 	c := &EntriesListCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.listlogentriesrequest = listlogentriesrequest
@@ -12815,11 +12833,17 @@ type FoldersLocationsListCall struct {
 	header_      http.Header
 }
 
-// List: Lists information about the supported locations for this service. This
-// method can be called in two ways: List all public locations: Use the path
-// GET /v1/locations. List project-visible locations: Use the path GET
-// /v1/projects/{project_id}/locations. This may include public locations as
-// well as private or other locations specifically visible to the project.
+// List: Lists information about the supported locations for this service.This
+// method lists locations based on the resource scope provided in the
+// ListLocationsRequest.name field: Global locations: If name is empty, the
+// method lists the public locations available to all projects.
+// Project-specific locations: If name follows the format projects/{project},
+// the method lists locations visible to that specific project. This includes
+// public, private, or other project-specific locations enabled for the
+// project.For gRPC and client library implementations, the resource name is
+// passed as the name field. For direct service calls, the resource name is
+// incorporated into the request path based on the specific service
+// implementation and version.
 //
 // - name: The resource that owns the locations collection, if applicable.
 func (r *FoldersLocationsService) List(name string) *FoldersLocationsListCall {
@@ -18526,11 +18550,17 @@ type LocationsListCall struct {
 	header_      http.Header
 }
 
-// List: Lists information about the supported locations for this service. This
-// method can be called in two ways: List all public locations: Use the path
-// GET /v1/locations. List project-visible locations: Use the path GET
-// /v1/projects/{project_id}/locations. This may include public locations as
-// well as private or other locations specifically visible to the project.
+// List: Lists information about the supported locations for this service.This
+// method lists locations based on the resource scope provided in the
+// ListLocationsRequest.name field: Global locations: If name is empty, the
+// method lists the public locations available to all projects.
+// Project-specific locations: If name follows the format projects/{project},
+// the method lists locations visible to that specific project. This includes
+// public, private, or other project-specific locations enabled for the
+// project.For gRPC and client library implementations, the resource name is
+// passed as the name field. For direct service calls, the resource name is
+// incorporated into the request path based on the specific service
+// implementation and version.
 //
 // - name: The resource that owns the locations collection, if applicable.
 func (r *LocationsService) List(name string) *LocationsListCall {
@@ -23076,11 +23106,17 @@ type OrganizationsLocationsListCall struct {
 	header_      http.Header
 }
 
-// List: Lists information about the supported locations for this service. This
-// method can be called in two ways: List all public locations: Use the path
-// GET /v1/locations. List project-visible locations: Use the path GET
-// /v1/projects/{project_id}/locations. This may include public locations as
-// well as private or other locations specifically visible to the project.
+// List: Lists information about the supported locations for this service.This
+// method lists locations based on the resource scope provided in the
+// ListLocationsRequest.name field: Global locations: If name is empty, the
+// method lists the public locations available to all projects.
+// Project-specific locations: If name follows the format projects/{project},
+// the method lists locations visible to that specific project. This includes
+// public, private, or other project-specific locations enabled for the
+// project.For gRPC and client library implementations, the resource name is
+// passed as the name field. For direct service calls, the resource name is
+// incorporated into the request path based on the specific service
+// implementation and version.
 //
 // - name: The resource that owns the locations collection, if applicable.
 func (r *OrganizationsLocationsService) List(name string) *OrganizationsLocationsListCall {
@@ -29624,11 +29660,17 @@ type ProjectsLocationsListCall struct {
 	header_      http.Header
 }
 
-// List: Lists information about the supported locations for this service. This
-// method can be called in two ways: List all public locations: Use the path
-// GET /v1/locations. List project-visible locations: Use the path GET
-// /v1/projects/{project_id}/locations. This may include public locations as
-// well as private or other locations specifically visible to the project.
+// List: Lists information about the supported locations for this service.This
+// method lists locations based on the resource scope provided in the
+// ListLocationsRequest.name field: Global locations: If name is empty, the
+// method lists the public locations available to all projects.
+// Project-specific locations: If name follows the format projects/{project},
+// the method lists locations visible to that specific project. This includes
+// public, private, or other project-specific locations enabled for the
+// project.For gRPC and client library implementations, the resource name is
+// passed as the name field. For direct service calls, the resource name is
+// incorporated into the request path based on the specific service
+// implementation and version.
 //
 // - name: The resource that owns the locations collection, if applicable.
 func (r *ProjectsLocationsService) List(name string) *ProjectsLocationsListCall {
