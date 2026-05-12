@@ -35,6 +35,15 @@ const (
 	node = "Node"
 )
 
+// trustedNodeEventNamespaces enumerates the namespaces where Node-scoped
+// events legitimately originate (kubelet and the node controller use these).
+// Events from other namespaces are not attributed to a specific node.
+var trustedNodeEventNamespaces = map[string]bool{
+	"default":         true,
+	"kube-system":     true,
+	"kube-node-lease": true,
+}
+
 // Constructs monitored resources.
 type monitoredResourceFactory struct {
 	defaultResource *sd.MonitoredResource
@@ -70,23 +79,32 @@ func (f *monitoredResourceFactory) resourceFromEvent(event *corev1.Event) *sd.Mo
 		return f.defaultResource
 	}
 
-	var monitoredResource *sd.MonitoredResource
-
 	switch event.InvolvedObject.Kind {
 	case pod:
-		monitoredResource = f.buildPodMonitoredResource(event)
+		// The event's own metadata.namespace is the RBAC-enforced source
+		// of truth for where the event was created. Only emit a pod-scoped
+		// resource when the involved object's namespace agrees with it.
+		if event.Namespace != "" && event.Namespace == event.InvolvedObject.Namespace {
+			return f.buildPodMonitoredResource(event)
+		}
+		return f.defaultResource
 	case node:
-		monitoredResource = f.buildNodeMonitoredResource(event)
+		// Nodes are cluster-scoped, so there is no per-event namespace to
+		// cross-check. Restrict node attribution to events originating in
+		// namespaces where node-scoped events are expected.
+		if trustedNodeEventNamespaces[event.Namespace] {
+			return f.buildNodeMonitoredResource(event)
+		}
+		return f.defaultResource
 	default:
-		monitoredResource = f.defaultResource
+		return f.defaultResource
 	}
-	return monitoredResource
 }
 
 func (f *monitoredResourceFactory) buildPodMonitoredResource(event *corev1.Event) *sd.MonitoredResource {
 	labels := copyMap(f.commonLabels)
 	labels[podName] = event.InvolvedObject.Name
-	labels[namespaceName] = event.InvolvedObject.Namespace
+	labels[namespaceName] = event.Namespace
 
 	return &sd.MonitoredResource{
 		Type:   k8sPod,

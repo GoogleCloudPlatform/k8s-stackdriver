@@ -38,6 +38,9 @@ func TestFromEvent(t *testing.T) {
 	lastTimestamp := metav1.NewTime(time.Now())
 	lastObservedTime := metav1.NewMicroTime(time.Now())
 
+	trustedNodeEventNs := metav1.ObjectMeta{Namespace: "default"}
+	podEventNs := metav1.ObjectMeta{Namespace: "test_namespace"}
+
 	tests := []struct {
 		desc   string
 		event  *corev1.Event
@@ -46,6 +49,7 @@ func TestFromEvent(t *testing.T) {
 		{
 			desc: "core/v1 event API",
 			event: &corev1.Event{
+				ObjectMeta:     trustedNodeEventNs,
 				Type:           "Warning",
 				InvolvedObject: involvedNodeObject,
 				LastTimestamp:  lastTimestamp,
@@ -59,6 +63,7 @@ func TestFromEvent(t *testing.T) {
 		{
 			desc: "events/v1 event API",
 			event: &corev1.Event{
+				ObjectMeta:     trustedNodeEventNs,
 				Type:           "Warning",
 				InvolvedObject: involvedNodeObject,
 				Series: &corev1.EventSeries{
@@ -75,6 +80,7 @@ func TestFromEvent(t *testing.T) {
 		{
 			desc: "Timestamp not set",
 			event: &corev1.Event{
+				ObjectMeta:     trustedNodeEventNs,
 				Type:           "Warning",
 				InvolvedObject: involvedNodeObject,
 			},
@@ -86,6 +92,7 @@ func TestFromEvent(t *testing.T) {
 		{
 			desc: "Event type is not set",
 			event: &corev1.Event{
+				ObjectMeta:     trustedNodeEventNs,
 				InvolvedObject: involvedNodeObject,
 				LastTimestamp:  lastTimestamp,
 			},
@@ -98,6 +105,7 @@ func TestFromEvent(t *testing.T) {
 		{
 			desc: "Event type is not warning",
 			event: &corev1.Event{
+				ObjectMeta:     trustedNodeEventNs,
 				Type:           "Normal",
 				InvolvedObject: involvedNodeObject,
 				LastTimestamp:  lastTimestamp,
@@ -111,6 +119,7 @@ func TestFromEvent(t *testing.T) {
 		{
 			desc: "k8s pod event with pod labels",
 			event: &corev1.Event{
+				ObjectMeta:     podEventNs,
 				Type:           "Normal",
 				InvolvedObject: involvedPodObject,
 				LastTimestamp:  lastTimestamp,

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	sd "google.golang.org/api/logging/v2"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestMonitoredResourceFromEvent(t *testing.T) {
@@ -33,6 +34,7 @@ func TestMonitoredResourceFromEvent(t *testing.T) {
 		{
 			config: newTypesConfig,
 			event: &corev1.Event{
+				ObjectMeta:     metav1.ObjectMeta{Namespace: "test_pod_namespace"},
 				InvolvedObject: corev1.ObjectReference{Kind: pod, Name: "test_pod_name", Namespace: "test_pod_namespace"},
 			},
 			wanted: &sd.MonitoredResource{
@@ -47,8 +49,43 @@ func TestMonitoredResourceFromEvent(t *testing.T) {
 			},
 		},
 		{
+			// Pod event whose involvedObject namespace disagrees with the
+			// event's own metadata namespace must not be attributed to the
+			// claimed pod; fall back to the cluster resource.
 			config: newTypesConfig,
 			event: &corev1.Event{
+				ObjectMeta:     metav1.ObjectMeta{Namespace: "user_namespace"},
+				InvolvedObject: corev1.ObjectReference{Kind: pod, Name: "test_pod_name", Namespace: "kube-system"},
+			},
+			wanted: &sd.MonitoredResource{
+				Type: k8sCluster,
+				Labels: map[string]string{
+					clusterName: newTypesConfig.clusterName,
+					location:    newTypesConfig.location,
+					projectID:   newTypesConfig.projectID,
+				},
+			},
+		},
+		{
+			// Pod event with no event-level namespace cannot be attributed
+			// to a pod; fall back to the cluster resource.
+			config: newTypesConfig,
+			event: &corev1.Event{
+				InvolvedObject: corev1.ObjectReference{Kind: pod, Name: "test_pod_name", Namespace: "kube-system"},
+			},
+			wanted: &sd.MonitoredResource{
+				Type: k8sCluster,
+				Labels: map[string]string{
+					clusterName: newTypesConfig.clusterName,
+					location:    newTypesConfig.location,
+					projectID:   newTypesConfig.projectID,
+				},
+			},
+		},
+		{
+			config: newTypesConfig,
+			event: &corev1.Event{
+				ObjectMeta:     metav1.ObjectMeta{Namespace: "default"},
 				InvolvedObject: corev1.ObjectReference{Kind: node, Name: "test_node_name"},
 			},
 			wanted: &sd.MonitoredResource{
@@ -58,6 +95,39 @@ func TestMonitoredResourceFromEvent(t *testing.T) {
 					location:    newTypesConfig.location,
 					projectID:   newTypesConfig.projectID,
 					nodeName:    "test_node_name",
+				},
+			},
+		},
+		{
+			config: newTypesConfig,
+			event: &corev1.Event{
+				ObjectMeta:     metav1.ObjectMeta{Namespace: "kube-system"},
+				InvolvedObject: corev1.ObjectReference{Kind: node, Name: "test_node_name"},
+			},
+			wanted: &sd.MonitoredResource{
+				Type: k8sNode,
+				Labels: map[string]string{
+					clusterName: newTypesConfig.clusterName,
+					location:    newTypesConfig.location,
+					projectID:   newTypesConfig.projectID,
+					nodeName:    "test_node_name",
+				},
+			},
+		},
+		{
+			// Node event from a non-trusted namespace must not be
+			// attributed to the claimed node; fall back to cluster.
+			config: newTypesConfig,
+			event: &corev1.Event{
+				ObjectMeta:     metav1.ObjectMeta{Namespace: "user_namespace"},
+				InvolvedObject: corev1.ObjectReference{Kind: node, Name: "test_node_name"},
+			},
+			wanted: &sd.MonitoredResource{
+				Type: k8sCluster,
+				Labels: map[string]string{
+					clusterName: newTypesConfig.clusterName,
+					location:    newTypesConfig.location,
+					projectID:   newTypesConfig.projectID,
 				},
 			},
 		},
