@@ -41,7 +41,7 @@ clean:
 	rm -rf build
 
 .container:
-	docker buildx build . --pull -t $(IMAGE):$(TAG) $(BUILD_FLAGS) --load
+	docker buildx build . --pull -t '$(IMAGE):$(TAG)' $(BUILD_FLAGS) --load
 
 .sub-container-%:
 	$(MAKE) --no-print-directory ARCH=$* .container
@@ -49,7 +49,7 @@ clean:
 container-multiarch:  $(addprefix .sub-container-,$(ALL_ARCH))
 
 .push: .container
-	docker push $(IMAGE):$(TAG)
+	docker push '$(IMAGE):$(TAG)'
 
 push: .push
 
@@ -57,11 +57,11 @@ push: .push
 	$(MAKE) --no-print-directory ARCH=$* .push
 
 push-multiarch: $(addprefix .sub-push-,$(ALL_ARCH))
-	docker manifest create --amend $(IMAGE):$(TAG) $(addprefix $(IMAGE):$(TAG)-, $(ALL_ARCH))
+	docker manifest create --amend '$(IMAGE):$(TAG)' $(foreach arch,$(ALL_ARCH),'$(IMAGE):$(TAG)-$(arch)')
 	for arch in $(ALL_ARCH); do \
-	  docker manifest annotate --os=linux --arch=$$arch $(IMAGE):$(TAG) $(IMAGE):$(TAG)-$$arch; \
+	  docker manifest annotate --os=linux --arch=$$arch '$(IMAGE):$(TAG)' '$(IMAGE):$(TAG)-'$$arch; \
 	done
-	docker manifest push -p $(IMAGE):$(TAG)
+	docker manifest push -p '$(IMAGE):$(TAG)'
 
 clean:
 	rm -rf monitor
