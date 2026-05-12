@@ -21,8 +21,8 @@ PREFIX=staging-k8s.gcr.io
 TAG = 0.5.5
 
 build:
-	docker build --pull -t $(PREFIX)/fluentd-gcp-scaler:$(TAG) .
+	docker build --pull -t '$(PREFIX)/fluentd-gcp-scaler:$(TAG)' .
 
 
 push:
-	gcloud docker -- push $(PREFIX)/fluentd-gcp-scaler:$(TAG)
+	gcloud docker -- push '$(PREFIX)/fluentd-gcp-scaler:$(TAG)'
