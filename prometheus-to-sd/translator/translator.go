@@ -215,7 +215,7 @@ func filterWhitelistedMetrics(allMetrics map[string]*dto.MetricFamily, whitelist
 		return allMetrics
 	}
 	glog.V(4).Infof("Exporting only whitelisted metrics: %v", whitelisted)
-	res := map[string]*dto.MetricFamily{}
+	res := make(map[string]*dto.MetricFamily, len(whitelisted))
 	for _, w := range whitelisted {
 		if family, found := allMetrics[w]; found {
 			res[w] = family
@@ -231,7 +231,7 @@ func filterWhitelistedLabels(allMetrics map[string]*dto.MetricFamily, whiteliste
 		return allMetrics
 	}
 	glog.V(4).Infof("Exporting only whitelisted label values: %v", whitelistedLabelsMap)
-	res := map[string]*dto.MetricFamily{}
+	res := make(map[string]*dto.MetricFamily)
 	for metricName, metricFamily := range allMetrics {
 		var filteredMetrics []*dto.Metric
 		for _, metric := range metricFamily.Metric {
