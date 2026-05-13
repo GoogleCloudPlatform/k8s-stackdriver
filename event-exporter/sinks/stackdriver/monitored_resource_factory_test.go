@@ -85,7 +85,7 @@ func TestMonitoredResourceFromEvent(t *testing.T) {
 		{
 			config: newTypesConfig,
 			event: &corev1.Event{
-				ObjectMeta:     metav1.ObjectMeta{Namespace: "default"},
+				ObjectMeta:     metav1.ObjectMeta{Namespace: "kube-system"},
 				InvolvedObject: corev1.ObjectReference{Kind: node, Name: "test_node_name"},
 			},
 			wanted: &sd.MonitoredResource{
@@ -101,7 +101,7 @@ func TestMonitoredResourceFromEvent(t *testing.T) {
 		{
 			config: newTypesConfig,
 			event: &corev1.Event{
-				ObjectMeta:     metav1.ObjectMeta{Namespace: "kube-system"},
+				ObjectMeta:     metav1.ObjectMeta{Namespace: "kube-node-lease"},
 				InvolvedObject: corev1.ObjectReference{Kind: node, Name: "test_node_name"},
 			},
 			wanted: &sd.MonitoredResource{
@@ -115,7 +115,25 @@ func TestMonitoredResourceFromEvent(t *testing.T) {
 			},
 		},
 		{
-			// Node event from a non-trusted namespace must not be
+			// The "default" namespace is writable by ordinary workloads
+			// under standard RBAC, so node attribution from there is not
+			// trusted; fall back to cluster.
+			config: newTypesConfig,
+			event: &corev1.Event{
+				ObjectMeta:     metav1.ObjectMeta{Namespace: "default"},
+				InvolvedObject: corev1.ObjectReference{Kind: node, Name: "test_node_name"},
+			},
+			wanted: &sd.MonitoredResource{
+				Type: k8sCluster,
+				Labels: map[string]string{
+					clusterName: newTypesConfig.clusterName,
+					location:    newTypesConfig.location,
+					projectID:   newTypesConfig.projectID,
+				},
+			},
+		},
+		{
+			// Node event from any other non-trusted namespace must not be
 			// attributed to the claimed node; fall back to cluster.
 			config: newTypesConfig,
 			event: &corev1.Event{

@@ -35,11 +35,11 @@ const (
 	node = "Node"
 )
 
-// trustedNodeEventNamespaces enumerates the namespaces where Node-scoped
-// events legitimately originate (kubelet and the node controller use these).
-// Events from other namespaces are not attributed to a specific node.
+// trustedNodeEventNamespaces enumerates the namespaces from which Node-scoped
+// events are accepted for node attribution. These are system namespaces that
+// are not writable by ordinary workloads under standard RBAC. Events from
+// other namespaces fall back to the default cluster-scoped resource.
 var trustedNodeEventNamespaces = map[string]bool{
-	"default":         true,
 	"kube-system":     true,
 	"kube-node-lease": true,
 }

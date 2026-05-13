@@ -38,7 +38,7 @@ func TestFromEvent(t *testing.T) {
 	lastTimestamp := metav1.NewTime(time.Now())
 	lastObservedTime := metav1.NewMicroTime(time.Now())
 
-	trustedNodeEventNs := metav1.ObjectMeta{Namespace: "default"}
+	trustedNodeEventNs := metav1.ObjectMeta{Namespace: "kube-system"}
 	podEventNs := metav1.ObjectMeta{Namespace: "test_namespace"}
 
 	tests := []struct {
