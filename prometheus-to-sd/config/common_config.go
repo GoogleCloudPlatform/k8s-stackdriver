@@ -17,8 +17,10 @@ limitations under the License.
 package config
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/url"
+	"path/filepath"
 	"strings"
 
 	dto "github.com/prometheus/client_model/go"
@@ -114,6 +116,9 @@ func parseAuthConfig(url url.URL) (*AuthConfig, error) {
 	authPassword := values.Get("authPassword")
 
 	if len(authToken) == 0 && len(authTokenFile) > 0 {
+		if !isValidTokenFile(authTokenFile) {
+			return nil, fmt.Errorf("invalid authTokenFile path")
+		}
 		buff, err := ioutil.ReadFile(authTokenFile)
 		if err != nil {
 			return nil, err
@@ -126,4 +131,17 @@ func parseAuthConfig(url url.URL) (*AuthConfig, error) {
 		Password: authPassword,
 		Token:    authToken,
 	}, nil
+}
+
+func isValidTokenFile(path string) bool {
+	if path == "" || !filepath.IsAbs(path) {
+		return false
+	}
+	cleaned := filepath.Clean(path)
+	for _, prefix := range []string{"/var/run/secrets/", "/etc/secrets/", "/etc/prometheus/"} {
+		if strings.HasPrefix(cleaned, prefix) {
+			return true
+		}
+	}
+	return false
 }
