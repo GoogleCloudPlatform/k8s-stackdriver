@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/config"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/metrics/pkg/apis/external_metrics"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 
@@ -317,4 +319,53 @@ func compareExternalMetricValue(a, b external_metrics.ExternalMetricValue) bool 
 		return false
 	}
 	return reflect.DeepEqual(a.MetricLabels, b.MetricLabels)
+}
+
+func TestStackdriverProvider_GetExternalMetric_DataRace(t *testing.T) {
+	mockRoundTripper := newMockExternalMetricRoundTripper(
+		testMetricName,
+		testSelector,
+		baseTimeSeriesResponse,
+	)
+	mockSDService := translator.NewMockStackdriverService(t, mockRoundTripper)
+	fakeTranslator := newFakeTranslator(t, mockSDService)
+	p := &StackdriverProvider{
+		stackdriverService:   mockSDService,
+		config:               &config.GceConfig{Project: testProjectID},
+		translator:           fakeTranslator,
+		externalMetricsCache: newExternalMetricsCache(5, time.Minute),
+	}
+
+	// Call once first to populate cache
+	_, err := p.GetExternalMetric(context.Background(), testNamespace, testSelector, testMetricInfo)
+	if err != nil {
+		t.Fatalf("Failed to populate cache: %v", err)
+	}
+
+	// Spawn goroutines to concurrently query and mutate the returned
+	// response kind/version
+	var wg sync.WaitGroup
+	concurrency := 10
+
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			resp, err := p.GetExternalMetric(context.Background(), testNamespace, testSelector, testMetricInfo)
+			if err != nil {
+				t.Errorf("GetExternalMetric() error = %v", err)
+				return
+			}
+			// Mimic the Kubernetes APIServer response serialization behavior:
+			// Mutating TypeMeta (APIVersion/Kind) concurrently on the returned struct.
+			gvk := schema.GroupVersionKind{
+				Group:   "external.metrics.k8s.io",
+				Version: fmt.Sprintf("v%d", id), // Use different versions to force string header changes
+				Kind:    "ExternalMetricValueList",
+			}
+			resp.GetObjectKind().SetGroupVersionKind(gvk)
+		}(i)
+	}
+
+	wg.Wait()
 }

@@ -331,7 +331,7 @@ func (p *StackdriverProvider) GetExternalMetric(ctx context.Context, namespace s
 			info:           info,
 		}
 		if cachedValue, ok := p.externalMetricsCache.get(key); ok {
-			return cachedValue, nil
+			return cachedValue.DeepCopy(), nil
 		}
 	}
 
@@ -371,7 +371,7 @@ func (p *StackdriverProvider) GetExternalMetric(ctx context.Context, namespace s
 		p.externalMetricsCache.add(key, resp)
 	}
 
-	return resp, nil
+	return resp.DeepCopy(), nil
 }
 
 // ListAllExternalMetrics returns a list of available external metrics.
