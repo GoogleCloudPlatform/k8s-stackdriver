@@ -519,18 +519,14 @@ func (t *Translator) ListMetricDescriptors(fallbackForContainerMetrics bool) *st
 // GetMetricKind returns metricKind for metric metricName, obtained from Stackdriver Monitoring API.
 func (t *Translator) GetMetricKind(metricName string, metricSelector labels.Selector) (string, string, error) {
 	metricProj := t.config.Project
-	cacheKey := metricKindCacheKey{
-		project: metricProj,
-		name:    metricName,
-	}
-	if value, ok := t.metricKindCache.get(cacheKey); ok {
-		return value.MetricKind, value.ValueType, nil
-	}
 
 	requirements, selectable := metricSelector.Requirements()
 	if !selectable {
 		return "", "", apierr.NewBadRequest(fmt.Sprintf("Label selector is impossible to match: %s", metricSelector))
 	}
+
+	// Resolve the target project ID from the label selectors (if any) before
+	// checking the metrics cache.
 	for _, req := range requirements {
 		if req.Key() == "resource.labels.project_id" {
 			if req.Operator() == selection.Equals || req.Operator() == selection.DoubleEquals {
@@ -540,6 +536,15 @@ func (t *Translator) GetMetricKind(metricName string, metricSelector labels.Sele
 			return "", "", NewLabelNotAllowedError(fmt.Sprintf("Project selector must use '=' or '==': You used %s", req.Operator()))
 		}
 	}
+
+	cacheKey := metricKindCacheKey{
+		project: metricProj,
+		name:    metricName,
+	}
+	if value, ok := t.metricKindCache.get(cacheKey); ok {
+		return value.MetricKind, value.ValueType, nil
+	}
+
 	response, err := t.service.Projects.MetricDescriptors.Get(fmt.Sprintf("projects/%s/metricDescriptors/%s", metricProj, metricName)).Do()
 	if err != nil {
 		return "", "", NewNoSuchMetricError(metricName, err)

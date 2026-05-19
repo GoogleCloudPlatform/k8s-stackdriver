@@ -1542,3 +1542,46 @@ func TestQueryBuilder_Node_SingleWithMetricSelector_Distribution(t *testing.T) {
 		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
 	}
 }
+
+func TestTranslator_GetMetricKind_CacheKeyIsolation(t *testing.T) {
+	metricName := "custom.googleapis.com/metric_name"
+	metricKind := "CUMULATIVE"
+	customProject := "project-A"
+
+	// Cloud Monitoring service that returns custom.googleapis.com/metric_name
+	// metric descriptor for project-A
+	sdService := NewMockStackdriverService(t, &mockMetricKindRoundTripper{
+		wantMetricName:  metricName,
+		wantProjectName: customProject,
+		response: &sd.MetricDescriptor{
+			Type:       metricName,
+			MetricKind: metricKind,
+			ValueType:  "INT64",
+		},
+	})
+	cache := newMetricKindCache(2, 10*time.Minute)
+	translator := newFakeTranslatorForGetMetricKind(2*time.Minute, time.Minute, testProjectID, time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC), sdService, cache)
+
+	// Specify project selector in the metric selector that's different from
+	// the default project ID (testProjectID)
+	selector, _ := labels.Parse("resource.labels.project_id=" + customProject)
+	gotKind, _, err := translator.GetMetricKind(metricName, selector)
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+	if gotKind != metricKind {
+		t.Errorf("GetMetricKind(%s, %v) metric kind = %q, want %q", metricName, selector, gotKind, metricKind)
+	}
+
+	// Verify it's cached under the correct customProject key
+	keyA := metricKindCacheKey{project: customProject, name: metricName}
+	if _, found := translator.metricKindCache.get(keyA); !found {
+		t.Errorf("metricKindCache.get(%v) = false, want true", keyA)
+	}
+
+	// Verify it is NOT cached under the default project key
+	keyDefault := metricKindCacheKey{project: testProjectID, name: metricName}
+	if _, found := translator.metricKindCache.get(keyDefault); found {
+		t.Errorf("metricKindCache.get(%v) = true, want false", keyDefault)
+	}
+}
