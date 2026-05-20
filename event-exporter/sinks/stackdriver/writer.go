@@ -48,9 +48,10 @@ func newSdWriter(service *sd.Service) sdWriter {
 // unless the API returns BadRequest error.
 func (w sdWriterImpl) Write(entries []*sd.LogEntry, logName string, resource *sd.MonitoredResource) {
 	req := &sd.WriteLogEntriesRequest{
-		Entries:  entries,
-		LogName:  logName,
-		Resource: resource,
+		Entries:        entries,
+		LogName:        logName,
+		Resource:       resource,
+		PartialSuccess: true,
 	}
 
 	// We retry forever, until request either succeeds or API returns
