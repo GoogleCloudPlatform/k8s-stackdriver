@@ -433,7 +433,7 @@ func translateCPU(cpu *stats.CPUStats, tsFactory *timeSeriesFactory, startTime t
 		return nil, fmt.Errorf("CPU information missing.")
 	}
 	if cpu.UsageCoreNanoSeconds == nil {
-		return nil, fmt.Errorf("UsageCoreNanoSeconds missing from CPUStats %v", cpu)
+		return nil, fmt.Errorf("UsageCoreNanoSeconds missing from CPUStats")
 	}
 	// Only send cpu usage metric if start time is before current time. Right after container is started, kubelet can return start time == end time.
 	if !cpu.Time.Time.After(startTime) {
@@ -491,7 +491,7 @@ func translateFS(volume string, fs *stats.FsStats, tsFactory *timeSeriesFactory,
 	}
 	if diskTotalMD != nil {
 		if fs.CapacityBytes == nil {
-			return nil, fmt.Errorf("CapacityBytes is missing from FsStats %v", fs)
+			return nil, fmt.Errorf("CapacityBytes is missing from FsStats")
 		}
 		// Total disk available.
 		diskTotalPoint := tsFactory.newPoint(&v3.TypedValue{
@@ -503,7 +503,7 @@ func translateFS(volume string, fs *stats.FsStats, tsFactory *timeSeriesFactory,
 
 	if diskUsedMD != nil {
 		if fs.UsedBytes == nil {
-			return nil, fmt.Errorf("UsedBytes is missing from FsStats %v", fs)
+			return nil, fmt.Errorf("UsedBytes is missing from FsStats")
 		}
 		// Total disk used.
 		diskUsedPoint := tsFactory.newPoint(&v3.TypedValue{
@@ -545,7 +545,7 @@ func translateMemory(memory *stats.MemoryStats, tsFactory *timeSeriesFactory, st
 
 	if memUsedMD != nil {
 		if memory.WorkingSetBytes == nil {
-			return nil, fmt.Errorf("WorkingSetBytes information missing in MemoryStats %v", memory)
+			return nil, fmt.Errorf("WorkingSetBytes information missing in MemoryStats")
 		}
 		// Non-evictable memory.
 		nonEvictMemPoint := tsFactory.newPoint(&v3.TypedValue{
