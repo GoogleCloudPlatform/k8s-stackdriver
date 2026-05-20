@@ -59,12 +59,12 @@ func (c *externalMetricsCache) get(key cacheKey) (*external_metrics.ExternalMetr
 		return nil, false
 	}
 
-	return metrics, true
+	return metrics.DeepCopy(), true
 }
 
 func (c *externalMetricsCache) add(key cacheKey, value *external_metrics.ExternalMetricValueList) {
 	if c.cache == nil {
 		return
 	}
-	c.cache.Add(key, value, c.ttl)
+	c.cache.Add(key, value.DeepCopy(), c.ttl)
 }
