@@ -104,7 +104,9 @@ func metaDataURI(resource string) string {
 
 // getGCEMetaData hits the instance's MD server.
 func getGCEMetaData(uri string) ([]byte, error) {
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
 	req, err := http.NewRequest("GET", uri, nil)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create request %q for GCE metadata: %v", uri, err)

@@ -19,6 +19,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	v3 "google.golang.org/api/monitoring/v3"
 
@@ -38,7 +39,9 @@ func NewSource(cfg *monitor.SourceConfig) (*Source, error) {
 	trans := NewTranslator(cfg.Zone, cfg.Project, cfg.Cluster, cfg.Instance, cfg.Resolution)
 
 	// NewClient validates its own inputs.
-	client, err := NewClient(cfg.Host, cfg.Port, &http.Client{})
+	client, err := NewClient(cfg.Host, cfg.Port, &http.Client{
+		Timeout: 5 * time.Second,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create a controller client with config %v: %v", cfg, err)
 	}
