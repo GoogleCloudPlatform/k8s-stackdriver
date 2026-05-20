@@ -21,16 +21,18 @@ type Schema struct {
 }
 
 const (
-	PodSchemaKey        = "pod"               // PodSchemaKey is the key to use pod type filter schema.
-	ContainerSchemaKey  = "container"         // ContainerSchemaKey is the key to use container type filter schema.
-	PrometheusSchemaKey = "prometheus"        // PrometheusSchemaKey is the key to use prometheus type filter schema.
-	NodeSchemaKey       = "node"              // NodeSchemaKey is the key to use node type filter schema
-	LegacySchemaKey     = "legacy"            // LegacySchemaKey is the key to use legacy pod type filter schema.
-	PodType             = "k8s_pod"           // PodType is the resource value for pod type. (also used in the query)
-	ContainerType       = "k8s_container"     // ContainerType is the resource value for container type. (also used in the query)
-	NodeType            = "k8s_node"          // NodeType is the resource value for node type. (also used in the query)
-	PrometheusType      = "prometheus_target" // PrometheusType is the resource value for prometheus type. (also used in the query)
-	LegacyType          = "<not_allowed>"     // LegacyType is the resource value for legacy type. (NOT used in the query)
+	PodSchemaKey          = "pod"                   // PodSchemaKey is the key to use pod type filter schema.
+	PodContainerSchemaKey = "pod_container"         // PodContainerSchemaKey is the key to use pod or container type filter schema.
+	ContainerSchemaKey    = "container"             // ContainerSchemaKey is the key to use container type filter schema.
+	PrometheusSchemaKey   = "prometheus"            // PrometheusSchemaKey is the key to use prometheus type filter schema.
+	NodeSchemaKey         = "node"                  // NodeSchemaKey is the key to use node type filter schema
+	LegacySchemaKey       = "legacy"                // LegacySchemaKey is the key to use legacy pod type filter schema.
+	PodType               = "k8s_pod"               // PodType is the resource value for pod type. (also used in the query)
+	PodContainerType      = "k8s_pod,k8s_container" // PodContainerType is the resource value for pod or container type. (also used in the query)
+	ContainerType         = "k8s_container"         // ContainerType is the resource value for container type. (also used in the query)
+	NodeType              = "k8s_node"              // NodeType is the resource value for node type. (also used in the query)
+	PrometheusType        = "prometheus_target"     // PrometheusType is the resource value for prometheus type. (also used in the query)
+	LegacyType            = "<not_allowed>"         // LegacyType is the resource value for legacy type. (NOT used in the query)
 )
 
 var (
@@ -44,6 +46,9 @@ var (
 		namespace:    "resource.labels.namespace_name",
 		pods:         "resource.labels.pod_name",
 	}
+	// PodContainerSchema is the predefined schema for building pod/container type queries,
+	// and it uses the same schema as pod type.
+	PodContainerSchema = PodSchema
 	// ContainerSchema is the predefined schema for building container type queries,
 	// and it uses the same schema as pod type.
 	ContainerSchema = PodSchema
@@ -79,11 +84,12 @@ var (
 	}
 	// SchemaTypes is a collection of all FilterBuilder supported resource types for external uses.
 	SchemaTypes = map[string]string{
-		PodSchemaKey:        PodType,
-		ContainerSchemaKey:  ContainerType,
-		PrometheusSchemaKey: PrometheusType,
-		NodeSchemaKey:       NodeType,
-		LegacySchemaKey:     LegacyType,
+		PodSchemaKey:          PodType,
+		PodContainerSchemaKey: PodContainerType,
+		ContainerSchemaKey:    ContainerType,
+		PrometheusSchemaKey:   PrometheusType,
+		NodeSchemaKey:         NodeType,
+		LegacySchemaKey:       LegacyType,
 	}
 )
 
@@ -107,6 +113,8 @@ func NewFilterBuilder(resourceType string) FilterBuilder {
 	switch resourceType {
 	case PodType:
 		schema = PodSchema
+	case PodContainerType:
+		schema = PodContainerSchema
 	case ContainerType:
 		schema = ContainerSchema
 	case PrometheusType:
@@ -121,7 +129,11 @@ func NewFilterBuilder(resourceType string) FilterBuilder {
 	filters := []string{}
 	// in legacy resource model, it doesn't use resource.type
 	if resourceType != LegacyType && schema.resourceType != "" {
-		filters = append(filters, fmt.Sprintf("%s = %q", schema.resourceType, resourceType))
+		if strings.Contains(resourceType, ",") {
+			filters = append(filters, fmt.Sprintf("%s = one_of(%s)", schema.resourceType, resourceType))
+		} else {
+			filters = append(filters, fmt.Sprintf("%s = %q", schema.resourceType, resourceType))
+		}
 	}
 	return FilterBuilder{
 		schema:  schema,
