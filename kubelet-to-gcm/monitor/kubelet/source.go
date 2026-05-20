@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"time"
 
 	v3 "google.golang.org/api/monitoring/v3"
 
@@ -41,7 +42,9 @@ func NewSource(cfg *monitor.SourceConfig) (*Source, error) {
 	trans := NewTranslator(cfg.Zone, cfg.Project, cfg.Cluster, cfg.ClusterLocation, cfg.Instance, cfg.InstanceID, cfg.SchemaPrefix, cfg.MonitoredResourceLabels, cfg.Resolution)
 
 	// NewClient validates its own inputs.
-	httpClient := &http.Client{}
+	httpClient := &http.Client{
+		Timeout: 5 * time.Second,
+	}
 	var err error
 	useAuthPort := false
 	if cfg.CertificateLocation != "" {
@@ -101,6 +104,7 @@ func getSecuredHttpClient(certLocation string) (*http.Client, error) {
 		return nil, fmt.Errorf("failed to parse kubelet certificate")
 	}
 	return &http.Client{
+		Timeout: 5 * time.Second,
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
 				RootCAs: certPool,
