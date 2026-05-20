@@ -22,6 +22,7 @@ import (
 
 	generatedopenapi "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/api/generated/openapi"
 	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
+	builder3 "k8s.io/kube-openapi/pkg/builder3"
 	"k8s.io/kube-openapi/pkg/validation/spec"
 	customexternalmetrics "sigs.k8s.io/custom-metrics-apiserver/pkg/apiserver"
 	"sigs.k8s.io/metrics-server/pkg/api"
@@ -94,6 +95,22 @@ func TestOpenAPIDefinitionsResolution(t *testing.T) {
 		resolvedName, _ := getDefinitionName(namer, typeName)
 		if _, ok := definitions[resolvedName]; !ok {
 			t.Errorf("OpenAPI definition for GVK %v (type name %q resolved to %q) not found in generated definitions", gvk, typeName, resolvedName)
+		}
+	}
+}
+
+func TestOpenAPIV3DefinitionsResolution(t *testing.T) {
+	cmd := &StackdriverAdapter{}
+	configureOpenAPI(cmd)
+
+	names := []string{
+		"io.k8s.metrics.pkg.apis.custom_metrics.v1beta1.MetricValueList",
+		"io.k8s.metrics.pkg.apis.custom_metrics.v1beta2.MetricValueList",
+		"io.k8s.metrics.pkg.apis.external_metrics.v1beta1.ExternalMetricValueList",
+	}
+	for _, name := range names {
+		if _, err := builder3.BuildOpenAPIDefinitionsForResources(cmd.OpenAPIV3Config, name); err != nil {
+			t.Errorf("OpenAPI v3 definition for %q not found: %v", name, err)
 		}
 	}
 }
