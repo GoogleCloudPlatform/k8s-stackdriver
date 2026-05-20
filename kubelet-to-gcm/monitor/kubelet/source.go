@@ -77,7 +77,7 @@ func (s *Source) GetTimeSeriesReq() (*v3.CreateTimeSeriesRequest, error) {
 	// Translate kubelet's data to GCM v3's format.
 	tsReq, err := s.translator.Translate(summary)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to translate data from summary %v: %v", summary, err)
+		return nil, fmt.Errorf("Failed to translate data from summary: %v", err)
 	}
 
 	return tsReq, nil
