@@ -291,8 +291,9 @@ func getDefinitionName(namer *openapinamer.DefinitionNamer, name string) (string
 }
 
 func runPrometheusMetricsServer(addr string) {
-	http.Handle("/metrics", promhttp.Handler())
-	err := http.ListenAndServe(addr, nil)
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+	err := http.ListenAndServe(addr, mux)
 	klog.Fatalf("Failed server: %s", err)
 }
 
