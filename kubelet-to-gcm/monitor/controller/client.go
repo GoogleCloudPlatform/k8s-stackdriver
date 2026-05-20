@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -81,7 +82,7 @@ type Client struct {
 // NewClient generates a client to hit the given controller.
 func NewClient(host string, port uint, client *http.Client) (*Client, error) {
 	// Parse our URL upfront, so we can fail fast.
-	urlStr := fmt.Sprintf("http://%s:%d/metrics", host, port)
+	urlStr := fmt.Sprintf("http://%s/metrics", net.JoinHostPort(host, fmt.Sprint(port)))
 	metricsURL, err := url.Parse(urlStr)
 	if err != nil {
 		return nil, err
