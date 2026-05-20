@@ -293,6 +293,10 @@ func getEndpoint(input string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("Failed to parse api override: %v", err)
 	}
+	hostname := u.Hostname()
+	if hostname != "googleapis.com" && !strings.HasSuffix(hostname, ".googleapis.com") {
+		return "", fmt.Errorf("untrusted endpoint %q: must be a googleapis.com domain", hostname)
+	}
 	port := u.Port()
 	if port == "" {
 		switch u.Scheme {
