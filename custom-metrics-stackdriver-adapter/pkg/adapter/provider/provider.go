@@ -331,7 +331,7 @@ func (p *StackdriverProvider) GetExternalMetric(ctx context.Context, namespace s
 			info:           info,
 		}
 		if cachedValue, ok := p.externalMetricsCache.get(key); ok {
-			return cachedValue, nil
+			return cachedValue.DeepCopy(), nil
 		}
 	}
 
@@ -369,6 +369,7 @@ func (p *StackdriverProvider) GetExternalMetric(ctx context.Context, namespace s
 			info:           info,
 		}
 		p.externalMetricsCache.add(key, resp)
+		return resp.DeepCopy(), nil
 	}
 
 	return resp, nil
