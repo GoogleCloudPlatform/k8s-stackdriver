@@ -34,8 +34,8 @@ import (
 	stackdriver "google.golang.org/api/monitoring/v3"
 	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
 	genericapiserver "k8s.io/apiserver/pkg/server"
-	openapispec "k8s.io/kube-openapi/pkg/validation/spec"
 	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
+	openapispec "k8s.io/kube-openapi/pkg/validation/spec"
 	customexternalmetrics "sigs.k8s.io/custom-metrics-apiserver/pkg/apiserver"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 
@@ -190,15 +190,7 @@ func main() {
 		},
 	}
 
-	if cmd.OpenAPIConfig == nil {
-		namer := openapinamer.NewDefinitionNamer(api.Scheme, customexternalmetrics.Scheme)
-		cmd.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(generatedopenapi.GetOpenAPIDefinitions, namer)
-		cmd.OpenAPIConfig.GetDefinitionName = func(name string) (string, openapispec.Extensions) {
-			return getDefinitionName(namer, name)
-		}
-		cmd.OpenAPIConfig.Info.Title = "custom-metrics-stackdriver-adapter"
-		cmd.OpenAPIConfig.Info.Version = "1.0.0"
-	}
+	configureOpenAPI(cmd)
 
 	flags := cmd.Flags()
 	klog.InitFlags(flag.CommandLine)
@@ -276,6 +268,27 @@ func main() {
 	}
 	if err := cmd.Run(context.Background()); err != nil {
 		klog.Fatalf("unable to run custom metrics adapter: %v", err)
+	}
+}
+
+func configureOpenAPI(cmd *StackdriverAdapter) {
+	namer := openapinamer.NewDefinitionNamer(api.Scheme, customexternalmetrics.Scheme)
+	resolveDefinitionName := func(name string) (string, openapispec.Extensions) {
+		return getDefinitionName(namer, name)
+	}
+
+	if cmd.OpenAPIConfig == nil {
+		cmd.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(generatedopenapi.GetOpenAPIDefinitions, namer)
+		cmd.OpenAPIConfig.GetDefinitionName = resolveDefinitionName
+		cmd.OpenAPIConfig.Info.Title = "custom-metrics-stackdriver-adapter"
+		cmd.OpenAPIConfig.Info.Version = "1.0.0"
+	}
+
+	if cmd.OpenAPIV3Config == nil {
+		cmd.OpenAPIV3Config = genericapiserver.DefaultOpenAPIV3Config(generatedopenapi.GetOpenAPIDefinitions, namer)
+		cmd.OpenAPIV3Config.GetDefinitionName = resolveDefinitionName
+		cmd.OpenAPIV3Config.Info.Title = "custom-metrics-stackdriver-adapter"
+		cmd.OpenAPIV3Config.Info.Version = "1.0.0"
 	}
 }
 
