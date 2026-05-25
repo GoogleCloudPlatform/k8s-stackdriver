@@ -741,7 +741,7 @@ func (t *Translator) filterForSelector(metricSelector labels.Selector, allowedLa
 		case selection.In:
 			if isAllowedLabelName(req.Key(), allowedLabelPrefixes, allowedFullLabelNames) {
 				if len(l) == 1 {
-					filters = append(filters, fmt.Sprintf("%s = %s", req.Key(), l[0]))
+					filters = append(filters, fmt.Sprintf("%s = %q", req.Key(), l[0]))
 				} else {
 					filters = append(filters, fmt.Sprintf("%s = one_of(%s)", req.Key(), strings.Join(quoteAll(l), ",")))
 				}
@@ -751,7 +751,7 @@ func (t *Translator) filterForSelector(metricSelector labels.Selector, allowedLa
 		case selection.NotIn:
 			if isAllowedLabelName(req.Key(), allowedLabelPrefixes, allowedFullLabelNames) {
 				if len(l) == 1 {
-					filters = append(filters, fmt.Sprintf("%s != %s", req.Key(), l[0]))
+					filters = append(filters, fmt.Sprintf("%s != %q", req.Key(), l[0]))
 				} else {
 					filters = append(filters, fmt.Sprintf("NOT %s = one_of(%s)", req.Key(), strings.Join(quoteAll(l), ",")))
 				}

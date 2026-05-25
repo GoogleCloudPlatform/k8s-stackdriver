@@ -991,6 +991,29 @@ func TestTranslator_GetExternalMetricRequest_DifferentProject(t *testing.T) {
 	}
 }
 
+func TestTranslator_GetExternalMetricRequest_SingleInAndNotIn(t *testing.T) {
+	translator, sdService := newFakeTranslatorForExternalMetrics(2*time.Minute, time.Minute, "my-project", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC))
+	req1, _ := labels.NewRequirement("resource.type", selection.Equals, []string{"k8s_pod"})
+	req2, _ := labels.NewRequirement("resource.labels.namespace_name", selection.In, []string{"default"})
+	req3, _ := labels.NewRequirement("resource.labels.pod_name", selection.NotIn, []string{"kube-system"})
+	request, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "CUMULATIVE", "INT64", labels.NewSelector().Add(*req1, *req2, *req3))
+	if err != nil {
+		t.Fatalf("Translation error: %s", err)
+	}
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter("metric.type = \"custom.googleapis.com/my/metric/name\" " +
+			"AND resource.labels.namespace_name = \"default\" " +
+			"AND resource.labels.pod_name != \"kube-system\" " +
+			"AND resource.type = \"k8s_pod\"").
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:02:00Z").
+		AggregationPerSeriesAligner("ALIGN_RATE").
+		AggregationAlignmentPeriod("60s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected \n%v,\n received: \n%v", *expectedRequest, *request)
+	}
+}
+
 func TestTranslator_GetExternalMetricRequest_InvalidLabel(t *testing.T) {
 	translator, _ := newFakeTranslatorForExternalMetrics(2*time.Minute, time.Minute, "my-project", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC))
 	_, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "GAUGE", "INT64", labels.SelectorFromSet(labels.Set{
