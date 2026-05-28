@@ -66,6 +66,11 @@ func (s *watcherStore) Delete(obj interface{}) error {
 	return nil
 }
 
+func (s *watcherStore) Replace(_ []interface{}, _ string) error {
+	// List responses are handled by watcher-specific OnList callbacks.
+	return nil
+}
+
 func newWatcherStore(config *WatcherStoreConfig) *watcherStore {
 	var cacheStorage cache.ReflectorStore
 	switch config.StorageType {
