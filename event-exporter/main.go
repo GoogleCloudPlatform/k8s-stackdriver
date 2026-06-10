@@ -33,6 +33,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"k8s.io/apimachinery/pkg/labels"
+	clientfeatures "k8s.io/client-go/features"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/rest"
@@ -49,9 +50,24 @@ var (
 	enablePodOwnerLabel          = flag.Bool("enable-pod-owner-label", true, "Whether to enable the pod label collector to add pod owner labels to log entries")
 	eventLabelSelector           = flag.String("event-label-selector", "", "Export events only if they match the given label selector. Same syntax as kubectl label")
 	listerWatcherOptionsLimit    = flag.Int64("lister-watcher-options-limit", 100, "Maximum number of responses to return for a list call on events watch. Larger the number, higher the memory event-exporter will consume. No limits when set to 0.")
-	listerWatcherEnableStreaming = flag.Bool("lister-watcher-enable-streaming", false, "Enable watch streaming for lister watcher to prevent all the unhandled events get loaded into memory at once. Instead, events will be processed one by one. If this flag is set to true, lister-watcher-options-limit will be ignored.")
+	listerWatcherEnableStreaming = flag.Bool("lister-watcher-enable-streaming", false, "Establish the initial state via the WatchList streaming API (KEP-3157) instead of paginated list requests. Falls back to regular list requests if the API server does not support streaming; in that case lister-watcher-options-limit still applies.")
 	storageType                  = flag.String("storage-type", "DeltaFIFOStorage", "What storage should be used as a cache for the watcher. Supported sotrage type: SimpleStorage, TTLStorage and DeltaFIFOStorage.")
 )
+
+// watchListClientFeatureGates overrides the client-go WatchListClient feature
+// gate, which makes Reflectors establish their initial state via a watch-list
+// stream (KEP-3157) instead of paginated list requests.
+type watchListClientFeatureGates struct {
+	clientfeatures.Gates
+	enableWatchListClient bool
+}
+
+func (g *watchListClientFeatureGates) Enabled(key clientfeatures.Feature) bool {
+	if key == clientfeatures.WatchListClient {
+		return g.enableWatchListClient
+	}
+	return g.Gates.Enabled(key)
+}
 
 func newSystemStopChannel() chan struct{} {
 	ch := make(chan struct{})
@@ -96,6 +112,14 @@ func main() {
 	defer glog.Flush()
 	flag.Parse()
 
+	// The gate is global and read by every Reflector at construction, both
+	// the events watcher and the pod-labels informer.
+	clientfeatures.ReplaceFeatureGates(&watchListClientFeatureGates{
+		Gates:                 clientfeatures.FeatureGates(),
+		enableWatchListClient: *listerWatcherEnableStreaming,
+	})
+	glog.Infof("Client-go feature gate WatchListClient enabled: %v", *listerWatcherEnableStreaming)
+
 	client, err := newKubernetesClient()
 	if err != nil {
 		glog.Fatalf("Failed to initialize kubernetes client: %v", err)
@@ -109,7 +133,7 @@ func main() {
 	var informer podlabels.PodLabelCollector = nil
 	stopCh := newSystemStopChannel()
 	if *enablePodOwnerLabel {
-		factory := podlabels.NewPodLabelsSharedInformerFactory(metadataClient, strings.Split(*systemNamespaces, ","), *listerWatcherEnableStreaming)
+		factory := podlabels.NewPodLabelsSharedInformerFactory(metadataClient, strings.Split(*systemNamespaces, ","))
 		informer = factory.NewPodLabelsSharedInformer()
 		factory.Run(stopCh)
 	}
@@ -136,7 +160,7 @@ func main() {
 		glog.Fatalf("Unsupported storage type:%v.", *storageType)
 	}
 
-	eventExporter := newEventExporter(client, sink, *resyncPeriod, parsedLabelSelector, *listerWatcherOptionsLimit, *listerWatcherEnableStreaming, st)
+	eventExporter := newEventExporter(client, sink, *resyncPeriod, parsedLabelSelector, *listerWatcherOptionsLimit, st)
 
 	// Expose the Prometheus http endpoint
 	go func() {
