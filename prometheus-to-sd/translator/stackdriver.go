@@ -97,7 +97,7 @@ func getMetricDescriptors(ctx context.Context, client *monitoring.MetricClient, 
 		}
 		if err != nil {
 			glog.Warningf("Error while fetching metric descriptors for %v: %v", config.SourceConfig.Component, err)
-			return metrics, nil
+			return nil, err
 		}
 		if _, metricName, err := parseMetricType(config, metricDescriptor.Type); err == nil {
 			metrics[metricName] = metricDescriptor
