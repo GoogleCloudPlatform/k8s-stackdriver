@@ -138,7 +138,7 @@ func isValidTokenFile(path string) bool {
 		return false
 	}
 	cleaned := filepath.Clean(path)
-	for _, prefix := range []string{"/var/run/secrets/", "/etc/secrets/", "/etc/prometheus/"} {
+	for _, prefix := range []string{"/var/run/secrets/", "/etc/secrets/", "/etc/prometheus/", "/etc/srv/kubernetes/", "/etc/srv/"} {
 		if strings.HasPrefix(cleaned, prefix) {
 			return true
 		}

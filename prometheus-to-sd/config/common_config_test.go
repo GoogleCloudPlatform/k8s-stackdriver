@@ -32,6 +32,7 @@ func TestIsValidTokenFile(t *testing.T) {
 		{"/var/run/secrets/sub/token", true},
 		{"/etc/secrets/my-token", true},
 		{"/etc/prometheus/token", true},
+		{"/etc/srv/kubernetes/my-token", true},
 		{"/etc/passwd", false},
 		{"/var/run/secrets/../../etc/passwd", false},
 		{"relative/path", false},
