@@ -28,6 +28,7 @@ import (
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/podlabels"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/watchers"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/sharding"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/sinks/stackdriver"
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -51,6 +52,9 @@ var (
 	listerWatcherOptionsLimit    = flag.Int64("lister-watcher-options-limit", 100, "Maximum number of responses to return for a list call on events watch. Larger the number, higher the memory event-exporter will consume. No limits when set to 0.")
 	listerWatcherEnableStreaming = flag.Bool("lister-watcher-enable-streaming", false, "Enable watch streaming for lister watcher to prevent all the unhandled events get loaded into memory at once. Instead, events will be processed one by one. If this flag is set to true, lister-watcher-options-limit will be ignored.")
 	storageType                  = flag.String("storage-type", "DeltaFIFOStorage", "What storage should be used as a cache for the watcher. Supported sotrage type: SimpleStorage, TTLStorage and DeltaFIFOStorage.")
+
+	totalShards = flag.Int("total-shards", 1, "Total number of event-exporter replicas (shards). Each event is exported by exactly one shard, chosen by hashing the involved object's UID. All replicas must run with the same value. 1 disables sharding.")
+	shardID     = flag.Int("shard-id", -1, "ID of this shard, in [0, total-shards). -1 derives the ID from the ordinal suffix of the pod hostname, which works for StatefulSet replicas.")
 )
 
 func newSystemStopChannel() chan struct{} {
@@ -106,6 +110,14 @@ func main() {
 		glog.Fatalf("Failed to initialize metadata client: %v", err)
 	}
 
+	sharder, err := sharding.NewFromFlags(*shardID, *totalShards)
+	if err != nil {
+		glog.Fatalf("Failed to initialize sharding: %v", err)
+	}
+	if sharder.Enabled() {
+		glog.Infof("Sharding enabled: this replica is shard %d of %d, events are sharded by involved object UID", sharder.ShardID(), sharder.TotalShards())
+	}
+
 	var informer podlabels.PodLabelCollector = nil
 	stopCh := newSystemStopChannel()
 	if *enablePodOwnerLabel {
@@ -136,7 +148,7 @@ func main() {
 		glog.Fatalf("Unsupported storage type:%v.", *storageType)
 	}
 
-	eventExporter := newEventExporter(client, sink, *resyncPeriod, parsedLabelSelector, *listerWatcherOptionsLimit, *listerWatcherEnableStreaming, st)
+	eventExporter := newEventExporter(client, sink, *resyncPeriod, parsedLabelSelector, *listerWatcherOptionsLimit, *listerWatcherEnableStreaming, st, sharder)
 
 	// Expose the Prometheus http endpoint
 	go func() {
