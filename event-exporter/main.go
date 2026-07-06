@@ -29,6 +29,8 @@ import (
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/podlabels"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/watchers"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/sharding"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/sinks"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/sinks/local"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/sinks/stackdriver"
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -56,6 +58,8 @@ var (
 
 	totalShards = flag.Int("total-shards", 1, "Total number of event-exporter replicas (shards). Each event is exported by exactly one shard, chosen by hashing the involved object's UID. All replicas must run with the same value. 1 disables sharding.")
 	shardID     = flag.Int("shard-id", -1, "ID of this shard, in [0, total-shards). -1 derives the ID from the ordinal suffix of the pod hostname, which works for StatefulSet replicas.")
+
+	sinkType = flag.String("sink", "stackdriver", "Sink to export events to. Supported: stackdriver, local (writes events as JSON lines to stdout, for testing).")
 )
 
 func newSystemStopChannel() chan struct{} {
@@ -133,7 +137,17 @@ func main() {
 		factory.Run(stopCh)
 	}
 
-	sink, err := stackdriver.NewSdSinkFactory().CreateNew(strings.Split(*sinkOpts, " "), informer)
+	var sinkFactory sinks.SinkFactory
+	switch *sinkType {
+	case "stackdriver":
+		sinkFactory = stackdriver.NewSdSinkFactory()
+	case "local":
+		sinkFactory = local.NewFactory()
+	default:
+		glog.Fatalf("Unsupported sink type: %v", *sinkType)
+	}
+
+	sink, err := sinkFactory.CreateNew(strings.Split(*sinkOpts, " "), informer)
 	if err != nil {
 		glog.Fatalf("Failed to initialize sink: %v", err)
 	}
