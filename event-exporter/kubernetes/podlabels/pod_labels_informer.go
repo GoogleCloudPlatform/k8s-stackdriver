@@ -89,11 +89,24 @@ func NewPodLabelsSharedInformerFactory(client metadata.Interface, ignoredNamespa
 				if v, ok := meta.Labels[jobsetUIDLabelKey]; ok {
 					labels[jobsetUIDLabelKey] = v
 				}
+				if len(labels) == 0 {
+					labels = nil
+				}
+				// Cache only the owner reference fields getLabelsFromMeta reads.
+				var owners []metav1.OwnerReference
+				for _, owner := range meta.OwnerReferences {
+					if _, ok := ownerKindsWithLabels[owner.Kind]; ok {
+						owners = append(owners, metav1.OwnerReference{
+							Kind: owner.Kind,
+							Name: owner.Name,
+						})
+					}
+				}
 				return &metav1.PartialObjectMetadata{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:            meta.Name,
 						Namespace:       meta.Namespace,
-						OwnerReferences: meta.OwnerReferences,
+						OwnerReferences: owners,
 						Labels:          labels,
 					},
 				}, nil
