@@ -34,6 +34,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/rest"
@@ -121,7 +122,13 @@ func main() {
 	var informer podlabels.PodLabelCollector = nil
 	stopCh := newSystemStopChannel()
 	if *enablePodOwnerLabel {
-		factory := podlabels.NewPodLabelsSharedInformerFactory(metadataClient, strings.Split(*systemNamespaces, ","), *listerWatcherEnableStreaming)
+		// Shard the pod label cache by the same key as events, so each
+		// replica only caches the pods whose events it exports.
+		var owns func(types.UID) bool
+		if sharder.Enabled() {
+			owns = sharder.Owns
+		}
+		factory := podlabels.NewPodLabelsSharedInformerFactory(metadataClient, strings.Split(*systemNamespaces, ","), *listerWatcherEnableStreaming, owns)
 		informer = factory.NewPodLabelsSharedInformer()
 		factory.Run(stopCh)
 	}

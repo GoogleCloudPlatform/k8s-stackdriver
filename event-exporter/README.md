@@ -74,6 +74,35 @@ spec:
         - '/event-exporter'
 ```
 
+## Sharding
+
+On large clusters a single replica may not fit in its memory limit, mostly
+because of the cluster-wide pod metadata cache used for owner labels. Event
+exporter can be sharded across multiple replicas:
+
+```
+-total-shards int
+    Total number of event-exporter replicas (shards). Each event is exported
+    by exactly one shard, chosen by hashing the involved object's UID. All
+    replicas must run with the same value. 1 disables sharding. (default 1)
+-shard-id int
+    ID of this shard, in [0, total-shards). -1 derives the ID from the
+    ordinal suffix of the pod hostname, which works for StatefulSet
+    replicas. (default -1)
+```
+
+Deploy the shards as a StatefulSet with `replicas` equal to `-total-shards`;
+each pod picks up its shard ID from its hostname ordinal. Each replica still
+receives the full event and pod watch streams from the apiserver and filters
+them locally, so sharding divides memory usage per replica but multiplies
+apiserver watch load by the number of shards. When `-enable-pod-owner-label`
+is on, the pod label cache is sharded by the same key (events are sharded by
+involved object UID, which for pod events is the pod UID), so each replica
+only caches the pods whose events it exports.
+
+Note: changing `-total-shards` reassigns shard ownership, so events may be
+duplicated or missed while the rollout is in progress.
+
 ## Notes
 ### ClusterRoleBinding
 This pod's service account should be authorized to get events, you
