@@ -23,12 +23,14 @@ import (
 	apierr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/klog"
 )
 
 // NewNoSuchMetricError returns a StatusError indicating that the given metric could not be found.
 // It is similar to NewNotFound, but more specialized.
 func NewNoSuchMetricError(metricName string, err error) *apierr.StatusError {
-	return newMetricNotFoundWithMessageError(fmt.Sprintf("the server could not find the descriptor for metric %s: %s", metricName, err))
+	klog.V(4).Infof("failed to get descriptor for metric %s: %v", metricName, err)
+	return newMetricNotFoundWithMessageError(fmt.Sprintf("the server could not find the descriptor for metric %s", metricName))
 }
 
 // NewMetricNotFoundError returns a StatusError indicating that the given metric could not be found.
