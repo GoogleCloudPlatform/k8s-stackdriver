@@ -29,26 +29,26 @@ import (
 // NewNoSuchMetricError returns a StatusError indicating that the given metric could not be found.
 // It is similar to NewNotFound, but more specialized.
 func NewNoSuchMetricError(metricName string, err error) *apierr.StatusError {
-	klog.V(4).Infof("failed to get descriptor for metric %s: %v", metricName, err)
-	return newMetricNotFoundWithMessageError(fmt.Sprintf("the server could not find the descriptor for metric %s", metricName))
+	klog.V(4).Infof("failed to get descriptor for metric %q: %v", metricName, err)
+	return newMetricNotFoundWithMessageError(fmt.Sprintf("the server could not find the descriptor for metric %q", metricName))
 }
 
 // NewMetricNotFoundError returns a StatusError indicating that the given metric could not be found.
 // It is similar to NewNotFound, but more specialized.
 func NewMetricNotFoundError(resource schema.GroupResource, metricName string) *apierr.StatusError {
-	return newMetricNotFoundWithMessageError(fmt.Sprintf("the server could not find the metric %s for %s", metricName, resource.String()))
+	return newMetricNotFoundWithMessageError(fmt.Sprintf("the server could not find the metric %q for %s", metricName, resource.String()))
 }
 
 // NewMetricNotFoundForError returns a StatusError indicating that the given metric could not be
 // found for the given named object. It is similar to NewNotFound, but more specialized.
 func NewMetricNotFoundForError(resource schema.GroupResource, metricName string, resourceName string) *apierr.StatusError {
-	return newMetricNotFoundWithMessageError(fmt.Sprintf("the server could not find the metric %s for %s %s", metricName, resource.String(), resourceName))
+	return newMetricNotFoundWithMessageError(fmt.Sprintf("the server could not find the metric %q for %s %q", metricName, resource.String(), resourceName))
 }
 
 // NewExternalMetricNotFoundError returns a status error indicating that the given metric could
 // not be found. It is similar to NewNotFound, but more specialized.
 func NewExternalMetricNotFoundError(metricName string) *apierr.StatusError {
-	return newMetricNotFoundWithMessageError(fmt.Sprintf("the server could not find the metric %s for provided labels", metricName))
+	return newMetricNotFoundWithMessageError(fmt.Sprintf("the server could not find the metric %q for provided labels", metricName))
 }
 
 // NewLabelNotAllowedError returns a status error indicating that the given label is forbidden.

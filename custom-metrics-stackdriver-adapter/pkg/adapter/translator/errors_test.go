@@ -18,9 +18,13 @@ package translator
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
+
+	apierr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 func TestNewNoSuchMetricError_SanitizesSensitiveError(t *testing.T) {
@@ -39,5 +43,61 @@ func TestNewNoSuchMetricError_SanitizesSensitiveError(t *testing.T) {
 
 	if strings.Contains(statusErr.ErrStatus.Message, "test-sa@my-gcp-project.iam.gserviceaccount.com") {
 		t.Errorf("status message leaks sensitive service account details: %s", statusErr.ErrStatus.Message)
+	}
+}
+
+func TestMetricErrors_QuotesMetricNames(t *testing.T) {
+	metricName := "<script>alert('xss')</script>"
+	resourceName := "<img src=x onerror=alert(1)>"
+	gr := schema.GroupResource{Group: "apps", Resource: "deployments"}
+
+	quotedMetricName := fmt.Sprintf("%q", metricName)
+	quotedResourceName := fmt.Sprintf("%q", resourceName)
+
+	testCases := []struct {
+		name              string
+		err               *apierr.StatusError
+		expectedSubstring string
+	}{
+		{
+			name:              "NewNoSuchMetricError",
+			err:               NewNoSuchMetricError(metricName, errors.New("not found")),
+			expectedSubstring: quotedMetricName,
+		},
+		{
+			name:              "NewMetricNotFoundError",
+			err:               NewMetricNotFoundError(gr, metricName),
+			expectedSubstring: quotedMetricName,
+		},
+		{
+			name:              "NewMetricNotFoundForError",
+			err:               NewMetricNotFoundForError(gr, metricName, resourceName),
+			expectedSubstring: quotedMetricName,
+		},
+		{
+			name:              "NewExternalMetricNotFoundError",
+			err:               NewExternalMetricNotFoundError(metricName),
+			expectedSubstring: quotedMetricName,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.err == nil {
+				t.Fatalf("expected non-nil StatusError")
+			}
+			if tc.err.ErrStatus.Code != http.StatusNotFound {
+				t.Errorf("expected status code %d, got %d", http.StatusNotFound, tc.err.ErrStatus.Code)
+			}
+			if !strings.Contains(tc.err.ErrStatus.Message, tc.expectedSubstring) {
+				t.Errorf("expected status message to contain quoted string %s, got %q", tc.expectedSubstring, tc.err.ErrStatus.Message)
+			}
+		})
+	}
+
+	// Also verify resourceName is quoted in NewMetricNotFoundForError
+	errWithResource := NewMetricNotFoundForError(gr, metricName, resourceName)
+	if !strings.Contains(errWithResource.ErrStatus.Message, quotedResourceName) {
+		t.Errorf("expected status message to contain quoted resource name %s, got %q", quotedResourceName, errWithResource.ErrStatus.Message)
 	}
 }
