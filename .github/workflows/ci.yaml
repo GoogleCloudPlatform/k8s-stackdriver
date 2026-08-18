@@ -88,6 +88,13 @@ jobs:
       working-directory: ${{ matrix.component.dir }}
       run: make ${{ matrix.component.build-target }}
 
+    - name: Verify Generated
+      working-directory: ${{ matrix.component.dir }}
+      run: |
+        if grep -q "verify-generated:" Makefile; then
+          make verify-generated
+        fi
+
   ci-container-build:
     name: ci-container-build-${{ matrix.component }}
     runs-on: ubuntu-latest
