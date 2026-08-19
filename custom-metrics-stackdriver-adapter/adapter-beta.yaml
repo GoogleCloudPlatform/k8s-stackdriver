@@ -81,7 +81,7 @@ spec:
         value: "present"
         effect: "NoSchedule"
       containers:
-      - image: gcr.io/google-containers/custom-metrics-stackdriver-adapter:v0.4.0
+      - image: gcr.io/google-containers/custom-metrics-stackdriver-adapter:v1.0
         imagePullPolicy: Always
         name: pod-custom-metrics-stackdriver-adapter
         command:
