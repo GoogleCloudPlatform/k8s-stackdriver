@@ -12,6 +12,16 @@ const (
 	jobsetUIDLabelKey            = "jobset.sigs.k8s.io/jobset-uid"
 )
 
+// ownerKindsWithLabels is the set of owner reference kinds from which
+// getLabelsFromMeta derives owner labels. Owner references of other kinds
+// don't need to be cached. Keep in sync with the switch in getLabelsFromMeta.
+var ownerKindsWithLabels = map[string]struct{}{
+	"DaemonSet":   {},
+	"StatefulSet": {},
+	"ReplicaSet":  {},
+	"Job":         {},
+}
+
 // matches suffixes containing number between 20000000 to 59999999
 // These 2 numbers are chosen because the convenience of regex matching:
 // 20000000: Thu Jan 10 2008 21:20:00 GMT+0000  in minutes since Unix Epoch
