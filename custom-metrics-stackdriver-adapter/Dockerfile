@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.26.7-alpine AS builder
+FROM golang:1.27.1-alpine AS builder
 WORKDIR ${GOPATH}/src/github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter
 COPY . ./
 RUN CGO_ENABLED=0 GOOS=linux go build -mod=readonly -o /adapter
