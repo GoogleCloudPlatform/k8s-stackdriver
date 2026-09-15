@@ -53,7 +53,7 @@ func (p *stackdriverCoreClient) getPodMetric(podsNames []string, metricName, met
 		segmentEnd := min((i+1)*translator.MaxNumOfArgsInOneOfFilter, len(podsNames))
 
 		stackdriverRequest, err := translator.NewQueryBuilder(p.translator, metricName).
-			AsContainerType().
+			EnforceContainerType().
 			WithPodNames(podsNames[segmentBeg:segmentEnd]).
 			WithMetricKind(metricKind).
 			WithMetricValueType(metricValueType).
