@@ -1,0 +1,21 @@
+# Optional: restrict who may scrape the proxy. The /metrics endpoint is
+# unauthenticated (standard exporter posture) but re-exposes data that
+# pods without GCP credentials could not otherwise read. Apply this policy
+# and adjust the from-clause to your collector's namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cloud-monitoring-proxy
+  namespace: cloud-monitoring-proxy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloud-monitoring-proxy
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring   # your collector's namespace
+      ports:
+        - port: 9090

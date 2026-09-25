@@ -1,0 +1,24 @@
+# Doc-sourced from
+# https://cloud.google.com/kubernetes-engine/docs/how-to/kube-state-metrics
+# prometheus.googleapis.com descriptors exist only once the packages write
+# data; exact type suffixes are verified end-to-end against a cluster with
+# the packages enabled.
+description: Kubernetes object state — pod phases, workload replica health, HPA, PVCs (GKE kube-state package)
+requires: "GKE --monitoring including POD,DEPLOYMENT,STATEFULSET,DAEMONSET,HPA,STORAGE; billed as Managed Prometheus samples"
+types:
+  - prometheus.googleapis.com/kube_pod_status_phase/gauge
+  - prometheus.googleapis.com/kube_pod_container_status_ready/gauge
+  - prometheus.googleapis.com/kube_pod_container_status_restarts_total/counter
+  - prometheus.googleapis.com/kube_pod_container_resource_requests/gauge
+  - prometheus.googleapis.com/kube_pod_container_resource_limits/gauge
+  - prometheus.googleapis.com/kube_deployment_spec_replicas/gauge
+  - prometheus.googleapis.com/kube_deployment_status_replicas_available/gauge
+  - prometheus.googleapis.com/kube_deployment_status_replicas_updated/gauge
+  - prometheus.googleapis.com/kube_statefulset_replicas/gauge
+  - prometheus.googleapis.com/kube_statefulset_status_replicas_ready/gauge
+  - prometheus.googleapis.com/kube_daemonset_status_desired_number_scheduled/gauge
+  - prometheus.googleapis.com/kube_daemonset_status_number_ready/gauge
+  - prometheus.googleapis.com/kube_horizontalpodautoscaler_spec_max_replicas/gauge
+  - prometheus.googleapis.com/kube_horizontalpodautoscaler_status_current_replicas/gauge
+  - prometheus.googleapis.com/kube_horizontalpodautoscaler_status_condition/gauge
+  - prometheus.googleapis.com/kube_persistentvolumeclaim_status_phase/gauge

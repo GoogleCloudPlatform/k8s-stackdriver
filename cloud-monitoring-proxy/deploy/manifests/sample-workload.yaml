@@ -1,0 +1,31 @@
+# Small workload so the e2e cluster produces pod/container metrics with
+# requests/limits set (exercises the pod preset's utilization metrics).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-workload
+  namespace: default
+  labels:
+    app.kubernetes.io/name: sample-workload
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sample-workload
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sample-workload
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi

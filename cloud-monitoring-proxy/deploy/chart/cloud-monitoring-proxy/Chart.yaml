@@ -1,0 +1,11 @@
+apiVersion: v2
+name: cloud-monitoring-proxy
+description: >-
+  In-cluster proxy that reads a configured set of metrics from Google Cloud
+  Monitoring and re-exposes them on a Prometheus /metrics endpoint.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/GoogleCloudPlatform/k8s-stackdriver/tree/master/cloud-monitoring-proxy
+sources:
+  - https://github.com/GoogleCloudPlatform/k8s-stackdriver/tree/master/cloud-monitoring-proxy

@@ -1,0 +1,23 @@
+# All types validated against live project descriptors on 2026-09-02.
+description: GKE node health — CPU, memory, network, ephemeral storage, PIDs, conditions
+requires: GKE --monitoring=SYSTEM (on by default); free ingestion
+types:
+  - kubernetes.io/node/cpu/allocatable_cores
+  - kubernetes.io/node/cpu/total_cores
+  - kubernetes.io/node/cpu/core_usage_time
+  - kubernetes.io/node/cpu/allocatable_utilization
+  - kubernetes.io/node/memory/allocatable_bytes
+  - kubernetes.io/node/memory/total_bytes
+  - kubernetes.io/node/memory/used_bytes
+  - kubernetes.io/node/memory/allocatable_utilization
+  - kubernetes.io/node/network/received_bytes_count
+  - kubernetes.io/node/network/sent_bytes_count
+  - kubernetes.io/node/ephemeral_storage/used_bytes
+  - kubernetes.io/node/ephemeral_storage/total_bytes
+  - kubernetes.io/node/ephemeral_storage/allocatable_bytes
+  - kubernetes.io/node/ephemeral_storage/inodes_free
+  - kubernetes.io/node/ephemeral_storage/inodes_total
+  - kubernetes.io/node/pid_used
+  - kubernetes.io/node/pid_limit
+  - kubernetes.io/node/status_condition
+  - kubernetes.io/node/interruption_count

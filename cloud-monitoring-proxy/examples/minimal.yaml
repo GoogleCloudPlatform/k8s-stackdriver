@@ -1,0 +1,4 @@
+# Smallest useful config: node + pod health for this cluster.
+metrics:
+  - preset: node
+  - preset: pod
