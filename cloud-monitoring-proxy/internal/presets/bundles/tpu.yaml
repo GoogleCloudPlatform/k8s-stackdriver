@@ -1,0 +1,25 @@
+# All types validated against live project descriptors on 2026-09-02.
+# TPU metrics on GKE ship as system metrics (GKE >=1.27.4-gke.900,
+# JAX >=0.4.14; the workload must expose containerPort 8431).
+description: TPU utilization, memory, interruptions, and multislice network/compute latencies
+requires: GKE --monitoring=SYSTEM (on by default); TPU slice node pools
+types:
+  - kubernetes.io/node/accelerator/duty_cycle
+  - kubernetes.io/node/accelerator/memory_used
+  - kubernetes.io/node/accelerator/memory_total
+  - kubernetes.io/node/accelerator/memory_bandwidth_utilization
+  - kubernetes.io/node/accelerator/tensorcore_utilization
+  - kubernetes.io/container/accelerator/duty_cycle
+  - kubernetes.io/container/accelerator/memory_used
+  - kubernetes.io/container/accelerator/memory_total
+  - kubernetes.io/container/accelerator/memory_bandwidth_utilization
+  - kubernetes.io/container/accelerator/tensorcore_utilization
+  - kubernetes.io/node_pool/accelerator/times_to_recover
+  - kubernetes.io/node_pool/accelerator/times_between_interruptions
+  - kubernetes.io/node_pool/accelerator/startup_duration
+  - kubernetes.io/container/multislice/network/collective_end_to_end_latencies
+  - kubernetes.io/container/multislice/network/dcn_transfer_latencies
+  - kubernetes.io/container/multislice/network/dcn_inbound_transfer_latencies
+  - kubernetes.io/container/multislice/accelerator/compute_latencies
+  - kubernetes.io/container/multislice/accelerator/device_to_host_transfer_latencies
+  - kubernetes.io/container/multislice/accelerator/host_to_device_transfer_latencies

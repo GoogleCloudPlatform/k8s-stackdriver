@@ -1,0 +1,105 @@
+# Cloud Monitoring Proxy — raw manifests.
+# The image is substituted by hack/deploy.sh (or replace IMAGE_PLACEHOLDER
+# yourself). Identity: bind roles/monitoring.viewer to this KSA via
+# Workload Identity Federation direct binding — see hack/deploy.sh.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloud-monitoring-proxy
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cloud-monitoring-proxy
+  namespace: cloud-monitoring-proxy
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloud-monitoring-proxy
+  namespace: cloud-monitoring-proxy
+data:
+  config.yaml: |
+    metrics:
+      - preset: node
+      - preset: pod
+      - preset: kube-state
+    server:
+      listen: ":9090"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-monitoring-proxy
+  namespace: cloud-monitoring-proxy
+  labels:
+    app.kubernetes.io/name: cloud-monitoring-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloud-monitoring-proxy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cloud-monitoring-proxy
+    spec:
+      serviceAccountName: cloud-monitoring-proxy
+      securityContext:
+        runAsNonRoot: true
+        # distroless "nonroot" — numeric so kubelet can verify runAsNonRoot
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: proxy
+          image: IMAGE_PLACEHOLDER
+          args: ["--config", "/etc/cloud-monitoring-proxy/config.yaml"]
+          ports:
+            - name: http
+              containerPort: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cloud-monitoring-proxy
+              readOnly: true
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: config
+          configMap:
+            name: cloud-monitoring-proxy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloud-monitoring-proxy
+  namespace: cloud-monitoring-proxy
+  labels:
+    app.kubernetes.io/name: cloud-monitoring-proxy
+spec:
+  selector:
+    app.kubernetes.io/name: cloud-monitoring-proxy
+  ports:
+    - name: http
+      port: 9090
+      targetPort: http

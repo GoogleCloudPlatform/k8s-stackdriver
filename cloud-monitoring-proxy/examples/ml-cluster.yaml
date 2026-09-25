@@ -1,0 +1,12 @@
+# ML training cluster: accelerators front and center, workload state,
+# slower cadence for slow-moving object-state metrics to cut read cost.
+metrics:
+  - preset: gpu
+  - preset: tpu
+  - preset: node
+  - preset: kube-state
+    interval: 5m
+  - type: kubernetes.io/container/restart_count
+    filter: 'resource.labels.namespace_name = "training"'
+server:
+  emitTimestamps: true   # backend ingests late data (e.g. OTel pipeline)

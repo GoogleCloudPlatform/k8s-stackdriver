@@ -1,0 +1,35 @@
+# kubernetes.io/* types validated against live project descriptors
+# (2026-09-02). DCGM types (prometheus.googleapis.com/*) are doc-sourced —
+# https://cloud.google.com/kubernetes-engine/docs/how-to/dcgm-metrics —
+# their descriptors only exist once the DCGM package writes data
+# (verified end-to-end in the e2e suite when GPU hardware is available).
+# Note: system accelerator metrics are not collected under GPU
+# time-sharing or MPS.
+description: GPU utilization and memory — GKE system accelerator metrics plus the DCGM package
+requires: "system set: GKE --monitoring=SYSTEM; DCGM set: --monitoring=SYSTEM,DCGM (GKE >=1.30.1-gke.1204000, managed GPU drivers, Managed Prometheus enabled)"
+types:
+  - kubernetes.io/container/accelerator/duty_cycle
+  - kubernetes.io/container/accelerator/memory_used
+  - kubernetes.io/container/accelerator/memory_total
+  - kubernetes.io/container/accelerator/request
+  - kubernetes.io/node/accelerator/duty_cycle
+  - kubernetes.io/node/accelerator/memory_used
+  - kubernetes.io/node/accelerator/memory_total
+  - prometheus.googleapis.com/DCGM_FI_DEV_GPU_UTIL/gauge
+  - prometheus.googleapis.com/DCGM_FI_DEV_FB_FREE/gauge
+  - prometheus.googleapis.com/DCGM_FI_DEV_FB_USED/gauge
+  - prometheus.googleapis.com/DCGM_FI_DEV_FB_TOTAL/gauge
+  - prometheus.googleapis.com/DCGM_FI_DEV_GPU_TEMP/gauge
+  - prometheus.googleapis.com/DCGM_FI_DEV_MEMORY_TEMP/gauge
+  - prometheus.googleapis.com/DCGM_FI_DEV_MEM_COPY_UTIL/gauge
+  - prometheus.googleapis.com/DCGM_FI_DEV_POWER_USAGE/gauge
+  - prometheus.googleapis.com/DCGM_FI_DEV_SM_CLOCK/gauge
+  - prometheus.googleapis.com/DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION/counter
+  - prometheus.googleapis.com/DCGM_FI_PROF_SM_ACTIVE/gauge
+  - prometheus.googleapis.com/DCGM_FI_PROF_GR_ENGINE_ACTIVE/gauge
+  - prometheus.googleapis.com/DCGM_FI_PROF_DRAM_ACTIVE/gauge
+  - prometheus.googleapis.com/DCGM_FI_PROF_PIPE_TENSOR_ACTIVE/gauge
+  - prometheus.googleapis.com/DCGM_FI_PROF_PCIE_TX_BYTES/gauge
+  - prometheus.googleapis.com/DCGM_FI_PROF_PCIE_RX_BYTES/gauge
+  - prometheus.googleapis.com/DCGM_FI_PROF_NVLINK_TX_BYTES/gauge
+  - prometheus.googleapis.com/DCGM_FI_PROF_NVLINK_RX_BYTES/gauge

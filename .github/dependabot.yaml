@@ -4,35 +4,65 @@ updates:
   directory: /prometheus-to-sd
   schedule:
     interval: weekly
+  cooldown:
+    default-days: 7
 - package-ecosystem: docker
   directory: /kubelet-to-gcm
   schedule:
     interval: weekly
+  cooldown:
+    default-days: 7
 - package-ecosystem: docker
   directory: /fluentd-gcp-scaler
   schedule:
     interval: weekly
+  cooldown:
+    default-days: 7
 - package-ecosystem: docker
   directory: /event-exporter
   schedule:
     interval: weekly
+  cooldown:
+    default-days: 7
 - package-ecosystem: docker
   directory: /custom-metrics-stackdriver-adapter
   schedule:
     interval: weekly
+  cooldown:
+    default-days: 7
+- package-ecosystem: docker
+  directory: /cloud-monitoring-proxy
+  schedule:
+    interval: weekly
+  cooldown:
+    default-days: 7
 - package-ecosystem: gomod
   directory: /prometheus-to-sd
   schedule:
     interval: weekly
+  cooldown:
+    default-days: 7
 - package-ecosystem: gomod
   directory: /kubelet-to-gcm
   schedule:
     interval: weekly
+  cooldown:
+    default-days: 7
 - package-ecosystem: gomod
   directory: /event-exporter
   schedule:
     interval: weekly
+  cooldown:
+    default-days: 7
 - package-ecosystem: gomod
   directory: /custom-metrics-stackdriver-adapter
   schedule:
     interval: weekly
+  cooldown:
+    default-days: 7
+- package-ecosystem: gomod
+  directory: /cloud-monitoring-proxy
+  schedule:
+    interval: weekly
+  cooldown:
+    default-days: 7

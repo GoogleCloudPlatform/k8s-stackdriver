@@ -1,0 +1,23 @@
+cloud-monitoring-proxy installed as {{ include "cmproxy.fullname" . }} in {{ .Release.Namespace }}.
+
+1. Grant the proxy read access to Cloud Monitoring (Workload Identity
+   Federation direct binding — note the principal path uses the project
+   NUMBER while the pool name uses the project ID):
+
+   PROJECT_ID=<your project>
+   PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
+   gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+     --role roles/monitoring.viewer \
+     --member "principal://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/$PROJECT_ID.svc.id.goog/subject/ns/{{ .Release.Namespace }}/sa/{{ include "cmproxy.serviceAccountName" . }}" \
+     --condition=None
+
+2. Check it:
+
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "cmproxy.fullname" . }} 9090:{{ .Values.service.port }}
+   curl localhost:9090/readyz
+   curl localhost:9090/metrics | head
+   curl "localhost:9090/api/v1/discovery?prefix=kubernetes.io/node/" | head
+
+3. Point your collector at the Service on port {{ .Values.service.port }}.
+   Data is delayed by Cloud Monitoring's ingestion lag — see
+   gcmproxy_data_age_seconds for the truth per metric type.

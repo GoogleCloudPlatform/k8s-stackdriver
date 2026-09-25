@@ -1,0 +1,49 @@
+# Default values for cloud-monitoring-proxy.
+
+image:
+  repository: us-central1-docker.pkg.dev/PROJECT/cmproxy/cloud-monitoring-proxy
+  # Defaults to the chart appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# The proxy is designed for a single replica: N replicas poll GCM
+# independently and multiply read cost N×.
+replicaCount: 1
+
+# Proxy configuration, rendered verbatim into the ConfigMap.
+# Schema: docs/configuration.md / docs/presets.md.
+config:
+  metrics:
+    - preset: node
+    - preset: pod
+  server:
+    listen: ":9090"
+
+serviceAccount:
+  create: true
+  # Defaults to the fullname. Bind roles/monitoring.viewer to this KSA via
+  # Workload Identity Federation — the install NOTES print the command.
+  name: ""
+  annotations: {}
+
+service:
+  port: 9090
+
+networkPolicy:
+  # The /metrics endpoint is unauthenticated; enable to restrict scrapes.
+  enabled: false
+  # Namespaces allowed to scrape when enabled.
+  allowedNamespaces:
+    - monitoring
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

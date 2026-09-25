@@ -1,0 +1,9 @@
+# Project-wide serving (e.g. GCE VMs backing the cluster). Understand the
+# exposure first: any pod that can reach the proxy can read ANY metric in
+# the project matching these entries.
+scope:
+  clusterScopeFilter: false
+metrics:
+  - type: compute.googleapis.com/instance/cpu/utilization
+  - typePrefix: compute.googleapis.com/instance/network/
+    interval: 5m

@@ -1,0 +1,24 @@
+# All types validated against live project descriptors on 2026-09-02.
+description: Pod and container workload metrics — CPU/memory usage vs requests/limits, network, volumes, restarts
+requires: GKE --monitoring=SYSTEM (on by default); free ingestion
+types:
+  - kubernetes.io/pod/network/received_bytes_count
+  - kubernetes.io/pod/network/sent_bytes_count
+  - kubernetes.io/pod/volume/used_bytes
+  - kubernetes.io/pod/volume/total_bytes
+  - kubernetes.io/pod/volume/utilization
+  - kubernetes.io/pod/ephemeral_storage/used_bytes
+  - kubernetes.io/container/cpu/core_usage_time
+  - kubernetes.io/container/cpu/limit_cores
+  - kubernetes.io/container/cpu/request_cores
+  - kubernetes.io/container/cpu/limit_utilization
+  - kubernetes.io/container/cpu/request_utilization
+  - kubernetes.io/container/memory/used_bytes
+  - kubernetes.io/container/memory/limit_bytes
+  - kubernetes.io/container/memory/request_bytes
+  - kubernetes.io/container/memory/limit_utilization
+  - kubernetes.io/container/memory/request_utilization
+  - kubernetes.io/container/memory/page_fault_count
+  - kubernetes.io/container/ephemeral_storage/used_bytes
+  - kubernetes.io/container/restart_count
+  - kubernetes.io/container/uptime
