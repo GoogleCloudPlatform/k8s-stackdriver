@@ -5,6 +5,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	clientfeatures "k8s.io/client-go/features"
 	"k8s.io/client-go/metadata"
 
@@ -56,7 +57,11 @@ func (c *customFeatureGates) Enabled(key clientfeatures.Feature) bool {
 	return c.Gates.Enabled(key)
 }
 
-func NewPodLabelsSharedInformerFactory(client metadata.Interface, ignoredNamespaces []string, enableWatchListClient bool) *PodLabelsSharedInformerFactory {
+// NewPodLabelsSharedInformerFactory creates a factory for the pod labels
+// informer. If owns is non-nil, only pods whose UID satisfies owns are
+// cached; events are sharded by involved object UID, which for pod events is
+// the pod UID, so the shard that exports an event always caches its pod.
+func NewPodLabelsSharedInformerFactory(client metadata.Interface, ignoredNamespaces []string, enableWatchListClient bool, owns func(types.UID) bool) *PodLabelsSharedInformerFactory {
 	// Set the custom feature gates based on the flag
 	clientfeatures.ReplaceFeatureGates(&customFeatureGates{
 		Gates:                 clientfeatures.FeatureGates(),
@@ -76,6 +81,9 @@ func NewPodLabelsSharedInformerFactory(client metadata.Interface, ignoredNamespa
 				if _, ok := ignoredNamespacesMap[meta.Namespace]; ok {
 					return nil, nil
 				}
+				if owns != nil && !owns(meta.UID) {
+					return nil, nil
+				}
 				labels := make(map[string]string)
 				if v, ok := meta.Labels["pod-template-hash"]; ok {
 					labels["pod-template-hash"] = v
@@ -89,11 +97,24 @@ func NewPodLabelsSharedInformerFactory(client metadata.Interface, ignoredNamespa
 				if v, ok := meta.Labels[jobsetUIDLabelKey]; ok {
 					labels[jobsetUIDLabelKey] = v
 				}
+				if len(labels) == 0 {
+					labels = nil
+				}
+				// Cache only the owner reference fields getLabelsFromMeta reads.
+				var owners []metav1.OwnerReference
+				for _, owner := range meta.OwnerReferences {
+					if _, ok := ownerKindsWithLabels[owner.Kind]; ok {
+						owners = append(owners, metav1.OwnerReference{
+							Kind: owner.Kind,
+							Name: owner.Name,
+						})
+					}
+				}
 				return &metav1.PartialObjectMetadata{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:            meta.Name,
 						Namespace:       meta.Namespace,
-						OwnerReferences: meta.OwnerReferences,
+						OwnerReferences: owners,
 						Labels:          labels,
 					},
 				}, nil
