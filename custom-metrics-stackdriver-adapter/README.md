@@ -148,6 +148,21 @@ See an [example deployment with this flag set].
 
 NOTE: This cache currently only works for external metrics.
 
+#### External Metrics Request Window
+
+By default, the adapter queries Cloud Monitoring for external metrics within a 5-minute window (`[now - 5m, now]`). For metrics that are exported less frequently (such as every 10 minutes or hourly), you can configure the request window via the `--external-metrics-request-window` flag.
+
+For example, to query with a 15-minute or 1-hour window:
+```
+--external-metrics-request-window=15m
+```
+or
+```
+--external-metrics-request-window=1h
+```
+
+If not specified, the default value is `5m`.
+
 ### Export custom metrics to Stackdriver
 
 To learn how to create your custom metric and write your data to Stackdriver,
