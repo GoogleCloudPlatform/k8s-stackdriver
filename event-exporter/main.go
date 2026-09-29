@@ -34,6 +34,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/metadata"
@@ -54,6 +55,7 @@ var (
 
 	enablePodOwnerLabel          = flag.Bool("enable-pod-owner-label", true, "Whether to enable the pod label collector to add pod owner labels to log entries")
 	eventLabelSelector           = flag.String("event-label-selector", "", "Export events only if they match the given label selector. Same syntax as kubectl label")
+	eventFieldSelector           = flag.String("event-field-selector", "", "Export events only if they match the given field selector. Same syntax as kubectl --field-selector (e.g. type=Warning,involvedObject.kind=Pod)")
 	listerWatcherOptionsLimit    = flag.Int64("lister-watcher-options-limit", 100, "Maximum number of responses to return for a list call on events watch. Larger the number, higher the memory event-exporter will consume. No limits when set to 0.")
 	listerWatcherEnableStreaming = flag.Bool("lister-watcher-enable-streaming", false, "Enable watch streaming for lister watcher to prevent all the unhandled events get loaded into memory at once. Instead, events will be processed one by one. If this flag is set to true, lister-watcher-options-limit will be ignored.")
 	storageType                  = flag.String("storage-type", "DeltaFIFOStorage", "What storage should be used as a cache for the watcher. Supported sotrage type: SimpleStorage, TTLStorage and DeltaFIFOStorage.")
@@ -130,6 +132,11 @@ func main() {
 		glog.Fatalf("Invalid event label selector:%v", err)
 	}
 
+	parsedFieldSelector, err := fields.ParseSelector(*eventFieldSelector)
+	if err != nil {
+		glog.Fatalf("Invalid event field selector:%v", err)
+	}
+
 	var st watchers.StorageType
 	switch *storageType {
 	case "SimpleStorage":
@@ -142,7 +149,7 @@ func main() {
 		glog.Fatalf("Unsupported storage type:%v.", *storageType)
 	}
 
-	eventExporter := newEventExporter(client, sink, *resyncPeriod, parsedLabelSelector, *listerWatcherOptionsLimit, *listerWatcherEnableStreaming, st)
+	eventExporter := newEventExporter(client, sink, *resyncPeriod, parsedLabelSelector, parsedFieldSelector, *listerWatcherOptionsLimit, *listerWatcherEnableStreaming, st)
 
 	// Expose the Prometheus http endpoint
 	go func() {
