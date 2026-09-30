@@ -39,8 +39,12 @@ const (
 
 // WatcherStoreConfig represents the configuration of the storage backing the watcher.
 type WatcherStoreConfig struct {
-	KeyFunc     cache.KeyFunc
-	Handler     cache.ResourceEventHandler
+	KeyFunc cache.KeyFunc
+	Handler cache.ResourceEventHandler
+	// OnReplace is called after the Reflector has successfully established
+	// the initial state, either via a list request or via a watch-list
+	// stream. Objects passed here do not go through the Handler.
+	OnReplace   func(items []interface{}, resourceVersion string)
 	StorageType StorageType
 	StorageTTL  time.Duration
 }
@@ -48,7 +52,8 @@ type WatcherStoreConfig struct {
 type watcherStore struct {
 	cache.ReflectorStore
 
-	handler cache.ResourceEventHandler
+	handler   cache.ResourceEventHandler
+	onReplace func(items []interface{}, resourceVersion string)
 }
 
 func (s *watcherStore) Add(obj interface{}) error {
@@ -63,6 +68,16 @@ func (s *watcherStore) Update(obj interface{}) error {
 
 func (s *watcherStore) Delete(obj interface{}) error {
 	s.handler.OnDelete(obj)
+	return nil
+}
+
+func (s *watcherStore) Replace(items []interface{}, resourceVersion string) error {
+	if err := s.ReflectorStore.Replace(items, resourceVersion); err != nil {
+		return err
+	}
+	if s.onReplace != nil {
+		s.onReplace(items, resourceVersion)
+	}
 	return nil
 }
 
@@ -81,5 +96,6 @@ func newWatcherStore(config *WatcherStoreConfig) *watcherStore {
 	return &watcherStore{
 		ReflectorStore: cacheStorage,
 		handler:        config.Handler,
+		onReplace:      config.OnReplace,
 	}
 }
