@@ -29,6 +29,10 @@ make container
 Event exporter has following options:
 
 ```
+-event-field-selector string
+    Export events only if they match the given field selector (e.g. "type=Warning,involvedObject.kind=Pod"). Same syntax as kubectl --field-selector
+-event-label-selector string
+    Export events only if they match the given label selector. Same syntax as kubectl label
 -prometheus-endpoint string
     Endpoint on which to expose Prometheus http handler (default ":80")
 -resync-period duration
