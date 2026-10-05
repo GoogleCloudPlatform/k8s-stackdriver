@@ -32,33 +32,37 @@ type PodConfig interface {
 	IsMetricLabel(labelName string) bool
 
 	// GetPodInfo returns the information required to identify the pod.
-	GetPodInfo(labels []*dto.LabelPair) (containerName, podId, namespaceId, tenantUID, entityType, entityName string)
+	GetPodInfo(labels []*dto.LabelPair) (containerName, podId, namespaceId, tenantUID, entityType, entityName, entityNamespace, entityUID string)
 }
 
 // NewPodConfig returns a PodConfig which uses for the provided pod, namespace and container label values,
 // if found, and falls back to the podId and namespaceId.
-func NewPodConfig(podId, namespaceId, podIdLabel, namespaceIdLabel, containerNameLabel, tenantUIDLabel, entityTypeLabel, entityNameLabel string) PodConfig {
+func NewPodConfig(podId, namespaceId, podIdLabel, namespaceIdLabel, containerNameLabel, tenantUIDLabel, entityTypeLabel, entityNameLabel, entityNamespaceLabel, entityUIDLabel string) PodConfig {
 	return &podConfigImpl{
-		podId:              podId,
-		namespaceId:        namespaceId,
-		podIdLabel:         podIdLabel,
-		namespaceIdLabel:   namespaceIdLabel,
-		containerNameLabel: containerNameLabel,
-		tenantUIDLabel:     tenantUIDLabel,
-		entityTypeLabel:    entityTypeLabel,
-		entityNameLabel:    entityNameLabel,
+		podId:                podId,
+		namespaceId:          namespaceId,
+		podIdLabel:           podIdLabel,
+		namespaceIdLabel:     namespaceIdLabel,
+		containerNameLabel:   containerNameLabel,
+		tenantUIDLabel:       tenantUIDLabel,
+		entityTypeLabel:      entityTypeLabel,
+		entityNameLabel:      entityNameLabel,
+		entityNamespaceLabel: entityNamespaceLabel,
+		entityUIDLabel:       entityUIDLabel,
 	}
 }
 
 type podConfigImpl struct {
-	podId              string
-	namespaceId        string
-	podIdLabel         string
-	namespaceIdLabel   string
-	containerNameLabel string
-	tenantUIDLabel     string
-	entityTypeLabel    string
-	entityNameLabel    string
+	podId                string
+	namespaceId          string
+	podIdLabel           string
+	namespaceIdLabel     string
+	containerNameLabel   string
+	tenantUIDLabel       string
+	entityTypeLabel      string
+	entityNameLabel      string
+	entityNamespaceLabel string
+	entityUIDLabel       string
 }
 
 func (p *podConfigImpl) IsMetricLabel(labelName string) bool {
@@ -67,11 +71,13 @@ func (p *podConfigImpl) IsMetricLabel(labelName string) bool {
 		labelName != p.namespaceIdLabel &&
 		labelName != p.tenantUIDLabel &&
 		labelName != p.entityTypeLabel &&
-		labelName != p.entityNameLabel
+		labelName != p.entityNameLabel &&
+		labelName != p.entityNamespaceLabel &&
+		labelName != p.entityUIDLabel
 }
 
-func (p *podConfigImpl) GetPodInfo(labels []*dto.LabelPair) (containerName, podId, namespaceId, tenantUID, entityType, entityName string) {
-	containerName, podId, namespaceId, tenantUID, entityType, entityName = "", p.podId, p.namespaceId, "", "", ""
+func (p *podConfigImpl) GetPodInfo(labels []*dto.LabelPair) (containerName, podId, namespaceId, tenantUID, entityType, entityName, entityNamespace, entityUID string) {
+	containerName, podId, namespaceId, tenantUID, entityType, entityName, entityNamespace, entityUID = "", p.podId, p.namespaceId, "", "", "", "", ""
 	for _, label := range labels {
 		if label.GetName() == p.containerNameLabel && label.GetValue() != "" {
 			containerName = label.GetValue()
@@ -85,9 +91,13 @@ func (p *podConfigImpl) GetPodInfo(labels []*dto.LabelPair) (containerName, podI
 			entityType = label.GetValue()
 		} else if label.GetName() == p.entityNameLabel && label.GetValue() != "" {
 			entityName = label.GetValue()
+		} else if label.GetName() == p.entityNamespaceLabel && label.GetValue() != "" {
+			entityNamespace = label.GetValue()
+		} else if label.GetName() == p.entityUIDLabel && label.GetValue() != "" {
+			entityUID = label.GetValue()
 		}
 	}
-	return containerName, podId, namespaceId, tenantUID, entityType, entityName
+	return containerName, podId, namespaceId, tenantUID, entityType, entityName, entityNamespace, entityUID
 }
 
 // CommonConfig contains all required information about environment in which
