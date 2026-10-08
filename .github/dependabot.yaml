@@ -19,12 +19,6 @@ updates:
   cooldown:
     default-days: 7
 - package-ecosystem: docker
-  directory: /custom-metrics-stackdriver-adapter
-  schedule:
-    interval: weekly
-  cooldown:
-    default-days: 7
-- package-ecosystem: docker
   directory: /cloud-monitoring-proxy
   schedule:
     interval: weekly
@@ -44,12 +38,6 @@ updates:
     default-days: 7
 - package-ecosystem: gomod
   directory: /event-exporter
-  schedule:
-    interval: weekly
-  cooldown:
-    default-days: 7
-- package-ecosystem: gomod
-  directory: /custom-metrics-stackdriver-adapter
   schedule:
     interval: weekly
   cooldown:
