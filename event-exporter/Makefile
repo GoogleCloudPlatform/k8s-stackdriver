@@ -33,7 +33,7 @@ build: test
 	${ENVVAR} go build -mod=vendor -a -o ${BINARY_NAME}
 
 test:
-	${ENVVAR} go test -mod=vendor ./...
+	CGO_ENABLED=1 go test -race -mod=vendor ./...
 
 container: .container
 
