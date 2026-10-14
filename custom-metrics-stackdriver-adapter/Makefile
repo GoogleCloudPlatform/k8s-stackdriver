@@ -20,6 +20,9 @@ push: docker
 	gcloud docker -- push '${PREFIX}/custom-metrics-stackdriver-adapter:$(TAG)'
 
 test: $(PKG)
+	CGO_ENABLED=0 go test -mod readonly ./...
+
+test-race: $(PKG)
 	CGO_ENABLED=1 go test -race -mod readonly ./...
 
 clean:
