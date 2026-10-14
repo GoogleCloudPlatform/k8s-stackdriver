@@ -31,7 +31,7 @@ build:
 	$(ENVVAR) go build -mod=vendor -a -o monitor
 
 test:
-	$(ENVVAR) go test -mod=vendor ./...
+	CGO_ENABLED=1 go test -race -mod=vendor ./...
 
 container: .container
 
