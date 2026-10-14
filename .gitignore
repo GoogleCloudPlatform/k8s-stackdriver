@@ -28,3 +28,4 @@ Session.vim
 **/.idea/**
 
 kubelet-to-gcm/build/**
+custom-metrics-stackdriver-adapter/build/**
