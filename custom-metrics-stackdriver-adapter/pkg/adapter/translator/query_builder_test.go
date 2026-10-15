@@ -426,35 +426,53 @@ func TestTranslator_QueryBuilder_Container_Single(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := NewQueryBuilder(translator, metricName).
-		AsContainerType().
-		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
-		WithMetricKind("GAUGE").
-		WithMetricValueType("INT64").
-		WithMetricSelector(labels.Everything()).
-		WithNamespace("default").
-		Build()
-	if err != nil {
-		t.Errorf("Translation error: %s", err)
-	}
-	filters := []string{
-		"metric.type = \"my/custom/metric\"",
-		"resource.labels.project_id = \"my-project\"",
-		"resource.labels.cluster_name = \"my-cluster\"",
-		"resource.labels.location = \"my-zone\"",
-		"resource.labels.namespace_name = \"default\"",
-		"resource.labels.pod_name = \"my-pod-name\"",
-		"resource.type = \"k8s_container\"",
-	}
-	sort.Strings(filters)
-	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter(strings.Join(filters, " AND ")).
-		IntervalStartTime("2017-01-02T13:00:00Z").
-		IntervalEndTime("2017-01-02T13:02:00Z").
-		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
-		AggregationAlignmentPeriod("120s")
-	if !reflect.DeepEqual(*request, *expectedRequest) {
-		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+	for _, tc := range map[string]struct {
+		podType            bool
+		resourceTypeFilter string
+	}{
+		"container type": {
+			podType:            false,
+			resourceTypeFilter: "resource.type = \"k8s_container\"",
+		},
+		"pod_container type": {
+			podType:            true,
+			resourceTypeFilter: "resource.type = one_of(k8s_pod,k8s_container)",
+		},
+	} {
+		queryBuilder := NewQueryBuilder(translator, metricName).
+			WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+			WithMetricKind("GAUGE").
+			WithMetricValueType("INT64").
+			WithMetricSelector(labels.Everything()).
+			WithNamespace("default")
+		if tc.podType {
+			queryBuilder = queryBuilder.EnforcePodContainerType()
+		} else {
+			queryBuilder = queryBuilder.EnforceContainerType()
+		}
+		request, err := queryBuilder.Build()
+		if err != nil {
+			t.Errorf("Translation error: %s", err)
+		}
+		filters := []string{
+			"metric.type = \"my/custom/metric\"",
+			"resource.labels.project_id = \"my-project\"",
+			"resource.labels.cluster_name = \"my-cluster\"",
+			"resource.labels.location = \"my-zone\"",
+			"resource.labels.namespace_name = \"default\"",
+			"resource.labels.pod_name = \"my-pod-name\"",
+			tc.resourceTypeFilter,
+		}
+		sort.Strings(filters)
+		expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+			Filter(strings.Join(filters, " AND ")).
+			IntervalStartTime("2017-01-02T13:00:00Z").
+			IntervalEndTime("2017-01-02T13:02:00Z").
+			AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+			AggregationAlignmentPeriod("120s")
+		if !reflect.DeepEqual(*request, *expectedRequest) {
+			t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+		}
 	}
 }
 
@@ -468,34 +486,52 @@ func TestTranslator_QueryBuilder_Container_SingleWithEmptyNamespace(t *testing.T
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := NewQueryBuilder(translator, metricName).
-		AsContainerType().
-		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
-		WithMetricKind("GAUGE").
-		WithMetricValueType("INT64").
-		WithMetricSelector(labels.Everything()).
-		WithNamespace(AllNamespaces).
-		Build()
-	if err != nil {
-		t.Errorf("Translation error: %s", err)
-	}
-	filters := []string{
-		"metric.type = \"my/custom/metric\"",
-		"resource.labels.project_id = \"my-project\"",
-		"resource.labels.cluster_name = \"my-cluster\"",
-		"resource.labels.location = \"my-zone\"",
-		"resource.labels.pod_name = \"my-pod-name\"",
-		"resource.type = \"k8s_container\"",
-	}
-	sort.Strings(filters)
-	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter(strings.Join(filters, " AND ")).
-		IntervalStartTime("2017-01-02T13:00:00Z").
-		IntervalEndTime("2017-01-02T13:02:00Z").
-		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
-		AggregationAlignmentPeriod("120s")
-	if !reflect.DeepEqual(*request, *expectedRequest) {
-		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+	for _, tc := range map[string]struct {
+		podType            bool
+		resourceTypeFilter string
+	}{
+		"container type": {
+			podType:            false,
+			resourceTypeFilter: "resource.type = \"k8s_container\"",
+		},
+		"pod_container type": {
+			podType:            true,
+			resourceTypeFilter: "resource.type = one_of(k8s_pod,k8s_container)",
+		},
+	} {
+		queryBuilder := NewQueryBuilder(translator, metricName).
+			WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+			WithMetricKind("GAUGE").
+			WithMetricValueType("INT64").
+			WithMetricSelector(labels.Everything()).
+			WithNamespace(AllNamespaces)
+		if tc.podType {
+			queryBuilder = queryBuilder.EnforcePodContainerType()
+		} else {
+			queryBuilder = queryBuilder.EnforceContainerType()
+		}
+		request, err := queryBuilder.Build()
+		if err != nil {
+			t.Errorf("Translation error: %s", err)
+		}
+		filters := []string{
+			"metric.type = \"my/custom/metric\"",
+			"resource.labels.project_id = \"my-project\"",
+			"resource.labels.cluster_name = \"my-cluster\"",
+			"resource.labels.location = \"my-zone\"",
+			"resource.labels.pod_name = \"my-pod-name\"",
+			tc.resourceTypeFilter,
+		}
+		sort.Strings(filters)
+		expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+			Filter(strings.Join(filters, " AND ")).
+			IntervalStartTime("2017-01-02T13:00:00Z").
+			IntervalEndTime("2017-01-02T13:02:00Z").
+			AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+			AggregationAlignmentPeriod("120s")
+		if !reflect.DeepEqual(*request, *expectedRequest) {
+			t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+		}
 	}
 }
 
@@ -509,16 +545,31 @@ func TestTranslator_QueryBuilder_Container_OldResourceModel(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	_, err := NewQueryBuilder(translator, metricName).
-		AsContainerType().
-		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
-		WithMetricKind("GAUGE").
-		WithMetricValueType("INT64").
-		WithMetricSelector(labels.Everything()).
-		WithNamespace("default").
-		Build()
-	if err == nil {
-		t.Errorf("OldResourceModel should not work with container type query")
+	for _, tc := range map[string]struct {
+		podType bool
+	}{
+		"container type": {
+			podType: false,
+		},
+		"pod_container type": {
+			podType: true,
+		},
+	} {
+		queryBuilder := NewQueryBuilder(translator, metricName).
+			WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+			WithMetricKind("GAUGE").
+			WithMetricValueType("INT64").
+			WithMetricSelector(labels.Everything()).
+			WithNamespace("default")
+		if tc.podType {
+			queryBuilder = queryBuilder.EnforcePodContainerType()
+		} else {
+			queryBuilder = queryBuilder.EnforceContainerType()
+		}
+		_, err := queryBuilder.Build()
+		if err == nil {
+			t.Errorf("OldResourceModel should not work with container type query")
+		}
 	}
 }
 
@@ -533,36 +584,54 @@ func TestTranslator_QueryBuilder_Container_SingleWithMetricSelector(t *testing.T
 	}
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
-	request, err := NewQueryBuilder(translator, metricName).
-		AsContainerType().
-		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
-		WithMetricKind("GAUGE").
-		WithMetricValueType("INT64").
-		WithMetricSelector(metricSelector).
-		WithNamespace("default").
-		Build()
-	if err != nil {
-		t.Errorf("Translation error: %s", err)
-	}
-	filters := []string{
-		"metric.labels.custom = \"test\"",
-		"metric.type = \"my/custom/metric\"",
-		"resource.labels.project_id = \"my-project\"",
-		"resource.labels.cluster_name = \"my-cluster\"",
-		"resource.labels.location = \"my-zone\"",
-		"resource.labels.namespace_name = \"default\"",
-		"resource.labels.pod_name = \"my-pod-name\"",
-		"resource.type = \"k8s_container\"",
-	}
-	sort.Strings(filters)
-	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter(strings.Join(filters, " AND ")).
-		IntervalStartTime("2017-01-02T13:00:00Z").
-		IntervalEndTime("2017-01-02T13:02:00Z").
-		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
-		AggregationAlignmentPeriod("120s")
-	if !reflect.DeepEqual(*request, *expectedRequest) {
-		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+	for _, tc := range map[string]struct {
+		podType            bool
+		resourceTypeFilter string
+	}{
+		"container type": {
+			podType:            false,
+			resourceTypeFilter: "resource.type = \"k8s_container\"",
+		},
+		"pod_container type": {
+			podType:            true,
+			resourceTypeFilter: "resource.type = one_of(k8s_pod,k8s_container)",
+		},
+	} {
+		queryBuilder := NewQueryBuilder(translator, metricName).
+			WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+			WithMetricKind("GAUGE").
+			WithMetricValueType("INT64").
+			WithMetricSelector(metricSelector).
+			WithNamespace("default")
+		if tc.podType {
+			queryBuilder = queryBuilder.EnforcePodContainerType()
+		} else {
+			queryBuilder = queryBuilder.EnforceContainerType()
+		}
+		request, err := queryBuilder.Build()
+		if err != nil {
+			t.Errorf("Translation error: %s", err)
+		}
+		filters := []string{
+			"metric.labels.custom = \"test\"",
+			"metric.type = \"my/custom/metric\"",
+			"resource.labels.project_id = \"my-project\"",
+			"resource.labels.cluster_name = \"my-cluster\"",
+			"resource.labels.location = \"my-zone\"",
+			"resource.labels.namespace_name = \"default\"",
+			"resource.labels.pod_name = \"my-pod-name\"",
+			tc.resourceTypeFilter,
+		}
+		sort.Strings(filters)
+		expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+			Filter(strings.Join(filters, " AND ")).
+			IntervalStartTime("2017-01-02T13:00:00Z").
+			IntervalEndTime("2017-01-02T13:02:00Z").
+			AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+			AggregationAlignmentPeriod("120s")
+		if !reflect.DeepEqual(*request, *expectedRequest) {
+			t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+		}
 	}
 }
 
@@ -599,36 +668,55 @@ func TestTranslator_QueryBuilder_Container_Multiple(t *testing.T) {
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := NewQueryBuilder(translator, metricName).
-		AsContainerType().
-		WithPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}).
-		WithMetricKind("GAUGE").
-		WithMetricValueType("INT64").
-		WithMetricSelector(labels.Everything()).
-		WithNamespace("default").
-		Build()
-	if err != nil {
-		t.Errorf("Translation error: %s", err)
+	for _, tc := range map[string]struct {
+		podType            bool
+		resourceTypeFilter string
+	}{
+		"container type": {
+			podType:            false,
+			resourceTypeFilter: "resource.type = \"k8s_container\"",
+		},
+		"pod_container type": {
+			podType:            true,
+			resourceTypeFilter: "resource.type = one_of(k8s_pod,k8s_container)",
+		},
+	} {
+		queryBuilder := NewQueryBuilder(translator, metricName).
+			WithPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}).
+			WithMetricKind("GAUGE").
+			WithMetricValueType("INT64").
+			WithMetricSelector(labels.Everything()).
+			WithNamespace("default")
+		if tc.podType {
+			queryBuilder = queryBuilder.EnforcePodContainerType()
+		} else {
+			queryBuilder = queryBuilder.EnforceContainerType()
+		}
+		request, err := queryBuilder.Build()
+		if err != nil {
+			t.Errorf("Translation error: %s", err)
+		}
+		filters := []string{
+			"metric.type = \"my/custom/metric\"",
+			"resource.labels.project_id = \"my-project\"",
+			"resource.labels.cluster_name = \"my-cluster\"",
+			"resource.labels.location = \"my-zone\"",
+			"resource.labels.namespace_name = \"default\"",
+			"resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\")",
+			tc.resourceTypeFilter,
+		}
+		sort.Strings(filters)
+		expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+			Filter(strings.Join(filters, " AND ")).
+			IntervalStartTime("2017-01-02T13:00:00Z").
+			IntervalEndTime("2017-01-02T13:02:00Z").
+			AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+			AggregationAlignmentPeriod("120s")
+		if !reflect.DeepEqual(*request, *expectedRequest) {
+			t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", *expectedRequest, *request)
+		}
 	}
-	filters := []string{
-		"metric.type = \"my/custom/metric\"",
-		"resource.labels.project_id = \"my-project\"",
-		"resource.labels.cluster_name = \"my-cluster\"",
-		"resource.labels.location = \"my-zone\"",
-		"resource.labels.namespace_name = \"default\"",
-		"resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\")",
-		"resource.type = \"k8s_container\"",
-	}
-	sort.Strings(filters)
-	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter(strings.Join(filters, " AND ")).
-		IntervalStartTime("2017-01-02T13:00:00Z").
-		IntervalEndTime("2017-01-02T13:02:00Z").
-		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
-		AggregationAlignmentPeriod("120s")
-	if !reflect.DeepEqual(*request, *expectedRequest) {
-		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", *expectedRequest, *request)
-	}
+
 }
 
 func TestTranslator_QueryBuilder_Container_MultipleEmptyNamespace(t *testing.T) {
@@ -647,34 +735,52 @@ func TestTranslator_QueryBuilder_Container_MultipleEmptyNamespace(t *testing.T) 
 		},
 	}
 	metricName := "my/custom/metric"
-	request, err := NewQueryBuilder(translator, metricName).
-		AsContainerType().
-		WithPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}).
-		WithMetricKind("GAUGE").
-		WithMetricValueType("INT64").
-		WithMetricSelector(labels.Everything()).
-		WithNamespace(AllNamespaces).
-		Build()
-	if err != nil {
-		t.Errorf("Translation error: %s", err)
-	}
-	filters := []string{
-		"metric.type = \"my/custom/metric\"",
-		"resource.labels.project_id = \"my-project\"",
-		"resource.labels.cluster_name = \"my-cluster\"",
-		"resource.labels.location = \"my-zone\"",
-		"resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\")",
-		"resource.type = \"k8s_container\"",
-	}
-	sort.Strings(filters)
-	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter(strings.Join(filters, " AND ")).
-		IntervalStartTime("2017-01-02T13:00:00Z").
-		IntervalEndTime("2017-01-02T13:02:00Z").
-		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
-		AggregationAlignmentPeriod("120s")
-	if !reflect.DeepEqual(*request, *expectedRequest) {
-		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", *expectedRequest, *request)
+	for _, tc := range map[string]struct {
+		podType            bool
+		resourceTypeFilter string
+	}{
+		"container type": {
+			podType:            false,
+			resourceTypeFilter: "resource.type = \"k8s_container\"",
+		},
+		"pod_container type": {
+			podType:            true,
+			resourceTypeFilter: "resource.type = one_of(k8s_pod,k8s_container)",
+		},
+	} {
+		queryBuilder := NewQueryBuilder(translator, metricName).
+			WithPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}).
+			WithMetricKind("GAUGE").
+			WithMetricValueType("INT64").
+			WithMetricSelector(labels.Everything()).
+			WithNamespace(AllNamespaces)
+		if tc.podType {
+			queryBuilder = queryBuilder.EnforcePodContainerType()
+		} else {
+			queryBuilder = queryBuilder.EnforceContainerType()
+		}
+		request, err := queryBuilder.Build()
+		if err != nil {
+			t.Errorf("Translation error: %s", err)
+		}
+		filters := []string{
+			"metric.type = \"my/custom/metric\"",
+			"resource.labels.project_id = \"my-project\"",
+			"resource.labels.cluster_name = \"my-cluster\"",
+			"resource.labels.location = \"my-zone\"",
+			"resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\")",
+			tc.resourceTypeFilter,
+		}
+		sort.Strings(filters)
+		expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+			Filter(strings.Join(filters, " AND ")).
+			IntervalStartTime("2017-01-02T13:00:00Z").
+			IntervalEndTime("2017-01-02T13:02:00Z").
+			AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+			AggregationAlignmentPeriod("120s")
+		if !reflect.DeepEqual(*request, *expectedRequest) {
+			t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", *expectedRequest, *request)
+		}
 	}
 }
 
@@ -695,36 +801,54 @@ func TestTranslator_QueryBuilder_Container_MultipleWithMetricSelctor(t *testing.
 	}
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test")
-	request, err := NewQueryBuilder(translator, metricName).
-		AsContainerType().
-		WithPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}).
-		WithMetricKind("GAUGE").
-		WithMetricValueType("INT64").
-		WithMetricSelector(metricSelector).
-		WithNamespace("default").
-		Build()
-	if err != nil {
-		t.Errorf("Translation error: %s", err)
-	}
-	filters := []string{
-		"metric.labels.custom = \"test\"",
-		"metric.type = \"my/custom/metric\"",
-		"resource.labels.project_id = \"my-project\"",
-		"resource.labels.cluster_name = \"my-cluster\"",
-		"resource.labels.location = \"my-zone\"",
-		"resource.labels.namespace_name = \"default\"",
-		"resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\")",
-		"resource.type = \"k8s_container\"",
-	}
-	sort.Strings(filters)
-	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter(strings.Join(filters, " AND ")).
-		IntervalStartTime("2017-01-02T13:00:00Z").
-		IntervalEndTime("2017-01-02T13:02:00Z").
-		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
-		AggregationAlignmentPeriod("120s")
-	if !reflect.DeepEqual(*request, *expectedRequest) {
-		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", *expectedRequest, *request)
+	for _, tc := range map[string]struct {
+		podType            bool
+		resourceTypeFilter string
+	}{
+		"container type": {
+			podType:            false,
+			resourceTypeFilter: "resource.type = \"k8s_container\"",
+		},
+		"pod_container type": {
+			podType:            true,
+			resourceTypeFilter: "resource.type = one_of(k8s_pod,k8s_container)",
+		},
+	} {
+		queryBuilder := NewQueryBuilder(translator, metricName).
+			WithPods(&v1.PodList{Items: []v1.Pod{pod1, pod2}}).
+			WithMetricKind("GAUGE").
+			WithMetricValueType("INT64").
+			WithMetricSelector(metricSelector).
+			WithNamespace("default")
+		if tc.podType {
+			queryBuilder = queryBuilder.EnforcePodContainerType()
+		} else {
+			queryBuilder = queryBuilder.EnforceContainerType()
+		}
+		request, err := queryBuilder.Build()
+		if err != nil {
+			t.Errorf("Translation error: %s", err)
+		}
+		filters := []string{
+			"metric.labels.custom = \"test\"",
+			"metric.type = \"my/custom/metric\"",
+			"resource.labels.project_id = \"my-project\"",
+			"resource.labels.cluster_name = \"my-cluster\"",
+			"resource.labels.location = \"my-zone\"",
+			"resource.labels.namespace_name = \"default\"",
+			"resource.labels.pod_name = one_of(\"my-pod-name-1\",\"my-pod-name-2\")",
+			tc.resourceTypeFilter,
+		}
+		sort.Strings(filters)
+		expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+			Filter(strings.Join(filters, " AND ")).
+			IntervalStartTime("2017-01-02T13:00:00Z").
+			IntervalEndTime("2017-01-02T13:02:00Z").
+			AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+			AggregationAlignmentPeriod("120s")
+		if !reflect.DeepEqual(*request, *expectedRequest) {
+			t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", *expectedRequest, *request)
+		}
 	}
 }
 
@@ -1300,36 +1424,54 @@ func TestTranslator_QueryBuilder_Container_Single_Distribution(t *testing.T) {
 	}
 	metricName := "my/custom/metric"
 	selector, _ := labels.Parse("reducer=REDUCE_PERCENTILE_50")
-	request, err := NewQueryBuilder(translator, metricName).
-		AsContainerType().
-		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
-		WithMetricKind("DELTA").
-		WithMetricValueType("DISTRIBUTION").
-		WithMetricSelector(selector).
-		WithNamespace("default").
-		Build()
-	if err != nil {
-		t.Errorf("Translation error: %s", err)
-	}
-	filters := []string{
-		"metric.type = \"my/custom/metric\"",
-		"resource.labels.project_id = \"my-project\"",
-		"resource.labels.cluster_name = \"my-cluster\"",
-		"resource.labels.location = \"my-zone\"",
-		"resource.labels.namespace_name = \"default\"",
-		"resource.labels.pod_name = \"my-pod-name\"",
-		"resource.type = \"k8s_container\"",
-	}
-	sort.Strings(filters)
-	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter(strings.Join(filters, " AND ")).
-		IntervalStartTime("2017-01-02T13:00:00Z").
-		IntervalEndTime("2017-01-02T13:02:00Z").
-		AggregationPerSeriesAligner("ALIGN_DELTA").
-		AggregationCrossSeriesReducer("REDUCE_PERCENTILE_50").
-		AggregationAlignmentPeriod("60s")
-	if !reflect.DeepEqual(*request, *expectedRequest) {
-		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+	for _, tc := range map[string]struct {
+		podType            bool
+		resourceTypeFilter string
+	}{
+		"container type": {
+			podType:            false,
+			resourceTypeFilter: "resource.type = \"k8s_container\"",
+		},
+		"pod_container type": {
+			podType:            true,
+			resourceTypeFilter: "resource.type = one_of(k8s_pod,k8s_container)",
+		},
+	} {
+		queryBuilder := NewQueryBuilder(translator, metricName).
+			WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+			WithMetricKind("DELTA").
+			WithMetricValueType("DISTRIBUTION").
+			WithMetricSelector(selector).
+			WithNamespace("default")
+		if tc.podType {
+			queryBuilder = queryBuilder.EnforcePodContainerType()
+		} else {
+			queryBuilder = queryBuilder.EnforceContainerType()
+		}
+		request, err := queryBuilder.Build()
+		if err != nil {
+			t.Errorf("Translation error: %s", err)
+		}
+		filters := []string{
+			"metric.type = \"my/custom/metric\"",
+			"resource.labels.project_id = \"my-project\"",
+			"resource.labels.cluster_name = \"my-cluster\"",
+			"resource.labels.location = \"my-zone\"",
+			"resource.labels.namespace_name = \"default\"",
+			"resource.labels.pod_name = \"my-pod-name\"",
+			tc.resourceTypeFilter,
+		}
+		sort.Strings(filters)
+		expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+			Filter(strings.Join(filters, " AND ")).
+			IntervalStartTime("2017-01-02T13:00:00Z").
+			IntervalEndTime("2017-01-02T13:02:00Z").
+			AggregationPerSeriesAligner("ALIGN_DELTA").
+			AggregationCrossSeriesReducer("REDUCE_PERCENTILE_50").
+			AggregationAlignmentPeriod("60s")
+		if !reflect.DeepEqual(*request, *expectedRequest) {
+			t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+		}
 	}
 }
 
@@ -1344,37 +1486,55 @@ func TestTranslator_GetSDReqForContainer_SingleWithMetricSelector_Distribution(t
 	}
 	metricName := "my/custom/metric"
 	metricSelector, _ := labels.Parse("metric.labels.custom=test,reducer=REDUCE_PERCENTILE_99")
-	request, err := NewQueryBuilder(translator, metricName).
-		AsContainerType().
-		WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
-		WithMetricKind("DELTA").
-		WithMetricValueType("DISTRIBUTION").
-		WithMetricSelector(metricSelector).
-		WithNamespace("default").
-		Build()
-	if err != nil {
-		t.Errorf("Translation error: %s", err)
-	}
-	filters := []string{
-		"metric.labels.custom = \"test\"",
-		"metric.type = \"my/custom/metric\"",
-		"resource.labels.project_id = \"my-project\"",
-		"resource.labels.cluster_name = \"my-cluster\"",
-		"resource.labels.location = \"my-zone\"",
-		"resource.labels.namespace_name = \"default\"",
-		"resource.labels.pod_name = \"my-pod-name\"",
-		"resource.type = \"k8s_container\"",
-	}
-	sort.Strings(filters)
-	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
-		Filter(strings.Join(filters, " AND ")).
-		IntervalStartTime("2017-01-02T13:00:00Z").
-		IntervalEndTime("2017-01-02T13:02:00Z").
-		AggregationPerSeriesAligner("ALIGN_DELTA").
-		AggregationCrossSeriesReducer("REDUCE_PERCENTILE_99").
-		AggregationAlignmentPeriod("60s")
-	if !reflect.DeepEqual(*request, *expectedRequest) {
-		t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+	for _, tc := range map[string]struct {
+		podType            bool
+		resourceTypeFilter string
+	}{
+		"container type": {
+			podType:            false,
+			resourceTypeFilter: "resource.type = \"k8s_container\"",
+		},
+		"pod_container type": {
+			podType:            true,
+			resourceTypeFilter: "resource.type = one_of(k8s_pod,k8s_container)",
+		},
+	} {
+		queryBuilder := NewQueryBuilder(translator, metricName).
+			WithPods(&v1.PodList{Items: []v1.Pod{pod}}).
+			WithMetricKind("DELTA").
+			WithMetricValueType("DISTRIBUTION").
+			WithMetricSelector(metricSelector).
+			WithNamespace("default")
+		if tc.podType {
+			queryBuilder = queryBuilder.EnforcePodContainerType()
+		} else {
+			queryBuilder = queryBuilder.EnforceContainerType()
+		}
+		request, err := queryBuilder.Build()
+		if err != nil {
+			t.Errorf("Translation error: %s", err)
+		}
+		filters := []string{
+			"metric.labels.custom = \"test\"",
+			"metric.type = \"my/custom/metric\"",
+			"resource.labels.project_id = \"my-project\"",
+			"resource.labels.cluster_name = \"my-cluster\"",
+			"resource.labels.location = \"my-zone\"",
+			"resource.labels.namespace_name = \"default\"",
+			"resource.labels.pod_name = \"my-pod-name\"",
+			tc.resourceTypeFilter,
+		}
+		sort.Strings(filters)
+		expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+			Filter(strings.Join(filters, " AND ")).
+			IntervalStartTime("2017-01-02T13:00:00Z").
+			IntervalEndTime("2017-01-02T13:02:00Z").
+			AggregationPerSeriesAligner("ALIGN_DELTA").
+			AggregationCrossSeriesReducer("REDUCE_PERCENTILE_99").
+			AggregationAlignmentPeriod("60s")
+		if !reflect.DeepEqual(*request, *expectedRequest) {
+			t.Errorf("Unexpected result. Expected: \n%v,\n received: \n%v", expectedRequest, request)
+		}
 	}
 }
 
