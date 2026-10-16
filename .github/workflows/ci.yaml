@@ -43,12 +43,14 @@ jobs:
     steps:
     - name: Check out code into the Go module directory
       uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      with:
+        persist-credentials: false
 
     - name: Set up Go from module
       uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
       with:
         go-version-file: ${{ matrix.component.dir }}/go.mod
-        cache: true
+        cache: false
         cache-dependency-path: ${{ matrix.component.dir }}/go.sum
       id: go
 
@@ -81,12 +83,14 @@ jobs:
     steps:
     - name: Check out code into the Go module directory
       uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      with:
+        persist-credentials: false
 
     - name: Set up Go from module
       uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
       with:
         go-version-file: ${{ matrix.component.dir }}/go.mod
-        cache: true
+        cache: false
         cache-dependency-path: ${{ matrix.component.dir }}/go.sum
       id: go
 
@@ -109,6 +113,8 @@ jobs:
     steps:
     - name: Check out code
       uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      with:
+        persist-credentials: false
     - name: Build container
       working-directory: ${{ matrix.component }}
       run: docker build .
