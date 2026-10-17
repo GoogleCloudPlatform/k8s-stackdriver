@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	metadatafake "k8s.io/client-go/metadata/fake"
 )
 
@@ -234,7 +235,7 @@ func TestGetLabelsCacheOperations(t *testing.T) {
 	}
 	fakeMetadataClient := metadatafake.NewSimpleMetadataClient(scheme, pod1, pod2)
 	
-	factory := NewPodLabelsSharedInformerFactory(fakeMetadataClient, nil, false)
+	factory := NewPodLabelsSharedInformerFactory(fakeMetadataClient, nil, false, nil)
 	collector := factory.NewPodLabelsSharedInformer()
 	stopCh := make(chan struct{})
 	defer close(stopCh)
@@ -320,5 +321,56 @@ func TestGetLabelsCacheOperations(t *testing.T) {
 
 	if count := intValueOfMetric(cacheOpsCount.With(prometheus.Labels{"operation": "evict"})); count != 1 {
 		t.Errorf("At this point, cacheOpsCount with operation=evict should be 1, but got %d", count)
+	}
+}
+
+func TestGetLabelsCacheSharding(t *testing.T) {
+	scheme := runtime.NewScheme()
+	metav1.AddMetaToScheme(scheme)
+
+	ownedPod := &metav1.PartialObjectMetadata{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "owned-pod",
+			Namespace: "default",
+			UID:       "owned-uid",
+			OwnerReferences: []metav1.OwnerReference{{
+				Kind: "DaemonSet",
+				Name: "my-agent",
+			}},
+		},
+	}
+	foreignPod := &metav1.PartialObjectMetadata{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "foreign-pod",
+			Namespace: "default",
+			UID:       "foreign-uid",
+			OwnerReferences: []metav1.OwnerReference{{
+				Kind: "DaemonSet",
+				Name: "my-agent",
+			}},
+		},
+	}
+	fakeMetadataClient := metadatafake.NewSimpleMetadataClient(scheme, ownedPod, foreignPod)
+
+	owns := func(uid types.UID) bool { return uid == "owned-uid" }
+	factory := NewPodLabelsSharedInformerFactory(fakeMetadataClient, nil, false, owns)
+	collector := factory.NewPodLabelsSharedInformer()
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	factory.Run(stopCh)
+
+	if labels := collector.GetLabels("default", "owned-pod"); len(labels) != 2 {
+		t.Errorf("GetLabels() for owned pod returned unexpected labels %v", labels)
+	}
+	if labels := collector.GetLabels("default", "foreign-pod"); labels != nil {
+		t.Errorf("GetLabels() for pod of another shard should miss, but returned %v", labels)
 	}
 }
