@@ -18,6 +18,7 @@ package kubelet
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 	"time"
 
@@ -280,7 +281,7 @@ func TestTranslator(t *testing.T) {
 			monitoredResourceLabels: map[string]string{},
 			Resolution:              time.Second * time.Duration(10),
 			Summary:                 summaryJSON,
-			ExpectedTSCount:         23,
+			ExpectedTSCount:         25,
 		},
 	}
 
@@ -370,7 +371,7 @@ func TestTranslateContainers(t *testing.T) {
 	badTimestampOnCumulativeMetricsContrainer.Memory.Time = badTimestampOnCumulativeMetricsContrainer.StartTime
 	badTimestampOnCumulativeMetricsContrainer.CPU.Time = badTimestampOnCumulativeMetricsContrainer.StartTime
 	legacyTsPerContainer := 11
-	tsPerContainer := 8
+	tsPerContainer := 9
 	inCompleteContainerMemPodStat := &stats.PodStats{}
 	if err := json.Unmarshal([]byte(incompleteContainerMemStatJSON), inCompleteContainerMemPodStat); err != nil {
 		t.Errorf("Failed to unmarshal incompleteContainerMemStatJSON, err: %v", err)
@@ -472,7 +473,7 @@ func TestTranslateContainers(t *testing.T) {
 		{
 			name:                  "inCompleteContainerMemPodStat missing memory usageBytes pageFaults, and majorPageFaults",
 			ExpectedLegacyTSCount: 7,
-			ExpectedTSCount:       4,
+			ExpectedTSCount:       6,
 			pods:                  []stats.PodStats{*inCompleteContainerMemPodStat},
 		},
 	}
@@ -495,6 +496,147 @@ func TestTranslateContainers(t *testing.T) {
 			}
 			if tc.ExpectedTSCount != len(ts) {
 				t.Errorf("Expected %d TimeSeries, got %d", tc.ExpectedTSCount, len(ts))
+			}
+		})
+	}
+}
+
+func TestTranslatePodAndContainerMemoryMetrics(t *testing.T) {
+	podStat := &stats.PodStats{}
+	if err := json.Unmarshal([]byte(incompleteContainerMemStatJSON), podStat); err != nil {
+		t.Fatalf("json.Unmarshal(incompleteContainerMemStatJSON) failed: %v", err)
+	}
+	podStat.Containers[0].Memory.RSSBytes = monitor.Uint64Ptr(65432100)
+
+	wantContainerTime := podStat.Containers[0].Memory.Time.Format(time.RFC3339)
+	wantPodTime := podStat.Memory.Time.Format(time.RFC3339)
+
+	testCases := []struct {
+		name                string
+		schemaPrefix        string
+		extraLabels         map[string]string
+		wantPodLabels       map[string]string
+		wantContainerLabels map[string]string
+	}{
+		{
+			name:         "k8s_ prefix skips instance_id",
+			schemaPrefix: "k8s_",
+			extraLabels:  map[string]string{},
+			wantPodLabels: map[string]string{
+				"project_id":     "test-project",
+				"cluster_name":   "unit-test-clus",
+				"location":       "test-location",
+				"namespace_name": "kube-system",
+				"pod_name":       "auditproxy-gke-12345678-1248-332a-vm",
+			},
+			wantContainerLabels: map[string]string{
+				"project_id":     "test-project",
+				"cluster_name":   "unit-test-clus",
+				"location":       "test-location",
+				"namespace_name": "kube-system",
+				"pod_name":       "auditproxy-gke-12345678-1248-332a-vm",
+				"container_name": "auditproxy",
+			},
+		},
+		{
+			name:         "custom_ prefix includes instance_id and extra labels",
+			schemaPrefix: "custom_",
+			extraLabels: map[string]string{
+				"cluster_hash":        "hash-123",
+				"consumer_project_id": "consumer-proj",
+			},
+			wantPodLabels: map[string]string{
+				"project_id":          "test-project",
+				"cluster_name":        "unit-test-clus",
+				"location":            "test-location",
+				"instance_id":         "instance-id-1",
+				"cluster_hash":        "hash-123",
+				"consumer_project_id": "consumer-proj",
+				"namespace_name":      "kube-system",
+				"pod_name":            "auditproxy-gke-12345678-1248-332a-vm",
+			},
+			wantContainerLabels: map[string]string{
+				"project_id":          "test-project",
+				"cluster_name":        "unit-test-clus",
+				"location":            "test-location",
+				"instance_id":         "instance-id-1",
+				"cluster_hash":        "hash-123",
+				"consumer_project_id": "consumer-proj",
+				"namespace_name":      "kube-system",
+				"pod_name":            "auditproxy-gke-12345678-1248-332a-vm",
+				"container_name":      "auditproxy",
+			},
+		},
+	}
+
+	type metricSummary struct {
+		value        int64
+		metricKind   string
+		valueType    string
+		startTime    string
+		endTime      string
+		resourceType string
+		labels       map[string]string
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			translator := NewTranslator("us-central1-f", "test-project", "unit-test-clus", "test-location", "", "instance-id-1", tc.schemaPrefix, tc.extraLabels, time.Minute)
+			tsList, err := translator.translateContainers([]stats.PodStats{*podStat})
+			if err != nil {
+				t.Fatalf("translateContainers(%v) returned unexpected error: %v", podStat.PodRef.Name, err)
+			}
+
+			got := make(map[string]metricSummary)
+			for _, ts := range tsList {
+				switch ts.Metric.Type {
+				case "kubernetes.io/container/memory/rss",
+					"kubernetes.io/pod/memory/rss",
+					"kubernetes.io/pod/memory/working_set":
+					got[ts.Metric.Type] = metricSummary{
+						value:        *ts.Points[0].Value.Int64Value,
+						metricKind:   ts.MetricKind,
+						valueType:    ts.ValueType,
+						startTime:    ts.Points[0].Interval.StartTime,
+						endTime:      ts.Points[0].Interval.EndTime,
+						resourceType: ts.Resource.Type,
+						labels:       ts.Resource.Labels,
+					}
+				}
+			}
+
+			want := map[string]metricSummary{
+				"kubernetes.io/container/memory/rss": {
+					value:        65432100,
+					metricKind:   "GAUGE",
+					valueType:    "INT64",
+					startTime:    wantContainerTime,
+					endTime:      wantContainerTime,
+					resourceType: tc.schemaPrefix + "container",
+					labels:       tc.wantContainerLabels,
+				},
+				"kubernetes.io/pod/memory/rss": {
+					value:        70098944,
+					metricKind:   "GAUGE",
+					valueType:    "INT64",
+					startTime:    wantPodTime,
+					endTime:      wantPodTime,
+					resourceType: tc.schemaPrefix + "pod",
+					labels:       tc.wantPodLabels,
+				},
+				"kubernetes.io/pod/memory/working_set": {
+					value:        88707072,
+					metricKind:   "GAUGE",
+					valueType:    "INT64",
+					startTime:    wantPodTime,
+					endTime:      wantPodTime,
+					resourceType: tc.schemaPrefix + "pod",
+					labels:       tc.wantPodLabels,
+				},
+			}
+
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("translateContainers(%q) memory metrics = %+v, want %+v", podStat.PodRef.Name, got, want)
 			}
 		})
 	}
