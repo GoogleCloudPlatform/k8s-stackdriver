@@ -19,10 +19,12 @@ package main
 import (
 	"strings"
 	"testing"
+	"time"
 
 	generatedopenapi "github.com/GoogleCloudPlatform/k8s-stackdriver/custom-metrics-stackdriver-adapter/pkg/api/generated/openapi"
 	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
 	"k8s.io/kube-openapi/pkg/validation/spec"
+	basecmd "sigs.k8s.io/custom-metrics-apiserver/pkg/cmd"
 	customexternalmetrics "sigs.k8s.io/custom-metrics-apiserver/pkg/apiserver"
 	"sigs.k8s.io/metrics-server/pkg/api"
 )
@@ -95,5 +97,33 @@ func TestOpenAPIDefinitionsResolution(t *testing.T) {
 		if _, ok := definitions[resolvedName]; !ok {
 			t.Errorf("OpenAPI definition for GVK %v (type name %q resolved to %q) not found in generated definitions", gvk, typeName, resolvedName)
 		}
+	}
+}
+
+func TestExternalMetricsRequestWindowFlag(t *testing.T) {
+	cmd := &StackdriverAdapter{
+		basecmd.AdapterBase{
+			Name: "custom-metrics-stackdriver-adapter",
+		},
+	}
+	serverOptions := stackdriverAdapterServerOptions{
+		ExternalMetricsRequestWindow: 5 * time.Minute,
+	}
+	flags := cmd.Flags()
+	flags.DurationVar(&serverOptions.ExternalMetricsRequestWindow, "external-metrics-request-window", serverOptions.ExternalMetricsRequestWindow,
+		"The time window (e.g., 5m, 10m, 1h) used when querying external metrics from Stackdriver/Cloud Monitoring. Defaults to 5m.")
+
+	// Test default value
+	if serverOptions.ExternalMetricsRequestWindow != 5*time.Minute {
+		t.Errorf("expected default ExternalMetricsRequestWindow to be 5m, got %v", serverOptions.ExternalMetricsRequestWindow)
+	}
+
+	// Test parsing custom value
+	err := flags.Parse([]string{"--external-metrics-request-window=15m"})
+	if err != nil {
+		t.Fatalf("unexpected error parsing flag: %v", err)
+	}
+	if serverOptions.ExternalMetricsRequestWindow != 15*time.Minute {
+		t.Errorf("expected ExternalMetricsRequestWindow to be 15m, got %v", serverOptions.ExternalMetricsRequestWindow)
 	}
 }
