@@ -66,6 +66,12 @@ var (
 		Name:       "kubernetes.io/container/memory/used_bytes",
 	}
 
+	containerMemRSSMD = &metricMetadata{
+		MetricKind: "GAUGE",
+		ValueType:  "INT64",
+		Name:       "kubernetes.io/container/memory/rss",
+	}
+
 	containerPageFaultsMD = &metricMetadata{
 		MetricKind: "CUMULATIVE",
 		ValueType:  "INT64",
@@ -76,6 +82,20 @@ var (
 		MetricKind: "GAUGE",
 		ValueType:  "INT64",
 		Name:       "kubernetes.io/container/ephemeral_storage/used_bytes",
+	}
+
+	// Pod metrics
+
+	podMemRSSMD = &metricMetadata{
+		MetricKind: "GAUGE",
+		ValueType:  "INT64",
+		Name:       "kubernetes.io/pod/memory/rss",
+	}
+
+	podMemWorkingSetMD = &metricMetadata{
+		MetricKind: "GAUGE",
+		ValueType:  "INT64",
+		Name:       "kubernetes.io/pod/memory/working_set",
 	}
 
 	// Node metrics
@@ -277,6 +297,7 @@ func (t *Translator) translateContainers(pods []stats.PodStats) ([]*v3.TimeSerie
 		metrics := make(map[string][]*v3.TimeSeries)
 		namespace := pod.PodRef.Namespace
 		podID := pod.PodRef.Name
+		timeSeries = append(timeSeries, t.translatePodMemory(podID, namespace, pod.StartTime.Time, pod.Memory)...)
 		// There can be duplicate data points for containers, so only
 		// take the latest one.
 		for _, container := range pod.Containers {
@@ -304,6 +325,33 @@ func (t *Translator) translateContainers(pods []stats.PodStats) ([]*v3.TimeSerie
 	return timeSeries, nil
 }
 
+func (t *Translator) translatePodMemory(podID, namespace string, startTime time.Time, memory *stats.MemoryStats) []*v3.TimeSeries {
+	if t.useOldResourceModel || memory == nil {
+		return nil
+	}
+	podLabels := map[string]string{
+		"namespace": namespace,
+		"pod":       podID,
+	}
+	tsFactory := newTimeSeriesFactory(t.getMonitoredResource(podLabels), t.resolution)
+	var timeSeries []*v3.TimeSeries
+	if memory.WorkingSetBytes != nil {
+		wsPoint := tsFactory.newPoint(&v3.TypedValue{
+			Int64Value:      monitor.Int64Ptr(int64(*memory.WorkingSetBytes)),
+			ForceSendFields: []string{"Int64Value"},
+		}, startTime, memory.Time.Time, podMemWorkingSetMD.MetricKind)
+		timeSeries = append(timeSeries, tsFactory.newTimeSeries(noLabels, podMemWorkingSetMD, wsPoint))
+	}
+	if memory.RSSBytes != nil {
+		rssPoint := tsFactory.newPoint(&v3.TypedValue{
+			Int64Value:      monitor.Int64Ptr(int64(*memory.RSSBytes)),
+			ForceSendFields: []string{"Int64Value"},
+		}, startTime, memory.Time.Time, podMemRSSMD.MetricKind)
+		timeSeries = append(timeSeries, tsFactory.newTimeSeries(noLabels, podMemRSSMD, rssPoint))
+	}
+	return timeSeries
+}
+
 func (t *Translator) translateContainer(podID, namespace string, container stats.ContainerStats, requireFsStats bool) ([]*v3.TimeSeries, error) {
 	var (
 		containerSeries, memTS, rootfsTS, logfsTS, cpuTS []*v3.TimeSeries
@@ -328,6 +376,13 @@ func (t *Translator) translateContainer(podID, namespace string, container stats
 		return nil, fmt.Errorf("failed to translate memory stats: %v", err)
 	}
 	containerSeries = append(containerSeries, memTS...)
+	if !t.useOldResourceModel && container.Memory.RSSBytes != nil {
+		rssPoint := tsFactory.newPoint(&v3.TypedValue{
+			Int64Value:      monitor.Int64Ptr(int64(*container.Memory.RSSBytes)),
+			ForceSendFields: []string{"Int64Value"},
+		}, container.StartTime.Time, container.Memory.Time.Time, containerMemRSSMD.MetricKind)
+		containerSeries = append(containerSeries, tsFactory.newTimeSeries(noLabels, containerMemRSSMD, rssPoint))
+	}
 
 	// File-system stats.
 	diskUsedMD, diskTotalMD := t.getFsMD(tsFactory.monitoredResource.Type)
@@ -613,6 +668,14 @@ func (t *Translator) getMonitoredResource(labels map[string]string) *v3.Monitore
 	}
 
 	if _, found := labels["container"]; !found {
+		if _, found := labels["namespace"]; found {
+			resourceLabels["namespace_name"] = labels["namespace"]
+			resourceLabels["pod_name"] = labels["pod"]
+			return &v3.MonitoredResource{
+				Type:   t.schemaPrefix + "pod",
+				Labels: resourceLabels,
+			}
+		}
 		if t.instance != "" {
 			resourceLabels["node_name"] = t.instance
 		}
