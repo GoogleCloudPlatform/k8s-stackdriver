@@ -5,7 +5,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clientfeatures "k8s.io/client-go/features"
 	"k8s.io/client-go/metadata"
 
 	"k8s.io/client-go/metadata/metadatainformer"
@@ -43,26 +42,11 @@ func (f *PodLabelsSharedInformerFactory) NewPodLabelsSharedInformer() *PodLabels
 	}
 }
 
-type customFeatureGates struct {
-	clientfeatures.Gates
-	enableWatchListClient bool
-}
-
-func (c *customFeatureGates) Enabled(key clientfeatures.Feature) bool {
-	if key == clientfeatures.WatchListClient {
-		klog.Info("Enabled feature gate WatchListClient: ", c.enableWatchListClient)
-		return c.enableWatchListClient
-	}
-	return c.Gates.Enabled(key)
-}
-
-func NewPodLabelsSharedInformerFactory(client metadata.Interface, ignoredNamespaces []string, enableWatchListClient bool) *PodLabelsSharedInformerFactory {
-	// Set the custom feature gates based on the flag
-	clientfeatures.ReplaceFeatureGates(&customFeatureGates{
-		Gates:                 clientfeatures.FeatureGates(),
-		enableWatchListClient: enableWatchListClient,
-	})
-
+// NewPodLabelsSharedInformerFactory creates a factory for the pod-labels
+// informer. Whether the informer syncs via a watch-list stream or paginated
+// lists is controlled by the global client-go WatchListClient feature gate,
+// set up in main.
+func NewPodLabelsSharedInformerFactory(client metadata.Interface, ignoredNamespaces []string) *PodLabelsSharedInformerFactory {
 	ignoredNamespacesMap := make(map[string]struct{})
 	for _, ns := range ignoredNamespaces {
 		ignoredNamespacesMap[ns] = struct{}{}
