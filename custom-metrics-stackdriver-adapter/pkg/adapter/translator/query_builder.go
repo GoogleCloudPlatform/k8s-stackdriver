@@ -41,7 +41,7 @@ var (
 	allowedExternalMetricsFullLabelNames = []string{"resource.type", "reducer"}
 	// allowedCustomMetricsLabelPrefixes and allowedCustomMetricsFullLabelNames specify all metric labels allowed for querying
 	allowedCustomMetricsLabelPrefixes  = []string{"metric.labels"}
-	allowedCustomMetricsFullLabelNames = []string{"reducer"}
+	allowedCustomMetricsFullLabelNames = []string{"resource.labels.container_name", "reducer"}
 	allowedReducers                    = map[string]bool{
 		"REDUCE_NONE":          true,
 		"REDUCE_MEAN":          true,
@@ -170,15 +170,16 @@ func (nc nodeValues) getNodeNames() []string {
 //
 // use NewQueryBuilder() to initialize
 type QueryBuilder struct {
-	translator           *Translator     // translator provides configurations to filter
-	metricName           string          // metricName is the metric name to filter
-	metricKind           string          // metricKind is the metric kind to filter
-	metricValueType      string          // metricValueType is the metric value type to filter
-	metricSelector       labels.Selector // metricSelector is the metric selector to filtere
-	namespace            string          // namespace is the namespace to filter (mutually exclusive with nodes)
-	pods                 podValues       // pods is the pods to filter (mutually exclusive with nodes)
-	nodes                nodeValues      // nodes is the nodes to filter (mutually exclusive with namespace, pods)
-	enforceContainerType bool            // enforceContainerType decides whether to enforce using container type filter schema
+	translator              *Translator     // translator provides configurations to filter
+	metricName              string          // metricName is the metric name to filter
+	metricKind              string          // metricKind is the metric kind to filter
+	metricValueType         string          // metricValueType is the metric value type to filter
+	metricSelector          labels.Selector // metricSelector is the metric selector to filtere
+	namespace               string          // namespace is the namespace to filter (mutually exclusive with nodes)
+	pods                    podValues       // pods is the pods to filter (mutually exclusive with nodes)
+	nodes                   nodeValues      // nodes is the nodes to filter (mutually exclusive with namespace, pods)
+	enforceContainerType    bool            // enforceContainerType decides whether to enforce using container type filter schema
+	enforcePodContainerType bool            // enforcePodContainerType decides wether to to enforce using pod_container type filter schema
 }
 
 // NewQueryBuilder is the initiator for QueryBuilder
@@ -315,11 +316,19 @@ func (qb QueryBuilder) getResourceNames() []string {
 	return qb.pods.getPodIDs()
 }
 
-// AsContainerType enforces to query k8s_container type metrics
+// EnforceContainerType enforces to query k8s_container type metrics
 //
 // it it valid only when useNewResourceModel is true
-func (qb QueryBuilder) AsContainerType() QueryBuilder {
+func (qb QueryBuilder) EnforceContainerType() QueryBuilder {
 	qb.enforceContainerType = true
+	return qb
+}
+
+// EnforcePodContainerType enforces to query both k8s_pod and k8s_container type metrics
+//
+// it it valid only when useNewResourceModel is true
+func (qb QueryBuilder) EnforcePodContainerType() QueryBuilder {
+	qb.enforcePodContainerType = true
 	return qb
 }
 
@@ -367,7 +376,7 @@ func (qb QueryBuilder) validate() error {
 		return apierr.NewBadRequest("distributions are not supported")
 	}
 
-	if qb.enforceContainerType && !qb.translator.useNewResourceModel {
+	if !qb.translator.useNewResourceModel && (qb.enforceContainerType || qb.enforcePodContainerType) {
 		return apierr.NewInternalError(fmt.Errorf("illegal state! Container metrics works only with new resource model"))
 	}
 
@@ -391,6 +400,11 @@ func (qb QueryBuilder) getFilterBuilder() utils.FilterBuilder {
 	// container type FilterBuilder
 	if qb.enforceContainerType {
 		return utils.NewFilterBuilder(utils.SchemaTypes[utils.ContainerSchemaKey])
+	}
+
+	// pod_container type FilterBuilder
+	if qb.enforcePodContainerType {
+		return utils.NewFilterBuilder(utils.SchemaTypes[utils.PodContainerSchemaKey])
 	}
 
 	// prometheus type FilterBuilder

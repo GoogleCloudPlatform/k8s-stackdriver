@@ -52,6 +52,12 @@ func TestNewFilterBuilder_pod(t *testing.T) {
 	expectFilterBuilder(actual).toEqual(expected).report(t)
 }
 
+func TestNewFilterBuilder_pod_container(t *testing.T) {
+	actual := NewFilterBuilder(SchemaTypes["pod_container"])
+	expected := FilterBuilder{schema: PodSchema, filters: []string{"resource.type = one_of(k8s_pod,k8s_container)"}}
+	expectFilterBuilder(actual).toEqual(expected).report(t)
+}
+
 func TestNewFilterBuilder_legacy(t *testing.T) {
 	actual := NewFilterBuilder(SchemaTypes["legacy"])
 	expected := FilterBuilder{schema: LegacyPodSchema, filters: []string{}}
