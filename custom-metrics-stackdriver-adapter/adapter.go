@@ -95,6 +95,8 @@ type stackdriverAdapterServerOptions struct {
 	MetricKindCacheTTL time.Duration
 	// MetricKindCacheSize specifies the maximum number of stored entries in the metric kind cache.
 	MetricKindCacheSize int
+	// ExternalMetricsRequestWindow specifies the time window used for querying metrics. Defaults to 5 minutes.
+	ExternalMetricsRequestWindow time.Duration
 }
 
 func (sa *StackdriverAdapter) makeProviderOrDie(o *stackdriverAdapterServerOptions, rateInterval time.Duration, alignmentPeriod time.Duration) (provider.MetricsProvider, *translator.Translator) {
@@ -241,6 +243,7 @@ func main() {
 		ListFullCustomMetrics:       false,
 		ExternalMetricsCacheSize:    defaultExternalMetricsCacheSize,
 		MetricKindCacheSize:         defaultMetricKindCacheSize,
+		ExternalMetricsRequestWindow: 5 * time.Minute,
 	}
 
 	flags.BoolVar(&serverOptions.UseNewResourceModel, "use-new-resource-model", serverOptions.UseNewResourceModel,
@@ -269,6 +272,8 @@ func main() {
 		"The duration (e.g., 1m, 5s) for which metric kind info calls are cached. Defaults to 0 which disables the metric kind cache.")
 	flags.IntVar(&serverOptions.MetricKindCacheSize, "metric-kind-cache-size", serverOptions.MetricKindCacheSize,
 		"The maximum number of entries in the metric kind cache. Clusters using a lot of stackdriver based autoscaling should set this value greater than the number of separate stackdriver metrics used (not hpas using metrics) to avoid internal rate limits. Defaults to 25.")
+	flags.DurationVar(&serverOptions.ExternalMetricsRequestWindow, "external-metrics-request-window", serverOptions.ExternalMetricsRequestWindow,
+		"The time window (e.g., 5m, 10m, 1h) used when querying external metrics from Stackdriver/Cloud Monitoring. Defaults to 5m.")
 
 	flags.Parse(os.Args)
 
@@ -285,8 +290,7 @@ func main() {
 		klog.Infof("ListFullCustomMetrics is disabled, which would only list 1 metric resource to reduce memory usage. Add --list-full-custom-metrics to list full metric resources for debugging.")
 	}
 
-	// TODO(holubwicz): move duration config to server options
-	metricsProvider, translator := cmd.makeProviderOrDie(&serverOptions, 5*time.Minute, 1*time.Minute)
+	metricsProvider, translator := cmd.makeProviderOrDie(&serverOptions, serverOptions.ExternalMetricsRequestWindow, 1*time.Minute)
 	if serverOptions.EnableCustomMetricsAPI {
 		cmd.WithCustomMetrics(metricsProvider)
 	}

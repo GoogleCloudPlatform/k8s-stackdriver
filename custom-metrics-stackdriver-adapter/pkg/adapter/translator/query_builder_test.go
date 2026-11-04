@@ -943,6 +943,28 @@ func TestTranslator_GetExternalMetricRequest_NoSelector(t *testing.T) {
 	}
 }
 
+func TestTranslator_GetExternalMetricRequest_CustomWindow(t *testing.T) {
+	// Verify that custom request window (e.g. 15 minutes) is reflected in interval start time and alignment period
+	reqWindow := 15 * time.Minute
+	alignmentPeriod := 1 * time.Minute
+	currentTime := time.Date(2017, 1, 2, 13, 15, 0, 0, time.UTC)
+	translator, sdService := newFakeTranslatorForExternalMetrics(reqWindow, alignmentPeriod, "my-project", currentTime)
+
+	request, err := translator.GetExternalMetricRequest("custom.googleapis.com/my/metric/name", "GAUGE", "INT64", labels.NewSelector())
+	if err != nil {
+		t.Fatalf("Translation error: %s", err)
+	}
+	expectedRequest := sdService.Projects.TimeSeries.List("projects/my-project").
+		Filter("metric.type = \"custom.googleapis.com/my/metric/name\"").
+		IntervalStartTime("2017-01-02T13:00:00Z").
+		IntervalEndTime("2017-01-02T13:15:00Z").
+		AggregationPerSeriesAligner("ALIGN_NEXT_OLDER").
+		AggregationAlignmentPeriod("900s")
+	if !reflect.DeepEqual(*request, *expectedRequest) {
+		t.Errorf("Unexpected result. Expected \n%v,\n received: \n%v", *expectedRequest, *request)
+	}
+}
+
 func TestTranslator_GetExternalMetricRequest_CorrectSelector_Cumulative(t *testing.T) {
 	translator, sdService := newFakeTranslatorForExternalMetrics(2*time.Minute, time.Minute, "my-project", time.Date(2017, 1, 2, 13, 2, 0, 0, time.UTC))
 	req1, _ := labels.NewRequirement("resource.type", selection.Equals, []string{"k8s_pod"})
