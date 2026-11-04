@@ -135,11 +135,6 @@
     },
     {
       "description": "Regional Endpoint",
-      "endpointUrl": "https://logging.europe-west15.rep.googleapis.com/",
-      "location": "europe-west15"
-    },
-    {
-      "description": "Regional Endpoint",
       "endpointUrl": "https://logging.europe-west2.rep.googleapis.com/",
       "location": "europe-west2"
     },
@@ -215,11 +210,6 @@
     },
     {
       "description": "Regional Endpoint",
-      "endpointUrl": "https://logging.us-central2.rep.googleapis.com/",
-      "location": "us-central2"
-    },
-    {
-      "description": "Regional Endpoint",
       "endpointUrl": "https://logging.us-east1.rep.googleapis.com/",
       "location": "us-east1"
     },
@@ -232,11 +222,6 @@
       "description": "Regional Endpoint",
       "endpointUrl": "https://logging.us-east5.rep.googleapis.com/",
       "location": "us-east5"
-    },
-    {
-      "description": "Regional Endpoint",
-      "endpointUrl": "https://logging.us-east7.rep.googleapis.com/",
-      "location": "us-east7"
     },
     {
       "description": "Regional Endpoint",
@@ -265,11 +250,6 @@
     },
     {
       "description": "Regional Endpoint",
-      "endpointUrl": "https://logging.us-west8.rep.googleapis.com/",
-      "location": "us-west8"
-    },
-    {
-      "description": "Regional Endpoint",
       "endpointUrl": "https://logging.ca.rep.googleapis.com/",
       "location": "ca"
     },
@@ -287,6 +267,11 @@
       "description": "Regional Endpoint",
       "endpointUrl": "https://logging.in.rep.googleapis.com/",
       "location": "in"
+    },
+    {
+      "description": "Regional Endpoint",
+      "endpointUrl": "https://logging.sa.rep.googleapis.com/",
+      "location": "sa"
     },
     {
       "description": "Regional Endpoint",
@@ -636,7 +621,7 @@
               ]
             },
             "list": {
-              "description": "Lists information about the supported locations for this service. This method can be called in two ways: List all public locations: Use the path GET /v1/locations. List project-visible locations: Use the path GET /v1/projects/{project_id}/locations. This may include public locations as well as private or other locations specifically visible to the project.",
+              "description": "Lists information about the supported locations for this service.This method lists locations based on the resource scope provided in the ListLocationsRequest.name field: Global locations: If name is empty, the method lists the public locations available to all projects. Project-specific locations: If name follows the format projects/{project}, the method lists locations visible to that specific project. This includes public, private, or other project-specific locations enabled for the project.For gRPC and client library implementations, the resource name is passed as the name field. For direct service calls, the resource name is incorporated into the request path based on the specific service implementation and version.",
               "flatPath": "v2/billingAccounts/{billingAccountsId}/locations",
               "httpMethod": "GET",
               "id": "logging.billingAccounts.locations.list",
@@ -645,7 +630,7 @@
               ],
               "parameters": {
                 "extraLocationTypes": {
-                  "description": "Optional. Do not use this field. It is unsupported and is ignored unless explicitly documented otherwise. This is primarily for internal usage.",
+                  "description": "Optional. Do not use this field unless explicitly documented otherwise. This is primarily for internal usage.",
                   "location": "query",
                   "repeated": true,
                   "type": "string"
@@ -1962,7 +1947,7 @@
           ]
         },
         "list": {
-          "description": "Lists log entries. Use this method to retrieve log entries that originated from a project/folder/organization/billing account. For ways to export log entries, see Exporting Logs (https://cloud.google.com/logging/docs/export).",
+          "description": "Lists log entries. Use this method to retrieve log entries that originated from a project/folder/organization/billing account. For ways to export log entries, see Routing overview (https://docs.cloud.google.com/logging/docs/routing/overview).",
           "flatPath": "v2/entries:list",
           "httpMethod": "POST",
           "id": "logging.entries.list",
@@ -2473,7 +2458,7 @@
               ]
             },
             "list": {
-              "description": "Lists information about the supported locations for this service. This method can be called in two ways: List all public locations: Use the path GET /v1/locations. List project-visible locations: Use the path GET /v1/projects/{project_id}/locations. This may include public locations as well as private or other locations specifically visible to the project.",
+              "description": "Lists information about the supported locations for this service.This method lists locations based on the resource scope provided in the ListLocationsRequest.name field: Global locations: If name is empty, the method lists the public locations available to all projects. Project-specific locations: If name follows the format projects/{project}, the method lists locations visible to that specific project. This includes public, private, or other project-specific locations enabled for the project.For gRPC and client library implementations, the resource name is passed as the name field. For direct service calls, the resource name is incorporated into the request path based on the specific service implementation and version.",
               "flatPath": "v2/folders/{foldersId}/locations",
               "httpMethod": "GET",
               "id": "logging.folders.locations.list",
@@ -2482,7 +2467,7 @@
               ],
               "parameters": {
                 "extraLocationTypes": {
-                  "description": "Optional. Do not use this field. It is unsupported and is ignored unless explicitly documented otherwise. This is primarily for internal usage.",
+                  "description": "Optional. Do not use this field unless explicitly documented otherwise. This is primarily for internal usage.",
                   "location": "query",
                   "repeated": true,
                   "type": "string"
@@ -4065,7 +4050,7 @@
           ]
         },
         "list": {
-          "description": "Lists information about the supported locations for this service. This method can be called in two ways: List all public locations: Use the path GET /v1/locations. List project-visible locations: Use the path GET /v1/projects/{project_id}/locations. This may include public locations as well as private or other locations specifically visible to the project.",
+          "description": "Lists information about the supported locations for this service.This method lists locations based on the resource scope provided in the ListLocationsRequest.name field: Global locations: If name is empty, the method lists the public locations available to all projects. Project-specific locations: If name follows the format projects/{project}, the method lists locations visible to that specific project. This includes public, private, or other project-specific locations enabled for the project.For gRPC and client library implementations, the resource name is passed as the name field. For direct service calls, the resource name is incorporated into the request path based on the specific service implementation and version.",
           "flatPath": "v2/{v2Id}/{v2Id1}/locations",
           "httpMethod": "GET",
           "id": "logging.locations.list",
@@ -4074,7 +4059,7 @@
           ],
           "parameters": {
             "extraLocationTypes": {
-              "description": "Optional. Do not use this field. It is unsupported and is ignored unless explicitly documented otherwise. This is primarily for internal usage.",
+              "description": "Optional. Do not use this field unless explicitly documented otherwise. This is primarily for internal usage.",
               "location": "query",
               "repeated": true,
               "type": "string"
@@ -5313,7 +5298,7 @@
               ]
             },
             "list": {
-              "description": "Lists information about the supported locations for this service. This method can be called in two ways: List all public locations: Use the path GET /v1/locations. List project-visible locations: Use the path GET /v1/projects/{project_id}/locations. This may include public locations as well as private or other locations specifically visible to the project.",
+              "description": "Lists information about the supported locations for this service.This method lists locations based on the resource scope provided in the ListLocationsRequest.name field: Global locations: If name is empty, the method lists the public locations available to all projects. Project-specific locations: If name follows the format projects/{project}, the method lists locations visible to that specific project. This includes public, private, or other project-specific locations enabled for the project.For gRPC and client library implementations, the resource name is passed as the name field. For direct service calls, the resource name is incorporated into the request path based on the specific service implementation and version.",
               "flatPath": "v2/organizations/{organizationsId}/locations",
               "httpMethod": "GET",
               "id": "logging.organizations.locations.list",
@@ -5322,7 +5307,7 @@
               ],
               "parameters": {
                 "extraLocationTypes": {
-                  "description": "Optional. Do not use this field. It is unsupported and is ignored unless explicitly documented otherwise. This is primarily for internal usage.",
+                  "description": "Optional. Do not use this field unless explicitly documented otherwise. This is primarily for internal usage.",
                   "location": "query",
                   "repeated": true,
                   "type": "string"
@@ -7126,7 +7111,7 @@
               ]
             },
             "list": {
-              "description": "Lists information about the supported locations for this service. This method can be called in two ways: List all public locations: Use the path GET /v1/locations. List project-visible locations: Use the path GET /v1/projects/{project_id}/locations. This may include public locations as well as private or other locations specifically visible to the project.",
+              "description": "Lists information about the supported locations for this service.This method lists locations based on the resource scope provided in the ListLocationsRequest.name field: Global locations: If name is empty, the method lists the public locations available to all projects. Project-specific locations: If name follows the format projects/{project}, the method lists locations visible to that specific project. This includes public, private, or other project-specific locations enabled for the project.For gRPC and client library implementations, the resource name is passed as the name field. For direct service calls, the resource name is incorporated into the request path based on the specific service implementation and version.",
               "flatPath": "v2/projects/{projectsId}/locations",
               "httpMethod": "GET",
               "id": "logging.projects.locations.list",
@@ -7135,7 +7120,7 @@
               ],
               "parameters": {
                 "extraLocationTypes": {
-                  "description": "Optional. Do not use this field. It is unsupported and is ignored unless explicitly documented otherwise. This is primarily for internal usage.",
+                  "description": "Optional. Do not use this field unless explicitly documented otherwise. This is primarily for internal usage.",
                   "location": "query",
                   "repeated": true,
                   "type": "string"
@@ -9162,7 +9147,7 @@
       }
     }
   },
-  "revision": "20260227",
+  "revision": "20260706",
   "rootUrl": "https://logging.googleapis.com/",
   "schemas": {
     "AppHub": {
@@ -9643,7 +9628,7 @@
       "type": "object"
     },
     "FieldSource": {
-      "description": "A source that can be used to represent a field within various parts of a structured query, such as in SELECT, WHERE, or ORDER BY clauses.",
+      "description": "A source that can be used to represent a \"field of data\" within various parts of a structured query, such as in SELECT, WHERE, or ORDER BY clauses. The term \"field of data\" is used here because it is not limited to literal fields in the underlying data schema.",
       "id": "FieldSource",
       "properties": {
         "aliasRef": {
@@ -10127,7 +10112,7 @@
       "id": "ListLogEntriesRequest",
       "properties": {
         "filter": {
-          "description": "Optional. A filter that chooses which log entries to return. For more information, see Logging query language (https://{$universe.dns_names.final_documentation_domain}/logging/docs/view/logging-query-language).Only log entries that match the filter are returned. An empty filter matches all log entries in the resources listed in resource_names. Referencing a parent resource that is not listed in resource_names will cause the filter to return no results. The maximum length of a filter is 20,000 characters.To make queries faster, you can make the filter more selective by using restrictions on indexed fields (https://{$universe.dns_names.final_documentation_domain}/logging/docs/view/logging-query-language#indexed-fields) as well as limit the time range of the query by adding range restrictions on the timestamp field.",
+          "description": "Optional. A filter that chooses which log entries to return. For more information, see Logging query language (https://docs.cloud.google.com/logging/docs/view/logging-query-language).Only log entries that match the filter are returned. An empty filter matches all log entries in the resources listed in resource_names. Referencing a parent resource that is not listed in resource_names will cause the filter to return no results. The maximum length of a filter is 20,000 characters.To make queries faster, you can make the filter more selective by using restrictions on indexed fields (https://docs.cloud.google.com/logging/docs/view/logging-query-language#indexed-fields) as well as limit the time range of the query by adding range restrictions on the timestamp field.",
           "type": "string"
         },
         "orderBy": {
@@ -10507,7 +10492,7 @@
           "readOnly": true
         },
         "errorGroups": {
-          "description": "Output only. The Error Reporting (https://cloud.google.com/error-reporting) error groups associated with this LogEntry. Error Reporting sets the values for this field during error group creation.For more information, see View error details( https://cloud.google.com/error-reporting/docs/viewing-errors#view_error_details)This field isn't available during log routing (https://cloud.google.com/logging/docs/routing/overview)",
+          "description": "Output only. The Error Reporting (https://cloud.google.com/error-reporting) error groups associated with this LogEntry. Error Reporting sets the values for this field during error group creation.This field is populated only when log entries are stored in Cloud Logging storage (Logs Explorer and Observability Analytics). It is not available for use in log sink filters, log-based metrics, or log-based alerts, and it is excluded from log exports (Cloud Storage, BigQuery, and Pub/Sub).For more information, see View error details( https://cloud.google.com/error-reporting/docs/viewing-errors#view_error_details)",
           "items": {
             "$ref": "LogErrorGroup"
           },
@@ -10550,6 +10535,14 @@
         "operation": {
           "$ref": "LogEntryOperation",
           "description": "Optional. Information about an operation associated with the log entry, if applicable."
+        },
+        "otel": {
+          "additionalProperties": {
+            "description": "Properties of the object.",
+            "type": "any"
+          },
+          "description": "Optional. The structured OpenTelemetry protocol payload. Contains the OpenTelemetry Resource, Instrumentation Scope, and Entities attributes for this log as they are defined in the OTLP specification, and any other fields that do not have a direct analog in the LogEntry. See https://opentelemetry.io/docs/specs/otel/logs/data-model/",
+          "type": "object"
         },
         "protoPayload": {
           "additionalProperties": {
@@ -10675,7 +10668,7 @@
       "id": "LogErrorGroup",
       "properties": {
         "id": {
-          "description": "The id is a unique identifier for a particular error group; it is the last part of the error group resource name: /project/[PROJECT_ID]/errors/[ERROR_GROUP_ID]. Example: COShysOX0r_51QE. The id is derived from key parts of the error-log content and is treated as Service Data. For information about how Service Data is handled, see Google Cloud Privacy Notice (https://cloud.google.com/terms/cloud-privacy-notice).",
+          "description": "The id is a unique identifier for a particular error group; it is the last part of the error group resource name: /project/[PROJECT_ID]/errors/[ERROR_GROUP_ID]. Example: COShysOX0r_51QE.This field can be used to search for log entries belonging to a specific error group in Logs Explorer (e.g., error_groups.id = \"ID\") or Observability Analytics.The id is derived from key parts of the error-log content and is treated as Service Data. For information about how Service Data is handled, see Google Cloud Privacy Notice (https://cloud.google.com/terms/cloud-privacy-notice).",
           "type": "string"
         }
       },
@@ -11374,7 +11367,7 @@
       "type": "object"
     },
     "ProjectedField": {
-      "description": "Represents a field selected in the query, analogous to an item in a SQL SELECT clause. It specifies the source field and optionally applies transformations like aggregation, casting, regex extraction, or assigns an alias. Use ProjectedField when you need more than just the raw source field name (for which you might use FieldSource directly in QueryBuilderConfig's field_sources list if no transformations or specific operation type are needed).",
+      "description": "Represents a field selected in the query, analogous to an item in a SQL SELECT clause. It specifies the source field and optionally applies transformations like aggregation, casting, regex extraction, or assigns an alias. Use ProjectedField when you need more than just the raw source field name (for which you might use FieldSource directly in QueryBuilderConfig's field_sources list if no transformations or specific operation type are needed).A ProjectedField can represent either a field present in the data schema (specified via the field property) or a virtual field that is computed from other fields (specified via the virtual_field property).",
       "id": "ProjectedField",
       "properties": {
         "alias": {
@@ -11386,7 +11379,7 @@
           "type": "string"
         },
         "field": {
-          "description": "The field name. This will be the field that is selected using the dot notation to display the drill down value.",
+          "description": "Optional. The field name. This will be the field that is selected using the dot notation to display the drill down value.",
           "type": "string"
         },
         "operation": {
@@ -11416,6 +11409,10 @@
         "truncationGranularity": {
           "description": "The truncation granularity when grouping by a time/date field. This will be used to truncate the field to the granularity specified. This can be either a date or a time granularity found at https://cloud.google.com/bigquery/docs/reference/standard-sql/timestamp_functions#timestamp_trunc_granularity_date and https://cloud.google.com/bigquery/docs/reference/standard-sql/timestamp_functions#timestamp_trunc_granularity_time respectively.",
           "type": "string"
+        },
+        "virtualField": {
+          "$ref": "VirtualField",
+          "description": "Optional. A virtual field definition, used in place of field to define a field that is computed from other fields rather than being directly present in the data schema.For example, a virtual field can be defined using COALESCE to select the first non-null value from a list of fields.If virtual_field is set, field must not be set."
         }
       },
       "type": "object"
@@ -11866,7 +11863,7 @@
           ],
           "enumDescriptions": [
             "Unexpected default.",
-            "Indicates suppression occurred due to relevant entries being received in excess of rate limits. For quotas and limits, see Logging API quotas and limits (https://cloud.google.com/logging/quotas#api-limits).",
+            "Indicates suppression occurred due to relevant entries being received in excess of rate limits. For quotas and limits, see Logging API quotas and limits (https://docs.cloud.google.com/logging/quotas#api-limits).",
             "Indicates suppression occurred due to the client not consuming responses quickly enough."
           ],
           "type": "string"
@@ -11889,7 +11886,7 @@
           "type": "string"
         },
         "filter": {
-          "description": "Optional. A filter that chooses which log entries to return. For more information, see Logging query language (https://{$universe.dns_names.final_documentation_domain}/logging/docs/view/logging-query-language).Only log entries that match the filter are returned. An empty filter matches all log entries in the resources listed in resource_names. Referencing a parent resource that is not listed in resource_names will cause the filter to return no results. The maximum length of a filter is 20,000 characters.",
+          "description": "Optional. A filter that chooses which log entries to return. For more information, see Logging query language (https://docs.cloud.google.com/logging/docs/view/logging-query-language).Only log entries that match the filter are returned. An empty filter matches all log entries in the resources listed in resource_names. Referencing a parent resource that is not listed in resource_names will cause the filter to return no results. The maximum length of a filter is 20,000 characters.",
           "type": "string"
         },
         "resourceNames": {
@@ -11977,6 +11974,32 @@
       },
       "type": "object"
     },
+    "VirtualField": {
+      "description": "A virtual field is a field that is not physically present in the underlying data schema, but is created through specific operations within the query builder model based on other fields in the schema.",
+      "id": "VirtualField",
+      "properties": {
+        "underlyingFieldSources": {
+          "description": "The field sources that will be used to create the virtual field, based on the semantics of the virtual field type.The field sources must follow these rules, based on the virtual field type: - For VIRTUAL_FIELD_TYPE_UNSPECIFIED, this field must be empty. - For COALESCE, this field must be non-empty and include a minimum of two field sources. The underlying field sources must be actual projected fields that represent actual schema fields and that must not be transformed and aggregated in any way, except for casting. The type of all the underlying field sources must be equivalent so that picking one of them would result in the same value type.",
+          "items": {
+            "$ref": "FieldSource"
+          },
+          "type": "array"
+        },
+        "virtualFieldType": {
+          "description": "Required. The type of the virtual field.",
+          "enum": [
+            "VIRTUAL_FIELD_TYPE_UNSPECIFIED",
+            "COALESCE"
+          ],
+          "enumDescriptions": [
+            "Invalid value, do not use.",
+            "Creates a virtual field by selecting the first non-null value from the list of fields specified in underlying_field_sources, similar to a COALESCE function in SQL."
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "WriteLogEntriesRequest": {
       "description": "The parameters to WriteLogEntries.",
       "id": "WriteLogEntriesRequest",
@@ -11986,7 +12009,7 @@
           "type": "boolean"
         },
         "entries": {
-          "description": "Required. The log entries to send to Logging. The order of log entries in this list does not matter. Values supplied in this method's log_name, resource, and labels fields are copied into those log entries in this list that do not include values for their corresponding fields. For more information, see the LogEntry type.If the timestamp or insert_id fields are missing in log entries, then this method supplies the current time or a unique identifier, respectively. The supplied values are chosen so that, among the log entries that did not supply their own values, the entries earlier in the list will sort before the entries later in the list. See the entries.list method.Log entries with timestamps that are more than the logs retention period (https://cloud.google.com/logging/quotas) in the past or more than 24 hours in the future will not be available when calling entries.list. However, those log entries can still be exported with LogSinks (https://cloud.google.com/logging/docs/api/tasks/exporting-logs).To improve throughput and to avoid exceeding the quota limit (https://cloud.google.com/logging/quotas) for calls to entries.write, you should try to include several log entries in this list, rather than calling this method for each individual log entry.",
+          "description": "Required. The log entries to send to Logging. The order of log entries in this list does not matter. Values supplied in this method's log_name, resource, and labels fields are copied into those log entries in this list that do not include values for their corresponding fields. For more information, see the LogEntry type.If the timestamp or insert_id fields are missing in log entries, then this method supplies the current time or a unique identifier, respectively. The supplied values are chosen so that, among the log entries that did not supply their own values, the entries earlier in the list will sort before the entries later in the list. See the entries.list method.Log entries with timestamps that are more than the logs retention period (https://docs.cloud.google.com/logging/quotas) in the past or more than 24 hours in the future will not be available when calling entries.list. However, those log entries can still be exported with LogSinks (https://docs.cloud.google.com/logging/docs/routing/overview).To improve throughput and to avoid exceeding the quota limit (https://docs.cloud.google.com/logging/quotas) for calls to entries.write, you should try to include several log entries in this list, rather than calling this method for each individual log entry.",
           "items": {
             "$ref": "LogEntry"
           },
