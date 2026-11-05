@@ -24,6 +24,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
@@ -66,39 +67,51 @@ type EventWatcherConfig struct {
 	ResyncPeriod                 time.Duration
 	Handler                      EventHandler
 	EventLabelSelector           labels.Selector
+	EventFieldSelector           fields.Selector
 	ListerWatcherOptionsLimit    int64
 	ListerWatcherEnableStreaming bool
 	StorageType                  watchers.StorageType
 }
 
-// NewEventWatcher create a new watcher that only watches the events resource.
-func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) watchers.Watcher {
+// createEventListerWatcher creates the ListerWatcher for watching events.
+func createEventListerWatcher(client kubernetes.Interface, config *EventWatcherConfig) cache.ListerWatcher {
 	watchListFeatureGateEnabled := IsFeatureGateEnabled(client, "WatchList")
 	glog.Infof("Feature gate WatchList is enabled: %v, config.ListerWatcherEnableStreaming: %v", watchListFeatureGateEnabled, config.ListerWatcherEnableStreaming)
+	return &cache.ListWatch{
+		ListFunc: func(options meta_v1.ListOptions) (runtime.Object, error) {
+			if config.ListerWatcherEnableStreaming && watchListFeatureGateEnabled {
+				return streamingListEvents(client, config, options)
+			} else {
+				if config.ListerWatcherOptionsLimit > 0 {
+					options.Limit = config.ListerWatcherOptionsLimit
+				}
+				options.LabelSelector = config.EventLabelSelector.String()
+				if config.EventFieldSelector != nil {
+					options.FieldSelector = config.EventFieldSelector.String()
+				}
+				list, err := client.CoreV1().Events(meta_v1.NamespaceAll).List(context.TODO(), options)
+				if err == nil {
+					config.OnList(list)
+				}
+				return list, err
+			}
+		},
+		WatchFunc: func(options meta_v1.ListOptions) (watch.Interface, error) {
+			options.LabelSelector = config.EventLabelSelector.String()
+			if config.EventFieldSelector != nil {
+				options.FieldSelector = config.EventFieldSelector.String()
+			}
+			return client.CoreV1().Events(meta_v1.NamespaceAll).Watch(context.TODO(), options)
+		},
+	}
+}
+
+// NewEventWatcher create a new watcher that only watches the events resource.
+func NewEventWatcher(client kubernetes.Interface, config *EventWatcherConfig) watchers.Watcher {
 	return watchers.NewWatcher(&watchers.WatcherConfig{
 		// List and watch events in all namespaces.
-		ListerWatcher: &cache.ListWatch{
-			ListFunc: func(options meta_v1.ListOptions) (runtime.Object, error) {
-				if config.ListerWatcherEnableStreaming && watchListFeatureGateEnabled {
-					return streamingListEvents(client, config, options)
-				} else {
-					if config.ListerWatcherOptionsLimit > 0 {
-						options.Limit = config.ListerWatcherOptionsLimit
-					}
-					options.LabelSelector = config.EventLabelSelector.String()
-					list, err := client.CoreV1().Events(meta_v1.NamespaceAll).List(context.TODO(), options)
-					if err == nil {
-						config.OnList(list)
-					}
-					return list, err
-				}
-			},
-			WatchFunc: func(options meta_v1.ListOptions) (watch.Interface, error) {
-				options.LabelSelector = config.EventLabelSelector.String()
-				return client.CoreV1().Events(meta_v1.NamespaceAll).Watch(context.TODO(), options)
-			},
-		},
-		ExpectedType: &corev1.Event{},
+		ListerWatcher: createEventListerWatcher(client, config),
+		ExpectedType:  &corev1.Event{},
 		StoreConfig: &watchers.WatcherStoreConfig{
 			KeyFunc:     cache.DeletionHandlingMetaNamespaceKeyFunc,
 			Handler:     newEventHandlerWrapper(config.Handler),
@@ -118,6 +131,9 @@ func streamingListEvents(client kubernetes.Interface, config *EventWatcherConfig
 	options.ResourceVersionMatch = meta_v1.ResourceVersionMatchNotOlderThan
 	options.Watch = true
 	options.LabelSelector = config.EventLabelSelector.String()
+	if config.EventFieldSelector != nil {
+		options.FieldSelector = config.EventFieldSelector.String()
+	}
 	options.AllowWatchBookmarks = true
 	glog.Infof("streamingListEvents started watching events with options: %v", options)
 
@@ -182,6 +198,9 @@ eventLoop:
 }
 
 func IsFeatureGateEnabled(client kubernetes.Interface, featureName string) bool {
+	if client == nil || client.CoreV1() == nil || client.CoreV1().RESTClient() == nil {
+		return false
+	}
 	// Request raw metrics from the API server
 	data, err := client.CoreV1().RESTClient().Get().
 		AbsPath("/metrics").
