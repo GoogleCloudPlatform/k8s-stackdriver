@@ -1,5 +1,5 @@
-//! Unit, golden wire-parity, live OTLP gRPC `tonic` server, GKE auth, and 1,000,000-pod
-//! memory benchmark tests.
+//! Unit, golden wire-parity, mock server integration, live OTLP gRPC `tonic` server, subprocess
+//! CLI, 3-shard OTLP backpressure, and 1,000,000-pod memory benchmark tests.
 
 #![forbid(unsafe_code)]
 
@@ -12,11 +12,16 @@ use event_exporter_rs::enricher::{
     ClusterCoordinates, EntryPayload, LogSeverity, MonitoredResourceKind,
     build_startup_marker_entry, enrich_event_object, parse_rfc3339_unix_nanos,
 };
+use event_exporter_rs::k8s_stream::{
+    InitialSyncLatch, KubeClientConfig, paginated_pod_relist, run_event_stream_loop,
+    run_pod_reflector_loop,
+};
 use event_exporter_rs::metrics::{MetricsRegistry, grpc_status_to_http_code, spawn_metrics_server};
 use event_exporter_rs::otlp_proto::{
     ExportLogsPartialSuccess, ExportLogsServiceRequest, ExportLogsServiceResponse, SeverityNumber,
     any_value,
 };
+use event_exporter_rs::pipeline::{BoundedBatchQueue, spawn_export_workers};
 use event_exporter_rs::pod_cache::{
     CompactOwner, ControllerKind, PodKey, PodOwnerTable, parse_partial_pod_object,
 };
@@ -25,13 +30,15 @@ use event_exporter_rs::sink::{
     BatchExportOutcome, EventSink, OtlpSink, build_cloud_logging_write_body,
     build_otlp_export_request,
 };
-use event_exporter_rs::transport::gunzip_bytes;
+use event_exporter_rs::transport::{gunzip_bytes, http_request};
 use prost::Message;
 use serde_json::{Map, Value, json};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::path::PathBuf;
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, UNIX_EPOCH};
@@ -788,6 +795,349 @@ fn test_metrics_server_large_bearer_header_start_time_and_exact_bounds() {
 }
 
 #[test]
+fn test_watchlist_422_fallback_and_410_gone_recovery() {
+    let event_watch_calls = Arc::new(AtomicUsize::new(0));
+    let event_watch_calls_clone = Arc::clone(&event_watch_calls);
+
+    let server = MockHttpServer::start(move |req| {
+        if req.path.starts_with("/api/v1/pods?") {
+            if req.path.contains("sendInitialEvents=true") || req.path.contains("shardSelector=") {
+                return MockHttpReply::status(422, "{\"reason\":\"Invalid\"}");
+            }
+            if req.path.contains("limit=2") && !req.path.contains("continue=page2") {
+                return MockHttpReply::ok_json(&json!({
+                    "metadata": { "resourceVersion": "105", "continue": "page2" },
+                    "items": [{
+                        "metadata": {
+                            "name": "api-6b7f-1",
+                            "namespace": "default",
+                            "resourceVersion": "101",
+                            "labels": { "pod-template-hash": "6b7f" },
+                            "ownerReferences": [{ "kind": "ReplicaSet", "name": "api-6b7f" }]
+                        }
+                    }]
+                }));
+            }
+            if req.path.contains("continue=page2") {
+                return MockHttpReply::ok_json(&json!({
+                    "metadata": { "resourceVersion": "105" },
+                    "items": [{
+                        "metadata": {
+                            "name": "db-0",
+                            "namespace": "default",
+                            "resourceVersion": "105",
+                            "ownerReferences": [{ "kind": "StatefulSet", "name": "db" }]
+                        }
+                    }]
+                }));
+            }
+        }
+        if req.path.starts_with("/api/v1/events?") {
+            if req.path.contains("limit=1") {
+                return MockHttpReply::ok_json(&json!({
+                    "metadata": { "resourceVersion": "200" },
+                    "items": []
+                }));
+            }
+            if req.path.contains("watch=true") {
+                let n = event_watch_calls_clone.fetch_add(1, Ordering::SeqCst);
+                if n == 0 {
+                    let lines = format!(
+                        "{}\n{}\n",
+                        serde_json::to_string(&json!({
+                            "type": "ADDED",
+                            "object": {
+                                "metadata": { "uid": "e201", "resourceVersion": "201", "namespace": "default" },
+                                "involvedObject": { "kind": "Pod", "namespace": "default", "name": "api-6b7f-1" },
+                                "type": "Normal",
+                                "reason": "Started",
+                                "lastTimestamp": "2026-05-03T00:00:01Z"
+                            }
+                        }))
+                        .unwrap(),
+                        serde_json::to_string(&json!({
+                            "type": "ERROR",
+                            "object": { "code": 410, "message": "too old resource version" }
+                        }))
+                        .unwrap()
+                    );
+                    return MockHttpReply::ok_bytes("application/json", lines.into_bytes());
+                }
+                return MockHttpReply::ok_bytes("application/json", Vec::new());
+            }
+            return MockHttpReply::ok_json(&json!({
+                "metadata": { "resourceVersion": "202" },
+                "items": [
+                    {
+                        "metadata": { "uid": "e201", "resourceVersion": "201", "namespace": "default" },
+                        "involvedObject": { "kind": "Pod", "namespace": "default", "name": "api-6b7f-1" },
+                        "type": "Normal",
+                        "reason": "DuplicateShouldBeSkipped"
+                    },
+                    {
+                        "metadata": { "uid": "e202", "resourceVersion": "202", "namespace": "default" },
+                        "involvedObject": { "kind": "Pod", "namespace": "default", "name": "db-0" },
+                        "type": "Warning",
+                        "reason": "MissedDuringCompaction",
+                        "lastTimestamp": "2026-05-03T00:00:02Z"
+                    }
+                ]
+            }));
+        }
+        MockHttpReply::status(404, "not found")
+    });
+
+    let metrics = Arc::new(MetricsRegistry::new());
+    let pod_table = Arc::new(PodOwnerTable::new(HashSet::new()));
+    let stop_flag = Arc::new(AtomicU8::new(0));
+    let mut shard = ShardSpec::resolve(ShardMode::Server, 1, Some(0), None).unwrap();
+    let kube = KubeClientConfig {
+        api_base: server.base_url(),
+        ca_cert_path: None,
+        token_source: Arc::new(KubeTokenSource::new(None)),
+        shard,
+        enable_watch_list: true,
+        list_page_size: 2,
+        event_label_selector: None,
+    };
+
+    let rv = paginated_pod_relist(&kube, &mut shard, &pod_table, &metrics, &stop_flag).unwrap();
+    assert_eq!(rv.as_str(), "105");
+    assert_eq!(pod_table.len(), 2);
+
+    let collected: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+    let collected_clone = Arc::clone(&collected);
+    let stop_after_two = Arc::clone(&stop_flag);
+
+    struct CollectingSink {
+        ids: Arc<Mutex<Vec<String>>>,
+        stop: Arc<AtomicU8>,
+    }
+    impl EventSink for CollectingSink {
+        fn export_batch(
+            &self,
+            batch: &[event_exporter_rs::enricher::EnrichedEntry],
+            metrics: &MetricsRegistry,
+        ) -> BatchExportOutcome {
+            let mut g = self.ids.lock().unwrap();
+            for e in batch {
+                g.push(format!("{}:{:?}", e.insert_id, e.labels));
+            }
+            metrics.add_sent_entries(batch.len() as u64);
+            if g.len() >= 2 {
+                self.stop.store(1, Ordering::Release);
+            }
+            BatchExportOutcome::Success {
+                sent_entries: batch.len(),
+            }
+        }
+    }
+
+    let queue = Arc::new(BoundedBatchQueue::new(1024 * 1024, Arc::clone(&metrics)));
+    let sink: Arc<dyn EventSink> = Arc::new(CollectingSink {
+        ids: collected_clone,
+        stop: stop_after_two,
+    });
+    let workers = spawn_export_workers(
+        1,
+        10,
+        1024 * 1024,
+        Duration::from_millis(10),
+        Arc::clone(&queue),
+        sink,
+        Arc::clone(&metrics),
+        Arc::clone(&stop_flag),
+    );
+
+    run_event_stream_loop(
+        kube,
+        Some(Arc::clone(&pod_table)),
+        Arc::clone(&queue),
+        Arc::clone(&metrics),
+        Arc::clone(&stop_flag),
+    );
+    queue.close();
+    for w in workers {
+        let _ = w.join();
+    }
+
+    let got = collected.lock().unwrap().clone();
+    assert_eq!(got.len(), 2);
+    assert!(got[0].starts_with("e201-201:"));
+    assert!(got[0].contains("Deployment") && got[0].contains("api"));
+    assert!(got[1].starts_with("e202-202:"));
+    assert!(got[1].contains("StatefulSet") && got[1].contains("db"));
+}
+
+#[test]
+fn test_end_to_end_subprocess_cli_and_graceful_shutdown() {
+    let received_entries: Arc<Mutex<Vec<Value>>> = Arc::new(Mutex::new(Vec::new()));
+    let entries_clone = Arc::clone(&received_entries);
+
+    let mock_cloud_and_k8s = MockHttpServer::start(move |req| {
+        if req.path == "/computeMetadata/v1/instance/service-accounts/default/token" {
+            return MockHttpReply::ok_json(&json!({
+                "access_token": "mock-mock-gce-token",
+                "expires_in": 3600
+            }));
+        }
+        if req.path == "/v2/entries:write" {
+            let raw =
+                gunzip_bytes(&req.body, 8 * 1024 * 1024).expect("entries:write must be gzipped");
+            let body_json: Value = serde_json::from_slice(&raw).unwrap();
+            if let Some(arr) = body_json["entries"].as_array() {
+                entries_clone.lock().unwrap().extend(arr.iter().cloned());
+            }
+            return MockHttpReply::ok_json(&json!({}));
+        }
+        if req.path.starts_with("/api/v1/pods?") {
+            if req.path.contains("sendInitialEvents=true") {
+                let stream = format!(
+                    "{}\n{}\n",
+                    serde_json::to_string(&json!({
+                        "type": "ADDED",
+                        "object": {
+                            "metadata": {
+                                "name": "frontend-59b8-z9q",
+                                "namespace": "default",
+                                "resourceVersion": "10",
+                                "labels": { "pod-template-hash": "59b8" },
+                                "ownerReferences": [{ "kind": "ReplicaSet", "name": "frontend-59b8" }]
+                            }
+                        }
+                    }))
+                    .unwrap(),
+                    serde_json::to_string(&json!({
+                        "type": "BOOKMARK",
+                        "object": {
+                            "metadata": {
+                                "resourceVersion": "10",
+                                "annotations": { "k8s.io/initial-events-end": "true" }
+                            }
+                        }
+                    }))
+                    .unwrap()
+                );
+                return MockHttpReply::ok_bytes("application/json", stream.into_bytes());
+            }
+            return MockHttpReply::ok_bytes("application/json", Vec::new());
+        }
+        if req.path.starts_with("/api/v1/events?") {
+            if req.path.contains("limit=1") {
+                return MockHttpReply::ok_json(&json!({
+                    "metadata": { "resourceVersion": "50" },
+                    "items": []
+                }));
+            }
+            if req.path.contains("resourceVersion=51") {
+                std::thread::sleep(Duration::from_millis(50));
+                return MockHttpReply::ok_bytes("application/json", Vec::new());
+            }
+            let event_line = format!(
+                "{}\n",
+                serde_json::to_string(&json!({
+                    "type": "ADDED",
+                    "object": {
+                        "metadata": { "uid": "subproc-ev-1", "resourceVersion": "51", "namespace": "default" },
+                        "involvedObject": { "kind": "Pod", "namespace": "default", "name": "frontend-59b8-z9q" },
+                        "type": "Warning",
+                        "reason": "Unhealthy",
+                        "message": "Readiness probe failed",
+                        "count": 3,
+                        "lastTimestamp": "2026-05-04T10:00:00Z"
+                    }
+                }))
+                .unwrap()
+            );
+            return MockHttpReply::ok_bytes("application/json", event_line.into_bytes());
+        }
+        MockHttpReply::status(404, "not found")
+    });
+
+    let bin = find_event_exporter_binary();
+    let mut cmd = Command::new(&bin);
+    cmd.arg(format!(
+        "-sink-opts=-stackdriver-resource-model=new -endpoint={} -flush-delay=50ms",
+        mock_cloud_and_k8s.base_url()
+    ))
+    .arg("-enable-pod-owner-label=true")
+    .arg("-lister-watcher-enable-streaming=true")
+    .arg("-project-id=subproc-proj")
+    .arg("-cluster-name=subproc-cluster")
+    .arg("-location=us-west1")
+    .arg(format!(
+        "--kube-api-endpoint={}",
+        mock_cloud_and_k8s.base_url()
+    ))
+    .env("GCE_METADATA_HOST", mock_cloud_and_k8s.host_port())
+    .env_remove("GOOGLE_APPLICATION_CREDENTIALS");
+    let (mut child, prom_port) = spawn_exporter_with_ephemeral_metrics(cmd);
+
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let mut saw_enriched_pod_event = false;
+    let mut saw_startup_marker = false;
+    while Instant::now() < deadline {
+        {
+            let guard = received_entries.lock().unwrap();
+            for entry in guard.iter() {
+                if entry["textPayload"]
+                    .as_str()
+                    .is_some_and(|t| t.contains("Event exporter started watching"))
+                {
+                    saw_startup_marker = true;
+                }
+                if entry["insertId"].as_str() == Some("subproc-ev-1-51") {
+                    assert_eq!(entry["resource"]["type"].as_str(), Some("k8s_pod"));
+                    assert_eq!(
+                        entry["labels"]["logging.gke.io/top_level_controller_type"].as_str(),
+                        Some("Deployment")
+                    );
+                    assert_eq!(
+                        entry["labels"]["logging.gke.io/top_level_controller_name"].as_str(),
+                        Some("frontend")
+                    );
+                    assert!(entry["jsonPayload"].get("count").is_none());
+                    saw_enriched_pod_event = true;
+                }
+            }
+        }
+        if saw_startup_marker && saw_enriched_pod_event {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert!(
+        saw_startup_marker,
+        "expected startup marker in Cloud Logging entries:write"
+    );
+    assert!(
+        saw_enriched_pod_event,
+        "expected enriched Deployment pod event"
+    );
+
+    let metrics_resp = http_request(
+        "GET",
+        &format!("http://127.0.0.1:{prom_port}/metrics"),
+        &[],
+        &[],
+        false,
+        None,
+        Duration::from_secs(3),
+    )
+    .expect("scrape subprocess /metrics");
+    let metrics_text = String::from_utf8_lossy(&metrics_resp.body);
+    assert!(metrics_text.contains("stackdriver_sink_successfully_sent_entry_count"));
+    assert!(metrics_text.contains("podlabel_cache_ops_count{operation=\"queryhit\"}"));
+
+    send_sigterm(child.id());
+    let status = child.wait().expect("wait for graceful SIGTERM exit");
+    assert!(
+        status.success(),
+        "expected exit code 0 on SIGTERM, got {status:?}"
+    );
+}
+
+#[test]
 fn test_one_million_pods_memory_benchmark() {
     assert_eq!(std::mem::size_of::<(PodKey, CompactOwner)>(), 24);
 
@@ -870,6 +1220,320 @@ fn test_one_million_pods_memory_benchmark() {
     );
 }
 
+#[test]
+fn test_pod_watchlist_bookmark_live_sync() {
+    let server = MockHttpServer::start(|req| {
+        if req.path.contains("sendInitialEvents=true") {
+            let body = format!(
+                "{}\n{}\n",
+                serde_json::to_string(&json!({
+                    "type": "ADDED",
+                    "object": {
+                        "metadata": {
+                            "name": "wl-pod-1",
+                            "namespace": "default",
+                            "resourceVersion": "77",
+                            "ownerReferences": [{ "kind": "DaemonSet", "name": "node-agent" }]
+                        }
+                    }
+                }))
+                .unwrap(),
+                serde_json::to_string(&json!({
+                    "type": "BOOKMARK",
+                    "object": {
+                        "metadata": {
+                            "resourceVersion": "77",
+                            "annotations": { "k8s.io/initial-events-end": "true" }
+                        }
+                    }
+                }))
+                .unwrap()
+            );
+            MockHttpReply::ok_bytes("application/json", body.into_bytes())
+        } else {
+            MockHttpReply::ok_bytes("application/json", Vec::new())
+        }
+    });
+
+    let pod_table = Arc::new(PodOwnerTable::new(HashSet::new()));
+    let metrics = Arc::new(MetricsRegistry::new());
+    let latch = Arc::new(InitialSyncLatch::new());
+    let stop = Arc::new(AtomicU8::new(0));
+    let kube = KubeClientConfig {
+        api_base: server.base_url(),
+        ca_cert_path: None,
+        token_source: Arc::new(KubeTokenSource::new(None)),
+        shard: ShardSpec::default(),
+        enable_watch_list: true,
+        list_page_size: 100,
+        event_label_selector: None,
+    };
+
+    let t_table = Arc::clone(&pod_table);
+    let t_metrics = Arc::clone(&metrics);
+    let t_latch = Arc::clone(&latch);
+    let t_stop = Arc::clone(&stop);
+    let handle = std::thread::spawn(move || {
+        run_pod_reflector_loop(kube, t_table, t_metrics, t_latch, t_stop);
+    });
+
+    assert!(latch.wait_timeout(Duration::from_secs(5), &stop));
+    stop.store(1, Ordering::Release);
+    let _ = handle.join();
+
+    let owner = pod_table
+        .lookup("default", "wl-pod-1", None)
+        .expect("WatchList pod synced");
+    assert_eq!(owner.kind, ControllerKind::DaemonSet);
+    assert_eq!(owner.name.as_str(), "node-agent");
+}
+
+#[test]
+fn test_three_shard_subprocess_otlp_and_429_backpressure() {
+    const POD_COUNT: usize = 500;
+    const EVENT_COUNT: usize = 1_500;
+
+    let mut pod_stream_buf = String::with_capacity(POD_COUNT * 240);
+    for p in 0..POD_COUNT {
+        let ns = format!("ns-{}", p % 25);
+        let pod_name = format!("svc-{}-6d7f8b-{p}", p % 50);
+        let rs_name = format!("svc-{}-6d7f8b", p % 50);
+        let line = serde_json::to_string(&json!({
+            "type": "ADDED",
+            "object": {
+                "metadata": {
+                    "name": pod_name,
+                    "namespace": ns,
+                    "resourceVersion": format!("{}", p + 1),
+                    "labels": { "pod-template-hash": "6d7f8b" },
+                    "ownerReferences": [{ "kind": "ReplicaSet", "name": rs_name }]
+                }
+            }
+        }))
+        .unwrap();
+        pod_stream_buf.push_str(&line);
+        pod_stream_buf.push('\n');
+    }
+    let bookmark = serde_json::to_string(&json!({
+        "type": "BOOKMARK",
+        "object": {
+            "metadata": {
+                "resourceVersion": format!("{POD_COUNT}"),
+                "annotations": { "k8s.io/initial-events-end": "true" }
+            }
+        }
+    }))
+    .unwrap();
+    pod_stream_buf.push_str(&bookmark);
+    pod_stream_buf.push('\n');
+    let pod_watchlist_bytes = Arc::new(pod_stream_buf.into_bytes());
+
+    let mut event_stream_buf = String::with_capacity(EVENT_COUNT * 280);
+    for e in 0..EVENT_COUNT {
+        let p = e % POD_COUNT;
+        let ns = format!("ns-{}", p % 25);
+        let pod_name = format!("svc-{}-6d7f8b-{p}", p % 50);
+        let rv = 1_001 + e;
+        let line = serde_json::to_string(&json!({
+            "type": "ADDED",
+            "object": {
+                "metadata": {
+                    "uid": format!("burst-uid-{e}"),
+                    "resourceVersion": format!("{rv}"),
+                    "namespace": ns
+                },
+                "involvedObject": { "kind": "Pod", "namespace": ns, "name": pod_name },
+                "type": if e % 5 == 0 { "Warning" } else { "Normal" },
+                "reason": "Pulled",
+                "message": "Container image already present on machine",
+                "lastTimestamp": "2026-05-04T12:00:00Z"
+            }
+        }))
+        .unwrap();
+        event_stream_buf.push_str(&line);
+        event_stream_buf.push('\n');
+    }
+    let event_watch_bytes = Arc::new(event_stream_buf.into_bytes());
+
+    #[derive(Default)]
+    struct OtlpCapture {
+        pod_insert_ids: Vec<String>,
+        enriched_owners: usize,
+        startup_markers: usize,
+    }
+
+    let capture = Arc::new(Mutex::new(OtlpCapture::default()));
+    let capture_clone = Arc::clone(&capture);
+    let otlp_posts = Arc::new(AtomicUsize::new(0));
+    let otlp_posts_clone = Arc::clone(&otlp_posts);
+    let pods_ref = Arc::clone(&pod_watchlist_bytes);
+    let events_ref = Arc::clone(&event_watch_bytes);
+    let end_rv_param = format!("resourceVersion={}", 1_000 + EVENT_COUNT);
+
+    let server = MockHttpServer::start(move |req| {
+        if req.path == "/computeMetadata/v1/instance/service-accounts/default/token" {
+            return MockHttpReply::ok_json(&json!({
+                "access_token": "mock-mock-otlp-token",
+                "expires_in": 3600
+            }));
+        }
+        if req.path == "/v1/logs" {
+            let attempt = otlp_posts_clone.fetch_add(1, Ordering::SeqCst);
+            if attempt < 2 {
+                return MockHttpReply::status(429, "{\"error\":\"rate_limited\"}");
+            }
+            let raw = gunzip_bytes(&req.body, 16 * 1024 * 1024).expect("gunzip OTLP protobuf");
+            let export_req =
+                ExportLogsServiceRequest::decode(raw.as_slice()).expect("decode OTLP proto");
+            let mut guard = capture_clone.lock().unwrap();
+            for rl in &export_req.resource_logs {
+                let res_attrs = kv_str(&rl.resource.as_ref().unwrap().attributes);
+                let res_type = res_attrs
+                    .get("gcp.resource_type")
+                    .map(String::as_str)
+                    .unwrap_or("");
+                for sl in &rl.scope_logs {
+                    for lr in &sl.log_records {
+                        if res_type == "k8s_cluster" {
+                            guard.startup_markers += 1;
+                            continue;
+                        }
+                        let rec_attrs = kv_str(&lr.attributes);
+                        if let Some(id) = rec_attrs.get("logging.googleapis.com/insertId") {
+                            guard.pod_insert_ids.push(id.clone());
+                        }
+                        if rec_attrs
+                            .get("logging.gke.io/top_level_controller_type")
+                            .map(String::as_str)
+                            == Some("Deployment")
+                        {
+                            guard.enriched_owners += 1;
+                        }
+                    }
+                }
+            }
+            return MockHttpReply::ok_bytes("application/x-protobuf", Vec::new());
+        }
+        if req.path.starts_with("/api/v1/pods?") {
+            if req.path.contains("sendInitialEvents=true") {
+                return MockHttpReply::ok_bytes("application/json", (*pods_ref).clone());
+            }
+            std::thread::sleep(Duration::from_millis(40));
+            return MockHttpReply::ok_bytes("application/json", Vec::new());
+        }
+        if req.path.starts_with("/api/v1/events?") {
+            if req.path.contains("limit=1") {
+                return MockHttpReply::ok_json(&json!({
+                    "metadata": { "resourceVersion": "1000" },
+                    "items": []
+                }));
+            }
+            if req.path.contains(&end_rv_param) {
+                std::thread::sleep(Duration::from_millis(40));
+                return MockHttpReply::ok_bytes("application/json", Vec::new());
+            }
+            return MockHttpReply::ok_bytes("application/json", (*events_ref).clone());
+        }
+        MockHttpReply::status(404, "not found")
+    });
+
+    let bin = find_event_exporter_binary();
+    let start_wall = Instant::now();
+    let mut shards = Vec::new();
+    for idx in 0..3u32 {
+        let mut cmd = Command::new(&bin);
+        cmd.arg("--sink=otlp")
+            .arg(format!("--otlp-endpoint={}/v1/logs", server.base_url()))
+            .arg("--shard-mode=client")
+            .arg("--shard-count=3")
+            .arg(
+                "-sink-opts=-stackdriver-resource-model=new -flush-delay=30ms -max-buffer-size=250",
+            )
+            .arg("-enable-pod-owner-label=true")
+            .arg("-lister-watcher-enable-streaming=true")
+            .arg("-project-id=otlp-shard-proj")
+            .arg("-cluster-name=otlp-shard-cluster")
+            .arg("-location=us-central1")
+            .arg(format!("--kube-api-endpoint={}", server.base_url()))
+            .env("POD_NAME", format!("event-exporter-gke-{idx}"))
+            .env("GCE_METADATA_HOST", server.host_port())
+            .env_remove("GOOGLE_APPLICATION_CREDENTIALS");
+        let (child, prom_port) = spawn_exporter_with_ephemeral_metrics(cmd);
+        shards.push((idx, prom_port, child));
+    }
+
+    let deadline = Instant::now() + Duration::from_secs(15);
+    while Instant::now() < deadline {
+        let done = {
+            let g = capture.lock().unwrap();
+            g.pod_insert_ids.len() >= EVENT_COUNT && g.startup_markers >= 1
+        };
+        if done {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(40));
+    }
+    let elapsed_ms = start_wall.elapsed().as_secs_f64() * 1000.0;
+
+    let mut per_shard_rss_mib = Vec::new();
+    let mut saw_429_metric = false;
+    for (idx, prom_port, child) in &shards {
+        let rss_mib = (read_pid_rss_bytes(child.id()) as f64) / (1024.0 * 1024.0);
+        per_shard_rss_mib.push((*idx, rss_mib));
+        let resp = http_request(
+            "GET",
+            &format!("http://127.0.0.1:{prom_port}/metrics"),
+            &[],
+            &[],
+            false,
+            None,
+            Duration::from_secs(3),
+        )
+        .expect("scrape shard /metrics");
+        let text = String::from_utf8_lossy(&resp.body);
+        if text.contains("stackdriver_sink_request_count{code=\"429\"}") {
+            saw_429_metric = true;
+        }
+    }
+
+    for (_, _, mut child) in shards {
+        send_sigterm(child.id());
+        let status = child.wait().expect("wait shard SIGTERM");
+        assert!(
+            status.success(),
+            "shard exited cleanly on SIGTERM: {status:?}"
+        );
+    }
+
+    let guard = capture.lock().unwrap();
+    let unique_ids: HashSet<&String> = guard.pod_insert_ids.iter().collect();
+    println!(
+        "[BENCHMARK_3SHARD_OTLP] pods={POD_COUNT} events_sent={EVENT_COUNT} \
+         events_received={} unique_insert_ids={} enriched_owners={} startup_markers={} \
+         wall_ms={elapsed_ms:.1} shard_rss_mib={per_shard_rss_mib:?}",
+        guard.pod_insert_ids.len(),
+        unique_ids.len(),
+        guard.enriched_owners,
+        guard.startup_markers,
+    );
+    assert_eq!(guard.pod_insert_ids.len(), EVENT_COUNT);
+    assert_eq!(unique_ids.len(), EVENT_COUNT);
+    assert_eq!(guard.enriched_owners, EVENT_COUNT);
+    assert_eq!(guard.startup_markers, 1);
+    assert!(
+        saw_429_metric,
+        "expected HTTP 429 retry counter on /metrics"
+    );
+}
+
+fn send_sigterm(pid: u32) {
+    let status = Command::new("kill")
+        .args(["-TERM", &pid.to_string()])
+        .status()
+        .expect("invoke kill -TERM");
+    assert!(status.success(), "kill -TERM {pid} must succeed");
+}
+
 fn parse_vm_rss_bytes(status: &str) -> Option<u64> {
     status.lines().find_map(|line| {
         let rest = line.strip_prefix("VmRSS:")?;
@@ -878,11 +1542,56 @@ fn parse_vm_rss_bytes(status: &str) -> Option<u64> {
     })
 }
 
+fn read_pid_rss_bytes(pid: u32) -> u64 {
+    fs::read_to_string(format!("/proc/{pid}/status"))
+        .ok()
+        .and_then(|s| parse_vm_rss_bytes(&s))
+        .unwrap_or(0)
+}
+
 fn read_process_rss_bytes() -> u64 {
     fs::read_to_string("/proc/self/status")
         .ok()
         .and_then(|s| parse_vm_rss_bytes(&s))
         .unwrap_or(0)
+}
+
+fn spawn_exporter_with_ephemeral_metrics(mut cmd: Command) -> (std::process::Child, u16) {
+    let mut child = cmd
+        .arg("-prometheus-endpoint=127.0.0.1:0")
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn event-exporter binary");
+    let stderr = child.stderr.take().expect("capture child stderr");
+    let (tx, rx) = std::sync::mpsc::sync_channel::<u16>(1);
+    let log_buf = Arc::new(Mutex::new(String::new()));
+    let log_buf_clone = Arc::clone(&log_buf);
+    std::thread::spawn(move || {
+        let reader = BufReader::new(stderr);
+        let marker = "Prometheus server listening on port ";
+        for line in reader.lines().map_while(Result::ok) {
+            if let Some(pos) = line.find(marker)
+                && let Ok(port) = line[pos + marker.len()..].trim().parse::<u16>()
+            {
+                let _ = tx.try_send(port);
+            }
+            let mut g = log_buf_clone.lock().unwrap();
+            if g.len() < 16 * 1024 {
+                g.push_str(&line);
+                g.push('\n');
+            }
+        }
+    });
+    let port = rx.recv_timeout(Duration::from_secs(5)).unwrap_or_else(|e| {
+        let captured = log_buf.lock().unwrap().clone();
+        panic!("timed out waiting for subprocess Prometheus port ({e}); stderr:\n{captured}");
+    });
+    (child, port)
+}
+
+fn find_event_exporter_binary() -> PathBuf {
+    PathBuf::from(env!("CARGO_BIN_EXE_event-exporter"))
 }
 
 struct MockHttpRequest {
@@ -972,6 +1681,10 @@ impl MockHttpServer {
 
     fn base_url(&self) -> String {
         format!("http://127.0.0.1:{}", self.port)
+    }
+
+    fn host_port(&self) -> String {
+        format!("127.0.0.1:{}", self.port)
     }
 }
 

@@ -10,6 +10,9 @@ publish = false
 name = "event_exporter_rs"
 path = "src/lib.rs"
 
+[[bin]]
+name = "event-exporter"
+path = "src/main.rs"
 
 [dependencies]
 bytes = "1"

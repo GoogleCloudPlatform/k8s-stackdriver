@@ -1,12 +1,15 @@
-//! Formal refinement, algebraic sharding bijection, RFC3339 calendar boundary, and Go v0.4.0
-//! Prometheus/sink-opts parity tests.
+//! Formal refinement, algebraic sharding bijection, WatchList premature-EOF regression,
+//! RFC3339 calendar boundary, and Go v0.4.0 Prometheus/sink-opts parity tests.
 
 #![forbid(unsafe_code)]
 
-use event_exporter_rs::auth::{CloudTokenProvider, resolve_logging_endpoint};
+use event_exporter_rs::auth::{CloudTokenProvider, KubeTokenSource, resolve_logging_endpoint};
 use event_exporter_rs::cli::ExporterConfig;
 use event_exporter_rs::enricher::{
     ClusterCoordinates, enrich_event_object, format_unix_nanos_rfc3339, parse_rfc3339_unix_nanos,
+};
+use event_exporter_rs::k8s_stream::{
+    InitialSyncLatch, KubeClientConfig, paginated_pod_relist, run_pod_reflector_loop,
 };
 use event_exporter_rs::metrics::MetricsRegistry;
 use event_exporter_rs::pod_cache::{
@@ -20,7 +23,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 fn make_pod_spec(
@@ -406,6 +409,217 @@ fn test_shard_partition_bijection_and_pod_event_colocality() {
             assert_eq!(deploy_owners, 1);
         }
     }
+}
+
+#[test]
+fn test_watchlist_premature_eof_before_bookmark_regression() {
+    // Pre-populate a stale zombie Pod that must be evicted only once a complete WatchList snapshot
+    // (terminated by k8s.io/initial-events-end="true") succeeds.
+    let pod_table = Arc::new(PodOwnerTable::new(HashSet::new()));
+    pod_table.upsert_pod_metadata(
+        &PodMetadataExtract {
+            name: "stale-zombie-pod".to_string(),
+            namespace: "default".to_string(),
+            resource_version: "1".to_string(),
+            labels: RelevantPodLabels::default(),
+            owner_references: vec![OwnerRefExtract {
+                kind: "DaemonSet".to_string(),
+                name: "old-agent".to_string(),
+            }],
+        },
+        None,
+    );
+    assert_eq!(pod_table.len(), 1);
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let wl_attempts = Arc::new(AtomicUsize::new(0));
+    let wl_attempts_srv = Arc::clone(&wl_attempts);
+    let stop_flag = Arc::new(AtomicU8::new(0));
+    let stop_srv = Arc::clone(&stop_flag);
+
+    let srv_handle = std::thread::spawn(move || {
+        listener.set_nonblocking(true).unwrap();
+        while stop_srv.load(Ordering::Acquire) == 0 {
+            let Ok((mut stream, _)) = listener.accept() else {
+                std::thread::sleep(Duration::from_millis(10));
+                continue;
+            };
+            stream
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
+            let mut reader = BufReader::new(&stream);
+            let mut req_line = String::new();
+            if reader.read_line(&mut req_line).unwrap_or(0) == 0 {
+                continue;
+            }
+            loop {
+                let mut hdr = String::new();
+                if reader.read_line(&mut hdr).unwrap_or(0) == 0 || hdr == "\r\n" {
+                    break;
+                }
+            }
+            let path = req_line.split_whitespace().nth(1).unwrap_or("");
+            if path.contains("sendInitialEvents=true") {
+                let attempt = wl_attempts_srv.fetch_add(1, Ordering::SeqCst);
+                let pod_high_rv = serde_json::to_string(&json!({
+                    "type": "ADDED",
+                    "object": {
+                        "metadata": {
+                            "name": "pod-a-high-rv",
+                            "namespace": "default",
+                            "resourceVersion": "5000",
+                            "labels": { "pod-template-hash": "abc" },
+                            "ownerReferences": [{ "kind": "ReplicaSet", "name": "web-abc" }]
+                        }
+                    }
+                }))
+                .unwrap();
+
+                if attempt == 0 {
+                    // Premature EOF after 1st ADDED frame (rv="5000") WITHOUT initial-events-end BOOKMARK!
+                    let body = format!("{pod_high_rv}\n");
+                    let resp = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = stream.write_all(resp.as_bytes());
+                } else {
+                    // Second attempt: emits pod-a-high-rv (rv=5000), THEN pod-z-low-rv (rv=100, later
+                    // in etcd key order despite lower RV!), THEN the initial-events-end BOOKMARK.
+                    let pod_low_rv = serde_json::to_string(&json!({
+                        "type": "ADDED",
+                        "object": {
+                            "metadata": {
+                                "name": "pod-z-low-rv",
+                                "namespace": "default",
+                                "resourceVersion": "100",
+                                "ownerReferences": [{ "kind": "StatefulSet", "name": "db" }]
+                            }
+                        }
+                    }))
+                    .unwrap();
+                    let bookmark = serde_json::to_string(&json!({
+                        "type": "BOOKMARK",
+                        "object": {
+                            "metadata": {
+                                "resourceVersion": "5005",
+                                "annotations": { "k8s.io/initial-events-end": "true" }
+                            }
+                        }
+                    }))
+                    .unwrap();
+                    let body = format!("{pod_high_rv}\n{pod_low_rv}\n{bookmark}\n");
+                    let resp = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = stream.write_all(resp.as_bytes());
+                }
+            } else {
+                // Subsequent incremental watch at resourceVersion=5005: return empty 200 after brief pause.
+                std::thread::sleep(Duration::from_millis(50));
+                let resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+                let _ = stream.write_all(resp.as_bytes());
+            }
+        }
+    });
+
+    let metrics = Arc::new(MetricsRegistry::new());
+    let sync_latch = Arc::new(InitialSyncLatch::new());
+    let kube = KubeClientConfig {
+        api_base: format!("http://{addr}"),
+        ca_cert_path: None,
+        token_source: Arc::new(KubeTokenSource::new(None)),
+        shard: ShardSpec::default(),
+        enable_watch_list: true,
+        list_page_size: 100,
+        event_label_selector: None,
+    };
+
+    let tbl_bg = Arc::clone(&pod_table);
+    let met_bg = Arc::clone(&metrics);
+    let latch_bg = Arc::clone(&sync_latch);
+    let stop_bg = Arc::clone(&stop_flag);
+    let reflector = std::thread::spawn(move || {
+        run_pod_reflector_loop(kube, tbl_bg, met_bg, latch_bg, stop_bg);
+    });
+
+    assert!(
+        sync_latch.wait_timeout(Duration::from_secs(5), &stop_flag),
+        "InitialSyncLatch must open on retry #2 once BOOKMARK arrives"
+    );
+    assert!(
+        wl_attempts.load(Ordering::SeqCst) >= 2,
+        "Truncated WatchList without bookmark must retry WatchList instead of switching to incremental watch"
+    );
+    assert_eq!(
+        pod_table.lookup("default", "stale-zombie-pod", None),
+        None,
+        "Stale pod must be evicted once complete WatchList bookmark arrives"
+    );
+    assert_eq!(
+        pod_table
+            .lookup("default", "pod-a-high-rv", None)
+            .map(|o| (o.kind, o.name)),
+        Some((ControllerKind::Deployment, "web".to_string()))
+    );
+    assert_eq!(
+        pod_table
+            .lookup("default", "pod-z-low-rv", None)
+            .map(|o| (o.kind, o.name)),
+        Some((ControllerKind::StatefulSet, "db".to_string())),
+        "Pod with lower RV ordered later in WatchList snapshot must not be skipped"
+    );
+
+    stop_flag.store(1, Ordering::Release);
+    let _ = reflector.join();
+    let _ = srv_handle.join();
+
+    // Verify Go nil-slice `"items": null` List responses on empty/idle clusters parse cleanly.
+    let null_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let null_addr = null_listener.local_addr().unwrap();
+    let null_srv = std::thread::spawn(move || {
+        let (mut stream, _) = null_listener.accept().unwrap();
+        let mut reader = BufReader::new(&stream);
+        loop {
+            let mut line = String::new();
+            if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
+                break;
+            }
+        }
+        let body = r#"{"kind":"PartialObjectMetadataList","metadata":{"resourceVersion":"9001"},"items":null}"#;
+        let resp = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            body.len(),
+            body
+        );
+        let _ = stream.write_all(resp.as_bytes());
+    });
+    let null_stop = AtomicU8::new(0);
+    let mut null_shard = ShardSpec::default();
+    let null_kube = KubeClientConfig {
+        api_base: format!("http://{null_addr}"),
+        ca_cert_path: None,
+        token_source: Arc::new(KubeTokenSource::new(None)),
+        shard: null_shard,
+        enable_watch_list: false,
+        list_page_size: 100,
+        event_label_selector: None,
+    };
+    let rv = paginated_pod_relist(
+        &null_kube,
+        &mut null_shard,
+        &pod_table,
+        &metrics,
+        &null_stop,
+    )
+    .expect("Kubernetes List with \"items\": null must deserialize cleanly");
+    assert_eq!(rv, "9001");
+    assert_eq!(pod_table.len(), 0);
+    let _ = null_srv.join();
 }
 
 #[test]

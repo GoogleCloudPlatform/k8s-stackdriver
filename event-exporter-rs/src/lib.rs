@@ -11,6 +11,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub mod auth;
 pub mod cli;
 pub mod enricher;
+pub mod k8s_stream;
 pub mod metrics;
 pub mod otlp_proto;
 pub mod pipeline;

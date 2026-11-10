@@ -15,8 +15,7 @@ Pure-Rust, `#![forbid(unsafe_code)]`, bounded-memory Kubernetes Event exporter f
 ## Build & Test
 
 ```bash
-cargo test --release --locked
-cargo fmt --all -- --check
-cargo clippy --all-targets --locked -- -D warnings
-cargo build --release --locked
+make test
+make lint
+make build
 ```

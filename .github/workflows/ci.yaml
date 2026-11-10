@@ -111,9 +111,8 @@ jobs:
     - name: Lint and test event-exporter-rs
       working-directory: event-exporter-rs
       run: |
-        cargo fmt --all -- --check
-        cargo clippy --all-targets --locked -- -D warnings
-        cargo test --release --locked
+        make lint
+        make build
 
   ci-container-build:
     name: ci-container-build-${{ matrix.component }}
@@ -125,6 +124,7 @@ jobs:
           - custom-metrics-stackdriver-adapter
           - prometheus-to-sd
           - event-exporter
+          - event-exporter-rs
           - kubelet-to-gcm
           - cloud-monitoring-proxy
     steps:
