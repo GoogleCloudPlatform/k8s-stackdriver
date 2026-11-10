@@ -1,25 +1,39 @@
-//! Unit, CLI flag parity, PodOwnerTable JobSet inference, RBAC spoofing guard, sharding, and
-//! 1,000,000-pod memory benchmark tests.
+//! Unit, golden wire-parity, live OTLP gRPC `tonic` server, GKE auth, and 1,000,000-pod
+//! memory benchmark tests.
 
 #![forbid(unsafe_code)]
 
+use event_exporter_rs::auth::{
+    CloudTokenProvider, KubeTokenSource, resolve_cluster_coordinates, resolve_logging_endpoint,
+    resolve_otlp_endpoint,
+};
 use event_exporter_rs::cli::{ExporterConfig, SinkKind};
 use event_exporter_rs::enricher::{
-    EntryPayload, LogSeverity, MonitoredResourceKind, build_startup_marker_entry,
-    enrich_event_object,
+    ClusterCoordinates, EntryPayload, LogSeverity, MonitoredResourceKind,
+    build_startup_marker_entry, enrich_event_object, parse_rfc3339_unix_nanos,
 };
-use event_exporter_rs::metrics::{MetricsRegistry, spawn_metrics_server};
+use event_exporter_rs::metrics::{MetricsRegistry, grpc_status_to_http_code, spawn_metrics_server};
+use event_exporter_rs::otlp_proto::{
+    ExportLogsPartialSuccess, ExportLogsServiceRequest, ExportLogsServiceResponse, SeverityNumber,
+    any_value,
+};
 use event_exporter_rs::pod_cache::{
     CompactOwner, ControllerKind, PodKey, PodOwnerTable, parse_partial_pod_object,
 };
 use event_exporter_rs::shard::{ShardMode, ShardSpec};
+use event_exporter_rs::sink::{
+    BatchExportOutcome, EventSink, OtlpSink, build_cloud_logging_write_body,
+    build_otlp_export_request,
+};
+use event_exporter_rs::transport::gunzip_bytes;
+use prost::Message;
 use serde_json::{Map, Value, json};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::io::{Read, Write};
-use std::net::TcpStream;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::{TcpListener, TcpStream};
+use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
 #[test]
@@ -55,6 +69,11 @@ fn test_cli_gke_manifest_and_otlp_flags() {
     );
     assert!(cfg.system_namespaces.contains("kube-system"));
     assert!(cfg.system_namespaces.contains("gke-managed-system"));
+    assert_eq!(
+        resolve_logging_endpoint(&cfg),
+        "https://logging.apis-tpclp.goog/"
+    );
+    assert_eq!(resolve_otlp_endpoint(&cfg), "telemetry.apis-tpclp.goog:443");
 
     let otlp_cfg = ExporterConfig::from_args([
         "--sink=otlp",
@@ -330,6 +349,377 @@ fn test_sharding_co_partitioning_and_statefulset_ordinal() {
     }
 }
 
+fn kv_str(attrs: &[event_exporter_rs::otlp_proto::KeyValue]) -> HashMap<String, String> {
+    attrs
+        .iter()
+        .filter_map(|kv| {
+            let s = match kv.value.as_ref()?.value.as_ref()? {
+                any_value::Value::StringValue(s) => s.clone(),
+                _ => return None,
+            };
+            Some((kv.key.clone(), s))
+        })
+        .collect()
+}
+
+#[test]
+fn test_otlp_proto_translation_and_loris_status_mapping() {
+    assert_eq!(grpc_status_to_http_code(0), "200");
+    assert_eq!(grpc_status_to_http_code(7), "403");
+    assert_eq!(grpc_status_to_http_code(8), "429");
+    assert_eq!(grpc_status_to_http_code(14), "503");
+
+    let coords = ClusterCoordinates {
+        project_id: "test-proj".to_string(),
+        cluster_name: "mega-cluster-1".to_string(),
+        location: "us-central1".to_string(),
+    };
+    let now = UNIX_EPOCH + Duration::from_secs(1_760_000_000);
+    let event_map: Map<String, Value> = serde_json::from_value(json!({
+        "metadata": { "uid": "u1", "resourceVersion": "99", "namespace": "default" },
+        "involvedObject": { "kind": "Node", "name": "gke-node-pool-1-abc" },
+        "type": "Warning",
+        "reason": "NodeNotReady",
+        "eventTime": "2026-05-02T12:34:56.789000000Z"
+    }))
+    .unwrap();
+    let node_entry = enrich_event_object(event_map, None, None, now);
+    let startup_entry = build_startup_marker_entry(&ShardSpec::default(), now).unwrap();
+
+    let batch = vec![node_entry, startup_entry];
+    let otlp_req = build_otlp_export_request(&coords, &batch);
+    let encoded = otlp_req.encode_to_vec();
+    let decoded = ExportLogsServiceRequest::decode(encoded.as_slice()).expect("parse OTLP request");
+    assert_eq!(decoded.resource_logs.len(), 2);
+
+    let mut saw_node = false;
+    let mut saw_startup = false;
+    for rl in &decoded.resource_logs {
+        let res_attrs = kv_str(&rl.resource.as_ref().unwrap().attributes);
+        let res_type = res_attrs
+            .get("gcp.resource_type")
+            .map(String::as_str)
+            .unwrap_or("");
+        for sl in &rl.scope_logs {
+            for lr in &sl.log_records {
+                let rec_attrs = kv_str(&lr.attributes);
+                assert_eq!(
+                    rec_attrs.get("gcp.log_name").map(String::as_str),
+                    Some("events")
+                );
+                assert_eq!(lr.severity_number, SeverityNumber::Warn as i32);
+                if res_type == "k8s_node" {
+                    saw_node = true;
+                    assert_eq!(
+                        res_attrs.get("node_name").map(String::as_str),
+                        Some("gke-node-pool-1-abc")
+                    );
+                    assert_eq!(
+                        rec_attrs
+                            .get("logging.googleapis.com/insertId")
+                            .map(String::as_str),
+                        Some("u1-99")
+                    );
+                    assert!(matches!(
+                        lr.body.as_ref().and_then(|b| b.value.as_ref()),
+                        Some(any_value::Value::KvlistValue(_))
+                    ));
+                    assert_eq!(
+                        lr.time_unix_nano,
+                        parse_rfc3339_unix_nanos("2026-05-02T12:34:56.789000000Z").unwrap()
+                    );
+                } else if res_type == "k8s_cluster" {
+                    saw_startup = true;
+                    let Some(any_value::Value::StringValue(body_str)) =
+                        lr.body.as_ref().and_then(|b| b.value.as_ref())
+                    else {
+                        panic!("expected string body for startup marker");
+                    };
+                    assert!(body_str.contains("Event exporter started watching"));
+                }
+            }
+        }
+    }
+    assert!(saw_node && saw_startup);
+
+    let captured_otlp_bytes: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+    let captured_clone = Arc::clone(&captured_otlp_bytes);
+    let server = MockHttpServer::start(move |req| {
+        if req.path == "/v1/logs" {
+            let decompressed = gunzip_bytes(&req.body, 4 * 1024 * 1024).expect("gunzip OTLP body");
+            *captured_clone.lock().unwrap() = decompressed;
+            MockHttpReply::ok_bytes("application/x-protobuf", Vec::new())
+        } else {
+            MockHttpReply::status(404, "not found")
+        }
+    });
+
+    let metrics = MetricsRegistry::new();
+    let sink = OtlpSink::new(
+        &format!("{}/v1/logs", server.base_url()),
+        coords.clone(),
+        Arc::new(CloudTokenProvider::unauthenticated()),
+        None,
+    )
+    .unwrap();
+    let outcome = sink.export_batch(&batch, &metrics);
+    assert_eq!(outcome, BatchExportOutcome::Success { sent_entries: 2 });
+    let wire_req = ExportLogsServiceRequest::decode(captured_otlp_bytes.lock().unwrap().as_slice())
+        .expect("valid OTLP");
+    assert_eq!(wire_req.resource_logs.len(), 2);
+
+    let cl_json: Value =
+        serde_json::from_slice(&build_cloud_logging_write_body(&coords, &batch)).unwrap();
+    assert_eq!(
+        cl_json["logName"].as_str(),
+        Some("projects/test-proj/logs/events")
+    );
+    assert_eq!(cl_json["entries"].as_array().unwrap().len(), 2);
+}
+
+#[test]
+fn test_otlp_grpc_live_tonic_server_export_and_partial_success() {
+    use std::convert::Infallible;
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::task::{Context, Poll};
+    use tonic::body::BoxBody;
+    use tonic::codec::ProstCodec;
+    use tonic::server::{NamedService, UnaryService};
+
+    #[derive(Clone)]
+    struct MockOtlpGrpcSvc {
+        calls: Arc<AtomicUsize>,
+        captured_auth: Arc<Mutex<String>>,
+        captured_proj: Arc<Mutex<String>>,
+        captured_records: Arc<AtomicUsize>,
+    }
+
+    impl NamedService for MockOtlpGrpcSvc {
+        const NAME: &'static str = "opentelemetry.proto.collector.logs.v1.LogsService";
+    }
+
+    struct ExportUnaryMethod(MockOtlpGrpcSvc);
+
+    impl UnaryService<ExportLogsServiceRequest> for ExportUnaryMethod {
+        type Response = ExportLogsServiceResponse;
+        type Future = Pin<
+            Box<dyn Future<Output = Result<tonic::Response<Self::Response>, tonic::Status>> + Send>,
+        >;
+
+        fn call(&mut self, request: tonic::Request<ExportLogsServiceRequest>) -> Self::Future {
+            let svc = self.0.clone();
+            Box::pin(async move {
+                let n = svc.calls.fetch_add(1, Ordering::SeqCst);
+                if n == 0 {
+                    return Err(tonic::Status::resource_exhausted("quota burst"));
+                }
+                if let Some(a) = request.metadata().get("authorization") {
+                    *svc.captured_auth.lock().unwrap() = a.to_str().unwrap_or("").to_string();
+                }
+                if let Some(p) = request.metadata().get("x-goog-user-project") {
+                    *svc.captured_proj.lock().unwrap() = p.to_str().unwrap_or("").to_string();
+                }
+                let count: usize = request
+                    .into_inner()
+                    .resource_logs
+                    .iter()
+                    .flat_map(|rl| &rl.scope_logs)
+                    .map(|sl| sl.log_records.len())
+                    .sum();
+                svc.captured_records.fetch_add(count, Ordering::SeqCst);
+                Ok(tonic::Response::new(ExportLogsServiceResponse {
+                    partial_success: Some(ExportLogsPartialSuccess {
+                        rejected_log_records: 1,
+                        error_message: "1 test record dropped".to_string(),
+                    }),
+                }))
+            })
+        }
+    }
+
+    impl tonic::codegen::Service<http::Request<BoxBody>> for MockOtlpGrpcSvc {
+        type Response = http::Response<BoxBody>;
+        type Error = Infallible;
+        type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+        fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn call(&mut self, req: http::Request<BoxBody>) -> Self::Future {
+            let svc = self.clone();
+            Box::pin(async move {
+                if req.uri().path() == "/opentelemetry.proto.collector.logs.v1.LogsService/Export" {
+                    let mut grpc = tonic::server::Grpc::new(ProstCodec::<
+                        ExportLogsServiceResponse,
+                        ExportLogsServiceRequest,
+                    >::default());
+                    Ok(grpc.unary(ExportUnaryMethod(svc), req).await)
+                } else {
+                    Ok(http::Response::builder()
+                        .status(404)
+                        .body(tonic::body::empty_body())
+                        .unwrap())
+                }
+            })
+        }
+    }
+
+    let calls = Arc::new(AtomicUsize::new(0));
+    let captured_auth = Arc::new(Mutex::new(String::new()));
+    let captured_proj = Arc::new(Mutex::new(String::new()));
+    let captured_records = Arc::new(AtomicUsize::new(0));
+
+    let svc = MockOtlpGrpcSvc {
+        calls: Arc::clone(&calls),
+        captured_auth: Arc::clone(&captured_auth),
+        captured_proj: Arc::clone(&captured_proj),
+        captured_records: Arc::clone(&captured_records),
+    };
+
+    let std_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    std_listener.set_nonblocking(true).unwrap();
+    let grpc_port = std_listener.local_addr().unwrap().port();
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+
+    let server_thread = std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async move {
+            let tokio_listener = tokio::net::TcpListener::from_std(std_listener).unwrap();
+            let incoming = tokio_stream::wrappers::TcpListenerStream::new(tokio_listener);
+            let _ = tonic::transport::Server::builder()
+                .add_service(svc)
+                .serve_with_incoming_shutdown(incoming, async {
+                    let _ = shutdown_rx.await;
+                })
+                .await;
+        });
+    });
+
+    let tok_server = MockHttpServer::start(|_| {
+        MockHttpReply::ok_json(&json!({ "access_token": "mock-grpc-token", "expires_in": 600 }))
+    });
+    let tok_cfg = ExporterConfig {
+        node_token_broker: Some(format!("{}/token", tok_server.base_url())),
+        ..Default::default()
+    };
+    let coords = ClusterCoordinates {
+        project_id: "grpc-proj-1".to_string(),
+        cluster_name: "grpc-cluster".to_string(),
+        location: "us-central1".to_string(),
+    };
+    let sink = OtlpSink::new(
+        &format!("http://127.0.0.1:{grpc_port}"),
+        coords,
+        Arc::new(CloudTokenProvider::from_config(&tok_cfg, None)),
+        None,
+    )
+    .expect("create OtlpSink over gRPC");
+
+    let now = UNIX_EPOCH + Duration::from_secs(1_760_000_000);
+    let e1 = build_startup_marker_entry(&ShardSpec::default(), now).unwrap();
+    let e2 =
+        build_startup_marker_entry(&ShardSpec::default(), now + Duration::from_secs(1)).unwrap();
+    let batch = vec![e1, e2];
+    let metrics = MetricsRegistry::new();
+
+    // First call returns gRPC RESOURCE_EXHAUSTED (8 -> HTTP "429" retryable).
+    let first = sink.export_batch(&batch, &metrics);
+    assert!(matches!(
+        first,
+        BatchExportOutcome::RetryableFailure { ref status_code, .. } if status_code == "429"
+    ));
+
+    // Second call succeeds with 1 partial_success rejected record (2 - 1 = 1 accepted).
+    let second = sink.export_batch(&batch, &metrics);
+    assert_eq!(second, BatchExportOutcome::Success { sent_entries: 1 });
+    assert_eq!(
+        captured_auth.lock().unwrap().as_str(),
+        "Bearer mock-grpc-token"
+    );
+    assert_eq!(captured_proj.lock().unwrap().as_str(), "grpc-proj-1");
+    assert_eq!(captured_records.load(Ordering::SeqCst), 2);
+    let prom = metrics.render_prometheus();
+    assert!(prom.contains("stackdriver_sink_request_count{code=\"429\"} 1"));
+    assert!(prom.contains("stackdriver_sink_request_count{code=\"200\"} 1"));
+    assert!(prom.contains("stackdriver_sink_successfully_sent_entry_count 1"));
+
+    let _ = shutdown_tx.send(());
+    let _ = server_thread.join();
+}
+
+#[test]
+fn test_node_token_broker_adc_and_metadata_discovery() {
+    let dir = tempfile::tempdir().unwrap();
+    let ksa_path = dir.path().join("ksa.jwt");
+    fs::write(&ksa_path, "projected-ksa-jwt-token-xyz\n").unwrap();
+
+    let server = MockHttpServer::start(move |req| match req.path.as_str() {
+        "/computeMetadata/v1/project/project-id" => MockHttpReply::ok_text("gke-prod-proj"),
+        "/computeMetadata/v1/instance/attributes/cluster-name" => {
+            MockHttpReply::ok_text("linked-runner-01")
+        }
+        "/computeMetadata/v1/instance/attributes/cluster-location" => {
+            MockHttpReply::ok_text("us-east4")
+        }
+        "/v1/token" => {
+            let body: Value = serde_json::from_slice(&req.body).unwrap();
+            assert_eq!(
+                body["subjectToken"].as_str(),
+                Some("projected-ksa-jwt-token-xyz")
+            );
+            MockHttpReply::ok_json(&json!({
+                "access_token": "mock-exchanged-sts-token",
+                "expires_in": 3600
+            }))
+        }
+        _ => MockHttpReply::status(404, "unknown"),
+    });
+
+    let adc_path = dir.path().join("adc.json");
+    fs::write(
+        &adc_path,
+        serde_json::to_vec(&json!({
+            "type": "external_account",
+            "audience": "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/p",
+            "subject_token_type": "kubernetes_service_account_token",
+            "token_url": format!("{}/v1/token", server.base_url()),
+            "credential_source": { "file": ksa_path.to_str().unwrap() }
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let cfg = ExporterConfig::default();
+    let coords = resolve_cluster_coordinates(&cfg, Some(&server.base_url())).unwrap();
+    assert_eq!(coords.project_id.as_str(), "gke-prod-proj");
+    assert_eq!(coords.cluster_name.as_str(), "linked-runner-01");
+    assert_eq!(coords.location.as_str(), "us-east4");
+
+    let broker_server = MockHttpServer::start(|_| {
+        MockHttpReply::ok_json(&json!({ "access_token": "mock-broker-direct", "expires_in": 600 }))
+    });
+    let broker_cfg = ExporterConfig {
+        node_token_broker: Some(format!("{}/token", broker_server.base_url())),
+        ..Default::default()
+    };
+    let provider = CloudTokenProvider::from_config(&broker_cfg, Some(&server.base_url()));
+    assert_eq!(
+        provider.access_token().unwrap().as_deref(),
+        Some("mock-broker-direct")
+    );
+
+    let kube_tok = KubeTokenSource::new(Some(ksa_path.to_string_lossy().into_owned()));
+    assert_eq!(
+        kube_tok.bearer_token().unwrap().as_deref(),
+        Some("projected-ksa-jwt-token-xyz")
+    );
+}
+
 #[test]
 fn test_metrics_server_large_bearer_header_start_time_and_exact_bounds() {
     let registry = Arc::new(MetricsRegistry::new());
@@ -493,4 +883,162 @@ fn read_process_rss_bytes() -> u64 {
         .ok()
         .and_then(|s| parse_vm_rss_bytes(&s))
         .unwrap_or(0)
+}
+
+struct MockHttpRequest {
+    path: String,
+    body: Vec<u8>,
+}
+
+struct MockHttpReply {
+    status: u16,
+    content_type: &'static str,
+    body: Vec<u8>,
+}
+
+impl MockHttpReply {
+    fn ok_text(text: &str) -> Self {
+        Self {
+            status: 200,
+            content_type: "text/plain",
+            body: text.as_bytes().to_vec(),
+        }
+    }
+
+    fn ok_json(val: &Value) -> Self {
+        Self {
+            status: 200,
+            content_type: "application/json",
+            body: serde_json::to_vec(val).unwrap(),
+        }
+    }
+
+    fn ok_bytes(content_type: &'static str, body: Vec<u8>) -> Self {
+        Self {
+            status: 200,
+            content_type,
+            body,
+        }
+    }
+
+    fn status(code: u16, msg: &str) -> Self {
+        Self {
+            status: code,
+            content_type: "application/json",
+            body: msg.as_bytes().to_vec(),
+        }
+    }
+}
+
+struct MockHttpServer {
+    port: u16,
+    stop: Arc<AtomicU8>,
+    handle: Option<std::thread::JoinHandle<()>>,
+}
+
+impl MockHttpServer {
+    fn start<F>(handler: F) -> Self
+    where
+        F: Fn(MockHttpRequest) -> MockHttpReply + Send + Sync + 'static,
+    {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        listener.set_nonblocking(true).unwrap();
+        let stop = Arc::new(AtomicU8::new(0));
+        let stop_clone = Arc::clone(&stop);
+        let handler = Arc::new(handler);
+
+        let handle = std::thread::spawn(move || {
+            while stop_clone.load(Ordering::Acquire) == 0 {
+                match listener.accept() {
+                    Ok((stream, _)) => {
+                        let h = Arc::clone(&handler);
+                        std::thread::spawn(move || serve_one_http_conn(stream, h.as_ref()));
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                        std::thread::sleep(Duration::from_millis(5));
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+
+        Self {
+            port,
+            stop,
+            handle: Some(handle),
+        }
+    }
+
+    fn base_url(&self) -> String {
+        format!("http://127.0.0.1:{}", self.port)
+    }
+}
+
+impl Drop for MockHttpServer {
+    fn drop(&mut self) {
+        self.stop.store(1, Ordering::Release);
+        if let Some(h) = self.handle.take() {
+            let _ = h.join();
+        }
+    }
+}
+
+fn serve_one_http_conn<F>(stream: TcpStream, handler: &F)
+where
+    F: Fn(MockHttpRequest) -> MockHttpReply,
+{
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
+    let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
+    let Ok(mut writer) = stream.try_clone() else {
+        return;
+    };
+    let mut reader = BufReader::new(stream);
+    let mut request_line = String::new();
+    if reader.read_line(&mut request_line).unwrap_or(0) == 0 {
+        return;
+    }
+    let path = request_line
+        .split_whitespace()
+        .nth(1)
+        .unwrap_or("/")
+        .to_string();
+
+    let mut content_length = 0usize;
+    loop {
+        let mut hdr = String::new();
+        if reader.read_line(&mut hdr).unwrap_or(0) == 0 || hdr == "\r\n" || hdr == "\n" {
+            break;
+        }
+        if let Some((k, v)) = hdr.split_once(':')
+            && k.trim().eq_ignore_ascii_case("content-length")
+        {
+            content_length = v.trim().parse::<usize>().unwrap_or(0);
+        }
+    }
+
+    let mut body = vec![0u8; content_length];
+    if content_length > 0 {
+        let _ = reader.read_exact(&mut body);
+    }
+
+    let reply = handler(MockHttpRequest { path, body });
+    let reason = match reply.status {
+        200 => "OK",
+        410 => "Gone",
+        422 => "Unprocessable Entity",
+        429 => "Too Many Requests",
+        _ => "Error",
+    };
+    let header = format!(
+        "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        reply.status,
+        reply.content_type,
+        reply.body.len()
+    );
+    let _ = writer.write_all(header.as_bytes());
+    if !reply.body.is_empty() {
+        let _ = writer.write_all(&reply.body);
+    }
+    let _ = writer.flush();
 }

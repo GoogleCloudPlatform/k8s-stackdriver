@@ -8,11 +8,16 @@ use std::io::Write;
 use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+pub mod auth;
 pub mod cli;
 pub mod enricher;
 pub mod metrics;
+pub mod otlp_proto;
+pub mod pipeline;
 pub mod pod_cache;
 pub mod shard;
+pub mod sink;
+pub mod transport;
 
 struct StderrLogger;
 

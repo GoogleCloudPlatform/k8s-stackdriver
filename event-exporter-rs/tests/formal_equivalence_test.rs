@@ -1,16 +1,27 @@
-//! Formal refinement, algebraic sharding bijection, and RFC3339 / Go `-sink-opts` parity tests.
+//! Formal refinement, algebraic sharding bijection, RFC3339 calendar boundary, and Go v0.4.0
+//! Prometheus/sink-opts parity tests.
 
 #![forbid(unsafe_code)]
 
+use event_exporter_rs::auth::{CloudTokenProvider, resolve_logging_endpoint};
 use event_exporter_rs::cli::ExporterConfig;
-use event_exporter_rs::enricher::{format_unix_nanos_rfc3339, parse_rfc3339_unix_nanos};
+use event_exporter_rs::enricher::{
+    ClusterCoordinates, enrich_event_object, format_unix_nanos_rfc3339, parse_rfc3339_unix_nanos,
+};
 use event_exporter_rs::metrics::MetricsRegistry;
 use event_exporter_rs::pod_cache::{
     CompactOwner, ControllerKind, OwnerRefExtract, PodKey, PodMetadataExtract, PodOwnerTable,
     RelevantPodLabels, ResolvedPodOwner,
 };
 use event_exporter_rs::shard::{ShardMode, ShardSpec};
+use event_exporter_rs::sink::{BatchExportOutcome, CloudLoggingSink, EventSink};
+use serde_json::{Map, Value, json};
 use std::collections::{BTreeMap, HashSet};
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::TcpListener;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 fn make_pod_spec(
     variant: usize,
@@ -447,4 +458,132 @@ fn test_rfc3339_calendar_bounds_and_go_sink_opts_flag_parity() {
     assert!(cfg.system_namespaces.contains("kube-system"));
     assert!(cfg.system_namespaces.contains("gke-connect"));
     assert_eq!(cfg.system_namespaces.len(), 2);
+    assert_eq!(
+        resolve_logging_endpoint(&cfg),
+        "https://logging.apis-tpclp.goog/"
+    );
+}
+
+#[test]
+fn test_gke_manifest_prometheus_whitelist_and_delivery_freshness_latency() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let calls_srv = Arc::clone(&calls);
+
+    let srv = std::thread::spawn(move || {
+        for _ in 0..2 {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
+            let mut reader = BufReader::new(&stream);
+            let mut content_len = 0usize;
+            loop {
+                let mut line = String::new();
+                if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
+                    break;
+                }
+                if let Some(rest) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                    content_len = rest.trim().parse::<usize>().unwrap_or(0);
+                }
+            }
+            if content_len > 0 {
+                let mut body = vec![0u8; content_len];
+                let _ = reader.read_exact(&mut body);
+            }
+            let n = calls_srv.fetch_add(1, Ordering::SeqCst);
+            if n == 0 {
+                let msg = "{\"error\":\"rate_limited\"}";
+                let resp = format!(
+                    "HTTP/1.1 429 Too Many Requests\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    msg.len(),
+                    msg
+                );
+                let _ = stream.write_all(resp.as_bytes());
+            } else {
+                let msg = "{}";
+                let resp = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    msg.len(),
+                    msg
+                );
+                let _ = stream.write_all(resp.as_bytes());
+            }
+        }
+    });
+
+    // Construct an Event whose lastTimestamp is 10 seconds prior to wall-clock export time.
+    let now = SystemTime::now();
+    let ten_secs_ago = now - Duration::from_secs(10);
+    let ts_str = format_unix_nanos_rfc3339(
+        ten_secs_ago.duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64,
+    );
+    let ev_map: Map<String, Value> = serde_json::from_value(json!({
+        "metadata": { "uid": "u-lat-1", "resourceVersion": "77", "namespace": "default" },
+        "involvedObject": { "kind": "Pod", "namespace": "default", "name": "lat-pod" },
+        "type": "Normal",
+        "reason": "Scheduled",
+        "lastTimestamp": ts_str
+    }))
+    .unwrap();
+
+    let metrics = MetricsRegistry::new();
+    metrics.add_received_entries(1);
+    let entry = enrich_event_object(ev_map, None, Some(&metrics), now);
+    assert!(entry.has_timestamp);
+
+    let sink = CloudLoggingSink::new(
+        &format!("http://{addr}"),
+        ClusterCoordinates {
+            project_id: "proj-1".to_string(),
+            cluster_name: "clus-1".to_string(),
+            location: "us-central1".to_string(),
+        },
+        Arc::new(CloudTokenProvider::unauthenticated()),
+        None,
+    );
+
+    // 1st attempt: HTTP 429 -> must NOT record latency!
+    let out1 = sink.export_batch(std::slice::from_ref(&entry), &metrics);
+    assert!(matches!(out1, BatchExportOutcome::RetryableFailure { .. }));
+    let prom_after_429 = metrics.render_prometheus();
+    assert!(prom_after_429.contains("stackdriver_sink_request_count{code=\"429\"} 1"));
+    assert!(
+        prom_after_429.contains("stackdriver_sink_records_latency_seconds_count 0"),
+        "Failed 429 export must not record delivery latency:\n{prom_after_429}"
+    );
+
+    // 2nd attempt: HTTP 200 -> records (now - event.lastTimestamp) ~= 10.0s (bucket > 6.75s, <= 15.1875s),
+    // NOT ~1ms HTTP round-trip time (which would land in le="2")!
+    let out2 = sink.export_batch(std::slice::from_ref(&entry), &metrics);
+    assert_eq!(out2, BatchExportOutcome::Success { sent_entries: 1 });
+    let _ = srv.join();
+
+    let prom = metrics.render_prometheus();
+    assert!(prom.contains("stackdriver_sink_records_latency_seconds_count 1"));
+    assert!(
+        prom.contains("stackdriver_sink_records_latency_seconds_bucket{le=\"2\"} 0")
+            && prom.contains("stackdriver_sink_records_latency_seconds_bucket{le=\"6.75\"} 0")
+            && prom.contains("stackdriver_sink_records_latency_seconds_bucket{le=\"15.1875\"} 1"),
+        "Histogram must measure event-to-sink freshness (~10s), not RPC RTT (~1ms):\n{prom}"
+    );
+
+    // Every metric whitelisted by GKE's event-exporter-manifest.yaml must be present.
+    for required_metric in [
+        "podlabel_cache_ops_count",
+        "podlabel_get_count",
+        "podlabel_nolabel_pod_cache_ops_count",
+        "stackdriver_sink_received_entry_count",
+        "stackdriver_sink_successfully_sent_entry_count",
+        "stackdriver_sink_request_count",
+        "stackdriver_sink_records_latency_seconds_bucket",
+        "stackdriver_sink_records_latency_seconds_sum",
+        "stackdriver_sink_records_latency_seconds_count",
+    ] {
+        assert!(
+            prom.contains(required_metric),
+            "missing GKE whitelisted metric {required_metric}"
+        );
+    }
 }
