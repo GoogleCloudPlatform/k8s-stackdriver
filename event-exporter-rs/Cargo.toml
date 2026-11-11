@@ -1,0 +1,65 @@
+[package]
+name = "event-exporter-rs"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+description = "Bounded-memory Kubernetes Event exporter for GKE (Cloud Logging v2 and OpenTelemetry OTLP)"
+publish = false
+
+[lib]
+name = "event_exporter_rs"
+path = "src/lib.rs"
+
+[[bin]]
+name = "event-exporter"
+path = "src/main.rs"
+
+[dependencies]
+bytes = "1"
+flate2 = "1"
+http = "1"
+log = "0.4"
+prost = "0.13"
+reqwest = { version = "0.12", default-features = false, features = [
+    "http2",
+    "rustls-tls-native-roots",
+    "rustls-tls-webpki-roots",
+    "stream",
+] }
+rustls = { version = "0.23", default-features = false, features = [
+    "ring",
+    "std",
+    "tls12",
+] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["raw_value"] }
+tokio = { version = "1", features = [
+    "io-util",
+    "macros",
+    "net",
+    "rt-multi-thread",
+    "signal",
+    "sync",
+    "time",
+] }
+tonic = { version = "0.12", default-features = false, features = [
+    "channel",
+    "gzip",
+    "prost",
+    "tls",
+    "tls-native-roots",
+    "tls-webpki-roots",
+] }
+
+[dev-dependencies]
+tempfile = "3"
+tokio-stream = { version = "0.1", features = ["net"] }
+tonic = { version = "0.12", default-features = false, features = [
+    "codegen",
+    "server",
+] }
+
+[profile.release]
+opt-level = 3
+codegen-units = 1
+strip = "symbols"
