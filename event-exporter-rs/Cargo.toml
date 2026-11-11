@@ -1,0 +1,21 @@
+[package]
+name = "event-exporter-rs"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+description = "Bounded-memory Kubernetes Event exporter for GKE (Cloud Logging v2 and OpenTelemetry OTLP)"
+publish = false
+
+[lib]
+name = "event_exporter_rs"
+path = "src/lib.rs"
+
+[dependencies]
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["raw_value"] }
+
+[profile.release]
+opt-level = 3
+codegen-units = 1
+strip = "symbols"
