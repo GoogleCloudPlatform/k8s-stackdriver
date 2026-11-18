@@ -25,6 +25,12 @@ updates:
   cooldown:
     default-days: 7
 - package-ecosystem: docker
+  directory: /event-exporter-rs
+  schedule:
+    interval: weekly
+  cooldown:
+    default-days: 7
+- package-ecosystem: docker
   directory: /custom-metrics-stackdriver-adapter
   schedule:
     interval: weekly
@@ -50,6 +56,12 @@ updates:
     default-days: 7
 - package-ecosystem: gomod
   directory: /event-exporter
+  schedule:
+    interval: weekly
+  cooldown:
+    default-days: 7
+- package-ecosystem: cargo
+  directory: /event-exporter-rs
   schedule:
     interval: weekly
   cooldown:
