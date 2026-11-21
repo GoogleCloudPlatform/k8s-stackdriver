@@ -19,6 +19,8 @@ package main
 import (
 	"net/http"
 	"testing"
+
+	"k8s.io/apimachinery/pkg/fields"
 )
 
 func TestStartPprofServer(t *testing.T) {
@@ -55,5 +57,50 @@ func TestStartPprofServer(t *testing.T) {
 		if pattern == "" {
 			t.Errorf("pprof endpoint %q matched empty pattern on server handler", endpoint)
 		}
+	}
+}
+
+func TestEventFieldSelectorFlag(t *testing.T) {
+	testCases := []struct {
+		desc        string
+		selector    string
+		expectError bool
+		expectedStr string
+	}{
+		{
+			desc:        "empty selector",
+			selector:    "",
+			expectError: false,
+			expectedStr: "",
+		},
+		{
+			desc:        "valid field selector",
+			selector:    "type=Warning,involvedObject.kind=Pod",
+			expectError: false,
+			expectedStr: "involvedObject.kind=Pod,type=Warning",
+		},
+		{
+			desc:        "invalid field selector operator",
+			selector:    "type in (Warning)",
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			fs, err := fields.ParseSelector(tc.selector)
+			if tc.expectError {
+				if err == nil {
+					t.Errorf("Expected error parsing selector %q, got nil", tc.selector)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("Unexpected error parsing selector %q: %v", tc.selector, err)
+				}
+				if fs.String() != tc.expectedStr {
+					t.Errorf("fs.String() = %q, want %q", fs.String(), tc.expectedStr)
+				}
+			}
+		})
 	}
 }
