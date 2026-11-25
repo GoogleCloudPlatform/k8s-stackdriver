@@ -24,6 +24,7 @@ import (
 
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/watchers"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/kubernetes/watchers/events"
+	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/sharding"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/sinks"
 	"github.com/GoogleCloudPlatform/k8s-stackdriver/event-exporter/utils"
 )
@@ -37,18 +38,22 @@ func (e *eventExporter) Run(stopCh <-chan struct{}) {
 	utils.RunConcurrentlyUntil(stopCh, e.sink.Run, e.watcher.Run)
 }
 
-func newEventExporter(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration, eventLabelSelector labels.Selector, listerWatcherOptionsLimit int64, listerWatcherEnableStreaming bool, storageType watchers.StorageType) *eventExporter {
+func newEventExporter(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration, eventLabelSelector labels.Selector, listerWatcherOptionsLimit int64, listerWatcherEnableStreaming bool, storageType watchers.StorageType, sharder *sharding.Sharder) *eventExporter {
 	return &eventExporter{
 		sink:    sink,
-		watcher: createWatcher(client, sink, resyncPeriod, eventLabelSelector, listerWatcherOptionsLimit, listerWatcherEnableStreaming, storageType),
+		watcher: createWatcher(client, sink, resyncPeriod, eventLabelSelector, listerWatcherOptionsLimit, listerWatcherEnableStreaming, storageType, sharder),
 	}
 }
 
-func createWatcher(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration, eventLabelSelector labels.Selector, listerWatcherOptionsLimit int64, listerWatcherEnableStreaming bool, storageType watchers.StorageType) watchers.Watcher {
+func createWatcher(client kubernetes.Interface, sink sinks.Sink, resyncPeriod time.Duration, eventLabelSelector labels.Selector, listerWatcherOptionsLimit int64, listerWatcherEnableStreaming bool, storageType watchers.StorageType, sharder *sharding.Sharder) watchers.Watcher {
+	var handler events.EventHandler = sink
+	if sharder.Enabled() {
+		handler = events.NewShardingHandler(sink, sharder.Owns)
+	}
 	return events.NewEventWatcher(client, &events.EventWatcherConfig{
 		OnList:                       sink.OnList,
 		ResyncPeriod:                 resyncPeriod,
-		Handler:                      sink,
+		Handler:                      handler,
 		EventLabelSelector:           eventLabelSelector,
 		ListerWatcherOptionsLimit:    listerWatcherOptionsLimit,
 		ListerWatcherEnableStreaming: listerWatcherEnableStreaming,
