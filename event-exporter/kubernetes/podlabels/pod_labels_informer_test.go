@@ -234,7 +234,7 @@ func TestGetLabelsCacheOperations(t *testing.T) {
 	}
 	fakeMetadataClient := metadatafake.NewSimpleMetadataClient(scheme, pod1, pod2)
 	
-	factory := NewPodLabelsSharedInformerFactory(fakeMetadataClient, nil, false)
+	factory := NewPodLabelsSharedInformerFactory(fakeMetadataClient, nil)
 	collector := factory.NewPodLabelsSharedInformer()
 	stopCh := make(chan struct{})
 	defer close(stopCh)
