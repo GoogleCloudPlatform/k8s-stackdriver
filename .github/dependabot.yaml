@@ -54,6 +54,12 @@ updates:
     interval: weekly
   cooldown:
     default-days: 7
+- package-ecosystem: cargo
+  directory: /event-exporter-rs
+  schedule:
+    interval: weekly
+  cooldown:
+    default-days: 7
 - package-ecosystem: gomod
   directory: /custom-metrics-stackdriver-adapter
   schedule:
